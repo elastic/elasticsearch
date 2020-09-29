@@ -66,7 +66,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         if (useBwCFormat) {
             initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
             // Re-create repo to clear repository data cache
-            assertAcked(client().admin().cluster().prepareDeleteRepository(repoName).get());
+            assertAcked(clusterAdmin().prepareDeleteRepository(repoName).get());
             createRepository(repoName, "fs", repoPath);
         }
 
@@ -133,12 +133,12 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         indexRandomDocs(indexName, randomIntBetween(20, 100));
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareDelete(indexName));
+            assertAcked(admin().indices().prepareDelete(indexName));
         }
         final String targetSnapshot = "target-snapshot";
-        assertAcked(client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexName).get());
+        assertAcked(startClone(repoName, sourceSnapshot, targetSnapshot, indexName).get());
 
-        final List<SnapshotStatus> status = client().admin().cluster().prepareSnapshotStatus(repoName)
+        final List<SnapshotStatus> status = clusterAdmin().prepareSnapshotStatus(repoName)
                 .setSnapshots(sourceSnapshot, targetSnapshot).get().getSnapshots();
         assertThat(status, hasSize(2));
         final SnapshotIndexStatus status1 = status.get(0).getIndices().get(indexName);
@@ -162,18 +162,17 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String targetSnapshot = "target-snapshot";
         blockNodeOnAnyFiles(repoName, masterName);
-        final ActionFuture<AcknowledgedResponse> cloneFuture =
-                client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexName).execute();
+        final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, indexName);
         waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
         assertFalse(cloneFuture.isDone());
 
-        ConcurrentSnapshotExecutionException ex = expectThrows(ConcurrentSnapshotExecutionException.class, () ->
-                client().admin().cluster().prepareDeleteSnapshot(repoName, sourceSnapshot).execute().actionGet());
+        ConcurrentSnapshotExecutionException ex = expectThrows(ConcurrentSnapshotExecutionException.class,
+                () -> startDeleteSnapshot(repoName, sourceSnapshot).actionGet());
         assertThat(ex.getMessage(), containsString("cannot delete snapshot while it is being cloned"));
 
         unblockNode(repoName, masterName);
         assertAcked(cloneFuture.get());
-        final List<SnapshotStatus> status = client().admin().cluster().prepareSnapshotStatus(repoName)
+        final List<SnapshotStatus> status = clusterAdmin().prepareSnapshotStatus(repoName)
                 .setSnapshots(sourceSnapshot, targetSnapshot).get().getSnapshots();
         assertThat(status, hasSize(2));
         final SnapshotIndexStatus status1 = status.get(0).getIndices().get(indexName);
@@ -199,8 +198,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> snapshot2Future =
                 startFullSnapshotBlockedOnDataNode("snapshot-2", repoName, dataNode);
         waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
-        final ActionFuture<AcknowledgedResponse> cloneFuture =
-                client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexName).execute();
+        final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, indexName);
         awaitNumberOfSnapshotsInProgress(2);
         unblockNode(repoName, dataNode);
         assertAcked(cloneFuture.get());
@@ -221,14 +219,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String targetSnapshot = "target-snapshot";
         blockMasterOnShardClone(repoName);
-        final ActionFuture<AcknowledgedResponse> cloneFuture =
-                client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexSlow).execute();
+        final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, indexSlow);
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
 
         final String indexFast = "index-fast";
         createIndexWithRandomDocs(indexFast, randomIntBetween(20, 100));
 
-        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, "fast-snapshot")
+        assertSuccessful(clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot")
                 .setIndices(indexFast).setWaitForCompletion(true).execute());
 
         assertThat(cloneFuture.isDone(), is(false));
@@ -252,12 +249,12 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs(indexFast, randomIntBetween(20, 100));
 
         blockDataNode(repoName, dataNode);
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin().cluster()
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin()
                 .prepareCreateSnapshot(repoName, "fast-snapshot").setIndices(indexFast).setWaitForCompletion(true).execute();
         waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
 
         final String targetSnapshot = "target-snapshot";
-        assertAcked(client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexSlow).get());
+        assertAcked(startClone(repoName, sourceSnapshot, targetSnapshot, indexSlow).get());
 
         assertThat(snapshotFuture.isDone(), is(false));
         unblockNode(repoName, dataNode);
@@ -280,14 +277,12 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String targetSnapshot = "target-snapshot";
         blockNodeOnAnyFiles(repoName, masterName);
-        final ActionFuture<AcknowledgedResponse> deleteFuture =
-                client().admin().cluster().prepareDeleteSnapshot(repoName, sourceSnapshot).execute();
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, sourceSnapshot);
         waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
         assertFalse(deleteFuture.isDone());
 
         ConcurrentSnapshotExecutionException ex = expectThrows(ConcurrentSnapshotExecutionException.class, () ->
-                client().admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indexName).execute()
-                        .actionGet());
+                startClone(repoName, sourceSnapshot, targetSnapshot, indexName).actionGet());
         assertThat(ex.getMessage(), containsString("cannot clone from snapshot that is being deleted"));
 
         unblockNode(repoName, masterName);
@@ -306,20 +301,18 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        assertAcked(client().admin().indices().prepareDelete(indexBlocked).get());
+        assertAcked(admin().indices().prepareDelete(indexBlocked).get());
 
         final String targetSnapshot1 = "target-snapshot";
         blockMasterOnShardClone(repoName);
-        final ActionFuture<AcknowledgedResponse> cloneFuture1 = client().admin().cluster()
-                .prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot1).setIndices(indexBlocked).execute();
+        final ActionFuture<AcknowledgedResponse> cloneFuture1 = startClone(repoName, sourceSnapshot, targetSnapshot1, indexBlocked);
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
         assertThat(cloneFuture1.isDone(), is(false));
 
         final int extraClones = randomIntBetween(1, 5);
         final List<ActionFuture<AcknowledgedResponse>> extraCloneFutures = new ArrayList<>(extraClones);
         for (int i = 0; i < extraClones; i++) {
-            extraCloneFutures.add(client().admin().cluster()
-                    .prepareCloneSnapshot(repoName, sourceSnapshot, "target-snapshot-" + i).setIndices(indexBlocked).execute());
+            extraCloneFutures.add(startClone(repoName, sourceSnapshot, "target-snapshot-" + i, indexBlocked));
         }
         awaitNumberOfSnapshotsInProgress(1 + extraClones);
         for (ActionFuture<AcknowledgedResponse> extraCloneFuture : extraCloneFutures) {
@@ -375,12 +368,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         expectThrows(SnapshotException.class, cloneFuture::actionGet);
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
 
-        final RepositoryData repositoryData = getRepositoryData(repoName);
-        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        assertThat(snapshotIds, hasSize(1));
-        for (SnapshotId snapshotId : snapshotIds) {
-            assertThat(repositoryData.getSnapshotState(snapshotId), is(SnapshotState.SUCCESS));
-        }
+        assertAllSnapshotsSuccessful(getRepositoryData(repoName), 1);
     }
 
     public void testMasterFailoverDuringCloneStep2() throws Exception {
@@ -406,12 +394,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         expectThrows(SnapshotException.class, cloneFuture::actionGet);
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
 
-        final RepositoryData repositoryData = getRepositoryData(repoName);
-        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        assertThat(snapshotIds, hasSize(2));
-        for (SnapshotId snapshotId : snapshotIds) {
-            assertThat(repositoryData.getSnapshotState(snapshotId), is(SnapshotState.SUCCESS));
-        }
+        assertAllSnapshotsSuccessful(getRepositoryData(repoName), 2);
     }
 
     public void testExceptionDuringShardClone() throws Exception {
@@ -436,14 +419,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, masterNode);
         expectThrows(SnapshotException.class, cloneFuture::actionGet);
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
-
-        final RepositoryData repositoryData = getRepositoryData(repoName);
-        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        assertThat(snapshotIds, hasSize(1));
-        for (SnapshotId snapshotId : snapshotIds) {
-            assertThat(repositoryData.getSnapshotState(snapshotId), is(SnapshotState.SUCCESS));
-        }
+        assertAllSnapshotsSuccessful(getRepositoryData(repoName), 1);
         assertAcked(startDeleteSnapshot(repoName, sourceSnapshot).get());
+    }
+
+    private ActionFuture<AcknowledgedResponse> startClone(String repoName, String sourceSnapshot, String targetSnapshot1,
+                                                                 String... indices) {
+        return clusterAdmin().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot1).setIndices(indices).execute();
     }
 
     private void blockMasterOnReadIndexMeta(String repoName) {
@@ -454,6 +436,17 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     private void blockMasterOnShardClone(String repoName) {
         ((MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName))
                 .setBlockOnWriteShardLevelMeta();
+    }
+
+    /**
+     * Assert that given {@link RepositoryData} contains exactly the given number of snapshots and all of them are successful.
+     */
+    private static void assertAllSnapshotsSuccessful(RepositoryData repositoryData, int successfulSnapshotCount) {
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        assertThat(snapshotIds, hasSize(successfulSnapshotCount));
+        for (SnapshotId snapshotId : snapshotIds) {
+            assertThat(repositoryData.getSnapshotState(snapshotId), is(SnapshotState.SUCCESS));
+        }
     }
 
     private static BlobStoreIndexShardSnapshots readShardGeneration(BlobStoreRepository repository, RepositoryShardId repositoryShardId,

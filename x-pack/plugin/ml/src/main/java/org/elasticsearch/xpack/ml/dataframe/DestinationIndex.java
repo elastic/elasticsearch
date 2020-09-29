@@ -240,7 +240,7 @@ public final class DestinationIndex {
     public static Metadata readMetadata(String jobId, MappingMetadata mappingMetadata) {
         Map<String, Object> mappings = mappingMetadata.getSourceAsMap();
         Map<String, Object> meta = (Map<String, Object>) mappings.get(META);
-        if (meta == null || DFA_CREATOR.equals(meta.get(CREATED_BY)) == false) {
+        if ((meta == null) || (DFA_CREATOR.equals(meta.get(CREATED_BY)) == false)) {
             return new NoMetadata();
         }
         return new DestMetadata(getVersion(jobId, meta));

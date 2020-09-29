@@ -172,7 +172,7 @@ public class MetadataCreateDataStreamService {
             // hide existing indices and remove aliases
             Metadata.Builder b = Metadata.builder(currentState.metadata());
             for (IndexMetadata backingIndex : backingIndices) {
-                hideAndRemoveAlias(b, backingIndex, dataStreamName);
+                prepareBackingIndex(b, backingIndex, dataStreamName);
             }
             currentState = ClusterState.builder(currentState).metadata(b).build();
         }
@@ -195,7 +195,7 @@ public class MetadataCreateDataStreamService {
             writeIndex = currentState.metadata().index(firstBackingIndexName);
         } else {
             Metadata.Builder b = Metadata.builder(currentState.metadata());
-            hideAndRemoveAlias(b, writeIndex, dataStreamName);
+            prepareBackingIndex(b, writeIndex, dataStreamName);
             currentState = ClusterState.builder(currentState).metadata(b).build();
         }
         assert writeIndex != null;
@@ -211,10 +211,14 @@ public class MetadataCreateDataStreamService {
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 
-    private static void hideAndRemoveAlias(Metadata.Builder b, IndexMetadata im, String dataStreamName) {
+    private static void prepareBackingIndex(Metadata.Builder b, IndexMetadata im, String dataStreamName) {
+        // hides the index, removes any aliases, and adds data stream timestamp field mapper
+        Map<String, Object> mapping = im.mapping().sourceAsMap();
+        mapping.put("_data_stream_timestamp", Map.of("enabled", true));
         b.put(IndexMetadata.builder(im)
-                .removeAlias(dataStreamName)
-                .settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
+            .removeAlias(dataStreamName)
+            .settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
+            .putMapping(new MappingMetadata("_doc", mapping))
             .build(), false);
     }
 

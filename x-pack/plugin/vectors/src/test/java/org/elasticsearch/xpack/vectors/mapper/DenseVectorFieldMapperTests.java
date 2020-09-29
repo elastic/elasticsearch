@@ -87,7 +87,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float expectedMagnitude = (float) Math.sqrt(dotProduct);
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("my-dense-vector");
+        IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
@@ -110,7 +110,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         float[] validVector = {-12.1f, 100.7f, -4};
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
-        IndexableField[] fields = doc1.rootDoc().getFields("my-dense-vector");
+        IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected

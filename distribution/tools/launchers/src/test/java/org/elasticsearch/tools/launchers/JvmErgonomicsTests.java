@@ -101,17 +101,6 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         );
     }
 
-    public void testParallelGCNotSet() throws InterruptedException, IOException {
-        assertThat(
-            JvmErgonomics.extractUseParallelGC(JvmErgonomics.finalJvmOptions(Arrays.asList("-Xmx1g", "-XX:+UseG1GC")), 1024),
-            equalTo(false)
-        );
-    }
-
-    public void testParallelGCSet() throws InterruptedException, IOException {
-        assertThat(JvmErgonomics.extractUseParallelGC(JvmErgonomics.finalJvmOptions(Arrays.asList("-Xmx1g")), 1024), equalTo(true));
-    }
-
     public void testExtractSystemProperties() {
         Map<String, String> expectedSystemProperties = new HashMap<>();
         expectedSystemProperties.put("file.encoding", "UTF-8");
@@ -122,6 +111,35 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         );
 
         assertEquals(expectedSystemProperties, parsedSystemProperties);
+    }
+
+    public void testG1GOptionsForSmallHeap() throws InterruptedException, IOException {
+        assertThat(
+            JvmErgonomics.choose(Arrays.asList("-Xms2g", "-Xmx2g", "-XX:+UseG1GC")),
+            hasItem("-XX:G1HeapRegionSize=4m")
+        );
+    }
+
+    public void testG1GOptionsForSmallHeapWhenTuningSet() throws InterruptedException, IOException {
+        assertThat(
+            JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:G1HeapRegionSize=4m")),
+            everyItem(not(startsWith("-XX:G1HeapRegionSize=")))
+        );
+    }
+
+    public void testG1GOptionsForLargeHeap() throws InterruptedException, IOException {
+        assertThat(
+            JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC")),
+            hasItem("-XX:InitiatingHeapOccupancyPercent=30")
+        );
+    }
+
+    public void testG1GOptionsForLargeHeapWhenTuningSet() throws InterruptedException, IOException {
+        assertThat(
+            JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60",
+                "-XX:G1ReservePercent=10")),
+            everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent=")))
+        );
     }
 
     public void testExtractNoSystemProperties() {

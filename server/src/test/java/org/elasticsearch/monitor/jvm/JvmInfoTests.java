@@ -51,23 +51,6 @@ public class JvmInfoTests extends ESTestCase {
         return g1GCEnabled || (versionIsAtLeastJava9 && noOtherCollectorSpecified);
     }
 
-    public void testUseParallelGC() {
-        // if we are running on HotSpot, and the test JVM was started
-        // with UseParallelGC, then JvmInfo should successfully report that
-        // ParallelGC is enabled
-        if (Constants.JVM_NAME.contains("HotSpot") || Constants.JVM_NAME.contains("OpenJDK")) {
-            assertEquals(Boolean.toString(isParallelGCEnabled()), JvmInfo.jvmInfo().useParallelGC());
-        } else {
-            assertEquals("unknown", JvmInfo.jvmInfo().useParallelGC());
-        }
-    }
-
-    private boolean isParallelGCEnabled() {
-        final String argline = System.getProperty("tests.jvm.argline");
-        final boolean parallelGCEnabled = flagIsEnabled(argline, "UseParallelGC");
-        return parallelGCEnabled;
-    }
-
     private boolean flagIsEnabled(String argline, String flag) {
         final boolean containsPositiveFlag = argline != null && argline.contains("-XX:+" + flag);
         if (!containsPositiveFlag) return false;

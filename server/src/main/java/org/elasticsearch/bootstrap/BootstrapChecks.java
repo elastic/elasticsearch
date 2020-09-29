@@ -700,12 +700,6 @@ final class BootstrapChecks {
         }
 
         // visible for testing
-        boolean isParallelGCEnabled() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return JvmInfo.jvmInfo().useParallelGC().equals("true");
-        }
-
-        // visible for testing
         String jvmVersion() {
             assert "Oracle Corporation".equals(jvmVendor());
             return Constants.JVM_VERSION;

@@ -59,9 +59,13 @@ final class JvmErgonomics {
         if (maxDirectMemorySize == 0) {
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
         }
-        final boolean useParallelGC = extractUseParallelGC(finalJvmOptions, heapSize);
-        if (useParallelGC) {
-            ergonomicChoices.add("-XX:+UseParallelGC");
+        final boolean tuneG1GCForSmallHeap = tuneG1GCForSmallHeap(finalJvmOptions, heapSize);
+        final boolean tuneG1GCForLargeHeap = tuneG1GCForLargeHeap(finalJvmOptions, heapSize);
+        if (tuneG1GCForSmallHeap) {
+            ergonomicChoices.add("-XX:G1HeapRegionSize=4m");
+        } else if (tuneG1GCForLargeHeap) {
+            ergonomicChoices.add("-XX:G1ReservePercent=25");
+            ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=30");
         }
 
         return ergonomicChoices;
@@ -150,10 +154,20 @@ final class JvmErgonomics {
         return Long.parseLong(finalJvmOptions.get("MaxDirectMemorySize").getMandatoryValue());
     }
 
-    // Use ParallelGC for heaps <= 4GB unless the user has explicitly set the garbage collector
-    static boolean extractUseParallelGC(final Map<String, JvmOption> finalJvmOptions, final long heapSize) {
-        JvmOption g1 = finalJvmOptions.get("UseG1GC");
-        return (heapSize <= 4L << 30 && g1.getMandatoryValue().equals("true") && g1.isCommandLineOrigin() == false);
+    // Tune G1GC options for heaps <= 4GB unless the user has explicitly set G1HeapRegionSize
+    static boolean tuneG1GCForSmallHeap(final Map<String, JvmOption> finalJvmOptions, final long heapSize) {
+        JvmOption g1GC = finalJvmOptions.get("UseG1GC");
+        JvmOption g1GCHeapRegion = finalJvmOptions.get("G1HeapRegionSize");
+        return (heapSize <= 4L << 30 && g1GC.getMandatoryValue().equals("true") && g1GCHeapRegion.isCommandLineOrigin() == false);
+    }
+
+    // Tune G1GC options for heaps > 4GB unless the user has explicitly set -XX:G1ReservePercent or -XX:InitiatingHeapOccupancyPercent
+    static boolean tuneG1GCForLargeHeap(final Map<String, JvmOption> finalJvmOptions, final long heapSize) {
+        JvmOption g1GC = finalJvmOptions.get("UseG1GC");
+        JvmOption g1GCReservePercent = finalJvmOptions.get("G1ReservePercent");
+        JvmOption g1GCInitiatingHeapOccupancyPercent = finalJvmOptions.get("InitiatingHeapOccupancyPercent");
+        return (heapSize > 4L << 30 && g1GC.getMandatoryValue().equals("true") && g1GCReservePercent.isCommandLineOrigin() == false
+            && g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false);
     }
 
     private static final Pattern SYSTEM_PROPERTY = Pattern.compile("^-D(?<key>[\\w+].*?)=(?<value>.*)$");

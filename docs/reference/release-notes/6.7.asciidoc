@@ -207,6 +207,13 @@ will remain as `STOPPING` until all policies that do not exist are removed from
 any indices by using the <<ilm-remove-policy,Remove Policy API>>.
 (issue: {es-issue}/40824[#40824])
 
+Deprecation Logging::
+
+In a mixed cluster environment where one of the nodes is pre 6.7 but coordinating node is already upgraded to 6.7
+an exception will be thrown when a deprecation warning is emitted on pre 6.7 node.
+it was introduced by (PR: {es-pull}/37622[#37622]) in order to speed up the performance of header warning parsing.
+(issue: {es-issue}/60561[#60561])
+
 [[breaking-6.7.0]]
 [float]
 === Breaking changes

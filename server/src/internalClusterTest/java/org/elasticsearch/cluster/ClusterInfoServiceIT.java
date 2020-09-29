@@ -52,6 +52,7 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -117,13 +118,18 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     public void testClusterInfoServiceCollectsInformation() {
         internalCluster().startNodes(2);
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
-            .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
+
+        final String indexName = (rarely() ? "." : "") + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        assertAcked(prepareCreate(indexName)
+            .setSettings(Settings.builder()
+                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean())
+                .build()));
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(client().admin().indices().prepareClose(indexName));
         }
-        ensureGreen("test");
+        ensureGreen(indexName);
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster

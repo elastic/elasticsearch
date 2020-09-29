@@ -23,9 +23,9 @@ nodes have been upgraded to the newer version before using the {transforms} UI.
 == {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
 
 If your cluster contains mixed version nodes, for example during a rolling
-upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped will
-not be reassigned until the upgrade is complete. After the upgrade is done, {transforms}
-resume automatically; no action is required.
+upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped 
+will not be reassigned until the upgrade is complete. After the upgrade is done, 
+{transforms} resume automatically; no action is required.
 
 [discrete]
 [[transform-datatype-limitations]]
@@ -203,3 +203,23 @@ issue will occur.
 If your data uses the <<date_nanos,date nanosecond data type>>, aggregations
 are nonetheless on millisecond resolution. This limitation also affects the
 aggregations in your {transforms}.
+
+[discrete]
+[[transform-painless-imitation]]
+== Scripts in {transforms} 
+
+{transforms-cap} support scripting in every case when aggregations support them. 
+However, there are certain factors you might want to consider when using scripts 
+in {transforms}:
+
+* {transforms-cap} deduce index mappings for output fields except if the fields 
+  are created by a script. In this case, you might want to create the mappings 
+  of the destination index yourself.
+
+* Using a script in a `group_by` may increase the runtime of the {transform} 
+  compared to using a non-scripted `group_by`.
+
+* Scripted output fields may make {transforms} run slower.
+
+It is recommended to use scripts for quick tests or ad-hoc analysis. Please 
+avoid scripting in a production environment when it is possible.

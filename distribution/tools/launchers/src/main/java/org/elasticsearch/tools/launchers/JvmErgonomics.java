@@ -166,7 +166,9 @@ final class JvmErgonomics {
         JvmOption g1GC = finalJvmOptions.get("UseG1GC");
         JvmOption g1GCReservePercent = finalJvmOptions.get("G1ReservePercent");
         JvmOption g1GCInitiatingHeapOccupancyPercent = finalJvmOptions.get("InitiatingHeapOccupancyPercent");
-        return (heapSize > 4L << 30 && g1GC.getMandatoryValue().equals("true") && g1GCReservePercent.isCommandLineOrigin() == false
+        return (heapSize > 4L << 30
+            && g1GC.getMandatoryValue().equals("true")
+            && g1GCReservePercent.isCommandLineOrigin() == false
             && g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false);
     }
 

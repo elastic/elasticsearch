@@ -37,7 +37,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportCloneSnapshotAction extends TransportMasterNodeAction<CloneSnapshotRequest, AcknowledgedResponse> {
+/**
+ * Transport action for the clone snapshot operation.
+ */
+public final class TransportCloneSnapshotAction extends TransportMasterNodeAction<CloneSnapshotRequest, AcknowledgedResponse> {
 
     private final SnapshotsService snapshotsService;
 

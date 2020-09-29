@@ -73,6 +73,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
     private static final String BWC_DISTRIBUTION_SYSPROP = "tests.bwc-distribution";
     private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
+    private static final String IS_BUNDLED_JDK_SUPPORTED = "tests.is_bundled_jdk_supported";
 
     @Override
     public void apply(Project project) {
@@ -107,8 +108,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.getType() != Type.DOCKER || dockerSupport.get().getDockerAvailability().isAvailable);
-                addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
-                addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
+                addSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
+                addSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
             }, depsTask);
 
@@ -146,8 +147,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                     upgradeDepsTask.configure(t -> t.dependsOn(distribution, bwcDistro));
                     depsTasks.put(upgradeTaskname, upgradeDepsTask);
                     TaskProvider<Test> upgradeTest = configureTestTask(project, upgradeTaskname, distribution, t -> {
-                        addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
-                        addDistributionSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::toString);
+                        addSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
+                        addSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::toString);
                         t.include("**/PackageUpgradeTests.class");
                     }, upgradeDepsTask);
                     versionTasks.get(version.toString()).configure(t -> t.dependsOn(upgradeTest));
@@ -155,6 +156,12 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             }
         }
+
+        project.getTasks()
+            .withType(
+                Test.class,
+                t -> addSysprop(t, IS_BUNDLED_JDK_SUPPORTED, () -> Boolean.toString(BuildParams.isBundledJdkSupported()))
+            );
 
         project.subprojects(vmProject -> {
             vmProject.getPluginManager().apply(VagrantBasePlugin.class);
@@ -263,8 +270,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         // setup VM used by these tests
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
         vagrant.setBox(box);
+
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdk, "", ""));
-        vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH"));
+        // set java home for gradle to use. package tests will overwrite/remove this for each test case
+        vagrant.vmEnv("JAVA_HOME", convertPath(project, vagrant, gradleJdk, "", ""));
         // pass these along to get correct build scans
         if (System.getenv("JENKINS_URL") != null) {
             Stream.of("JOB_NAME", "JENKINS_URL", "BUILD_NUMBER", "BUILD_URL").forEach(name -> vagrant.vmEnv(name, System.getenv(name)));
@@ -456,7 +465,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk(), distro.getArchitecture());
     }
 
-    private static void addDistributionSysprop(Test task, String sysprop, Supplier<String> valueSupplier) {
+    private static void addSysprop(Test task, String sysprop, Supplier<String> valueSupplier) {
         SystemPropertyCommandLineArgumentProvider props = task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
         props.systemProperty(sysprop, valueSupplier);
     }

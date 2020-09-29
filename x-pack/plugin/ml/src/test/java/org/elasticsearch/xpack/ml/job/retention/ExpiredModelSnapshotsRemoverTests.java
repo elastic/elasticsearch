@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -252,7 +253,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                     return null;
                 }
         ).when(executor).execute(any());
-        return new ExpiredModelSnapshotsRemover(originSettingClient, jobIterator, threadPool);
+        return new ExpiredModelSnapshotsRemover(originSettingClient, jobIterator, threadPool, new TaskId("test", 0L));
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId, Date date) {

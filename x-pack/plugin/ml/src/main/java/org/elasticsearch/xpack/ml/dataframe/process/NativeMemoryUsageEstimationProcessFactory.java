@@ -67,7 +67,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
         // memory estimation process pipe names are unique.  Therefore an increasing counter value is appended to the config ID
         // to ensure uniqueness between calls.
         ProcessPipes processPipes = new ProcessPipes(
-            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, config.getId() + "_" + counter.incrementAndGet(),
+            env, NAMED_PIPE_HELPER, processConnectTimeout, AnalyticsBuilder.ANALYTICS, config.getId() + "_" + counter.incrementAndGet(),
             false, false, true, false, false);
 
         createNativeProcess(config.getId(), analyticsProcessConfig, filesToDelete, processPipes);
@@ -78,8 +78,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             processPipes,
             0,
             filesToDelete,
-            onProcessCrash,
-            processConnectTimeout);
+            onProcessCrash);
 
         try {
             process.start(executorService);

@@ -127,11 +127,13 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
         GroupConfig groupConfig = GroupConfigTests.randomGroupConfig();
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggregationConfig, null);
+        long numGroupsWithoutScripts = groupConfig.getGroups().values().stream()
+            .filter(singleGroupSource -> singleGroupSource.getScriptConfig() == null).count();
 
         this.<Map<String, String>>assertAsync(
             listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, listener),
             mappings -> {
-                assertEquals(groupConfig.getGroups().size() + 10, mappings.size());
+                assertEquals(numGroupsWithoutScripts + 10, mappings.size());
                 assertEquals("long", mappings.get("max_rating"));
                 assertEquals("double", mappings.get("avg_rating"));
                 assertEquals("long", mappings.get("count_rating"));
@@ -189,11 +191,13 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
         GroupConfig groupConfig = GroupConfigTests.randomGroupConfig();
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggregationConfig, null);
+        long numGroupsWithoutScripts = groupConfig.getGroups().values().stream()
+            .filter(singleGroupSource -> singleGroupSource.getScriptConfig() == null).count();
 
         this.<Map<String, String>>assertAsync(
             listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, listener),
             mappings -> {
-                assertEquals(groupConfig.getGroups().size() + 12, mappings.size());
+                assertEquals(numGroupsWithoutScripts + 12, mappings.size());
                 assertEquals("long", mappings.get("filter_1"));
                 assertEquals("object", mappings.get("filter_2"));
                 assertEquals("long", mappings.get("filter_2.max_drinks_2"));

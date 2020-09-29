@@ -18,13 +18,21 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 
 public class SnapshotUtilsTests extends ESTestCase {
     public void testIndexNameFiltering() {
@@ -54,5 +62,29 @@ public class SnapshotUtilsTests extends ESTestCase {
         List<String> indicesList = Arrays.asList(indices);
         List<String> actual = SnapshotUtils.filterIndices(indicesList, filter, indicesOptions);
         assertThat(actual, containsInAnyOrder(expected));
+    }
+
+    public void testFilterIndexIdsForClone() {
+        final SnapshotId sourceSnapshotId = new SnapshotId("source", UUIDs.randomBase64UUID(random()));
+        final Snapshot targetSnapshot = new Snapshot("test-repo", new SnapshotId("target", UUIDs.randomBase64UUID(random())));
+        final IndexId existingIndexId = new IndexId("test-idx", UUIDs.randomBase64UUID(random()));
+        final RepositoryData repositoryData = RepositoryData.EMPTY.addSnapshot(sourceSnapshotId, SnapshotState.SUCCESS, Version.CURRENT,
+                ShardGenerations.builder().put(existingIndexId, 0, UUIDs.randomBase64UUID()).build(),
+                Collections.emptyMap(), Collections.emptyMap());
+        {
+            final SnapshotException sne = expectThrows(SnapshotException.class, () -> SnapshotUtils.findIndexIdsToClone(
+                    sourceSnapshotId, targetSnapshot, repositoryData, "does-not-exist"));
+            assertThat(sne.getMessage(), containsString("No index [does-not-exist] found in the source snapshot "));
+        }
+        {
+            final SnapshotException sne = expectThrows(SnapshotException.class, () -> SnapshotUtils.findIndexIdsToClone(
+                    sourceSnapshotId, targetSnapshot, repositoryData, "does-not-exist-*"));
+            assertThat(sne.getMessage(), containsString("No indices in the source snapshot [" + sourceSnapshotId +
+                    "] matched requested pattern ["));
+        }
+        assertThat(SnapshotUtils.findIndexIdsToClone(sourceSnapshotId, targetSnapshot, repositoryData, existingIndexId.getName()),
+                contains(existingIndexId));
+        assertThat(SnapshotUtils.findIndexIdsToClone(sourceSnapshotId, targetSnapshot, repositoryData, "test-*"),
+                contains(existingIndexId));
     }
 }

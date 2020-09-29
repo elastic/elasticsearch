@@ -372,6 +372,23 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAllSnapshotsSuccessful(getRepositoryData(repoName), 1);
     }
 
+    public void testFailsOnCloneMissingIndices() {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "repo-name";
+        final Path repoPath = randomRepoPath();
+        if (randomBoolean()) {
+            createIndexWithContent("test-idx");
+        }
+        createRepository(repoName, "fs", repoPath);
+
+        final String snapshotName = "snapshot";
+        createFullSnapshot(repoName, snapshotName);
+        final SnapshotException sne = expectThrows(SnapshotException.class,
+                () -> startClone(repoName, snapshotName, "target-snapshot", "does-not-exist").actionGet());
+        assertThat(sne.getMessage(), containsString("No index [does-not-exist] found in the source snapshot "));
+    }
+
     public void testMasterFailoverDuringCloneStep2() throws Exception {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
         internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);

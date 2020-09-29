@@ -20,15 +20,13 @@
 package org.elasticsearch.action.admin.cluster.snapshots.clone;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest> implements IndicesRequest.Replaceable {
+public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest> {
 
     private final String repository;
 
@@ -36,9 +34,9 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     private final String target;
 
+    // TODO: the current logic does not allow for specifying index resolution parameters like hidden and such. Do we care about cloning
+    //        system or hidden indices?
     private String[] indices;
-
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
 
     public CloneSnapshotRequest(StreamInput in) throws IOException {
         super(in);
@@ -46,7 +44,6 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         source = in.readString();
         target = in.readString();
         indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     public CloneSnapshotRequest(String repository, String source, String target, String[] indices) {
@@ -63,7 +60,6 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         out.writeString(source);
         out.writeString(target);
         out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -71,22 +67,10 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         return null;
     }
 
-    @Override
     public String[] indices() {
         return this.indices;
     }
 
-    @Override
-    public IndicesOptions indicesOptions() {
-        return indicesOptions;
-    }
-
-    public CloneSnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
-        return this;
-    }
-
-    @Override
     public CloneSnapshotRequest indices(String... indices) {
         this.indices = indices;
         return this;

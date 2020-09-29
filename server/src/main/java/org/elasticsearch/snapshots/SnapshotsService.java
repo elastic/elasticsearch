@@ -336,7 +336,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         initializingClones.add(snapshot);
-        // TODO: throw when no indices match or source snapshot was not successful for the matching indices
+        // TODO: throw when source snapshot was not successful for matching indices
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newEntry;
@@ -363,12 +363,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
 
-                final List<IndexId> indexIds = repositoryData.getIndices().values().stream().filter(indexId ->
-                        repositoryData.getSnapshots(indexId).contains(sourceSnapshotId) &&
-                                Regex.simpleMatch(request.indices(), indexId.getName())).collect(Collectors.toList());
-                final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
                 newEntry = SnapshotsInProgress.startClone(
-                        snapshot, sourceSnapshotId, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), version);
+                        snapshot, sourceSnapshotId,
+                        SnapshotUtils.findIndexIdsToClone(sourceSnapshotId, snapshot, repositoryData, request.indices()),
+                        threadPool.absoluteTimeInMillis(), repositoryData.getGenId(),
+                        minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null));
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
                 newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,

@@ -34,6 +34,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -269,6 +270,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                          ActionListener<Void> listener) {
         int count = snapshotsToDelete.values().stream().mapToInt(List::size).sum();
         if (count == 0) {
+            listener.onResponse(null);
             logger.debug("no snapshots are eligible for deletion");
             return;
         }
@@ -291,12 +293,21 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         }
     }
 
+    /**
+     * Set of all currently deleting {@link SnapshotId} used to prevent starting multiple deletes for the same snapshot.
+     */
+    private final Set<SnapshotId> runningDeletions = Collections.synchronizedSet(new HashSet<>());
+
     private void deleteSnapshots(SnapshotLifecycleStats slmStats, AtomicInteger deleted, AtomicInteger failed, String repo,
                                  List<SnapshotInfo> snapshots, ActionListener<Void> listener) {
 
         final ActionListener<Void> allDeletesListener =
                 new GroupedActionListener<>(ActionListener.map(listener, v -> null), snapshots.size());
         for (SnapshotInfo info : snapshots) {
+            if (runningDeletions.add(info.snapshotId()) == false) {
+                // snapshot is already being deleted, no need to start another delete job for it
+                allDeletesListener.onResponse(null);
+            }
             final String policyId = getPolicyId(info);
             final long deleteStartTime = nowNanoSupplier.getAsLong();
             // TODO: Use snapshot multi-delete instead of this loop if all nodes in the cluster support it
@@ -323,8 +334,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                             allDeletesListener.onFailure(e);
                         }
                     }), () -> {
-                        // Check whether we have exceeded the maximum time allowed to spend deleting
-                        // snapshots, if we have, short-circuit the rest of the deletions
+                        runningDeletions.remove(info.snapshotId());
                         long finishTime = nowNanoSupplier.getAsLong();
                         TimeValue deletionTime = TimeValue.timeValueNanos(finishTime - deleteStartTime);
                         logger.debug("elapsed time for deletion of [{}] snapshot: {}", info.snapshotId(), deletionTime);

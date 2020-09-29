@@ -244,7 +244,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         irClassNode.addFieldNode(irFieldNode);
 
-        // TODO(stu): add compiler settings here
         irFieldNode = new FieldNode();
         irFieldNode.setLocation(internalLocation);
         irFieldNode.setModifiers(modifiers);
@@ -346,7 +345,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
 
-            // TODO(stu): copy for compiler settings
             irLoadFieldMemberNode = new LoadFieldMemberNode();
             irLoadFieldMemberNode.setLocation(internalLocation);
             irLoadFieldMemberNode.setExpressionType(Map.class);
@@ -1314,7 +1312,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             invokeCallNode.setLocation(userRegexNode.getLocation());
             invokeCallNode.setExpressionType(Pattern.class);
             invokeCallNode.setBox(Pattern.class);
-            // scriptScope.getCompilerSettings()
             invokeCallNode.setMethod(new PainlessMethod(
                             Pattern.class.getMethod("compile", String.class, int.class),
                             Pattern.class,

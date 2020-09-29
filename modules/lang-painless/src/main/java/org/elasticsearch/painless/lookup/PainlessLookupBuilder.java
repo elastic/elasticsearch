@@ -519,7 +519,6 @@ public final class PainlessLookupBuilder {
                         "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "]", nsme);
             }
         } else {
-            // TODO(stu): fix
             try {
                 javaMethod = augmentedClass.getMethod(methodName, javaTypeParameters.toArray(new Class<?>[typeParametersSize]));
 

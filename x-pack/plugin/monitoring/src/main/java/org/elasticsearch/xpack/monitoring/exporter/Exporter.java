@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public abstract class Exporter implements AutoCloseable {
@@ -36,7 +39,7 @@ public abstract class Exporter implements AutoCloseable {
         "type",
         key -> Setting.simpleString(
             key,
-            new Setting.Validator<>() {
+            new Setting.Validator<String>() {
 
                 @Override
                 public void validate(final String value) {
@@ -137,6 +140,12 @@ public abstract class Exporter implements AutoCloseable {
     }
 
     /**
+     * Forces an exporter to deploy (or clean up) any resources it may depend on immediately instead of waiting to do it
+     * lazily as part of accepting a bulk operation or a cluster update.
+     */
+    public abstract void ensureResources(Consumer<ExporterResourceStatus> listener);
+
+    /**
      * Opens up a new export bulk.
      *
      * @param listener Returns {@code null} to indicate that this exporter is not ready to export the docs.
@@ -216,5 +225,63 @@ public abstract class Exporter implements AutoCloseable {
 
         /** Create an exporter with the given configuration. */
         Exporter create(Config config);
+    }
+
+    public enum DeployState {
+        IN_PROGRESS,
+        READY,
+        NOT_READY,
+        UNKNOWN
+    }
+
+    public static class ExporterResourceStatus {
+        private final DeployState deployState;
+        private final List<Exception> exceptions;
+
+        private ExporterResourceStatus(DeployState deployState, List<Exception> exceptions) {
+            this.deployState = deployState;
+            this.exceptions = exceptions;
+        }
+
+        public static ExporterResourceStatus inProgress() {
+            return new ExporterResourceStatus(DeployState.IN_PROGRESS, null);
+        }
+
+        public static ExporterResourceStatus ready() {
+            return new ExporterResourceStatus(DeployState.READY, null);
+        }
+
+        public static ExporterResourceStatus notReady(String reason, Object... args) {
+            return notReady(new ElasticsearchException(reason, args));
+        }
+
+        public static ExporterResourceStatus notReady(Exception reason) {
+            return new ExporterResourceStatus(DeployState.NOT_READY, Collections.singletonList(reason));
+        }
+
+        public static ExporterResourceStatus unknown(String reason, Object... args) {
+            return unknown(new ElasticsearchException(reason, args));
+        }
+
+        public static ExporterResourceStatus unknown(Exception reason) {
+            return new ExporterResourceStatus(DeployState.UNKNOWN, Collections.singletonList(reason));
+        }
+
+        public static ExporterResourceStatus determineReadiness(List<Exception> exceptions) {
+            return new ExporterResourceStatus(exceptions.size() > 0 ? DeployState.NOT_READY : DeployState.READY, exceptions);
+        }
+
+        public boolean isReady() {
+            return deployState == DeployState.READY;
+        }
+
+        public DeployState getDeployState() {
+            return deployState;
+        }
+
+        @Nullable
+        public List<Exception> getExceptions() {
+            return exceptions;
+        }
     }
 }

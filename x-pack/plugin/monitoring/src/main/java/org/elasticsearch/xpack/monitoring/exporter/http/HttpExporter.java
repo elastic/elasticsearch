@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -850,6 +851,14 @@ public class HttpExporter extends Exporter {
             resources.add(new WatcherExistsHttpResource(resourceOwnerName, clusterService,
                                                         new MultiHttpResource(resourceOwnerName, watchResources)));
         }
+    }
+
+    @Override
+    public void ensureResources(Consumer<ExporterResourceStatus> listener) {
+        resource.checkAndPublish(client, ActionListener.wrap(
+            (success) -> listener.accept(ExporterResourceStatus.ready()),
+            (exception) -> listener.accept(ExporterResourceStatus.unknown(exception)) // TODO Track errors?
+        ));
     }
 
     @Override

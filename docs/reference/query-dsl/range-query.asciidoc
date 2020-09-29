@@ -65,7 +65,7 @@ For valid syntax, see <<mapping-date-format,`format`>>.
 [WARNING]
 ====
 If a `format` and `date` value are incomplete, {es} replaces any missing year,
-month, or day component with the 
+month, or day component with the
 {wikipedia}/Unix_time[Unix epoch], which is January 1st, 1970.
 
 For example, if the `format` value is `dd`, {es} converts a `gte` value of `22`
@@ -172,6 +172,14 @@ GET /_search
 
 [[range-query-date-math-rounding]]
 ====== Date math and rounding
+By default {es} is rounding dates when date fields are not present. For instance when a millisecond part will not be provided, will be rounded to `999`.
+For instance:
+```
+"datetime": {
+        "gt": "2020-01-01T12:00:00Z"
+      }
+```
+A date `2020-01-01T12:00:00Z` will be rounded to `2020-01-01T12:00:00.999_999_999Z`
 {es} rounds <<date-math,date math>> values in parameters as follows:
 
 `gt`::

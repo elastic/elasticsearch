@@ -23,4 +23,9 @@ public abstract class EqlExtraSpecTestCase extends BaseEqlSpecTestCase {
     public EqlExtraSpecTestCase(String query, String name, long[] eventIds, boolean caseSensitive) {
         super(TEST_EXTRA_INDEX, query, name, eventIds, caseSensitive);
     }
+
+    @Override
+    protected String sequenceField() {
+        return "sequence";
+    }
 }

@@ -175,7 +175,5 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
-    protected String sequenceField() {
-        return "sequence";
-    }
+    protected abstract String sequenceField();
 }

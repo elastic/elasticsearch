@@ -641,6 +641,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
             new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, null, null));
         putAnalytics(firstJob);
+        startAnalytics(firstJobId);
+        waitUntilAnalyticsIsStopped(firstJobId);
 
         String secondJobId = "classification_two_jobs_with_same_randomize_seed_2";
         String secondJobDestIndex = secondJobId + "_dest";
@@ -650,11 +652,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, randomizeSeed, null));
 
         putAnalytics(secondJob);
-
-        // Let's run both jobs in parallel and wait until they are finished
-        startAnalytics(firstJobId);
         startAnalytics(secondJobId);
-        waitUntilAnalyticsIsStopped(firstJobId);
         waitUntilAnalyticsIsStopped(secondJobId);
 
         // Now we compare they both used the same training rows

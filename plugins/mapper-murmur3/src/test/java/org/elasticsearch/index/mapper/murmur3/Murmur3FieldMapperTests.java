@@ -24,8 +24,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapperTestCase2;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugin.mapper.MapperMurmur3Plugin;
 import org.elasticsearch.plugins.Plugin;
@@ -34,20 +33,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
-
-public class Murmur3FieldMapperTests extends FieldMapperTestCase2<Murmur3FieldMapper.Builder> {
+public class Murmur3FieldMapperTests extends MapperTestCase {
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.value("value");
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "doc_values", "index");
     }
 
     @Override
@@ -61,8 +52,8 @@ public class Murmur3FieldMapperTests extends FieldMapperTestCase2<Murmur3FieldMa
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
-        // no parameters to configure
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("store", b -> b.field("store", true));
     }
 
     public void testDefaults() throws Exception {
@@ -76,38 +67,4 @@ public class Murmur3FieldMapperTests extends FieldMapperTestCase2<Murmur3FieldMa
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
 
-    public void testDocValuesSettingNotAllowed() throws Exception {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> b.field("type", "murmur3").field("doc_values", false)))
-        );
-        assertThat(e.getMessage(), containsString("Setting [doc_values] cannot be modified"));
-
-        // even setting to the default is not allowed, the setting is invalid
-        e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> b.field("type", "murmur3").field("doc_values", true)))
-        );
-        assertThat(e.getMessage(), containsString("Setting [doc_values] cannot be modified"));
-    }
-
-    public void testIndexSettingNotAllowed() throws Exception {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> b.field("type", "murmur3").field("index", "not_analyzed")))
-        );
-        assertThat(e.getMessage(), containsString("Setting [index] cannot be modified"));
-
-        // even setting to the default is not allowed, the setting is invalid
-        e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> b.field("type", "murmur3").field("index", "no")))
-        );
-        assertThat(e.getMessage(), containsString("Setting [index] cannot be modified"));
-    }
-
-    @Override
-    protected Murmur3FieldMapper.Builder newBuilder() {
-        return new Murmur3FieldMapper.Builder("murmur");
-    }
 }

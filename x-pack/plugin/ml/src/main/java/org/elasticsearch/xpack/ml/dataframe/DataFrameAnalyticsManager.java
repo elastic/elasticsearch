@@ -98,7 +98,7 @@ public class DataFrameAnalyticsManager {
                 if (destIndex != null) {
                     MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
                     DestinationIndex.Metadata metadata = DestinationIndex.readMetadata(config.getId(), destIndexMapping);
-                    if (metadata.hasMetadata() && metadata.isCompatible() == false) {
+                    if (metadata.hasMetadata() && (metadata.isCompatible() == false)) {
                         LOGGER.info("[{}] Destination index was created in version [{}] but minimum supported version is [{}]. " +
                             "Deleting index and starting from scratch.", config.getId(), metadata.getVersion(),
                             DestinationIndex.MIN_COMPATIBLE_VERSION);

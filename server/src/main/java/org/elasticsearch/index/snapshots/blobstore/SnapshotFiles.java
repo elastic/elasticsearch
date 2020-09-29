@@ -60,10 +60,6 @@ public class SnapshotFiles {
         this.shardStateIdentifier = shardStateIdentifier;
     }
 
-    public SnapshotFiles clone(String targetName) {
-        return new SnapshotFiles(targetName, indexFiles, shardStateIdentifier);
-    }
-
     /**
      * Creates a new instance with the given snapshot name but otherwise identical to the current instance.
      */

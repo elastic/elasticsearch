@@ -20,13 +20,20 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryData;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Snapshot utilities
@@ -117,5 +124,45 @@ public class SnapshotUtils {
             return List.of(selectedIndices);
         }
         return List.copyOf(result);
+    }
+
+    /**
+     * Finds the {@link IndexId}s in the given source snapshot that match the given index patterns for a snapshot clone operation.
+     *
+     * @param sourceSnapshotId source snapshot id
+     * @param targetSnapshot   target snapshot that the clone operation would create
+     * @param repositoryData   repository data of the repository that the clone
+     * @param indexPatterns    index patterns to clone from source- to target snapshot
+     * @return list of index ids to clone
+     * @throws SnapshotException on failure to find concrete request index ids or any index ids
+     */
+    static List<IndexId> findIndexIdsToClone(SnapshotId sourceSnapshotId, Snapshot targetSnapshot, RepositoryData repositoryData,
+                                             String... indexPatterns) {
+        final Map<String, IndexId> indicesInSource = repositoryData.getIndices().values()
+                .stream()
+                .filter(indexId -> repositoryData.getSnapshots(indexId).contains(sourceSnapshotId))
+                .collect(Collectors.toMap(IndexId::getName, Function.identity()));
+        final List<IndexId> matchingIndices = new ArrayList<>();
+        for (String indexNameOrPattern : indexPatterns) {
+            if (Regex.isSimpleMatchPattern(indexNameOrPattern)) {
+                for (IndexId indexId : indicesInSource.values()) {
+                    if (Regex.simpleMatch(indexNameOrPattern, indexId.getName())) {
+                        matchingIndices.add(indexId);
+                    }
+                }
+            } else {
+                final IndexId foundIndexId = indicesInSource.get(indexNameOrPattern);
+                if (foundIndexId == null) {
+                    throw new SnapshotException(targetSnapshot, "No index [" + indexNameOrPattern + "] found in the source snapshot ["
+                            + sourceSnapshotId + "]");
+                }
+                matchingIndices.add(foundIndexId);
+            }
+        }
+        if (matchingIndices.isEmpty()) {
+            throw new SnapshotException(targetSnapshot, "No indices in the source snapshot [" + sourceSnapshotId +
+                    "] matched requested pattern [" + Strings.arrayToCommaDelimitedString(indexPatterns) + "]");
+        }
+        return matchingIndices;
     }
 }

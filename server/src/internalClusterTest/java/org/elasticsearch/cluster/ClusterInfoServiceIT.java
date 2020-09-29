@@ -41,8 +41,10 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -71,7 +73,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterInfoServiceIT extends ESIntegTestCase {
 
-    public static class TestPlugin extends Plugin implements ActionPlugin {
+    private static final String TEST_SYSTEM_INDEX_NAME = ".test-cluster-info-system-index";
+
+    public static class TestPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
 
         private final BlockingActionFilter blockingActionFilter;
 
@@ -82,6 +86,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         @Override
         public List<ActionFilter> getActionFilters() {
             return singletonList(blockingActionFilter);
+        }
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
         }
     }
 
@@ -119,7 +128,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     public void testClusterInfoServiceCollectsInformation() {
         internalCluster().startNodes(2);
 
-        final String indexName = (randomBoolean() ? "." : "") + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final String indexName = randomBoolean() ? randomAlphaOfLength(5).toLowerCase(Locale.ROOT) : TEST_SYSTEM_INDEX_NAME;
         assertAcked(prepareCreate(indexName)
             .setSettings(Settings.builder()
                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)

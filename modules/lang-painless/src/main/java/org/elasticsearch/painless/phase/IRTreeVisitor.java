@@ -131,7 +131,7 @@ public interface IRTreeVisitor<Scope> {
     void visitNull(NullNode irNullNode, Scope scope);
     void visitDefInterfaceReference(DefInterfaceReferenceNode irDefInterfaceReferenceNode, Scope scope);
     void visitTypedInterfaceReference(TypedInterfaceReferenceNode irTypedInterfaceReferenceNode, Scope scope);
-    void visitTypeCaptureReference(TypedCaptureReferenceNode irTypedCaptureReferenceNode, Scope scope);
+    void visitTypedCaptureReference(TypedCaptureReferenceNode irTypedCaptureReferenceNode, Scope scope);
     void visitStatic(StaticNode irStaticNode, Scope scope);
     void visitLoadVariable(LoadVariableNode irLoadVariableNode, Scope scope);
     void visitNullSafeSub(NullSafeSubNode irNullSafeSubNode, Scope scope);

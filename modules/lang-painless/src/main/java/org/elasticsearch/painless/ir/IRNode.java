@@ -62,10 +62,6 @@ public abstract class IRNode {
         return type.cast(decorations.remove(type));
     }
 
-    public boolean hasDecoration(Class<? extends IRDecoration<?>> type) {
-        return decorations.containsKey(type);
-    }
-
     public <T extends IRDecoration<?>> T getDecoration(Class<T> type) {
         return type.cast(decorations.get(type));
     }

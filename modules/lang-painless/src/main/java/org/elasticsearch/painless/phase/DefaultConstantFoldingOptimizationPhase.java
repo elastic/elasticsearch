@@ -184,7 +184,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
 
         if (irUnaryMathNode.getChildNode() instanceof ConstantNode) {
             ConstantNode irConstantNode = (ConstantNode)irUnaryMathNode.getChildNode();
-            Operation operation = irUnaryMathNode.getOperation();
+            Operation operation = irUnaryMathNode.getDecorationValue(IRDOperation.class);
             Class<?> type = irUnaryMathNode.getDecorationValue(IRDExpressionType.class);
 
             if (operation == Operation.SUB) {

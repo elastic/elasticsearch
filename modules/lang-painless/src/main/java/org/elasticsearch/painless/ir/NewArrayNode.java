@@ -24,19 +24,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class NewArrayNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
-
-    private boolean initialize;
-
-    public void setInitialize(boolean initialize) {
-        this.initialize = initialize;
-    }
-
-    public boolean getInitialize() {
-        return initialize;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

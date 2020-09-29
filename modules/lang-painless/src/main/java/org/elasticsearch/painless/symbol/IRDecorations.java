@@ -19,20 +19,28 @@
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.IRNode.IRCondition;
 import org.elasticsearch.painless.ir.IRNode.IRDecoration;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessClassBinding;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
-import java.util.Objects;
+import java.util.Collections;
+import java.util.List;
 
 public class IRDecorations {
 
     public abstract static class IRDType extends IRDecoration<Class<?>> {
 
-        public IRDType(Class<?> type) {
-            super(type);
+        public IRDType(Class<?> value) {
+            super(value);
         }
 
         @Override
@@ -43,29 +51,29 @@ public class IRDecorations {
 
     public static class IRDExpressionType extends IRDType {
 
-        public IRDExpressionType(Class<?> expressionType) {
-            super(expressionType);
+        public IRDExpressionType(Class<?> value) {
+            super(value);
         }
     }
 
     public static class IRDBinaryType extends IRDType {
 
-        public IRDBinaryType(Class<?> binaryType) {
-            super(binaryType);
+        public IRDBinaryType(Class<?> value) {
+            super(value);
         }
     }
 
     public static class IRDShiftType extends IRDType {
 
-        public IRDShiftType(Class<?> shiftType) {
-            super(shiftType);
+        public IRDShiftType(Class<?> value) {
+            super(value);
         }
     }
 
     public static class IRDOperation extends IRDecoration<Operation> {
 
-        public IRDOperation(Operation operation) {
-            super(operation);
+        public IRDOperation(Operation value) {
+            super(value);
         }
 
         @Override
@@ -76,96 +84,321 @@ public class IRDecorations {
 
     public static class IRDFlags extends IRDecoration<Integer> {
 
-        public IRDFlags(Integer flags) {
-            super(Objects.requireNonNull(flags));
+        public IRDFlags(Integer value) {
+            super(value);
         }
     }
 
     public static class IRCAllEscape implements IRCondition {
 
+        private IRCAllEscape() {
+
+        }
     }
 
     public static class IRDCast extends IRDecoration<PainlessCast> {
 
-        public IRDCast(PainlessCast painlessCast) {
-            super(painlessCast);
+        public IRDCast(PainlessCast value) {
+            super(value);
         }
     }
 
     public static class IRDExceptionType extends IRDType {
 
-        public IRDExceptionType(Class<?> type) {
-            super(type);
+        public IRDExceptionType(Class<?> value) {
+            super(value);
         }
     }
 
     public static class IRDSymbol extends IRDecoration<String> {
 
-        public IRDSymbol(String symbol) {
-            super(symbol);
+        public IRDSymbol(String value) {
+            super(value);
         }
     }
 
     public static class IRDComparisonType extends IRDType {
 
-        public IRDComparisonType(Class<?> type) {
-            super(type);
+        public IRDComparisonType(Class<?> value) {
+            super(value);
         }
     }
 
     public static class IRDConstant extends IRDecoration<Object> {
 
-        public IRDConstant(Object constant) {
-            super(constant);
+        public IRDConstant(Object value) {
+            super(value);
         }
     }
 
     public static class IRDDeclarationType extends IRDType {
 
-        public IRDDeclarationType(Class<?> type) {
-            super(type);
+        public IRDDeclarationType(Class<?> value) {
+            super(value);
         }
     }
 
     public static class IRDName extends IRDecoration<String> {
 
-        public IRDName(String name) {
-            super(name);
+        public IRDName(String value) {
+            super(value);
         }
     }
 
     public static class IRDEncoding extends IRDecoration<String> {
 
-        public IRDEncoding(String encoding) {
-            super(encoding);
+        public IRDEncoding(String value) {
+            super(value);
         }
     }
 
     public static class IRDSize extends IRDecoration<Integer> {
 
-        public IRDSize(Integer size) {
-            super(size);
+        public IRDSize(Integer value) {
+            super(value);
         }
     }
 
     public static class IRDDepth extends IRDecoration<Integer> {
 
-        public IRDDepth(Integer size) {
-            super(size);
+        public IRDDepth(Integer value) {
+            super(value);
         }
     }
 
     public static class IRDModifiers extends IRDecoration<Integer> {
 
-        public IRDModifiers(Integer size) {
-            super(size);
+        public IRDModifiers(Integer value) {
+            super(value);
         }
     }
 
     public static class IRDFieldType extends IRDType {
 
-        public IRDFieldType(Class<?> type) {
-            super(type);
+        public IRDFieldType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDVariableType extends IRDType {
+
+        public IRDVariableType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDVariableName extends IRDecoration<String> {
+
+        public IRDVariableName(String value) {
+            super(value);
+        }
+    }
+
+    public static class IRDArrayType extends IRDType {
+
+        public IRDArrayType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDArrayName extends IRDecoration<String> {
+
+        public IRDArrayName(String value) {
+            super(value);
+        }
+    }
+
+    public static class IRDIndexType extends IRDType {
+
+        public IRDIndexType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDIndexName extends IRDecoration<String> {
+
+        public IRDIndexName(String value) {
+            super(value);
+        }
+    }
+
+    public static class IRDIndexedType extends IRDType {
+
+        public IRDIndexedType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDIterableType extends IRDType {
+
+        public IRDIterableType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDIterableName extends IRDecoration<String> {
+
+        public IRDIterableName(String value) {
+            super(value);
+        }
+    }
+
+    public static class IRDMethod extends IRDecoration<PainlessMethod> {
+
+        public IRDMethod(PainlessMethod value) {
+            super(value);
+        }
+
+        @Override
+        public String toString() {
+            return PainlessLookupUtility.buildPainlessMethodKey(getValue().javaMethod.getName(), getValue().typeParameters.size());
+        }
+    }
+
+    public static class IRDReturnType extends IRDType {
+
+        public IRDReturnType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDTypeParameters extends IRDecoration<List<Class<?>>> {
+
+        public IRDTypeParameters(List<Class<?>> value) {
+            super(Collections.unmodifiableList(value));
+        }
+    }
+
+    public static class IRDParameterNames extends IRDecoration<List<String>> {
+
+        public IRDParameterNames(List<String> value) {
+            super(Collections.unmodifiableList(value));
+        }
+    }
+
+    public static class IRCStatic implements IRCondition {
+
+        private IRCStatic() {
+
+        }
+    }
+
+    public static class IRCVarArgs implements IRCondition {
+
+        private IRCVarArgs() {
+
+        }
+    }
+
+    public static class IRCSynthetic implements IRCondition {
+
+        private IRCSynthetic() {
+
+        }
+    }
+
+    public static class IRDMaxLoopCounter extends IRDecoration<Integer> {
+
+        public IRDMaxLoopCounter(Integer value) {
+            super(value);
+        }
+    }
+
+    public static class IRDInstanceType extends IRDType {
+
+        public IRDInstanceType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDFunction extends IRDecoration<LocalFunction> {
+
+        public IRDFunction(LocalFunction value) {
+            super(value);
+        }
+    }
+
+    public static class IRDClassBinding extends IRDecoration<PainlessClassBinding> {
+
+        public IRDClassBinding(PainlessClassBinding value) {
+            super(value);
+        }
+    }
+
+    public static class IRDInstanceBinding extends IRDecoration<PainlessInstanceBinding> {
+
+        public IRDInstanceBinding(PainlessInstanceBinding value) {
+            super(value);
+        }
+    }
+
+    public static class IRDConstructor extends IRDecoration<PainlessConstructor> {
+
+        public IRDConstructor(PainlessConstructor value) {
+            super(value);
+        }
+    }
+
+    public static class IRDValue extends IRDecoration<String> {
+
+        public IRDValue(String value) {
+            super(value);
+        }
+    }
+
+    public static class IRDField extends IRDecoration<PainlessField> {
+
+        public IRDField(PainlessField value) {
+            super(value);
+        }
+    }
+
+    public static class IRCContinuous implements IRCondition {
+
+        private IRCContinuous() {
+
+        }
+    }
+
+    public static class IRCInitialize implements IRCondition {
+
+        private IRCInitialize() {
+
+        }
+    }
+
+    public static class IRCRead implements IRCondition {
+
+        private IRCRead() {
+
+        }
+    }
+
+    public static class IRDCaptureNames extends IRDecoration<List<String>> {
+
+        public IRDCaptureNames(List<String> value) {
+            super(Collections.unmodifiableList(value));
+        }
+    }
+
+    public static class IRDStoreType extends IRDType {
+
+        public IRDStoreType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDUnaryType extends IRDType {
+
+        public IRDUnaryType(Class<?> value) {
+            super(value);
+        }
+    }
+
+    public static class IRDReference extends IRDecoration<FunctionRef> {
+
+        public IRDReference(FunctionRef value) {
+            super(value);
         }
     }
 }

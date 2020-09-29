@@ -20,33 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class NewObjectNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
-
-    private PainlessConstructor constructor;
-    private boolean read;
-
-    public void setConstructor(PainlessConstructor constructor) {
-        this.constructor = constructor;
-    }
-
-    public PainlessConstructor getConstructor() {
-        return constructor;
-    }
-
-    public void setRead(boolean read) {
-        this.read = read;
-    }
-
-    public boolean getRead() {
-        return read;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

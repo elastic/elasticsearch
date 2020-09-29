@@ -158,6 +158,6 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType defaultFieldType() {
-        return new HistogramFieldMapper.HistogramFieldType("field", true, Collections.emptyMap());
+        return new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap());
     }
 }

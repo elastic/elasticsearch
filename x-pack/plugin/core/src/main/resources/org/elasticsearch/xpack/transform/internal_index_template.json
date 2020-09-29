@@ -29,7 +29,7 @@
               "type": "keyword"
             },
             "query": {
-              "enabled": "false"
+              "enabled": false
             }
           }
         },
@@ -37,9 +37,6 @@
           "properties": {
             "index": {
               "type": "keyword"
-            },
-            "query": {
-              "enabled": "false"
             }
           }
         },
@@ -64,7 +61,7 @@
               "type": "boolean"
             },
             "current_position": {
-              "enabled": "false"
+              "enabled": false
             },
             "checkpoint": {
               "type": "long"

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
@@ -21,23 +22,30 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ml.MlStatsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
@@ -82,7 +90,7 @@ public class TransformIndexTemplateRegistryTests extends ESTestCase {
         putIndexTemplateRequestCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
     }
 
-    public void testStateTemplate() {
+    public void testTemplates() {
         TransformIndexTemplateRegistry registry =
             new TransformIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
 
@@ -95,14 +103,63 @@ public class TransformIndexTemplateRegistryTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the transform internal index template to be put"));
 
+        assertEquals(Version.CURRENT.id, internal.version().intValue());
+        assertThat(internal.patterns(), Matchers.contains(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME));
+        assertThat(internal.settings().get("index.number_of_shards"), equalTo("1"));
+        assertThat(internal.settings().get("index.auto_expand_replicas"), equalTo("0-1"));
+        assertThat(internal.settings().size(), equalTo(2));
+
         PutIndexTemplateRequest audit = putIndexTemplateRequestCaptor.getAllValues().stream()
             .filter(r -> r.name().equals(TransformInternalIndexConstants.AUDIT_INDEX))
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the transform audit index template to be put"));
+
+        assertEquals(Version.CURRENT.id, audit.version().intValue());
+        assertThat(audit.patterns(), Matchers.contains(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"));
+        Alias alias = audit.aliases().iterator().next();
+        assertThat(alias.name(), equalTo(".transform-notifications-read"));
+        assertTrue(alias.isHidden());
+        assertThat(audit.settings().get("index.number_of_shards"), equalTo("1"));
+        assertThat(audit.settings().get("index.auto_expand_replicas"), equalTo("0-1"));
+        assertThat(audit.settings().get("index.hidden"), equalTo("true"));
+        assertThat(audit.settings().size(), equalTo(3));
     }
 
-    public void testRefactor() {
+    public void testRefactoredMappingsAreSameAsOld() throws IOException {
+        TransformIndexTemplateRegistry registry =
+            new TransformIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        {
+            IndexTemplateConfig auditConfig = registry.getLegacyTemplateConfigs().stream()
+                .filter(r -> r.getTemplateName().equals(TransformInternalIndexConstants.AUDIT_INDEX))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expected the transform audit index template to be put"));
 
+            byte[] bytes = auditConfig.loadBytes();
+            Map<String, Object> auditTemplate =
+                XContentHelper.convertToMap(new BytesArray(bytes, 0, bytes.length), true, XContentType.JSON).v2();
+
+            Map<String, Object> oldMappings =
+                XContentHelper.convertToMap(BytesReference.bytes(TransformInternalIndex.auditMappings()), true, XContentType.JSON).v2();
+
+            assertEquals(oldMappings, auditTemplate.get("mappings"));
+        }
+
+        {
+            IndexTemplateConfig internalConfig = registry.getLegacyTemplateConfigs().stream()
+                .filter(r -> r.getTemplateName().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expected the transform internal index template to be put"));
+
+            byte[] bytes = internalConfig.loadBytes();
+            Map<String, Object> internalTemplate =
+                XContentHelper.convertToMap(new BytesArray(bytes, 0, bytes.length), true, XContentType.JSON).v2();
+
+            Map<String, Object> oldMappings =
+                XContentHelper.convertToMap(BytesReference.bytes(TransformInternalIndex.mappings()), true,
+                    XContentType.JSON).v2();
+
+            assertEquals(oldMappings, internalTemplate.get("mappings"));
+        }
     }
 
     @SuppressWarnings("unchecked")

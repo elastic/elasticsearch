@@ -6,14 +6,11 @@
 
 package org.elasticsearch.xpack.transform;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -88,7 +85,6 @@ import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.rest.action.RestCatTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestDeleteTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformAction;
@@ -108,23 +104,18 @@ import org.elasticsearch.xpack.transform.rest.action.compat.RestStopTransformAct
 import org.elasticsearch.xpack.transform.rest.action.compat.RestUpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
     public static final String TASK_THREAD_POOL_NAME = "transform_indexing";
-
-    private static final Logger logger = LogManager.getLogger(Transform.class);
 
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();

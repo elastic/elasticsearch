@@ -6,7 +6,7 @@
   ],
   "aliases": {
     ".transform-notifications-read": {
-      "hidden": true
+      "is_hidden": true
     }
   },
   "settings" : {

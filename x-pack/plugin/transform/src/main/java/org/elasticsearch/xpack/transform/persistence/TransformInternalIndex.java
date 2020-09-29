@@ -109,7 +109,7 @@ public final class TransformInternalIndex {
         return transformTemplate;
     }
 
-    private static XContentBuilder auditMappings() throws IOException {
+    public static XContentBuilder auditMappings() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject();
         builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);

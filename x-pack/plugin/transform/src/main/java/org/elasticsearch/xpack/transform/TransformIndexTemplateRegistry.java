@@ -27,7 +27,7 @@ class TransformIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final String VERSION_PATTERN = "xpack.transform.version";
     private static final String VERSION_ID_PATTERN = VERSION_PATTERN + ".id";
 
-    public TransformIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool,
+    TransformIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool,
                                           Client client, NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
     }

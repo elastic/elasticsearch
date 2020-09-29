@@ -29,7 +29,8 @@ public class LegacyFeatureImportanceTests extends AbstractWireSerializingTestCas
                 .map(featureName -> new LegacyFeatureImportance.ClassImportance(featureName, randomDouble()))
                 .collect(Collectors.toList());
 
-            importance = classImportances.stream().mapToDouble(LegacyFeatureImportance.ClassImportance::getImportance).map(Math::abs).sum();
+            importance = classImportances.size() == 2 ? Math.abs(classImportances.get(0).getImportance()) :
+                classImportances.stream().mapToDouble(LegacyFeatureImportance.ClassImportance::getImportance).map(Math::abs).sum();
         }
         return new LegacyFeatureImportance(randomAlphaOfLength(10), importance, classImportances);
     }

@@ -396,7 +396,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return parent.valueFetcher(mapperService, searchLookup, format);
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -422,7 +422,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return parentField.valueFetcher(mapperService, searchLookup, format);
+            throw new UnsupportedOperationException();
         }
 
         static boolean canMerge(PrefixFieldType first, PrefixFieldType second) {

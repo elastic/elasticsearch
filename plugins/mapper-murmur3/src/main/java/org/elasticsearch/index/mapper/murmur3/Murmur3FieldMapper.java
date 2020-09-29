@@ -159,5 +159,5 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
             }
         }
     }
-    
+
 }

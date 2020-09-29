@@ -32,7 +32,6 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -124,7 +123,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
-            return new DocValueFetcher(DocValueFormat.RAW, lookup.doc().getForField(this));
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override

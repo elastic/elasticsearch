@@ -78,7 +78,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return lookup -> Collections.singletonList(mapperService.documentMapper().type());
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override

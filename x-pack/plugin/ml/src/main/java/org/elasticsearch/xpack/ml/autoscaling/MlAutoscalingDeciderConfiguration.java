@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class MlAutoscalingDeciderConfiguration implements AutoscalingDeciderConfiguration {
-    private static final String NAME = "ml";
+    static final String NAME = "ml";
 
     private static final int DEFAULT_ANOMALY_JOBS_IN_QUEUE = 0;
     private static final int DEFAULT_ANALYTICS_JOBS_IN_QUEUE = 0;

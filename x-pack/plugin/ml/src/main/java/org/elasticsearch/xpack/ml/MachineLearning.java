@@ -225,6 +225,7 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
+import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
@@ -1100,6 +1101,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         namedWriteables.addAll(new AnalysisStatsNamedWriteablesProvider().getNamedWriteables());
         namedWriteables.addAll(MlEvaluationNamedXContentProvider.getNamedWriteables());
         namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         return namedWriteables;
     }
 

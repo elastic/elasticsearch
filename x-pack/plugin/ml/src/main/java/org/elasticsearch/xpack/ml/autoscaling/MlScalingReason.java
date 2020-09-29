@@ -20,6 +20,7 @@ import java.util.Objects;
 
 public class MlScalingReason implements AutoscalingDecision.Reason {
 
+    static final String NAME = "ml";
     static final String WAITING_ANALYTICS_JOBS = "waiting_analytics_jobs";
     static final String WAITING_ANOMALY_JOBS = "waiting_anomaly_jobs";
     static final String CONFIGURATION = "configuration";
@@ -98,7 +99,7 @@ public class MlScalingReason implements AutoscalingDecision.Reason {
 
     @Override
     public String getWriteableName() {
-        return "ml";
+        return NAME;
     }
 
     @Override

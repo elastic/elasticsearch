@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.core.ml;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

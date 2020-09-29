@@ -97,12 +97,11 @@ public class DataFrameAnalyticsManager {
                 IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
                 if (destIndex != null) {
                     MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
-                    DestinationIndex.CompatibilityCheckResult compatibilityCheckResult =
-                        DestinationIndex.checkCompatible(config.getId(), destIndexMapping);
-                    if (compatibilityCheckResult.isCompatible() == false) {
+                    DestinationIndex.Metadata metadata = DestinationIndex.readMetadata(config.getId(), destIndexMapping);
+                    if (metadata.hasMetadata() && metadata.isCompatible() == false) {
                         LOGGER.info("[{}] Destination index was created in version [{}] but minimum supported version is [{}]. " +
-                            "Deleting index and starting from scratch.", config.getId(), compatibilityCheckResult.getDestIndexVersion(),
-                            compatibilityCheckResult.getMinCompatibleVersion());
+                            "Deleting index and starting from scratch.", config.getId(), metadata.getVersion(),
+                            DestinationIndex.MIN_COMPATIBLE_VERSION);
                         task.getStatsHolder().resetProgressTracker(config.getAnalysis().getProgressPhases(),
                             config.getAnalysis().supportsInference());
                         DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,

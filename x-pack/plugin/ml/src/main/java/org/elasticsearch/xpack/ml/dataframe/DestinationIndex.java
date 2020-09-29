@@ -66,6 +66,8 @@ public final class DestinationIndex {
     private static final String PROPERTIES = "properties";
     private static final String META = "_meta";
 
+    private static final String DFA_CREATOR = "data-frame-analytics";
+
     /**
      * We only preserve the most important settings.
      * If the user needs other settings on the destination index they
@@ -78,7 +80,7 @@ public final class DestinationIndex {
      * If the results mappings change in a way existing destination indices will fail to index
      * the results, this should be bumped accordingly.
      */
-    private static final Version MIN_COMPATIBLE_VERSION = Version.V_7_10_0;
+    public static final Version MIN_COMPATIBLE_VERSION = Version.V_7_10_0;
 
     private DestinationIndex() {}
 
@@ -180,7 +182,7 @@ public final class DestinationIndex {
     static Map<String, Object> createMetadata(String analyticsId, Clock clock, Version version) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(CREATION_DATE_MILLIS, clock.millis());
-        metadata.put(CREATED_BY, "data-frame-analytics");
+        metadata.put(CREATED_BY, DFA_CREATOR);
         metadata.put(VERSION, Map.of(CREATED, version.toString()));
         metadata.put(ANALYTICS, analyticsId);
         return metadata;
@@ -234,42 +236,76 @@ public final class DestinationIndex {
         }
     }
 
-    public static CompatibilityCheckResult checkCompatible(String jobId, MappingMetadata mappingMetadata) {
-        try {
-            return new CompatibilityCheckResult(getVersion(mappingMetadata));
-        } catch (Exception e) {
-            logger.error(new ParameterizedMessage("[{}] Could not retrieve destination index version", jobId), e);
-            return new CompatibilityCheckResult(null);
+    @SuppressWarnings("unchecked")
+    public static Metadata readMetadata(String jobId, MappingMetadata mappingMetadata) {
+        Map<String, Object> mappings = mappingMetadata.getSourceAsMap();
+        Map<String, Object> meta = (Map<String, Object>) mappings.get(META);
+        if (meta == null || DFA_CREATOR.equals(meta.get(CREATED_BY)) == false) {
+            return new NoMetadata();
         }
+        return new DestMetadata(getVersion(jobId, meta));
     }
 
     @SuppressWarnings("unchecked")
-    private static Version getVersion(MappingMetadata mappingMetadata) {
-        Map<String, Object> mappings = mappingMetadata.getSourceAsMap();
-        Map<String, Object> meta = (Map<String, Object>) mappings.get(META);
-        Map<String, Object> version = (Map<String, Object>) meta.get(VERSION);
-        String createdVersionString = (String) version.get(CREATED);
-        return Version.fromString(createdVersionString);
+    private static Version getVersion(String jobId, Map<String, Object> meta) {
+        try {
+            Map<String, Object> version = (Map<String, Object>) meta.get(VERSION);
+            String createdVersionString = (String) version.get(CREATED);
+            return Version.fromString(createdVersionString);
+        } catch (Exception e) {
+            logger.error(new ParameterizedMessage("[{}] Could not retrieve destination index version", jobId), e);
+            return null;
+        }
     }
 
-    public static class CompatibilityCheckResult {
+    public interface Metadata {
 
-        private final Version destIndexVersion;
+        boolean hasMetadata();
 
-        private CompatibilityCheckResult(Version destIndexVersion) {
-            this.destIndexVersion = destIndexVersion;
+        boolean isCompatible();
+
+        String getVersion();
+    }
+
+    private static class NoMetadata implements Metadata {
+
+        @Override
+        public boolean hasMetadata() {
+            return false;
         }
 
+        @Override
         public boolean isCompatible() {
-            return destIndexVersion == null ? false : destIndexVersion.onOrAfter(MIN_COMPATIBLE_VERSION);
+            throw new UnsupportedOperationException();
         }
 
-        public String getDestIndexVersion() {
-            return destIndexVersion == null ? "unknown" : destIndexVersion.toString();
+        @Override
+        public String getVersion() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class DestMetadata implements Metadata {
+
+        private final Version version;
+
+        private DestMetadata(Version version) {
+            this.version = version;
         }
 
-        public String getMinCompatibleVersion() {
-            return MIN_COMPATIBLE_VERSION.toString();
+        @Override
+        public boolean hasMetadata() {
+            return true;
+        }
+
+        @Override
+        public boolean isCompatible() {
+            return version == null ? false : version.onOrAfter(MIN_COMPATIBLE_VERSION);
+        }
+
+        @Override
+        public String getVersion() {
+            return version == null ? "unknown" : version.toString();
         }
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -359,8 +360,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String targetSnapshot1 = "target-snapshot";
         blockMasterOnReadIndexMeta(repoName);
-        final ActionFuture<AcknowledgedResponse> cloneFuture = dataNodeClient().admin().cluster()
-                .prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot1).setIndices(testIndex).execute();
+        final ActionFuture<AcknowledgedResponse> cloneFuture =
+                startCloneFromDataNode(repoName, sourceSnapshot, targetSnapshot1, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
         final String masterNode = internalCluster().getMasterName();
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
@@ -385,8 +386,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String targetSnapshot = "target-snapshot";
         blockMasterOnShardClone(repoName);
-        final ActionFuture<AcknowledgedResponse> cloneFuture = dataNodeClient().admin().cluster()
-                .prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(testIndex).execute();
+        final ActionFuture<AcknowledgedResponse> cloneFuture = startCloneFromDataNode(repoName, sourceSnapshot, targetSnapshot, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
         final String masterNode = internalCluster().getMasterName();
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
@@ -411,8 +411,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String targetSnapshot = "target-snapshot";
         blockMasterFromFinalizingSnapshotOnSnapFile(repoName);
-        final ActionFuture<AcknowledgedResponse> cloneFuture = dataNodeClient().admin().cluster()
-                .prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(testIndex).execute();
+        final ActionFuture<AcknowledgedResponse> cloneFuture = startCloneFromDataNode(repoName, sourceSnapshot, targetSnapshot, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
         final String masterNode = internalCluster().getMasterName();
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
@@ -423,9 +422,19 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(startDeleteSnapshot(repoName, sourceSnapshot).get());
     }
 
-    private ActionFuture<AcknowledgedResponse> startClone(String repoName, String sourceSnapshot, String targetSnapshot1,
-                                                                 String... indices) {
-        return clusterAdmin().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot1).setIndices(indices).execute();
+    private ActionFuture<AcknowledgedResponse> startCloneFromDataNode(String repoName, String sourceSnapshot, String targetSnapshot,
+                                                                      String... indices) {
+        return startClone(dataNodeClient(), repoName, sourceSnapshot, targetSnapshot, indices);
+    }
+
+    private ActionFuture<AcknowledgedResponse> startClone(String repoName, String sourceSnapshot, String targetSnapshot,
+                                                          String... indices) {
+        return startClone(client(), repoName, sourceSnapshot, targetSnapshot, indices);
+    }
+
+    private static ActionFuture<AcknowledgedResponse> startClone(Client client, String repoName, String sourceSnapshot,
+                                                                 String targetSnapshot, String... indices) {
+        return client.admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indices).execute();
     }
 
     private void blockMasterOnReadIndexMeta(String repoName) {

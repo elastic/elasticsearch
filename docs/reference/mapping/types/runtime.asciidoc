@@ -284,7 +284,6 @@ and determine which fields to index.
     "hits" : [
       {
         "_index" : "my-index",
-        "_type" : "_doc",
         "_id" : "8Jh81nQBp2DRDXdiOxVt",
         "_score" : 1.0,
         "_source" : {
@@ -305,7 +304,6 @@ and determine which fields to index.
       },
       {
         "_index" : "my-index",
-        "_type" : "_doc",
         "_id" : "8Zh81nQBp2DRDXdiOxVu",
         "_score" : 1.0,
         "_source" : {
@@ -328,11 +326,9 @@ and determine which fields to index.
   }
 }
 ----
-// TESTRESPONSE[s/"took": 150/"took": $body.took/]
-// TESTRESPONSE[s/"_type": "_doc"/"_type": $body.$_path/]
-// TESTRESPONSE[s/"_type": "_doc"/"_type": $body.$_path/]
-// TESTRESPONSE[s/"_id": "8Jh81nQBp2DRDXdiOxVt"/"_id": $body.hits.hits.0._id/]
-// TESTRESPONSE[s/"_id": "8Zh81nQBp2DRDXdiOxVu"/"_id": $body.hits.hits.1._id/]
+// TESTRESPONSE[s/"took" : 150/"took": $body.took/]
+// TESTRESPONSE[s/"_id" : "8Jh81nQBp2DRDXdiOxVt"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "8Zh81nQBp2DRDXdiOxVu"/"_id": $body.hits.hits.1._id/]
 
 If you add the `day_of_week` field to the mapping using the request in
 <<runtime-mapping-fields,mapping a runtime field>>, you can re-run the previous

@@ -431,7 +431,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             // call it 3 times again
             for (int i = 0; i < 3; ++i) {
                 boolean stopAtCheckpoint = randomBoolean();
-                timesStopAtCheckpointChanged = timesStopAtCheckpointChanged + (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
+                timesStopAtCheckpointChanged += (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
                 previousStopAtCheckpoint = stopAtCheckpoint;
                 assertResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener));
             }

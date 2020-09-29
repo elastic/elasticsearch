@@ -276,6 +276,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        // fire and forget template installer
+        new TransformIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
         TransformCheckpointService checkpointService = new TransformCheckpointService(settings, clusterService, configManager, auditor);
@@ -284,26 +287,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
 
         return Arrays.asList(transformServices.get(), new TransformClusterStateListener(clusterService, client));
-    }
-
-    @Override
-    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
-        return templates -> {
-            try {
-                templates.put(
-                    TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                    TransformInternalIndex.getIndexTemplateMetadata()
-                );
-            } catch (IOException e) {
-                logger.error("Error creating transform index template", e);
-            }
-            try {
-                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
-            } catch (IOException e) {
-                logger.warn("Error creating transform audit index", e);
-            }
-            return templates;
-        };
     }
 
     @Override

@@ -226,7 +226,10 @@ contains "Firefox". Finally, in every other case, the value of the field is
 returned.
 <3> The aggregations object contains filters that narrow down the results to 
 documents that contains `200`, `404`, or `503` values in the `response` field.
-<4> Specifies the destination index of the {transform}.
+<4> Specifies the destination index of the {transform}. As the mappings of 
+fields created by scrips cannot be deduced, please define the mappings of the 
+destination index prior to creating the {transform}.
+
 
 The API returns the following result:
 

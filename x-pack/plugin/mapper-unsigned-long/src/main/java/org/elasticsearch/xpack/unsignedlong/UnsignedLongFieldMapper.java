@@ -107,16 +107,22 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
             return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
         }
 
+        Number parsedNullValue() {
+            if (nullValue.getValue() == null) {
+                return null;
+            }
+            long parsed = parseUnsignedLong(nullValue.getValue());
+            return parsed >= 0 ? parsed : BigInteger.valueOf(parsed).and(BIGINTEGER_2_64_MINUS_ONE);
+        }
+
         @Override
         public UnsignedLongFieldMapper build(BuilderContext context) {
-            long parsed = parseUnsignedLong(nullValue);
-            Number nullValueFormatted = parsed >= 0 ? parsed : BigInteger.valueOf(parsed).and(BIGINTEGER_2_64_MINUS_ONE);
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
                 buildFullName(context),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
-                nullValueFormatted,
+                parsedNullValue(),
                 meta.getValue()
             );
             return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);

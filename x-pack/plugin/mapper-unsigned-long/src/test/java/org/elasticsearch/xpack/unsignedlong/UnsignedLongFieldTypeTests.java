@@ -168,7 +168,8 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(mapper, "18446744073709551615"));
         assertEquals(List.of(), fetchSourceValue(mapper, ""));
 
-        MappedFieldType nullValueMapper = new UnsignedLongFieldMapper.Builder("field", settings).nullValue("18446744073709551615")
+        MappedFieldType nullValueMapper = new UnsignedLongFieldMapper.Builder("field", settings)
+            .nullValue("18446744073709551615")
             .build(context)
             .fieldType();
         assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));

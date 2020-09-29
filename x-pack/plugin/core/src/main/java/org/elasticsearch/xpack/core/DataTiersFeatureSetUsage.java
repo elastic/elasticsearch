@@ -153,9 +153,9 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.humanReadableField("primary_size_bytes", "primary_size", new ByteSizeValue(primaryByteCount));
             builder.humanReadableField("primary_shard_size_avg_bytes", "primary_shard_size_avg",
                 new ByteSizeValue(primaryShardCount == 0 ? 0 : (primaryByteCount / primaryShardCount)));
-            builder.humanReadableField("primary_shard_size_median_bytes", "primary_shard_size_median_bytes",
+            builder.humanReadableField("primary_shard_size_median_bytes", "primary_shard_size_median",
                 new ByteSizeValue(primaryByteCountMedian));
-            builder.humanReadableField("primary_shard_size_mad_bytes", "primary_shard_size_mad_bytes",
+            builder.humanReadableField("primary_shard_size_mad_bytes", "primary_shard_size_mad",
                 new ByteSizeValue(primaryShardBytesMAD));
             builder.endObject();
             return builder;

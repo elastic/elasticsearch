@@ -31,4 +31,4 @@
         h: ["action", "x_opaque_id"]
 
   - match:
-      $body: / ^.*TestID\n.*$/
+      $body: /TestID/

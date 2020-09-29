@@ -296,7 +296,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public ShapeBuilder<?, ?, ?> parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException {
+        public ShapeBuilder<?, ?, ?> parse(XContentParser parser) throws IOException, ParseException {
             return ShapeParser.parse(parser);
         }
 
@@ -322,7 +322,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         private RecursivePrefixTreeStrategy recursiveStrategy;
         private TermQueryPrefixTreeStrategy termStrategy;
 
-        public GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+        private GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
         }
 

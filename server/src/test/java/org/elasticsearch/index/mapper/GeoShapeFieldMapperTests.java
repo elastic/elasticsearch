@@ -54,6 +54,26 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         return new GeoShapeFieldMapper.Builder("geoshape");
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+            GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper) m;
+            assertEquals(ShapeBuilder.Orientation.RIGHT, gsfm.orientation());
+        });
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
+            GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
+            assertTrue(gpfm.ignoreMalformed.value());
+        });
+        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+            GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
+            assertFalse(gpfm.ignoreZValue.value());
+        });
+        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+            GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
+            assertTrue(gpfm.coerce.value());
+        });
+    }
+
     @Before
     public void addModifiers() {
         addModifier("orientation", true, (a, b) -> {
@@ -70,6 +90,11 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_shape");
+    }
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("POINT (14.0 15.0)");
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -125,7 +150,6 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         assertFieldWarnings("tree");
     }
 
-
     /**
      * Test that accept_z_value parameter correctly parses
      */
@@ -164,7 +188,6 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         assertThat(ignoreMalformed.explicit(), equalTo(true));
         assertThat(ignoreMalformed.value(), equalTo(false));
     }
-
 
     private void assertFieldWarnings(String... fieldNames) {
         String[] warnings = new String[fieldNames.length];

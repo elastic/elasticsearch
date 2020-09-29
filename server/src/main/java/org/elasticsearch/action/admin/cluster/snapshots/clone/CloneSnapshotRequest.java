@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest> {
 
     private final String repository;
@@ -64,7 +66,29 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (source == null) {
+            validationException = addValidationError("source snapshot name is missing", null);
+        }
+        if (target == null) {
+            validationException = addValidationError("target snapshot name is missing", null);
+        }
+        if (repository == null) {
+            validationException = addValidationError("repository is missing", validationException);
+        }
+        if (indices == null) {
+            validationException = addValidationError("indices is null", validationException);
+        } else if (indices.length == 0) {
+            validationException = addValidationError("indices patterns are empty", validationException);
+        } else {
+            for (String index : indices) {
+                if (index == null) {
+                    validationException = addValidationError("index is null", validationException);
+                    break;
+                }
+            }
+        }
+        return validationException;
     }
 
     public String[] indices() {

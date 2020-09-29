@@ -182,6 +182,8 @@ public final class Def {
      * Otherwise it returns a handle to the matching method.
      * <p>
      * @param painlessLookup the whitelist
+     * @param functions user defined functions and lambdas
+     * @param constants available constants to be used if the method has the {@code InjectConstantAnnotation}
      * @param methodHandlesLookup caller's lookup
      * @param callSiteType callsite's type
      * @param receiverClass Class of the object to invoke the method on.

@@ -119,7 +119,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     public void testClusterInfoServiceCollectsInformation() {
         internalCluster().startNodes(2);
 
-        final String indexName = (rarely() ? "." : "") + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final String indexName = (randomBoolean() ? "." : "") + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         assertAcked(prepareCreate(indexName)
             .setSettings(Settings.builder()
                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)

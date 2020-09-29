@@ -209,7 +209,7 @@ any indices by using the <<ilm-remove-policy,Remove Policy API>>.
 
 Deprecation Logging::
 
-In a mixed cluster environment where one of the nodes is 6.7 but coordinating node is 6.7
+In a mixed cluster environment where one of the nodes is pre 6.7 but coordinating node is already upgraded to 6.7
 an exception will be thrown when a deprecation warning is emitted on pre 6.7 node.
 it was introduced by (PR: {es-pull}/37622[#37622]) in order to speed up the performance of header warning parsing.
 (issue: {es-issue}/60561[#60561])

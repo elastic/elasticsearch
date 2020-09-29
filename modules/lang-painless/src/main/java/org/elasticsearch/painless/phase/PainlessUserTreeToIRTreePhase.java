@@ -211,7 +211,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         irLoadFieldMemberNode.setLocation(internalLocation);
         irLoadFieldMemberNode.setExpressionType(String.class);
         irLoadFieldMemberNode.setName("$NAME");
-        irLoadFieldMemberNode.setStatic(true);
+        irLoadFieldMemberNode.setStatic(true); // TODO(stu): add $COMPILER_INJECTS, add hash map and set it
 
         irReturnNode.setExpressionNode(irLoadFieldMemberNode);
 

@@ -30,6 +30,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -518,6 +519,7 @@ public final class PainlessLookupBuilder {
                         "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "]", nsme);
             }
         } else {
+            // TODO(stu): fix
             try {
                 javaMethod = augmentedClass.getMethod(methodName, javaTypeParameters.toArray(new Class<?>[typeParametersSize]));
 
@@ -531,6 +533,17 @@ public final class PainlessLookupBuilder {
                         "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] " +
                         "with augmented class [" + typeToCanonicalTypeName(augmentedClass) + "]", nsme);
             }
+        }
+
+        // injections alter the type parameters required for the user to call this method, since some are injected by compiler
+        if (annotations.containsKey(InjectConstantAnnotation.class)) {
+            int numInjections = ((InjectConstantAnnotation)annotations.get(InjectConstantAnnotation.class)).injects.size();
+
+            if (numInjections > 0) {
+                typeParameters.subList(0, numInjections).clear();
+            }
+
+            typeParametersSize = typeParameters.size();
         }
 
         if (javaMethod.getReturnType() != typeToJavaType(returnType)) {
@@ -562,7 +575,6 @@ public final class PainlessLookupBuilder {
         }
 
         MethodType methodType = methodHandle.type();
-
         boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
         PainlessMethod existingPainlessMethod = isStatic ?

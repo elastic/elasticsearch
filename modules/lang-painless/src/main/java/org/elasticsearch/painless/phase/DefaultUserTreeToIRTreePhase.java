@@ -210,6 +210,7 @@ import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope> {
@@ -219,7 +220,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     /**
      * This injects additional ir nodes required for resolving the def type at runtime.
      * This includes injection of ir nodes to add a function to call
-     * {@link DefBootstrap#bootstrap(PainlessLookup, FunctionTable, Lookup, String, MethodType, int, int, Object...)}
+     * {@link DefBootstrap#bootstrap(PainlessLookup, FunctionTable, Map, Lookup, String, MethodType, int, int, Object...)}
      * to do the runtime resolution, and several supporting static fields.
      */
     protected void injectBootstrapMethod(ScriptScope scriptScope) {
@@ -240,6 +241,15 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         irFieldNode.setModifiers(modifiers);
         irFieldNode.setFieldType(FunctionTable.class);
         irFieldNode.setName("$FUNCTIONS");
+
+        irClassNode.addFieldNode(irFieldNode);
+
+        // TODO(stu): add compiler settings here
+        irFieldNode = new FieldNode();
+        irFieldNode.setLocation(internalLocation);
+        irFieldNode.setModifiers(modifiers);
+        irFieldNode.setFieldType(Map.class);
+        irFieldNode.setName("$COMPILERSETTINGS");
 
         irClassNode.addFieldNode(irFieldNode);
 
@@ -292,6 +302,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                             DefBootstrap.class.getMethod("bootstrap",
                                     PainlessLookup.class,
                                     FunctionTable.class,
+                                    Map.class,
                                     Lookup.class,
                                     String.class,
                                     MethodType.class,
@@ -303,6 +314,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                             Arrays.asList(
                                     PainlessLookup.class,
                                     FunctionTable.class,
+                                    Map.class,
                                     Lookup.class,
                                     String.class,
                                     MethodType.class,
@@ -330,6 +342,15 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irLoadFieldMemberNode.setLocation(internalLocation);
             irLoadFieldMemberNode.setExpressionType(FunctionTable.class);
             irLoadFieldMemberNode.setName("$FUNCTIONS");
+            irLoadFieldMemberNode.setStatic(true);
+
+            invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
+
+            // TODO(stu): copy for compiler settings
+            irLoadFieldMemberNode = new LoadFieldMemberNode();
+            irLoadFieldMemberNode.setLocation(internalLocation);
+            irLoadFieldMemberNode.setExpressionType(Map.class);
+            irLoadFieldMemberNode.setName("$COMPILERSETTINGS");
             irLoadFieldMemberNode.setStatic(true);
 
             invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
@@ -1293,6 +1314,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             invokeCallNode.setLocation(userRegexNode.getLocation());
             invokeCallNode.setExpressionType(Pattern.class);
             invokeCallNode.setBox(Pattern.class);
+            // scriptScope.getCompilerSettings()
             invokeCallNode.setMethod(new PainlessMethod(
                             Pattern.class.getMethod("compile", String.class, int.class),
                             Pattern.class,
@@ -1821,9 +1843,28 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             }
 
             InvokeCallNode irInvokeCallNode = new InvokeCallNode();
+            PainlessMethod method = scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).getStandardPainlessMethod();
+            Object[] injections = PainlessLookupUtility.buildInjections(method, scriptScope.getCompilerSettings().asMap());
+            Class<?>[] parameterTypes = method.javaMethod.getParameterTypes();
+            int augmentedOffset = method.javaMethod.getDeclaringClass() == method.targetClass ? 0 : 1;
 
-            for (AExpression userArgumentNode : userCallNode.getArgumentNodes()) {
-                irInvokeCallNode.addArgumentNode(injectCast(userArgumentNode, scriptScope));
+            for (int i = 0; i < injections.length; i++) {
+                Object injection = injections[i];
+                Class<?> parameterType = parameterTypes[i + augmentedOffset];
+
+                if (parameterType != PainlessLookupUtility.typeToUnboxedType(injection.getClass())) {
+                    throw new IllegalStateException("illegal tree structure");
+                }
+
+                ConstantNode constantNode = new ConstantNode();
+                constantNode.setLocation(userCallNode.getLocation());
+                constantNode.setExpressionType(parameterType);
+                constantNode.setConstant(injection);
+                irInvokeCallNode.addArgumentNode(constantNode);
+            }
+
+            for (AExpression userCallArgumentNode : userCallNode.getArgumentNodes()) {
+                irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNode, scriptScope));
             }
 
             irInvokeCallNode.setLocation(userCallNode.getLocation());

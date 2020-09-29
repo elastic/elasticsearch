@@ -122,6 +122,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final Snapshot snapshot;
         private final boolean includeGlobalState;
         private final boolean partial;
+        /**
+         * Map of {@link ShardId} to {@link ShardSnapshotStatus} tracking the state of each shard snapshot operation.
+         */
         private final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
         private final List<IndexId> indices;
         private final List<String> dataStreams;
@@ -131,11 +134,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final Version version;
 
         /**
-         * Source snapshot if this is a clone operation or {@code null} if this is a normal snapshot.
+         * Source snapshot if this is a clone operation or {@code null} if this is a snapshot.
          */
         @Nullable
         private final SnapshotId source;
 
+        /**
+         * Map of {@link RepositoryShardId} to {@link ShardSnapshotStatus} tracking the state of each shard clone operation in this entry
+         * the same way {@link #shards} tracks the status of each shard snapshot operation in non-clone entries.
+         */
         private final ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones;
 
         @Nullable private final Map<String, Object> userMetadata;
@@ -208,6 +215,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             assert source != null || indexNames.equals(indexNamesInShards)
                 : "Indices in shards " + indexNamesInShards + " differ from expected indices " + indexNames + " for state [" + state + "]";
             final boolean shardsCompleted = completed(shards.values(), clones);
+            // Check state consistency for normal snapshots and started clone operations
             if (source == null || clones.isEmpty() == false) {
                 assert (state.completed() && shardsCompleted) || (state.completed() == false && shardsCompleted == false)
                         : "Completed state must imply all shards completed but saw state [" + state + "] and shards " + shards;

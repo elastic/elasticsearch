@@ -1,0 +1,157 @@
+{
+  "order" : 0,
+  "version" : ${xpack.transform.version.id},
+  "index_patterns" : [
+    ".transform-internal-005"
+  ],
+  "settings" : {
+    "index" : {
+      "number_of_shards" : "1",
+      "auto_expand_replicas" : "0-1"
+    }
+  },
+  "mappings" : {
+    "_doc": {
+      "_meta" : {
+        "version" : "${xpack.transform.version}"
+      },
+      "dynamic" : "false",
+      "properties" : {
+        "doc_type": {
+          "type": "keyword"
+        },
+        "id": {
+          "type": "keyword"
+        },
+        "source": {
+          "properties": {
+            "index": {
+              "type": "keyword"
+            },
+            "query": {
+              "enabled": "false"
+            }
+          }
+        },
+        "dest": {
+          "properties": {
+            "index": {
+              "type": "keyword"
+            },
+            "query": {
+              "enabled": "false"
+            }
+          }
+        },
+        "description": {
+          "type": "text"
+        },
+        "version": {
+          "type": "keyword"
+        },
+        "create_time": {
+          "type": "date"
+        },
+        "state": {
+          "properties": {
+            "task_state": {
+              "type": "keyword"
+            },
+            "indexer_state": {
+              "type": "keyword"
+            },
+            "should_stop_at_checkpoint": {
+              "type": "boolean"
+            },
+            "current_position": {
+              "enabled": "false"
+            },
+            "checkpoint": {
+              "type": "long"
+            },
+            "reason": {
+              "type": "keyword"
+            },
+            "progress": {
+              "properties": {
+                "total_docs": {
+                  "type": "long"
+                },
+                "docs_remaining": {
+                  "type": "long"
+                },
+                "percent_complete": {
+                  "type": "float"
+                },
+                "docs_indexed": {
+                  "type": "long"
+                },
+                "docs_processed": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+        },
+        "stats": {
+          "properties": {
+            "pages_processed": {
+              "type": "long"
+            },
+            "documents_processed": {
+              "type": "long"
+            },
+            "documents_indexed": {
+              "type": "long"
+            },
+            "trigger_count": {
+              "type": "long"
+            },
+            "index_time_in_ms": {
+              "type": "long"
+            },
+            "search_time_in_ms": {
+              "type": "long"
+            },
+            "processing_time_in_ms": {
+              "type": "long"
+            },
+            "index_total": {
+              "type": "long"
+            },
+            "search_total": {
+              "type": "long"
+            },
+            "processing_total": {
+              "type": "long"
+            },
+            "search_failures": {
+              "type": "long"
+            },
+            "index_failures": {
+              "type": "long"
+            },
+            "exponential_avg_checkpoint_duration_ms": {
+              "type": "double"
+            },
+            "exponential_avg_documents_indexed": {
+              "type": "double"
+            },
+            "exponential_avg_documents_processed": {
+              "type": "double"
+            }
+          }
+        },
+        "timestamp_millis": {
+          "type": "date"
+        },
+        "time_upper_bound_millis": {
+          "type": "date"
+        },
+        "checkpoint": {
+          "type": "long"
+        }
+      }
+    }
+  }
+}

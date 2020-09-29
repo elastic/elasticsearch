@@ -419,7 +419,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             for (int i = 0; i < 3; ++i) {
                 CountDownLatch latch = new CountDownLatch(1);
                 boolean stopAtCheckpoint = randomBoolean();
-                timesStopAtCheckpointChanged = timesStopAtCheckpointChanged + (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
+                timesStopAtCheckpointChanged += (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
                 previousStopAtCheckpoint = stopAtCheckpoint;
                 countResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener), latch);
                 responseLatches.add(latch);

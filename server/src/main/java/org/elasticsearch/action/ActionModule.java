@@ -434,7 +434,7 @@ public class ActionModule extends AbstractModule {
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
-        autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, null);
+        autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),

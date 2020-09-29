@@ -848,7 +848,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // TODO: if buildChangesQuery changes the query it get overwritten
         sourceBuilder.query(filteredQuery);
 
-        logger.trace("running changes query {}", sourceBuilder);
+        logger.debug("[{}] Querying for changes: {}", getJobId(), sourceBuilder);
         return sourceBuilder;
     }
 

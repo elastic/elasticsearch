@@ -56,7 +56,7 @@ any where network.protocol == "http"
 
 [discrete]
 [[eql-syntax-escape-identifiers]]
-==== Escape an event category or field name
+===== Escape an event category or field name
 
 Event categories or field names that contain a hyphen (`-`), contain a space, or
 start with a numeral must be escaped with enclosing backticks (+++`+++).

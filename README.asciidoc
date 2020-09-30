@@ -1,4 +1,4 @@
-= Elasticsearch
+= Elasticsearch A comprehensive guide for elastic search
 
 == A Distributed RESTful Search Engine
 

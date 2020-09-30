@@ -96,13 +96,17 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return createMapperService(mappings).documentMapper();
     }
 
+    protected final DocumentMapper createDocumentMapper(Version version, XContentBuilder mappings) throws IOException {
+        return createMapperService(version, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createDocumentMapper(String type, String mappings) throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(type, mapperService, mappings);
         return mapperService.documentMapper();
     }
 
-    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
+    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(Version.CURRENT, mappings);
     }
 

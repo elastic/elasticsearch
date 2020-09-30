@@ -217,7 +217,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         minimalMapping(b);
     }
 
-    public final void testMeta() throws IOException {
+    public void testMeta() throws IOException {
         assumeTrue("Field doesn't support meta", supportsMeta());
         XContentBuilder mapping = fieldMapping(
             b -> {

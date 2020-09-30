@@ -1164,6 +1164,11 @@ public abstract class Rounding implements Writeable {
                     }
                     return rounded;
                 }
+                /*
+                 * After 100 iterations we still couldn't settle on something! Crazy!
+                 * The most I've seen in tests is 20 and its usually 1 or 2. If we're
+                 * not in a test let's log something and round from our best guess.
+                 */
                 assert false : String.format(
                     Locale.ROOT,
                     "Expected to find the rounding in 100 iterations but didn't for [%d] with [%s]",

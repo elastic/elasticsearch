@@ -68,14 +68,6 @@ start with a numeral must be escaped with enclosing backticks (+++`+++).
 `6myfield`
 ----
 
-Any backticks (+++`+++) in an event category or field name must be escaped using
-double backticks (+++``+++).
-
-[source,eql]
-----
-my`field -> `my``field`
-----
-
 [discrete]
 [[eql-syntax-conditions]]
 ==== Conditions

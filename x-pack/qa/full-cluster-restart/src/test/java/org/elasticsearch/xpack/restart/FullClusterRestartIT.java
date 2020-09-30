@@ -10,6 +10,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -52,6 +53,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
@@ -219,6 +221,45 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     assertThat(states, everyItem(is("stopped")));
                 });
             }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWatcherWithApiKey() throws Exception {
+        final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");
+        getWatchStatusRequest.addParameter("filter_path", "status");
+
+        if (isRunningAgainstOldCluster()) {
+            final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
+            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\"}");
+            final Response response = client().performRequest(createApiKeyRequest);
+            final Map<String, Object> createApiKeyResponse = entityAsMap(response);
+
+            Request createWatchWithApiKeyRequest = new Request("PUT", "/_watcher/watch/watch_with_api_key");
+            createWatchWithApiKeyRequest.setJsonEntity(loadWatch("simple-watch.json"));
+            final byte[] keyBytes =
+                (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(StandardCharsets.UTF_8);
+            final String authHeader = "ApiKey " + Base64.getEncoder().encodeToString(keyBytes);
+            createWatchWithApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+            client().performRequest(createWatchWithApiKeyRequest);
+
+            assertBusy(() -> {
+                final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
+                assertEquals("executed", status.get("execution_state"));
+            });
+
+        } else {
+            final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+            final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
+            final int version = (int) status.get("version");
+
+            assertBusy(() -> {
+                final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
+                assertThat((int) newStatus.get("version"), greaterThan(version + 2));
+                assertEquals("executed", newStatus.get("execution_state"));
+            });
         }
     }
 

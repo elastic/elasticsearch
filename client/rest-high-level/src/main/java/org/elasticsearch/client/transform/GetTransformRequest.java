@@ -30,6 +30,7 @@ import java.util.Optional;
 
 public class GetTransformRequest implements Validatable {
 
+    public static final String FOR_EXPORT = "for_export";
     public static final String ALLOW_NO_MATCH = "allow_no_match";
     /**
      * Helper method to create a request that will get ALL Transforms
@@ -42,6 +43,7 @@ public class GetTransformRequest implements Validatable {
     private final List<String> ids;
     private PageParams pageParams;
     private Boolean allowNoMatch;
+    private Boolean forExport;
 
     public GetTransformRequest(String... ids) {
         this.ids = Arrays.asList(ids);
@@ -67,6 +69,14 @@ public class GetTransformRequest implements Validatable {
         this.allowNoMatch = allowNoMatch;
     }
 
+    public void setForExport(boolean forExport) {
+        this.forExport = forExport;
+    }
+
+    public Boolean getForExport() {
+        return forExport;
+    }
+
     @Override
     public Optional<ValidationException> validate() {
         if (ids == null || ids.isEmpty()) {
@@ -80,7 +90,7 @@ public class GetTransformRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, pageParams, allowNoMatch);
+        return Objects.hash(ids, pageParams, forExport, allowNoMatch);
     }
 
     @Override
@@ -95,6 +105,7 @@ public class GetTransformRequest implements Validatable {
         GetTransformRequest other = (GetTransformRequest) obj;
         return Objects.equals(ids, other.ids)
             && Objects.equals(pageParams, other.pageParams)
+            && Objects.equals(forExport, other.forExport)
             && Objects.equals(allowNoMatch, other.allowNoMatch);
     }
 }

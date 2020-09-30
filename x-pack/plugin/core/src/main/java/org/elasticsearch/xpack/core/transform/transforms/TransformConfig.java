@@ -343,7 +343,25 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field(TransformField.ID.getPreferredName(), id);
+        if (params.paramAsBoolean(TransformField.FOR_EXPORT, false) == false) {
+            builder.field(TransformField.ID.getPreferredName(), id);
+            if (headers.isEmpty() == false && params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(HEADERS.getPreferredName(), headers);
+            }
+            if (transformVersion != null) {
+                builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
+            }
+            if (createTime != null) {
+                builder.timeField(
+                    TransformField.CREATE_TIME.getPreferredName(),
+                    TransformField.CREATE_TIME.getPreferredName() + "_string",
+                    createTime.toEpochMilli()
+                );
+            }
+            if (params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
+            }
+        }
         builder.field(TransformField.SOURCE.getPreferredName(), source);
         builder.field(TransformField.DESTINATION.getPreferredName(), dest);
         if (frequency != null) {
@@ -357,26 +375,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
         }
-        if (params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
-        }
-        if (headers.isEmpty() == false && params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(HEADERS.getPreferredName(), headers);
-        }
         if (description != null) {
             builder.field(TransformField.DESCRIPTION.getPreferredName(), description);
         }
         builder.field(TransformField.SETTINGS.getPreferredName(), settings);
-        if (transformVersion != null) {
-            builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
-        }
-        if (createTime != null) {
-            builder.timeField(
-                TransformField.CREATE_TIME.getPreferredName(),
-                TransformField.CREATE_TIME.getPreferredName() + "_string",
-                createTime.toEpochMilli()
-            );
-        }
         builder.endObject();
         return builder;
     }

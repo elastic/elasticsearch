@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -410,19 +409,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
             events = in.readBoolean() ? in.readList(Event::new) : null;
             sequences = in.readBoolean() ? in.readList(Sequence::new) : null;
-
-            // compatibility with 7.9 experimental release
-            if (in.getVersion().before(Version.V_7_10_0)) {
-                if (in.readBoolean()) {
-                    // old read count
-                    in.readList(input -> {
-                        input.readVInt();
-                        input.readGenericValue();
-                        input.readFloat();
-                        return null;
-                    });
-                }
-            }
         }
 
         @Override
@@ -442,11 +428,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 out.writeBoolean(true);
                 out.writeList(sequences);
             } else {
-                out.writeBoolean(false);
-            }
-            // compatibility with 7.9 experimental release
-            if (out.getVersion().before(Version.V_7_10_0)) {
-                // no counts
                 out.writeBoolean(false);
             }
         }

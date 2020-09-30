@@ -3,6 +3,8 @@
 [[search-aggregations-pipeline-inference-bucket-aggregation]]
 === {infer-cap} Bucket Aggregation
 
+experimental::[]
+
 A parent pipeline aggregation which loads a pre-trained model and performs 
 {infer} on the collated result fields from the parent bucket aggregation.
 

@@ -870,7 +870,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         changed = true;
                         logger.debug("[{}] was found in dangling INIT or ABORTED state", snapshot);
                     } else {
-                        if (snapshot.state().completed() || completed(snapshot.shards().values(), snapshot.clones())) {
+                        if (snapshot.state().completed() || completed(snapshot.shards().values())) {
                             finishedSnapshots.add(snapshot);
                         }
                         updatedSnapshotEntries.add(snapshot);

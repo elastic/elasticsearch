@@ -95,8 +95,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Map<String, Object> userMetadata,
                                      Version version) {
         return new SnapshotsInProgress.Entry(snapshot, includeGlobalState, partial,
-                completed(shards.values(), ImmutableOpenMap.of()) ? State.SUCCESS : State.STARTED,
-                indices, dataStreams, startTime, repositoryStateId, shards, null, userMetadata, version, null, null);
+                completed(shards.values()) ? State.SUCCESS : State.STARTED,
+                indices, dataStreams, startTime, repositoryStateId, shards, null, userMetadata, version);
     }
 
     /**
@@ -222,7 +222,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             assert source == null || indexNames.isEmpty() == false : "No empty snapshot clones allowed";
             assert source != null || indexNames.equals(indexNamesInShards)
                 : "Indices in shards " + indexNamesInShards + " differ from expected indices " + indexNames + " for state [" + state + "]";
-            final boolean shardsCompleted = completed(shards.values(), clones);
+            final boolean shardsCompleted = completed(shards.values()) && completed(clones.values());
             // Check state consistency for normal snapshots and started clone operations
             if (source == null || clones.isEmpty() == false) {
                 assert (state.completed() && shardsCompleted) || (state.completed() == false && shardsCompleted == false)
@@ -247,8 +247,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 return this;
             }
             return new Entry(snapshot, includeGlobalState, partial,
-                    completed(shards.values(), updatedClones) ? (hasFailures(updatedClones) ? State.FAILED : State.SUCCESS) : state,
-                    indices, dataStreams, startTime, repositoryStateId, shards, failure, userMetadata, version, source, updatedClones);
+                    completed(updatedClones.values()) ? (hasFailures(updatedClones) ? State.FAILED : State.SUCCESS) :
+                            state, indices, dataStreams, startTime, repositoryStateId, shards, failure, userMetadata, version, source,
+                    updatedClones);
         }
 
         /**
@@ -297,9 +298,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * @return new snapshot entry
          */
         public Entry withShardStates(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            if (completed(shards.values(), clones)) {
+            if (completed(shards.values())) {
                 return new Entry(snapshot, includeGlobalState, partial, State.SUCCESS, indices, dataStreams, startTime, repositoryStateId,
-                        shards, failure, userMetadata, version, source, clones);
+                        shards, failure, userMetadata, version);
             }
             return withStartedShards(shards);
         }
@@ -310,8 +311,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         public Entry withStartedShards(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             final SnapshotsInProgress.Entry updated = new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams,
-                    startTime, repositoryStateId, shards, failure, userMetadata, version, source, clones);
-            assert updated.state().completed() == false && completed(updated.shards().values(), clones) == false
+                    startTime, repositoryStateId, shards, failure, userMetadata, version);
+            assert updated.state().completed() == false && completed(updated.shards().values()) == false
                     : "Only running snapshots allowed but saw [" + updated + "]";
             return updated;
         }
@@ -494,17 +495,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * Checks if all shards in the list have completed
      *
      * @param shards list of shard statuses
-     * @param clones shard clone statuses
      * @return true if all shards have completed (either successfully or failed), false otherwise
      */
-    public static boolean completed(ObjectContainer<ShardSnapshotStatus> shards,
-                                    ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones) {
+    public static boolean completed(ObjectContainer<ShardSnapshotStatus> shards) {
         for (ObjectCursor<ShardSnapshotStatus> status : shards) {
-            if (status.value.state().completed == false) {
-                return false;
-            }
-        }
-        for (ObjectCursor<ShardSnapshotStatus> status : clones.values()) {
             if (status.value.state().completed == false) {
                 return false;
             }

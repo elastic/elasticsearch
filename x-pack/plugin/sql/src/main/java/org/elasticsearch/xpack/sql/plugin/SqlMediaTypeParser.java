@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
 
@@ -22,12 +21,12 @@ public class SqlMediaTypeParser {
     private static final MediaTypeParser<? extends MediaType> parser = new MediaTypeParser.Builder<>()
         .copyFromMediaTypeParser(XContentType.mediaTypeParser)
         .withMediaTypeAndParams(TextFormat.PLAIN_TEXT.typeWithSubtype(), TextFormat.PLAIN_TEXT,
-            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
+            Map.of("header", "present|absent", "charset", "utf-8"))
         .withMediaTypeAndParams(TextFormat.CSV.typeWithSubtype(), TextFormat.CSV,
-            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8"),
-                "delimiter", Pattern.compile("[^\"\n\r\t]+")))
+            Map.of("header", "present|absent", "charset", "utf-8",
+                "delimiter", "[^\"\n\r\t]+"))
         .withMediaTypeAndParams(TextFormat.TSV.typeWithSubtype(), TextFormat.TSV,
-            Map.of("header", Pattern.compile("present|absent"), "charset", Pattern.compile("utf-8")))
+            Map.of("header", "present|absent", "charset", "utf-8"))
         .build();
 
     /*

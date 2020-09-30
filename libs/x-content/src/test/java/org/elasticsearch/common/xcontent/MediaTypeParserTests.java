@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -33,8 +32,8 @@ public class MediaTypeParserTests extends ESTestCase {
 
     MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
         .withMediaTypeAndParams("application/vnd.elasticsearch+json",
-            XContentType.JSON, Map.of("compatible-with", Pattern.compile("\\d+"),
-            "charset", Pattern.compile("UTF-8", Pattern.CASE_INSENSITIVE)))
+            XContentType.JSON, Map.of("compatible-with", "\\d+",
+            "charset", "UTF-8"))
         .build();
 
     public void testJsonWithParameters() throws Exception {

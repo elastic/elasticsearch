@@ -45,15 +45,20 @@ public class Classification implements Evaluation {
 
     private static final ParseField ACTUAL_FIELD = new ParseField("actual_field");
     private static final ParseField PREDICTED_FIELD = new ParseField("predicted_field");
+    private static final ParseField TOP_CLASSES_FIELD = new ParseField("top_classes_field");
+
     private static final ParseField METRICS = new ParseField("metrics");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Classification, Void> PARSER = new ConstructingObjectParser<>(
-        NAME, true, a -> new Classification((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
+        NAME,
+        true,
+        a -> new Classification((String) a[0], (String) a[1], (String) a[2], (List<EvaluationMetric>) a[3]));
 
     static {
         PARSER.declareString(constructorArg(), ACTUAL_FIELD);
-        PARSER.declareString(constructorArg(), PREDICTED_FIELD);
+        PARSER.declareString(optionalConstructorArg(), PREDICTED_FIELD);
+        PARSER.declareString(optionalConstructorArg(), TOP_CLASSES_FIELD);
         PARSER.declareNamedObjects(
             optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), c), METRICS);
     }
@@ -64,32 +69,44 @@ public class Classification implements Evaluation {
 
     /**
      * The field containing the actual value
-     * The value of this field is assumed to be numeric
      */
     private final String actualField;
 
     /**
      * The field containing the predicted value
-     * The value of this field is assumed to be numeric
      */
     private final String predictedField;
+
+    /**
+     * The field containing the array of top classes
+     */
+    private final String topClassesField;
 
     /**
      * The list of metrics to calculate
      */
     private final List<EvaluationMetric> metrics;
 
-    public Classification(String actualField, String predictedField) {
-        this(actualField, predictedField, (List<EvaluationMetric>)null);
+    public Classification(String actualField,
+                          String predictedField,
+                          String topClassesField) {
+        this(actualField, predictedField, topClassesField, (List<EvaluationMetric>)null);
     }
 
-    public Classification(String actualField, String predictedField, EvaluationMetric... metrics) {
-        this(actualField, predictedField, Arrays.asList(metrics));
+    public Classification(String actualField,
+                          String predictedField,
+                          String topClassesField,
+                          EvaluationMetric... metrics) {
+        this(actualField, predictedField, topClassesField, Arrays.asList(metrics));
     }
 
-    public Classification(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
+    public Classification(String actualField,
+                          @Nullable String predictedField,
+                          @Nullable String topClassesField,
+                          @Nullable List<EvaluationMetric> metrics) {
         this.actualField = Objects.requireNonNull(actualField);
-        this.predictedField = Objects.requireNonNull(predictedField);
+        this.predictedField = predictedField;
+        this.topClassesField = topClassesField;
         if (metrics != null) {
             metrics.sort(Comparator.comparing(EvaluationMetric::getName));
         }
@@ -105,8 +122,12 @@ public class Classification implements Evaluation {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ACTUAL_FIELD.getPreferredName(), actualField);
-        builder.field(PREDICTED_FIELD.getPreferredName(), predictedField);
-
+        if (predictedField != null) {
+            builder.field(PREDICTED_FIELD.getPreferredName(), predictedField);
+        }
+        if (topClassesField != null) {
+            builder.field(TOP_CLASSES_FIELD.getPreferredName(), topClassesField);
+        }
         if (metrics != null) {
            builder.startObject(METRICS.getPreferredName());
            for (EvaluationMetric metric : metrics) {
@@ -126,11 +147,12 @@ public class Classification implements Evaluation {
         Classification that = (Classification) o;
         return Objects.equals(that.actualField, this.actualField)
             && Objects.equals(that.predictedField, this.predictedField)
+            && Objects.equals(that.topClassesField, this.topClassesField)
             && Objects.equals(that.metrics, this.metrics);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(actualField, predictedField, metrics);
+        return Objects.hash(actualField, predictedField, topClassesField, metrics);
     }
 }

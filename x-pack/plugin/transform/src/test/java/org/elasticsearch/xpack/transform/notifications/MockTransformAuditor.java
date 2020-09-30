@@ -7,6 +7,11 @@
 package org.elasticsearch.xpack.transform.notifications;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 
@@ -15,7 +20,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /*
  * Test mock auditor to verify audit expectations.
@@ -26,10 +33,24 @@ import static org.mockito.Mockito.mock;
  */
 public class MockTransformAuditor extends TransformAuditor {
 
-    private List<AuditExpectation> expectations;
+    @SuppressWarnings("unchecked")
+    public static MockTransformAuditor createMockAuditor() {
+        ImmutableOpenMap<String, IndexTemplateMetadata> templates = mock(ImmutableOpenMap.class);
+        when(templates.containsKey(eq("mock_node_name"))).thenReturn(Boolean.TRUE);
+        Metadata metadata = mock(Metadata.class);
+        when(metadata.getTemplates()).thenReturn(templates);
+        ClusterState state = mock(ClusterState.class);
+        when(state.getMetadata()).thenReturn(metadata);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
 
-    public MockTransformAuditor() {
-        super(mock(Client.class), "mock_node_name");
+        return new MockTransformAuditor(clusterService);
+    }
+
+    private final List<AuditExpectation> expectations;
+
+    public MockTransformAuditor(ClusterService clusterService) {
+        super(mock(Client.class), clusterService);
         expectations = new CopyOnWriteArrayList<>();
     }
 

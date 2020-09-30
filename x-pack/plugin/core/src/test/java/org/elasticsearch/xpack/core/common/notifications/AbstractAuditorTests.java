@@ -5,10 +5,16 @@
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -30,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,7 +65,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testInfo() throws IOException {
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new TestAuditor(client);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
         auditor.info("foo", "Here is my info");
 
         verify(client).index(indexRequestCaptor.capture(), any());
@@ -74,7 +82,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testWarning() throws IOException {
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new TestAuditor(client);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
         auditor.warning("bar", "Here is my warning");
 
         verify(client).index(indexRequestCaptor.capture(), any());
@@ -91,7 +99,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testError() throws IOException {
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new TestAuditor(client);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
         auditor.error("foobar", "Here is my error");
 
         verify(client).index(indexRequestCaptor.capture(), any());
@@ -113,11 +121,27 @@ public class AbstractAuditorTests extends ESTestCase {
         return AbstractAuditMessageTests.TestAuditMessage.PARSER.apply(parser, null);
     }
 
-    private static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
+    @SuppressWarnings("unchecked")
+    private TestAuditor createTestAuditorWithTemplateInstalled(Client client) {
+        ImmutableOpenMap<String, IndexTemplateMetadata> templates = mock(ImmutableOpenMap.class);
+        when(templates.containsKey(eq(TEST_INDEX))).thenReturn(Boolean.TRUE);
+        Metadata metadata = mock(Metadata.class);
+        when(metadata.getTemplates()).thenReturn(templates);
+        ClusterState state = mock(ClusterState.class);
+        when(state.getMetadata()).thenReturn(metadata);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
 
-        TestAuditor(Client client) {
-            super(new OriginSettingClient(client, TEST_ORIGIN), TEST_NODE_NAME, TEST_INDEX,
-                AbstractAuditMessageTests.TestAuditMessage::new);
+        return new TestAuditor(client, clusterService);
+    }
+
+    public static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
+
+        TestAuditor(Client client, ClusterService clusterService) {
+            super(new OriginSettingClient(client, TEST_ORIGIN), TEST_INDEX,
+                new IndexTemplateConfig(TEST_INDEX,
+                    "not_a_real_file.json", Version.CURRENT.id, "xpack.ml.version"),
+                AbstractAuditMessageTests.TestAuditMessage::new, clusterService);
         }
     }
 }

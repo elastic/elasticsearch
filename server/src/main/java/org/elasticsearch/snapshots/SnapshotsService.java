@@ -377,7 +377,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 newEntry = SnapshotsInProgress.startClone(
                         snapshot, sourceSnapshotId,
-                        matchingIndices.stream().map(repositoryData::resolveIndexId).collect(Collectors.toList()),
+                        repositoryData.resolveIndices(matchingIndices),
                         threadPool.absoluteTimeInMillis(), repositoryData.getGenId(),
                         minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null));
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);

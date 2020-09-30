@@ -88,8 +88,9 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
     @After
     public void cleanUp() throws Exception {
-        client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[]{SLM_HISTORY_DATA_STREAM}));
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{SLM_HISTORY_DATA_STREAM});
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, req).actionGet());
     }
 
     @Override

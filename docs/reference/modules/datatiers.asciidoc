@@ -81,3 +81,24 @@ snapshot.
 
 The tradeoff when moving data from Warm to Cold is writability for costs, with the search performance
 remaining the same as in the Warm tier.
+
+[[data-tier-allocation]]
+=== Data tier index allocation
+
+When an index is created {es} will automatically allocate the index to the <<content-tier, Content tier>>
+if the index is not part of a <<data-streams, data stream> or to the <<hot-tier, Hot tier>> if the index
+is part of a <<data-streams, data stream>>. The user created content will initially be allocated to the
+Content tier which is designed and optimised for this type of data. Timeseries data (ie. data streams)
+will initially be allocated to the Hot tier which offers high performance and is capable of efficiently
+ingesting large amounts of machine data (ie. logs, metrics) while also offering high query performance.
+
+These heuristics can be overridden by specifying any <<shard-allocation-filtering, shard allocation filtering>>
+settings in the create index request or index template that matches the new index.
+
+[[data-tier-migration]]
+=== Data tier index migration
+
+<<index-lifecycle-management, Index Lifecycle Management>> is automating the transition of the managed
+indices through the available data tiers using the `migrate` action which is injected
+in every phase, unless it's manually specified in the phase or an
+<<ilm-allocate-action, allocate action>> modifying the allocation rules is manually configured.

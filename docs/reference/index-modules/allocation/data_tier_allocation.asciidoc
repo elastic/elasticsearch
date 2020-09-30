@@ -1,5 +1,5 @@
 [role="xpack"]
-[[data-tier-allocation-filtering]]
+[[data-tier-shard-filtering]]
 === Index-level data tier allocation filtering
 
 You can use index level allocation settings to control which <<modules-tiers, data tier>>

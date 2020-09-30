@@ -103,7 +103,7 @@ The index allocation settings support the following built-in attributes:
 `_host`::       Match nodes by hostname
 `_id`::         Match nodes by node id
 `_tier`::       Match nodes by the node's <<modules-tiers, data tier>> role.
-                For more details see <<data-tier-allocation-filtering, data tier allocation filtering>>
+                For more details see <<data-tier-shard-filtering, data tier allocation filtering>>
 
 NOTE: `_tier` filtering is based on <<modules-node, node>> roles. There're only
 a subset of roles that are <<modules-tiers, data tier>> roles, but the generic

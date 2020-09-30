@@ -259,6 +259,10 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
     }
 
+    boolean coerce() {
+        return coerce.value();
+    }
+
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, coerceByDefault).init(this);

@@ -40,7 +40,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -57,6 +56,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("deprecation")
 public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyGeoShapeFieldMapper.Builder> {
 
     @Override
@@ -74,42 +74,47 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         return Set.of("analyzer", "similarity", "doc_values", "store");
     }
 
-    @Before
-    public void addModifiers() {
-        addModifier("tree", false, (a, b) -> {
-            a.deprecatedParameters.tree = "geohash";
-            b.deprecatedParameters.tree = "quadtree";
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "geo_shape").field("strategy", "recursive");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+
+        checker.registerConflictCheck("strategy",
+            fieldMapping(this::minimalMapping),
+            fieldMapping(b -> {
+                b.field("type", "geo_shape");
+                b.field("strategy", "term");
+            }));
+
+        checker.registerConflictCheck("tree", b -> b.field("tree", "geohash"));
+        checker.registerConflictCheck("tree_levels", b -> b.field("tree_levels", 5));
+        checker.registerConflictCheck("precision", b -> b.field("precision", 10));
+        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+            LegacyGeoShapeFieldMapper gsfm = (LegacyGeoShapeFieldMapper) m;
+            assertEquals(ShapeBuilder.Orientation.RIGHT, gsfm.orientation());
         });
-        addModifier("strategy", false, (a, b) -> {
-            a.deprecatedParameters.strategy = SpatialStrategy.TERM;
-            b.deprecatedParameters.strategy = SpatialStrategy.RECURSIVE;
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
+            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
+            assertTrue(gpfm.ignoreMalformed.value());
         });
-        addModifier("tree_levels", false, (a, b) -> {
-            a.deprecatedParameters.treeLevels = 2;
-            b.deprecatedParameters.treeLevels = 3;
+        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
+            assertFalse(gpfm.ignoreZValue.value());
         });
-        addModifier("precision", false, (a, b) -> {
-            a.deprecatedParameters.precision = "10";
-            b.deprecatedParameters.precision = "20";
+        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
+            assertTrue(gpfm.coerce.value());
         });
-        addModifier("distance_error_pct", true, (a, b) -> {
-            a.deprecatedParameters.distanceErrorPct = 0.5;
-            b.deprecatedParameters.distanceErrorPct = 0.6;
-        });
-        addModifier("orientation", true, (a, b) -> {
-            a.orientation = ShapeBuilder.Orientation.RIGHT;
-            b.orientation = ShapeBuilder.Orientation.LEFT;
-        });
+        // TODO - distance_error_pct ends up being subsumed into a calculated value, how to test
+        checker.registerUpdateCheck(b -> b.field("distance_error_pct", 0.8), m -> {});
     }
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new TestGeoShapeFieldMapperPlugin());
-    }
-
-    @Override
-    protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "geo_shape").field("strategy", "recursive");
     }
 
     @Override
@@ -602,13 +607,18 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
     }
 
     @Override
-    protected void assertSerializationWarnings() {
+    protected void assertParseMaximalWarnings() {
         assertWarnings("Field parameter [strategy] is deprecated and will be removed in a future version.",
             "Field parameter [tree] is deprecated and will be removed in a future version.",
             "Field parameter [tree_levels] is deprecated and will be removed in a future version.",
             "Field parameter [precision] is deprecated and will be removed in a future version.",
             "Field parameter [distance_error_pct] is deprecated and will be removed in a future version."
-            );
+        );
+    }
+
+    @Override
+    protected void assertSerializationWarnings() {
+        assertParseMinimalWarnings();
     }
 
     public void testGeoShapeArrayParsing() throws Exception {

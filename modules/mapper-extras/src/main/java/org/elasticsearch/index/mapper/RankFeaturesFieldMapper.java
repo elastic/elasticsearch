@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -38,42 +38,33 @@ import java.util.function.Supplier;
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
  * vector of features.
  */
-public class RankFeaturesFieldMapper extends FieldMapper {
+public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "rank_features";
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends FieldMapper.Builder<Builder> {
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
+            super(name);
             builder = this;
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Collections.singletonList(meta);
         }
 
         @Override
         public RankFeaturesFieldMapper build(BuilderContext context) {
             return new RankFeaturesFieldMapper(
-                    name, fieldType, new RankFeaturesFieldType(buildFullName(context), meta),
-                    multiFieldsBuilder.build(this, context), copyTo);
+                    name, new RankFeaturesFieldType(buildFullName(context), meta.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder(name);
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class RankFeaturesFieldType extends MappedFieldType {
 
@@ -103,20 +94,20 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
     }
 
-    private RankFeaturesFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    private RankFeaturesFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
 
     @Override
     protected RankFeaturesFieldMapper clone() {
         return (RankFeaturesFieldMapper) super.clone();
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
     }
 
     @Override
@@ -157,7 +148,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 
@@ -172,16 +163,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                 return value;
             }
         };
-    }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return false;
     }
 
     @Override

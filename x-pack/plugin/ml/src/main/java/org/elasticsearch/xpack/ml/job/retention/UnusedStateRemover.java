@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -51,10 +52,13 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private final OriginSettingClient client;
     private final ClusterService clusterService;
+    private final TaskId parentTaskId;
 
-    public UnusedStateRemover(OriginSettingClient client, ClusterService clusterService) {
+    public UnusedStateRemover(OriginSettingClient client, ClusterService clusterService,
+                              TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.parentTaskId = Objects.requireNonNull(parentTaskId);
     }
 
     @Override
@@ -142,6 +146,7 @@ public class UnusedStateRemover implements MlDataRemover {
 
         // _doc is the most efficient sort order and will also disable scoring
         deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+        deleteByQueryRequest.setParentTask(parentTaskId);
 
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
             response -> {
@@ -163,7 +168,7 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private static class JobIdExtractor {
 
-        private static List<Function<String, String>> extractors = Arrays.asList(
+        private static final List<Function<String, String>> extractors = Arrays.asList(
             ModelState::extractJobId,
             Quantiles::extractJobId,
             CategorizerState::extractJobId,

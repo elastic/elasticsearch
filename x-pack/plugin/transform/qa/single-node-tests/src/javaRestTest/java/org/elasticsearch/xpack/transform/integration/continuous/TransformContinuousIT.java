@@ -388,6 +388,11 @@ public class TransformContinuousIT extends ESRestTestCase {
     }
 
     private void waitUntilTransformsReachedUpperBound(long timeStampUpperBoundMillis) throws Exception {
+        logger.info(
+            "wait until transform reaches timestamp_millis: {}",
+            ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                .format(Instant.ofEpochMilli(timeStampUpperBoundMillis))
+        );
         for (ContinuousTestCase testCase : transformTestCases) {
             assertBusy(() -> {
                 TransformStats stats = getTransformStats(testCase.getName()).getTransformsStats().get(0);

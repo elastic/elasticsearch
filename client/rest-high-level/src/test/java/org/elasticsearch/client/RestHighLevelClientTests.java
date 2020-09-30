@@ -56,6 +56,7 @@ import org.elasticsearch.client.ilm.SearchableSnapshotAction;
 import org.elasticsearch.client.ilm.SetPriorityAction;
 import org.elasticsearch.client.ilm.ShrinkAction;
 import org.elasticsearch.client.ilm.UnfollowAction;
+import org.elasticsearch.client.ilm.WaitForSnapshotAction;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
@@ -706,7 +707,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(72, namedXContents.size());
+        assertEquals(73, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -732,13 +733,14 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(11), categories.get(LifecycleAction.class));
+        assertEquals(Integer.valueOf(12), categories.get(LifecycleAction.class));
         assertTrue(names.contains(UnfollowAction.NAME));
         assertTrue(names.contains(AllocateAction.NAME));
         assertTrue(names.contains(DeleteAction.NAME));
         assertTrue(names.contains(ForceMergeAction.NAME));
         assertTrue(names.contains(ReadOnlyAction.NAME));
         assertTrue(names.contains(RolloverAction.NAME));
+        assertTrue(names.contains(WaitForSnapshotAction.NAME));
         assertTrue(names.contains(ShrinkAction.NAME));
         assertTrue(names.contains(FreezeAction.NAME));
         assertTrue(names.contains(SetPriorityAction.NAME));

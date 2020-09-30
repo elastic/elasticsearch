@@ -26,15 +26,13 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Iterator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -42,7 +40,7 @@ import java.util.function.Supplier;
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField}.
  */
-public class RankFeatureFieldMapper extends FieldMapper {
+public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "rank_feature";
 
@@ -57,43 +55,34 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    private static RankFeatureFieldType ft(FieldMapper in) {
+        return ((RankFeatureFieldMapper)in).fieldType();
+    }
 
-        private boolean positiveScoreImpact = true;
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        private final Parameter<Boolean> positiveScoreImpact
+            = Parameter.boolParam("positive_score_impact", false, m -> ft(m).positiveScoreImpact, true);
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
         }
 
-        public Builder positiveScoreImpact(boolean v) {
-            this.positiveScoreImpact = v;
-            return builder;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(positiveScoreImpact, meta);
         }
 
         @Override
         public RankFeatureFieldMapper build(BuilderContext context) {
-            return new RankFeatureFieldMapper(name, fieldType, new RankFeatureFieldType(buildFullName(context), meta, positiveScoreImpact),
-                multiFieldsBuilder.build(this, context), copyTo, positiveScoreImpact);
+            return new RankFeatureFieldMapper(name,
+                new RankFeatureFieldType(buildFullName(context), meta.getValue(), positiveScoreImpact.getValue()),
+                multiFieldsBuilder.build(this, context), copyTo.build(), positiveScoreImpact.getValue());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            RankFeatureFieldMapper.Builder builder = new RankFeatureFieldMapper.Builder(name);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals("positive_score_impact")) {
-                    builder.positiveScoreImpact(XContentMapValues.nodeBooleanValue(propNode));
-                    iterator.remove();
-                }
-            }
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class RankFeatureFieldType extends MappedFieldType {
 
@@ -132,10 +121,9 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     private final boolean positiveScoreImpact;
 
-    private RankFeatureFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    private RankFeatureFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                    MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
-        assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.positiveScoreImpact = positiveScoreImpact;
     }
 
@@ -201,23 +189,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-
-        if (includeDefaults || positiveScoreImpact == false) {
-            builder.field("positive_score_impact", positiveScoreImpact);
-        }
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return false;
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        if (positiveScoreImpact != ((RankFeatureFieldMapper)other).positiveScoreImpact) {
-            conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
-        }
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
 }

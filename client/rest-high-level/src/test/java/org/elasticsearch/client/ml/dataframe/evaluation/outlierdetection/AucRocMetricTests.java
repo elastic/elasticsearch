@@ -16,60 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.classification;
+package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
-import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.function.Predicate;
 
-public class ClassificationTests extends AbstractXContentTestCase<Classification> {
+public class AucRocMetricTests extends AbstractXContentTestCase<AucRocMetric> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    public static Classification createRandom() {
-        List<EvaluationMetric> metrics =
-            randomSubsetOf(
-                Arrays.asList(
-                    AucRocMetricTests.createRandom(),
-                    AccuracyMetricTests.createRandom(),
-                    PrecisionMetricTests.createRandom(),
-                    RecallMetricTests.createRandom(),
-                    MulticlassConfusionMatrixMetricTests.createRandom()));
-        return new Classification(
-            randomAlphaOfLength(10),
-            randomBoolean() ? randomAlphaOfLength(10) : null,
-            randomBoolean() ? randomAlphaOfLength(10) : null,
-            metrics.isEmpty() ? null : metrics);
+    public static AucRocMetric createRandom() {
+        return new AucRocMetric(randomBoolean() ? randomBoolean() : null);
     }
 
     @Override
-    protected Classification createTestInstance() {
+    protected AucRocMetric createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected Classification doParseInstance(XContentParser parser) throws IOException {
-        return Classification.fromXContent(parser);
+    protected AucRocMetric doParseInstance(XContentParser parser) throws IOException {
+        return AucRocMetric.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DirectPool;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -56,8 +57,6 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
-
-    private static final int FORCE_WRITE_THRESHOLD = 1024 * 1024;
 
     private final ShardId shardId;
     private final FileChannel checkpointChannel;
@@ -86,6 +85,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> try(Releasable lock = writeLock.acquire()) -> synchronized(this)
     private final Object syncLock = new Object();
 
+    private final int forceWriteThreshold;
     private final ArrayList<Operation> bufferedOps = new ArrayList<>();
     private long bufferedBytes = 0L;
 
@@ -98,6 +98,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final FileChannel checkpointChannel,
         final Path path,
         final Path checkpointPath,
+        final ByteSizeValue bufferSize,
         final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier, TranslogHeader header,
         TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer)
@@ -107,6 +108,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert initialCheckpoint.offset == channel.position() :
             "initial checkpoint offset [" + initialCheckpoint.offset + "] is different than current channel position ["
                 + channel.position() + "]";
+        this.forceWriteThreshold = Math.toIntExact(bufferSize.getBytes());
         this.shardId = shardId;
         this.checkpointChannel = checkpointChannel;
         this.checkpointPath = checkpointPath;
@@ -125,7 +127,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
-                                        final long initialMinTranslogGen, long initialGlobalCheckpoint,
+                                        ByteSizeValue bufferSize, final long initialMinTranslogGen, long initialGlobalCheckpoint,
                                         final LongSupplier globalCheckpointSupplier, final LongSupplier minTranslogGenerationSupplier,
                                         final long primaryTerm, TragicExceptionHolder tragedy, LongConsumer persistedSequenceNumberConsumer)
         throws IOException {
@@ -151,7 +153,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             } else {
                 writerGlobalCheckpointSupplier = globalCheckpointSupplier;
             }
-            return new TranslogWriter(shardId, checkpoint, channel, checkpointChannel, file, checkpointFile,
+            return new TranslogWriter(shardId, checkpoint, channel, checkpointChannel, file, checkpointFile, bufferSize,
                 writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistedSequenceNumberConsumer);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -203,7 +205,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             bytesBufferedAfterAdd = bufferedBytes;
         }
 
-        if (bytesBufferedAfterAdd >= FORCE_WRITE_THRESHOLD) {
+        if (bytesBufferedAfterAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, false);
         }
 

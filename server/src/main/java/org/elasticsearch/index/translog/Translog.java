@@ -506,6 +506,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 fileGeneration,
                 location.resolve(getFilename(fileGeneration)),
                 getChannelFactory(),
+                config.getBufferSize(),
                 initialMinTranslogGen, initialGlobalCheckpoint,
                 globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong(), tragedy,
                 persistedSequenceNumberConsumer);
@@ -1893,7 +1894,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         IOUtils.fsync(checkpointFile, false);
         final TranslogWriter writer = TranslogWriter.create(shardId, uuid, generation, translogFile, channelFactory,
-            minTranslogGeneration, initialGlobalCheckpoint,
+            TranslogConfig.DEFAULT_BUFFER_SIZE, minTranslogGeneration, initialGlobalCheckpoint,
             () -> {
                 throw new UnsupportedOperationException();
             }, () -> {

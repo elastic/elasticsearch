@@ -36,7 +36,7 @@ public final class CompilerSettings {
      * {@code script.painless.regex.limit-factor} setting.
      */
     public static final Setting<RegexEnabled> REGEX_ENABLED =
-        new Setting<>("script.painless.regex.enabled", RegexEnabled.USE_FACTOR.value, RegexEnabled::parse, Property.NodeScope);
+        new Setting<>("script.painless.regex.enabled", RegexEnabled.LIMITED.value, RegexEnabled::parse, Property.NodeScope);
 
     /**
      * How complex can a regex be?  This is the number of characters that can be considered expressed as a multiple of string length.
@@ -84,7 +84,7 @@ public final class CompilerSettings {
     /**
      * Are regexes enabled? Defaults to using the factor setting.
      */
-    private RegexEnabled regexesEnabled = RegexEnabled.USE_FACTOR;
+    private RegexEnabled regexesEnabled = RegexEnabled.LIMITED;
 
 
     /**
@@ -198,7 +198,7 @@ public final class CompilerSettings {
     public enum RegexEnabled {
         TRUE("true"),
         FALSE("false"),
-        USE_FACTOR("use-factor");
+        LIMITED("limited");
         final String value;
 
         RegexEnabled(String value) {
@@ -213,11 +213,11 @@ public final class CompilerSettings {
                 return TRUE;
             } else if (FALSE.value.equals(value)) {
                 return FALSE;
-            } else if (USE_FACTOR.value.equals(value)) {
-                return USE_FACTOR;
+            } else if (LIMITED.value.equals(value)) {
+                return LIMITED;
             }
             throw new IllegalArgumentException(
-                "invalid value [" + value + "] must be one of [" + TRUE.value + "," + FALSE.value + "," + USE_FACTOR.value + "]"
+                "invalid value [" + value + "] must be one of [" + TRUE.value + "," + FALSE.value + "," + LIMITED.value + "]"
             );
         }
     }

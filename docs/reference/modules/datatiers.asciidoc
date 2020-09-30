@@ -25,6 +25,11 @@ The node roles that can currently define data tiers are:
 * <<data-warm-node, data_warm>>
 * <<data-cold-node, data_cold>>
 
+The more generic <<data-node, data role>> is not a data tier role, but
+it is the default node role if no roles are configured. If a node has the
+<<data-node, data>> role we will treat the node as if it has all of the tier
+roles assigned.
+
 [[content-tier]]
 ==== Content tier
 

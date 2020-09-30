@@ -61,6 +61,11 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     private final LongSupplier nowNanoSupplier;
     private final SnapshotHistoryStore historyStore;
 
+    /**
+     * Set of all currently deleting {@link SnapshotId} used to prevent starting multiple deletes for the same snapshot.
+     */
+    private final Set<SnapshotId> runningDeletions = Collections.synchronizedSet(new HashSet<>());
+
     public SnapshotRetentionTask(Client client, ClusterService clusterService, LongSupplier nowNanoSupplier,
                                  SnapshotHistoryStore historyStore) {
         this.client = new OriginSettingClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
@@ -293,11 +298,6 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         }
     }
 
-    /**
-     * Set of all currently deleting {@link SnapshotId} used to prevent starting multiple deletes for the same snapshot.
-     */
-    private final Set<SnapshotId> runningDeletions = Collections.synchronizedSet(new HashSet<>());
-
     private void deleteSnapshots(SnapshotLifecycleStats slmStats, AtomicInteger deleted, AtomicInteger failed, String repo,
                                  List<SnapshotInfo> snapshots, ActionListener<Void> listener) {
 
@@ -307,38 +307,49 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             if (runningDeletions.add(info.snapshotId()) == false) {
                 // snapshot is already being deleted, no need to start another delete job for it
                 allDeletesListener.onResponse(null);
+                continue;
             }
-            final String policyId = getPolicyId(info);
-            final long deleteStartTime = nowNanoSupplier.getAsLong();
-            // TODO: Use snapshot multi-delete instead of this loop if all nodes in the cluster support it
-            //       i.e are newer or equal to SnapshotsService#MULTI_DELETE_VERSION
-            deleteSnapshot(policyId, repo, info.snapshotId(), slmStats, ActionListener.runAfter(
-                    ActionListener.wrap(acknowledgedResponse -> {
-                        deleted.incrementAndGet();
-                        assert acknowledgedResponse.isAcknowledged();
-                        historyStore.putAsync(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
-                                info.snapshotId().getName(), policyId, repo));
-                        allDeletesListener.onResponse(null);
-                    }, e -> {
-                        failed.incrementAndGet();
-                        try {
-                            final SnapshotHistoryItem result = SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
-                                    info.snapshotId().getName(), policyId, repo, e);
-                            historyStore.putAsync(result);
-                        } catch (IOException ex) {
-                            // This shouldn't happen unless there's an issue with serializing the original exception
-                            logger.error(new ParameterizedMessage(
-                                    "failed to record snapshot deletion failure for snapshot lifecycle policy [{}]",
-                                    policyId), ex);
-                        } finally {
-                            allDeletesListener.onFailure(e);
-                        }
-                    }), () -> {
-                        runningDeletions.remove(info.snapshotId());
-                        long finishTime = nowNanoSupplier.getAsLong();
-                        TimeValue deletionTime = TimeValue.timeValueNanos(finishTime - deleteStartTime);
-                        logger.debug("elapsed time for deletion of [{}] snapshot: {}", info.snapshotId(), deletionTime);
-                    }));
+            boolean success = false;
+            try {
+                final String policyId = getPolicyId(info);
+                final long deleteStartTime = nowNanoSupplier.getAsLong();
+                // TODO: Use snapshot multi-delete instead of this loop if all nodes in the cluster support it
+                //       i.e are newer or equal to SnapshotsService#MULTI_DELETE_VERSION
+                deleteSnapshot(policyId, repo, info.snapshotId(), slmStats, ActionListener.runAfter(
+                        ActionListener.wrap(acknowledgedResponse -> {
+                            deleted.incrementAndGet();
+                            assert acknowledgedResponse.isAcknowledged();
+                            historyStore.putAsync(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
+                                    info.snapshotId().getName(), policyId, repo));
+                            allDeletesListener.onResponse(null);
+                        }, e -> {
+                            failed.incrementAndGet();
+                            try {
+                                final SnapshotHistoryItem result = SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
+                                        info.snapshotId().getName(), policyId, repo, e);
+                                historyStore.putAsync(result);
+                            } catch (IOException ex) {
+                                // This shouldn't happen unless there's an issue with serializing the original exception
+                                logger.error(new ParameterizedMessage(
+                                        "failed to record snapshot deletion failure for snapshot lifecycle policy [{}]",
+                                        policyId), ex);
+                            } finally {
+                                allDeletesListener.onFailure(e);
+                            }
+                        }), () -> {
+                            runningDeletions.remove(info.snapshotId());
+                            long finishTime = nowNanoSupplier.getAsLong();
+                            TimeValue deletionTime = TimeValue.timeValueNanos(finishTime - deleteStartTime);
+                            logger.debug("elapsed time for deletion of [{}] snapshot: {}", info.snapshotId(), deletionTime);
+                        }));
+                success = true;
+            } catch (Exception e) {
+                listener.onFailure(e);
+            } finally {
+                if (success == false) {
+                    runningDeletions.remove(info.snapshotId());
+                }
+            }
         }
     }
 

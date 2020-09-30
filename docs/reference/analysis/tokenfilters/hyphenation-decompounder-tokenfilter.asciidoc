@@ -60,7 +60,7 @@ compatible files are supported.
 For example FOP XML hyphenation pattern files, refer to:
 
 * http://offo.sourceforge.net/#FOP+XML+Hyphenation+Patterns[Objects For Formatting Objects (OFFO) Sourceforge project]
-* https://sourceforge.net/projects/offo/files/offo-hyphenation/1.2/offo-hyphenation_v1.2.zip/download[offo-hyphenation_v1.2.zip direct download]
+* https://sourceforge.net/projects/offo/files/offo-hyphenation/1.2/offo-hyphenation_v1.2.zip/download[offo-hyphenation_v1.2.zip direct download] (v2.0 and above hyphenation pattern files are not supported)
 --
 
 `word_list`::

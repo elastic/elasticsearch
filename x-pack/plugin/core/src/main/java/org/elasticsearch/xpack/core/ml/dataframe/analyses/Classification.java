@@ -392,7 +392,16 @@ public class Classification implements DataFrameAnalysis {
             return additionalProperties;
         }
         additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
-        additionalProperties.put(resultsFieldName + ".top_classes.class_name", dependentVariableMapping);
+
+        Map<String, Object> topClassesProperties = new HashMap<>();
+        topClassesProperties.put("class_name", dependentVariableMapping);
+        topClassesProperties.put("class_probability", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+
+        Map<String, Object> topClassesMapping = new HashMap<>();
+        topClassesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        topClassesMapping.put("properties", topClassesProperties);
+
+        additionalProperties.put(resultsFieldName + ".top_classes", topClassesMapping);
         return additionalProperties;
     }
 

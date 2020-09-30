@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
+package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -31,6 +31,7 @@ public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetr
     public static AucRocMetric.Result randomResult() {
         return new AucRocMetric.Result(
             randomDouble(),
+            randomLong(),
             Stream
                 .generate(AucRocMetricAucRocPointTests::randomPoint)
                 .limit(randomIntBetween(1, 10))

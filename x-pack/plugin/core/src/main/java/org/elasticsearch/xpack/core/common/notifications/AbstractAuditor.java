@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.io.IOException;
 import java.util.Date;
@@ -33,28 +34,28 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final OriginSettingClient client;
     private final String nodeName;
     private final String auditIndex;
-    private final String templateName;
+    private final IndexTemplateConfig templateConfig;
     private final AbstractAuditMessageFactory<T> messageFactory;
     private final AtomicBoolean hasLatestTemplate;
 
     private Queue<ToXContent> backlog;
-    private ClusterService clusterService;
+    private final ClusterService clusterService;
 
 
     protected AbstractAuditor(OriginSettingClient client,
-                              String nodeName,
                               String auditIndex,
-                              String templateName,
+                              IndexTemplateConfig templateConfig,
                               AbstractAuditMessageFactory<T> messageFactory,
                               ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
-        this.nodeName = Objects.requireNonNull(nodeName);
         this.auditIndex = auditIndex;
-        this.templateName = Objects.requireNonNull(templateName);
+        this.templateConfig = Objects.requireNonNull(templateConfig);
         this.messageFactory = Objects.requireNonNull(messageFactory);
-        this.clusterService = clusterService;
-        this.hasLatestTemplate = new AtomicBoolean();
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.nodeName = clusterService.getNodeName();
         this.backlog = new ConcurrentLinkedQueue<>();
+        this.hasLatestTemplate = new AtomicBoolean(
+            MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateConfig.getTemplateName()));
 
     }
 
@@ -78,9 +79,9 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         logger.debug("Failed to write audit message", exception);
     }
 
-    private void writeDoc(ToXContent toXContent) {
+    private void indexDoc(ToXContent toXContent) {
         if (hasLatestTemplate.get()) {
-            indexDoc(toXContent);
+            writeDoc(toXContent);
             return;
         }
 
@@ -89,12 +90,10 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 synchronized (this) {
                     this.hasLatestTemplate.set(true);
                 }
-                logger.info("Auditor template [{}] successfully installed", templateName);
+                logger.info("Auditor template [{}] successfully installed", templateConfig.getTemplateName());
                 writeBacklog();
             },
-            e -> {
-                logger.warn("Error putting latest template [{}]", templateName);
-            }
+            e -> logger.warn("Error putting latest template [{}]", templateConfig.getTemplateName())
         );
 
         synchronized (this) {
@@ -102,7 +101,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 // synchronized so that hasLatestTemplate does not change value
                 // between the read and adding to the backlog
                 backlog.add(toXContent);
-                MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateName,
+                MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateConfig,
                     putTemplateListener);
                 return;
             }
@@ -111,7 +110,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         indexDoc(toXContent);
      }
 
-    private void indexDoc(ToXContent toXContent) {
+    private void writeDoc(ToXContent toXContent) {
         client.index(indexRequest(toXContent), ActionListener.wrap(
             this::onIndexResponse,
             this::onIndexFailure

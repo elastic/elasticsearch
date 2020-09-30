@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.transform.notifications;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.transform.notifications.TransformAuditMessage;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -18,8 +19,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
  */
 public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
 
-    public TransformAuditor(Client client, String nodeName) {
-        super(new OriginSettingClient(client, TRANSFORM_ORIGIN), nodeName, TransformInternalIndexConstants.AUDIT_INDEX,
-            TransformAuditMessage::new);
+    public TransformAuditor(Client client, ClusterService clusterService) {
+        super(new OriginSettingClient(client, TRANSFORM_ORIGIN), TransformInternalIndexConstants.AUDIT_INDEX,
+            null,  // TODO
+            TransformAuditMessage::new, clusterService);
     }
 }

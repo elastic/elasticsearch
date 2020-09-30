@@ -277,7 +277,7 @@ public final class MlIndexAndAlias {
             client.admin().indices()::putTemplate);
     }
 
-    private static boolean hasIndexTemplate(ClusterState state, String templateName) {
+    public static boolean hasIndexTemplate(ClusterState state, String templateName) {
         return state.getMetadata().getTemplates().containsKey(templateName);
     }
 }

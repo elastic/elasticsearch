@@ -246,6 +246,5 @@ in {transforms}:
 * Scripted fields may increase the runtime of the {transform}.
   
 * {transforms-cap} cannot optimize queries when you use scripts for all the 
-  groupings defined in `group_by`. As {transforms} write audit and log warning 
-  messages when the queries are not optimized, you will receive a warning 
-  message when you use scripts this way.
+  groupings defined in `group_by`, you will receive a warning message when you 
+  use scripts this way.

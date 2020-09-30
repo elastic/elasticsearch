@@ -362,10 +362,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             "cannot clone from snapshot that is being deleted");
                 }
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
-
+                final List<String> indicesForSnapshot = new ArrayList<>();
+                for (IndexId indexId : repositoryData.getIndices().values()) {
+                    if (repositoryData.getSnapshots(indexId).contains(sourceSnapshotId)) {
+                        indicesForSnapshot.add(indexId.getName());
+                    }
+                }
+                final List<String> matchingIndices =
+                        SnapshotUtils.filterIndices(indicesForSnapshot, request.indices(), request.indicesOptions());
+                if (matchingIndices.isEmpty()) {
+                    throw new SnapshotException(new Snapshot(repositoryName, sourceSnapshotId),
+                            "No indices in the source snapshot [" + sourceSnapshotId + "] matched requested pattern ["
+                                    + Strings.arrayToCommaDelimitedString(request.indices()) + "]");
+                }
                 newEntry = SnapshotsInProgress.startClone(
                         snapshot, sourceSnapshotId,
-                        SnapshotUtils.findIndexIdsToClone(sourceSnapshotId, snapshot, repositoryData, request.indices()),
+                        matchingIndices.stream().map(repositoryData::resolveIndexId).collect(Collectors.toList()),
                         threadPool.absoluteTimeInMillis(), repositoryData.getGenId(),
                         minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null));
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);

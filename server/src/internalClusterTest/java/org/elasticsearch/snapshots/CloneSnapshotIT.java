@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -384,9 +385,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshotName = "snapshot";
         createFullSnapshot(repoName, snapshotName);
-        final SnapshotException sne = expectThrows(SnapshotException.class,
+        expectThrows(IndexNotFoundException.class,
                 () -> startClone(repoName, snapshotName, "target-snapshot", "does-not-exist").actionGet());
-        assertThat(sne.getMessage(), containsString("No index [does-not-exist] found in the source snapshot "));
     }
 
     public void testMasterFailoverDuringCloneStep2() throws Exception {

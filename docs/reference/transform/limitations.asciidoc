@@ -203,3 +203,28 @@ issue will occur.
 If your data uses the <<date_nanos,date nanosecond data type>>, aggregations
 are nonetheless on millisecond resolution. This limitation also affects the
 aggregations in your {transforms}.
+
+[discrete]
+[[transform-data-streams-destination]]
+== Data streams as destination indices are not supported
+
+{transforms-cap} update data in the destination index which requires writing 
+into the destination. <<data-streams>> are designed to be append-only, which 
+means you cannot send update or delete requests directly to a data stream. For 
+this reason, data streams are not supported as destination indices for 
+{transforms}.
+
+
+[discrete]
+[[transform-ilm-destination]]
+== ILM as destination index may cause duplicated documents
+
+<<index-lifecycle-management,ILM>> is not recommended to use as a {transform} 
+destination index. {transforms-cap} update documents in the current destination, 
+and cannot delete documents in the indices previously used by ILM. This may lead 
+to duplicated documents when you use {transforms} combined with ILM in case of a 
+rollover.
+
+If you use ILM to have time-based indices, please consider using the 
+<<date-index-name-processor>> instead. The processor works without duplicated 
+documents if your {transform} contains a `group_by` based on `date_histogram`.

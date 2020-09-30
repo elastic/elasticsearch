@@ -65,7 +65,7 @@ subquery
 eventQuery
     : eventFilter
     ;
-    
+
 eventFilter
     : (ANY | event=identifier) WHERE expression
     ;
@@ -121,7 +121,7 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : SEQ | SNEQ | EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -169,6 +169,9 @@ WHERE: 'where';
 WITH: 'with';
 
 // Operators
+// dedicated string equality - case-insensitive and supporting * operator
+SEQ : ':';
+SNEQ: '!:';
 ASGN : '=';
 EQ  : '==';
 NEQ : '!=';

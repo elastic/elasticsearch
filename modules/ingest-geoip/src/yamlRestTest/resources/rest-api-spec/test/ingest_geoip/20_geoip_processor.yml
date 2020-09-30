@@ -28,12 +28,13 @@
         index: test
         id: 1
   - match: { _source.field1: "128.101.101.101" }
-  - length: { _source.geoip: 6 }
+  - length: { _source.geoip: 7 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.location.lon: -93.2548 }
   - match: { _source.geoip.location.lat: 44.9399 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
+  - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
 
@@ -69,12 +70,13 @@
         id: 1
   - match: { _source.field1: ["128.101.101.101", "127.0.0.1"] }
   - length: { _source.geoip: 2 }
-  - length: { _source.geoip.0: 6 }
+  - length: { _source.geoip.0: 7 }
   - match: { _source.geoip.0.city_name: "Minneapolis" }
   - match: { _source.geoip.0.country_iso_code: "US" }
   - match: { _source.geoip.0.location.lon: -93.2548 }
   - match: { _source.geoip.0.location.lat: 44.9399 }
   - match: { _source.geoip.0.region_iso_code: "US-MN" }
+  - match: { _source.geoip.0.country_name: "United States" }
   - match: { _source.geoip.0.region_name: "Minnesota" }
   - match: { _source.geoip.0.continent_name: "North America" }
   - match: { _source.geoip.1: null }
@@ -109,12 +111,13 @@
         index: test
         id: 1
   - match: { _source.field1: ["127.0.0.1", "128.101.101.101", "128.101.101.101"] }
-  - length: { _source.geoip: 6 }
+  - length: { _source.geoip: 7 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.location.lon: -93.2548 }
   - match: { _source.geoip.location.lat: 44.9399 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
+  - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
 
@@ -196,8 +199,9 @@
         index: test
         id: 1
   - match: { _source.field1: "128.101.101.101" }
-  - length: { _source.geoip: 2 }
+  - length: { _source.geoip: 3 }
   - match: { _source.geoip.country_iso_code: "US" }
+  - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.continent_name: "North America" }
 
 ---
@@ -259,12 +263,13 @@
         index: test
         id: 2
   - match: { _source.field1: "128.101.101.101" }
-  - length: { _source.geoip: 6 }
+  - length: { _source.geoip: 7 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.location.lon: -93.2548 }
   - match: { _source.geoip.location.lat: 44.9399 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
+  - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
 

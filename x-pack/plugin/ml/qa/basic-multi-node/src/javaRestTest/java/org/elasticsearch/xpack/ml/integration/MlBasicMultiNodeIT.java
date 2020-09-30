@@ -271,7 +271,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         Response dfResponse = client().performRequest(
             new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "?for_export=true"));
-        Map<String, Object> originalDfBody = (Map<String, Object>)((List<?>) entityAsMap(dfResponse).get("jobs")).get(0);
+        Map<String, Object> originalDfBody = (Map<String, Object>)((List<?>) entityAsMap(dfResponse).get("datafeeds")).get(0);
 
         //Delete this so we can PUT another datafeed for the same job
         client().performRequest(new Request("DELETE", BASE_PATH + "datafeeds/" + datafeedId));
@@ -284,8 +284,8 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedDfResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "anomaly_detectors/" + datafeedId + "-import" + "?for_export=true"));
-        Map<String, Object> importedDfBody = (Map<String, Object>)((List<?>) entityAsMap(importedDfResponse).get("jobs")).get(0);
+            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "-import" + "?for_export=true"));
+        Map<String, Object> importedDfBody = (Map<String, Object>)((List<?>) entityAsMap(importedDfResponse).get("datafeeds")).get(0);
         assertThat(originalDfBody, equalTo(importedDfBody));
     }
 

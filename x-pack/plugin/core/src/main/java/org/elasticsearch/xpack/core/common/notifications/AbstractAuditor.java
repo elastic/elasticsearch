@@ -38,8 +38,9 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final AbstractAuditMessageFactory<T> messageFactory;
     private final AtomicBoolean hasLatestTemplate;
 
-    private Queue<ToXContent> backlog;
+    private final Queue<ToXContent> backlog;
     private final ClusterService clusterService;
+    private final AtomicBoolean putTemplateInProgress;
 
 
     protected AbstractAuditor(OriginSettingClient client,
@@ -54,9 +55,8 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.nodeName = clusterService.getNodeName();
         this.backlog = new ConcurrentLinkedQueue<>();
-        this.hasLatestTemplate = new AtomicBoolean(
-            MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateConfig.getTemplateName()));
-
+        this.hasLatestTemplate = new AtomicBoolean();
+        this.putTemplateInProgress = new AtomicBoolean();
     }
 
     public void info(String resourceId, String message) {
@@ -92,8 +92,12 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 }
                 logger.info("Auditor template [{}] successfully installed", templateConfig.getTemplateName());
                 writeBacklog();
+                putTemplateInProgress.set(false);
             },
-            e -> logger.warn("Error putting latest template [{}]", templateConfig.getTemplateName())
+            e -> {
+                putTemplateInProgress.set(false);
+                logger.warn("Error putting latest template [{}]", templateConfig.getTemplateName());
+            }
         );
 
         synchronized (this) {
@@ -101,8 +105,13 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 // synchronized so that hasLatestTemplate does not change value
                 // between the read and adding to the backlog
                 backlog.add(toXContent);
-                MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateConfig,
-                    putTemplateListener);
+
+                // stop multiple invocations
+                if (putTemplateInProgress.get() == false) {
+                    putTemplateInProgress.set(true);
+                    MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateConfig,
+                        putTemplateListener);
+                }
                 return;
             }
         }
@@ -134,13 +143,15 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private void writeBacklog() {
         BulkRequest bulkRequest = new BulkRequest();
-        for (ToXContent toXContent : backlog) {
-            bulkRequest.add(indexRequest(toXContent));
+        ToXContent doc = backlog.poll();
+        while (doc != null) {
+            bulkRequest.add(indexRequest(doc));
+            doc = backlog.poll();
         }
 
         client.bulk(bulkRequest, ActionListener.wrap(
             bulkItemResponses -> {
-                backlog = null;
+                backlog.clear();
                 logger.trace("Successfully wrote audit message backlog after upgrading template");
             },
             this::onIndexFailure

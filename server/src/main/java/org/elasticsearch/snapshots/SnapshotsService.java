@@ -336,7 +336,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         initializingClones.add(snapshot);
-        // TODO: throw when source snapshot was not successful for matching indices
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newEntry;
@@ -433,12 +432,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void startCloning(Repository repository, SnapshotsInProgress.Entry cloneEntry) {
         final List<IndexId> indices = cloneEntry.indices();
-        final StepListener<Collection<Tuple<IndexId, Integer>>> allShardCountsListener = new StepListener<>();
         final SnapshotId sourceSnapshot = cloneEntry.source();
         final Snapshot targetSnapshot = cloneEntry.snapshot();
 
-        final GroupedActionListener<Tuple<IndexId, Integer>> shardCountListener =
-                new GroupedActionListener<>(allShardCountsListener, indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         // Exception handler for IO exceptions with loading index and repo metadata
         final Consumer<Exception> onFailure = e -> {
@@ -447,17 +443,33 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             removeFailedSnapshotFromClusterState(targetSnapshot, e, null);
         };
 
-        // First, load the number of shards we have in each index to be cloned from the index metadata.
-        repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
-            for (IndexId index : indices) {
-                executor.execute(ActionRunnable.supply(shardCountListener, () -> {
-                    final IndexMetadata metadata = repository.getSnapshotIndexMetaData(repositoryData, sourceSnapshot, index);
-                    return Tuple.tuple(index, metadata.getNumberOfShards());
-                }));
-            }
-        }, onFailure));
+        // 1. step, load SnapshotInfo to make sure that source snapshot was successful for the indices we want to clone
+        // TODO: we could skip this step for snapshots with state SUCCESS
+        final StepListener<SnapshotInfo> snapshotInfoListener = new StepListener<>();
+        executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshot)));
 
-        // Second step, we have all the shard counts, now update the cluster state to have clone jobs in the snap entry
+        final StepListener<Collection<Tuple<IndexId, Integer>>> allShardCountsListener = new StepListener<>();
+        final GroupedActionListener<Tuple<IndexId, Integer>> shardCountListener =
+                new GroupedActionListener<>(allShardCountsListener, indices.size());
+        snapshotInfoListener.whenComplete(snapshotInfo -> {
+            for (IndexId indexId : indices) {
+                if (RestoreService.failed(snapshotInfo, indexId.getName())) {
+                    throw new SnapshotException(targetSnapshot, "Can't clone index [" + indexId +
+                            "] because its snapshot is was not successful.");
+                }
+            }
+            // 2. step, load the number of shards we have in each index to be cloned from the index metadata.
+            repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
+                for (IndexId index : indices) {
+                    executor.execute(ActionRunnable.supply(shardCountListener, () -> {
+                        final IndexMetadata metadata = repository.getSnapshotIndexMetaData(repositoryData, sourceSnapshot, index);
+                        return Tuple.tuple(index, metadata.getNumberOfShards());
+                    }));
+                }
+            }, onFailure));
+        }, onFailure);
+
+        // 3. step, we have all the shard counts, now update the cluster state to have clone jobs in the snap entry
         allShardCountsListener.whenComplete(counts -> repository.executeConsistentStateUpdate(repoData -> new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry updatedEntry;

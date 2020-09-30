@@ -58,16 +58,14 @@ any where network.protocol == "http"
 [[eql-syntax-escape-identifiers]]
 ==== Escape an event category or field name
 
-Event categories or field names containing non-alphanumeric characters must be
-escaped with enclosing backticks (+++`+++). Non-alphanumeric characters include
-underscores (`_`), dots (`.`), hyphens (`-`), or spaces.
+Event categories or field names that contain a hyphen (`-`), contain a space, or
+start with a numeral must be escaped with enclosing backticks (+++`+++).
 
 [source,eql]
 ----
-`my_field`
-`my.field`
 `my-field`
 `my field`
+`6myfield`
 ----
 
 Any backticks (+++`+++) in an event category or field name must be escaped using

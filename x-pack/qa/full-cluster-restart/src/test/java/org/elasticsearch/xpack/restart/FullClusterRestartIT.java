@@ -230,6 +230,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
+        assumeTrue("API key is available since 6.7.0", getOldClusterVersion().onOrAfter(Version.V_6_7_0));
         if (isRunningAgainstOldCluster()) {
             final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
             createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\",\"role_descriptors\":" +

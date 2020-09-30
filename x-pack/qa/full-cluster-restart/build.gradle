@@ -64,7 +64,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
       keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
       setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 
-      setting 'xpack.security.authc.api_key.enabled', 'true'
+      if (bwcVersion.onOrAfter('6.7.0')) {
+        setting 'xpack.security.authc.api_key.enabled', 'true'
+      }
     }
   }
 

@@ -40,7 +40,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     private String[] indices;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
 
     public CloneSnapshotRequest(StreamInput in) throws IOException {
         super(in);

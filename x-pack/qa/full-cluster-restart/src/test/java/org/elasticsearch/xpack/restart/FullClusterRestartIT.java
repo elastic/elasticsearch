@@ -230,16 +230,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
-        final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");
-        getWatchStatusRequest.addParameter("filter_path", "status");
-
         if (isRunningAgainstOldCluster()) {
             final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
-            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\"}");
+            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\",\"role_descriptors\":" +
+                "{\"r\":{\"cluster\":[\"all\"],\"indices\":[{\"names\":[\"*\"],\"privileges\":[\"all\"]}]}}}");
             final Response response = client().performRequest(createApiKeyRequest);
             final Map<String, Object> createApiKeyResponse = entityAsMap(response);
 
-            Request createWatchWithApiKeyRequest = new Request("PUT", "/_watcher/watch/watch_with_api_key");
+            Request createWatchWithApiKeyRequest = new Request("PUT", getWatcherEndpoint() + "/watch/watch_with_api_key");
             createWatchWithApiKeyRequest.setJsonEntity(loadWatch("logging-watch.json"));
             final byte[] keyBytes =
                 (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(StandardCharsets.UTF_8);
@@ -248,7 +246,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createWatchWithApiKeyRequest);
 
             assertBusy(() -> {
-                final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                final Request getRequest = new Request("GET", getWatcherEndpoint() + "/watch/watch_with_api_key");
+                getRequest.addParameter("filter_path", "status");
+                final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getRequest));
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
                 assertEquals("executed", status.get("execution_state"));
             });
@@ -267,6 +267,15 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             startWatcher();
 
             try {
+                final Request getWatchStatusRequest = new Request("GET", "_watcher/watch/watch_with_api_key");
+                getWatchStatusRequest.addParameter("filter_path", "status");
+                if (getOldClusterVersion().before(Version.V_7_0_0)) {
+                    getWatchStatusRequest.setOptions(
+                        expectWarnings(
+                            SEARCH_INPUT_TYPES_DEPRECATION_MESSAGE
+                        )
+                    );
+                }
                 final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
                 final int version = (int) status.get("version");

@@ -16,7 +16,7 @@
       }
     }
   },
-  "throttle_period": "1s",
+  "throttle_period_in_millis": 500,
   "actions" : {
     "log" : {
       "logging" : {

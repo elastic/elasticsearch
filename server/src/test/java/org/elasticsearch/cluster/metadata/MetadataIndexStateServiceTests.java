@@ -398,8 +398,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         final SnapshotsInProgress.Entry entry =
             new SnapshotsInProgress.Entry(snapshot, randomBoolean(), false, SnapshotsInProgress.State.INIT,
                 Collections.singletonList(new IndexId(index, index)), Collections.emptyList(), randomNonNegativeLong(), randomLong(),
-                    shardsBuilder.build(), null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()), null,
-                    null);
+                    shardsBuilder.build(), null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
         return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(List.of(entry))).build();
     }
 

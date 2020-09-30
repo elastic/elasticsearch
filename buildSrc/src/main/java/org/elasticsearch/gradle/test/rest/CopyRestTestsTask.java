@@ -163,6 +163,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 c.include(xpackPatternSet.getIncludes());
             });
         }
+        //TODO: once https://github.com/elastic/elasticsearch/pull/62968 lands ensure that this uses `getFileSystemOperations()`
         // copy any additional config
         if (additionalConfig != null) {
             project.copy(c -> {

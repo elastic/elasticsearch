@@ -133,10 +133,8 @@ tasks.register("regen") {
   }
 }
 
-task checkNoBwc {
-  dependsOn 'check'
-  ext.bwc_tests_enabled = false
-  subprojects {
-    ext.bwc_tests_enabled = false
+allprojects {
+  task checkNoBwc {
+    dependsOn tasks.withType(Test).matching { it.name.contains('bwc') == false }
   }
 }

@@ -90,8 +90,8 @@ subprojects {
         }
 
         tasks.create(bwcTaskName(bwcVersion), RestIntegTestTask) {
-          classpath += driverConfiguration
-          systemProperty 'jdbc.driver.version', bwcVersion.toString()
+            classpath += driverConfiguration
+            systemProperty 'jdbc.driver.version', bwcVersion.toString()
         }
       }
     }

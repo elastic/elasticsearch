@@ -63,6 +63,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
       setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
       keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
       setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+
+      setting 'xpack.security.authc.api_key.enabled', 'true'
     }
   }
 

@@ -55,7 +55,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (EQ booleanValue)? (by=joinKeys)?
+   : subquery (by=joinKeys)?
    ;
 
 subquery

@@ -115,7 +115,7 @@ public enum XContentType implements MediaType {
     };
 
     private static final String COMPATIBLE_WITH_PARAMETER_NAME = "compatible-with";
-    private static final String VERSION_PATTERN = "\\d";
+    private static final String VERSION_PATTERN = "\\d+";
     public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
         .withMediaTypeAndParams("application/smile", SMILE, Collections.emptyMap())
         .withMediaTypeAndParams("application/cbor", CBOR, Collections.emptyMap())

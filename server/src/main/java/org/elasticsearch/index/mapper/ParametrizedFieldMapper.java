@@ -147,6 +147,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private Consumer<T> validator = null;
         private Serializer<T> serializer = XContentBuilder::field;
         private BooleanSupplier serializerPredicate = () -> true;
+        private boolean alwaysSerialize = false;
         private Function<T, String> conflictSerializer = Objects::toString;
         private BiPredicate<T, T> mergeValidator;
         private T value;
@@ -242,6 +243,14 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         /**
+         * Ensures that this parameter is always serialized, no matter its value
+         */
+        public Parameter<T> alwaysSerialize() {
+            this.alwaysSerialize = true;
+            return this;
+        }
+
+        /**
          * Sets a custom merge validator.  By default, merges are accepted if the
          * parameter is updateable, or if the previous and new values are equal
          */
@@ -275,7 +284,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if ((includeDefaults || isConfigured()) && serializerPredicate.getAsBoolean()) {
+            if (alwaysSerialize || ((includeDefaults || isConfigured()) && serializerPredicate.getAsBoolean())) {
                 serializer.serialize(builder, name, getValue());
             }
         }
@@ -523,7 +532,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         /**
          * Writes the current builder parameter values as XContent
          */
-        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        protected final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }

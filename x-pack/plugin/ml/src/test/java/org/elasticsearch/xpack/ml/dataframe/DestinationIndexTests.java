@@ -193,25 +193,25 @@ public class DestinationIndexTests extends ESTestCase {
     public void testCreateDestinationIndex_Classification() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(NUMERICAL_FIELD));
         assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsNested() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD));
         assertThat(extractValue("_doc.properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsAlias() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD));
         assertThat(extractValue("_doc.properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsAliasToNested() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NESTED_FIELD));
         assertThat(extractValue("_doc.properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_ResultsFieldsExistsInSourceIndex() {
@@ -294,25 +294,25 @@ public class DestinationIndexTests extends ESTestCase {
     public void testUpdateMappingsToDestIndex_Classification() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(NUMERICAL_FIELD));
         assertThat(extractValue("properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsNested() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD));
         assertThat(extractValue("properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsAlias() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD));
         assertThat(extractValue("properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsAliasToNested() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(ALIAS_TO_NESTED_FIELD));
         assertThat(extractValue("properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_ResultsFieldsExistsInSourceIndex() {

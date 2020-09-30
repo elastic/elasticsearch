@@ -253,3 +253,12 @@ sequence
   [process where true] by unique_ppid
 '''
 expected_event_ids  = []
+
+[[queries]]
+name = "sequenceWithAnyFilter"
+query = '''
+sequence
+  [any where serial_event_id<3] by unique_pid
+  [any where true] by unique_ppid
+'''
+expected_event_ids  = [1, 2, 2, 3]

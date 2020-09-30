@@ -25,6 +25,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -104,7 +106,6 @@ public class SourceLookup implements Map<String, Object> {
 
     public void setSegmentAndDocument(
         LeafReaderContext context,
-        CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
         int docId
     ) {
         if (this.reader == context.reader() && this.docId == docId) {
@@ -112,7 +113,20 @@ public class SourceLookup implements Map<String, Object> {
             return;
         }
         this.reader = context.reader();
-        this.fieldReader = fieldReader;
+        try {
+            if (context.reader() instanceof SequentialStoredFieldsLeafReader) {
+                // All the docs to fetch are adjacent but Lucene stored fields are optimized
+                // for random access and don't optimize for sequential access - except for merging.
+                // So we do a little hack here and pretend we're going to do merges in order to
+                // get better sequential access.
+                SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+                fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+            } else {
+                fieldReader = context.reader()::document;
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         this.source = null;
         this.sourceAsBytes = null;
         this.docId = docId;

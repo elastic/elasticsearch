@@ -200,7 +200,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                 }
 
                 private void collectFromSource(int doc, long owningBucketOrd, DuplicateByteSequenceSpotter spotter) throws IOException {
-                    sourceLookup.setSegmentAndDocument(ctx, ctx.reader()::document, doc);
+                    sourceLookup.setSegmentAndDocument(ctx, doc);
                     BytesRefHash inDocTerms = new BytesRefHash(256, bigArrays);
 
                     try {

@@ -54,7 +54,7 @@ public interface FetchSubPhase {
             this.readerContext = context;
             this.docId = docId;
             this.sourceLookup = sourceLookup;
-            sourceLookup.setSegmentAndDocument(context, fieldReader, docId);
+            sourceLookup.setSegmentAndDocument(context, docId);
             this.cache = cache;
         }
 

@@ -20,12 +20,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -38,22 +33,11 @@ public class LeafSearchLookup {
     private final SourceLookup sourceLookup;
     private final LeafFieldsLookup fieldsLookup;
     private final Map<String, Object> asMap;
-    private final CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
 
     public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup, LeafFieldsLookup fieldsLookup) {
         this.ctx = ctx;
         this.docMap = docMap;
         this.sourceLookup = sourceLookup;
-        try {
-            if (ctx.reader() instanceof SequentialStoredFieldsLeafReader) {
-                SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) ctx.reader();
-                fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
-            } else {
-                fieldReader = ctx.reader()::document;
-            }
-        } catch (Exception e) {
-            throw new ElasticsearchException("Error creating LeafSearchLookup", e);
-        }
         this.fieldsLookup = fieldsLookup;
         this.asMap = Map.of(
                 "doc", docMap,
@@ -81,7 +65,7 @@ public class LeafSearchLookup {
     public void setDocument(int docId) {
         docMap.setDocument(docId);
         // TODO not sure that to pass in here as a fieldReader
-        sourceLookup.setSegmentAndDocument(ctx, fieldReader, docId);
+        sourceLookup.setSegmentAndDocument(ctx, docId);
         fieldsLookup.setDocument(docId);
     }
 }

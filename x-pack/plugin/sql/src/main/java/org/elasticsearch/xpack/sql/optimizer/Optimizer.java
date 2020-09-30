@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceMatchAll;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -116,8 +117,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch pivot = new Batch("Pivot Rewrite", Limiter.ONCE,
-                new RewritePivot());
+        Batch substitutions = new Batch("Substitutions", Limiter.ONCE,
+                new RewritePivot(),
+                new ReplaceMatchAll());
 
         Batch refs = new Batch("Replace References", Limiter.ONCE,
                 new ReplaceReferenceAttributeWithSource(),
@@ -171,7 +173,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 CleanAliases.INSTANCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(pivot, refs, operators, aggregate, local, label);
+        return Arrays.asList(substitutions, refs, operators, aggregate, local, label);
     }
 
     static class RewritePivot extends OptimizerRule<Pivot> {
@@ -826,7 +828,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Aggregate a) {
             boolean hasLocalRelation = a.anyMatch(LocalRelation.class::isInstance);
-            
+
             return hasLocalRelation ? a.transformExpressionsDown(c -> {
                 return c instanceof Count ? new Literal(c.source(), 1, c.dataType()) : c;
             }) : a;

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
@@ -114,7 +115,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
         client().admin().indices().prepareRefresh(MlStatsIndex.indexPattern()).get();
 
         PlainActionFuture<Boolean> deletionListener = new PlainActionFuture<>();
-        UnusedStatsRemover statsRemover = new UnusedStatsRemover(client);
+        UnusedStatsRemover statsRemover = new UnusedStatsRemover(client, new TaskId("test", 0L));
         statsRemover.remove(10000.0f, deletionListener, () -> false);
         deletionListener.actionGet();
 

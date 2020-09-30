@@ -38,7 +38,6 @@ import java.util.TreeMap;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
@@ -245,12 +244,16 @@ public class TypeParsers {
                 builder.docValues(XContentMapValues.nodeBooleanValue(propNode, name + "." + DOC_VALUES));
                 iterator.remove();
             } else if (propName.equals("boost")) {
-                builder.boost(nodeFloatValue(propNode));
-                deprecationLogger.deprecate(
-                    "boost",
-                    "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
-                    name);
-                iterator.remove();
+                if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                    deprecationLogger.deprecate(
+                        "boost",
+                        "Parameter [boost] on field [{}] is deprecated and has no effect",
+                        name);
+                    iterator.remove();
+                }
+                else {
+                    throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
+                }
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();

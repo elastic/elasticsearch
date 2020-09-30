@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
+
 public class RLikePattern implements StringPattern {
 
     private final String regexpPattern;
@@ -16,5 +19,10 @@ public class RLikePattern implements StringPattern {
     @Override
     public String asJavaRegex() {
         return regexpPattern;
+    }
+
+    @Override
+    public boolean matchesAll() {
+        return Operations.isTotal(new RegExp(regexpPattern).toAutomaton());
     }
 }

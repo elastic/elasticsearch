@@ -21,10 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
@@ -91,7 +88,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
          * Parse the given xContent value to an object of type {@link Parsed}. The value can be
          * in any supported format.
          */
-        public abstract Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
+        public abstract Parsed parse(XContentParser parser) throws IOException, ParseException;
 
         /**
          * Given a parsed value and a format string, formats the value into a plain Java object.
@@ -108,14 +105,14 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
          * it with {@link Parser#format}. However some {@link Parser} implementations override this
          * as they can avoid parsing the value if it is already in the right format.
          */
-        public Object parseAndFormatObject(Object value, AbstractGeometryFieldMapper mapper, String format) {
+        public Object parseAndFormatObject(Object value, String format) {
             Parsed geometry;
             try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
                 Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
                 parser.nextToken(); // start object
                 parser.nextToken(); // field name
                 parser.nextToken(); // field value
-                geometry = parse(parser, mapper);
+                geometry = parse(parser);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } catch (ParseException e) {
@@ -190,7 +187,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
         Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, this, geoFormat);
+        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
 
         return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
             @Override
@@ -243,8 +240,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected Parser<Parsed> geometryParser;
         protected QueryProcessor geometryQueryBuilder;
 
-        protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
@@ -281,15 +278,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
                                   QueryShardContext context) {
                 return process(shape, fieldName, relation, context);
-            }
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
         }
 
@@ -349,7 +337,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         try {
             Processed shape = context.parseExternalValue(geometryIndexer.processedClass());
             if (shape == null) {
-                Parsed geometry = geometryParser.parse(context.parser(), this);
+                Parsed geometry = geometryParser.parse(context.parser());
                 if (geometry == null) {
                     return;
                 }

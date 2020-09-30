@@ -141,12 +141,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
      * this parsing method assumes that the leading "suggest" field name has already been parsed by the caller
      */
     public static Suggest fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String currentField = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
             Suggestion<? extends Entry<? extends Option>> suggestion = Suggestion.fromXContent(parser);
             if (suggestion != null) {
                 suggestions.add(suggestion);
@@ -378,7 +378,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
         @SuppressWarnings("unchecked")
         public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
             SetOnce<Suggestion> suggestion = new SetOnce<>();
             XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class, suggestion::set);
             return suggestion.get();
@@ -387,7 +387,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         protected static <E extends Suggestion.Entry<?>> void parseEntries(XContentParser parser, Suggestion<E> suggestion,
                                                                            CheckedFunction<XContentParser, E, IOException> entryParser)
                 throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 suggestion.addTerm(entryParser.apply(parser));
             }

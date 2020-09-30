@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DirectPool;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,12 +51,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
-    private static final int FORCE_WRITE_THRESHOLD = 4 * 1024 * 1024;
+    private static final int FORCE_WRITE_THRESHOLD = 1024 * 1024;
 
     private final ShardId shardId;
     private final FileChannel checkpointChannel;
@@ -79,9 +81,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final LongConsumer persistedSequenceNumberConsumer;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
-    // lock order synchronized(writeLock) -> synchronized(this)
-    private final Object writeLock = new Object();
-    // lock order synchronized(syncLock) -> synchronized(writeLock) -> synchronized(this)
+    // lock order try(Releasable lock = writeLock.acquire()) -> synchronized(this)
+    private final ReleasableLock writeLock = new ReleasableLock(new ReentrantLock());
+    // lock order synchronized(syncLock) -> try(Releasable lock = writeLock.acquire()) -> synchronized(this)
     private final Object syncLock = new Object();
 
     private final ArrayList<Operation> bufferedOps = new ArrayList<>();
@@ -202,7 +204,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
 
         if (bytesBufferedAfterAdd >= FORCE_WRITE_THRESHOLD) {
-            writeBufferedOps(Long.MAX_VALUE);
+            writeBufferedOps(Long.MAX_VALUE, false);
         }
 
         return location;
@@ -319,7 +321,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         // Note: While this is not strictly needed as this method is called while blocking all ops on the translog,
         //       we do this to for correctness and preventing future issues.
         synchronized (syncLock) {
-            synchronized (writeLock) {
+            try (ReleasableLock toClose = writeLock.acquire()) {
                 synchronized (this) {
                     try {
                         sync(); // sync before we close..
@@ -354,7 +356,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         // After the sync lock we acquire the write lock to avoid deadlocks with threads writing where
         // the write lock is acquired first followed by synchronize(this).
         synchronized (syncLock) {
-            synchronized (writeLock) {
+            try (ReleasableLock toClose = writeLock.acquire()) {
                 synchronized (this) {
                     ensureOpen();
                     try {
@@ -386,7 +388,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     final Checkpoint checkpointToSync;
                     final LongArrayList flushedSequenceNumbers;
                     final ArrayDeque<Operation> toWrite;
-                    synchronized (writeLock) {
+                    try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
                             ensureOpen();
                             checkpointToSync = getCheckpoint();
@@ -425,9 +427,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return false;
     }
 
-    private void writeBufferedOps(long offset) throws IOException {
-        synchronized (writeLock) {
-            if (offset > getWrittenOffset()) {
+    private void writeBufferedOps(long offset, boolean blockOnExistingWriter) throws IOException {
+        try (ReleasableLock locked = blockOnExistingWriter ? writeLock.acquire() : writeLock.tryAcquire()) {
+            if (locked != null && offset > getWrittenOffset()) {
                 try {
                     writeAndReleaseOps(pollOpsToWrite());
                 } catch (IOException e){
@@ -449,7 +451,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private void writeAndReleaseOps(final ArrayDeque<Operation> operationsToWrite) throws IOException {
         try {
-            assert Thread.holdsLock(writeLock);
+            assert writeLock.isHeldByCurrentThread();
             ByteBuffer ioBuffer = DirectPool.getIoBuffer();
 
             Operation operation;
@@ -494,7 +496,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 // in some cases ie. a tragic event we might still be able to read the relevant value
                 // which is not really important in production but some test can make most strict assumptions
                 // if we don't fail in this call unless absolutely necessary.
-                writeBufferedOps(position + targetBuffer.remaining());
+                writeBufferedOps(position + targetBuffer.remaining(), true);
             }
         } catch (final Exception ex) {
             closeWithTragicEvent(ex);

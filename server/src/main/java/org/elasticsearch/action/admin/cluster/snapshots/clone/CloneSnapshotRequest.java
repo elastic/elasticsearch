@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.cluster.snapshots.clone;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +30,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest> {
+public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest> implements IndicesRequest.Replaceable{
 
     private final String repository;
 
@@ -36,9 +38,9 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     private final String target;
 
-    // TODO: the current logic does not allow for specifying index resolution parameters like hidden and such. Do we care about cloning
-    //        system or hidden indices?
     private String[] indices;
+
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
     public CloneSnapshotRequest(StreamInput in) throws IOException {
         super(in);
@@ -48,6 +50,15 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         indices = in.readStringArray();
     }
 
+    /**
+     * Creates a clone snapshot request for cloning the given source snapshot's indices into the given target snapshot on the given
+     * repository.
+     *
+     * @param repository repository that source snapshot belongs to and that the target snapshot will be created in
+     * @param source     source snapshot name
+     * @param target     target snapshot name
+     * @param indices    indices to clone from source to target
+     */
     public CloneSnapshotRequest(String repository, String source, String target, String[] indices) {
         this.repository = repository;
         this.source = source;
@@ -91,12 +102,27 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         return validationException;
     }
 
+    @Override
     public String[] indices() {
         return this.indices;
     }
 
+    @Override
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    @Override
     public CloneSnapshotRequest indices(String... indices) {
         this.indices = indices;
+        return this;
+    }
+
+    /**
+     * @see CloneSnapshotRequestBuilder#setIndicesOptions
+     */
+    public CloneSnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 

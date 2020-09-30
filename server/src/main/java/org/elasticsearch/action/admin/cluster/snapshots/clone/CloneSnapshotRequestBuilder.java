@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.clone;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -38,8 +39,27 @@ public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuild
         this(client, action, new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY));
     }
 
+    /**
+     * Sets a list of indices that should be cloned from the source to the target snapshot
+     * <p>
+     * The list of indices supports multi-index syntax. For example: "+test*" ,"-test42" will clone all indices with
+     * prefix "test" except index "test42".
+     *
+     * @return this builder
+     */
     public CloneSnapshotRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    /**
+     * Specifies the indices options. Like what type of requested indices to ignore. For example indices that don't exist.
+     *
+     * @param indicesOptions the desired behaviour regarding indices options
+     * @return this request
+     */
+    public CloneSnapshotRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
         return this;
     }
 }

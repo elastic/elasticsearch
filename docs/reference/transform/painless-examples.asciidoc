@@ -164,7 +164,7 @@ Create the index:
 --------------------------------------------------
 PUT /pivot_logs
 --------------------------------------------------
-// NOTCONSOLE
+// TEST[skip:setup kibana sample data]
 
 
 Create the mapping of the index:
@@ -181,8 +181,7 @@ PUT /pivot_logs/_mapping
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-
+// TEST[skip:setup kibana sample data]
 
 Then you can create the {transform}. The example below shows you how to create a 
 preview of the {transform}.

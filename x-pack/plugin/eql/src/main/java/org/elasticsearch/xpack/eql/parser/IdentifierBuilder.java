@@ -31,6 +31,6 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         if (identifier.charAt(0) == '`') {
             newIdentifier = identifier.substring(1, identifier.length() - 1);
         }
-        return newIdentifier.replace("\\`", "`");
+        return newIdentifier.replace("``", "`");
     }
 }

@@ -134,8 +134,8 @@ public class OptimizerTests extends ESTestCase {
 
     public void testEqualsWildcard() {
         List<String> tests = Arrays.asList(
-            "foo where command_line == '* bar *'",
-            "foo where '* bar *' == command_line"
+            "foo where command_line == \"* bar *\"",
+            "foo where \"* bar *\" == command_line"
         );
 
         for (String q : tests) {
@@ -156,8 +156,8 @@ public class OptimizerTests extends ESTestCase {
 
     public void testNotEqualsWildcard() {
         List<String> tests = Arrays.asList(
-            "foo where command_line != '* baz *'",
-            "foo where '* baz *' != command_line"
+            "foo where command_line != \"* baz *\"",
+            "foo where \"* baz *\" != command_line"
         );
 
         for (String q : tests) {
@@ -179,7 +179,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testWildcardEscapes() {
-        LogicalPlan plan = defaultPipes(accept("foo where command_line == '* %bar_ * \\\\ \\n \\r \\t'"));
+        LogicalPlan plan = defaultPipes(accept("foo where command_line == \"* %bar_ * \\\\ \\n \\r \\t\""));
         assertTrue(plan instanceof Filter);
 
         Filter filter = (Filter) plan;

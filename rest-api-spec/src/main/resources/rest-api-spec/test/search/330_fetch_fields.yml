@@ -116,6 +116,10 @@ setup:
           keyword: [ "a" ]
 
   - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
       catch: bad_request
       search:
         index: test

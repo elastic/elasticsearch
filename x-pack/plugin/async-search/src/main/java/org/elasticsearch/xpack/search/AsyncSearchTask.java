@@ -20,7 +20,6 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -363,17 +362,21 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().addShardFailure(shardIndex,
+            searchResponse.get().addQueryFailure(shardIndex,
                 // the nodeId is null if all replicas of this shard failed
                 new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override
         protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+            // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().addShardFailure(shardIndex,
-                // the nodeId is null if all replicas of this shard failed
-                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
+            //ignore fetch failures: they make the shards count confusing if we count them as shard failures because the query
+            // phase ran fine and we don't want to end up with e.g. total: 5 successful: 5 failed: 5.
+            //Given that partial results include only aggs they are not affected by fetch failures. Async search receives the fetch
+            //failures either as an exception (when all shards failed during fetch, in which case async search will return the error
+            //as well as the response obtained after the final reduction) or as part of the final response (if only some shards failed,
+            //in which case the final response already includes results as well as shard fetch failures)
         }
 
         @Override
@@ -387,7 +390,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-                DelayableWriteable.Serialized<InternalAggregations> aggregations, int reducePhase) {
+                                    InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
             // The way that the MutableSearchResponse will build the aggs.
@@ -397,16 +400,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 reducedAggs = () -> null;
             } else {
                 /*
-                 * Keep a reference to the serialized form of the partially
-                 * reduced aggs and reduce it on the fly when someone asks
+                 * Keep a reference to the partially reduced aggs and reduce it on the fly when someone asks
                  * for it. It's important that we wait until someone needs
                  * the result so we don't perform the final reduce only to
                  * throw it away. And it is important that we keep the reference
-                 * to the serialized aggregations because SearchPhaseController
+                 * to the aggregations because SearchPhaseController
                  * *already* has that reference so we're not creating more garbage.
                  */
                 reducedAggs = () ->
-                    InternalAggregations.topLevelReduce(singletonList(aggregations.expand()), aggReduceContextSupplier.get());
+                    InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }

@@ -58,15 +58,15 @@ public final class FileStructureUtils {
             "(?:%{WKT_POINT}|%{WKT_LINESTRING}|%{WKT_MULTIPOINT}|%{WKT_POLYGON}|%{WKT_MULTILINESTRING}|%{WKT_MULTIPOLYGON}|%{WKT_BBOX})"
         );
         patterns.put("WKT_GEOMETRYCOLLECTION", "GEOMETRYCOLLECTION \\(%{WKT_ANY}(?:, %{WKT_ANY})\\)");
-        patterns.putAll(Grok.getBuiltinPatterns());
+        patterns.putAll(Grok.BUILTIN_PATTERNS);
         EXTENDED_PATTERNS = Collections.unmodifiableMap(patterns);
     }
 
     private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
-    private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$",
+    private static final Grok NUMBER_GROK = new Grok(Grok.BUILTIN_PATTERNS, "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$",
         TimeoutChecker.watchdog, logger::warn);
-    private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IP}$", TimeoutChecker.watchdog, logger::warn);
+    private static final Grok IP_GROK = new Grok(Grok.BUILTIN_PATTERNS, "^%{IP}$", TimeoutChecker.watchdog, logger::warn);
     private static final Grok GEO_POINT_WKT = new Grok(EXTENDED_PATTERNS, "^%{WKT_POINT}$", TimeoutChecker.watchdog, logger::warn);
     private static final Grok GEO_WKT = new Grok(EXTENDED_PATTERNS, "^(?:%{WKT_ANY}|%{WKT_GEOMETRYCOLLECTION})$", TimeoutChecker.watchdog,
         logger::warn);
@@ -393,6 +393,7 @@ public final class FileStructureUtils {
      * @param csvProcessorSettings The CSV processor settings for delimited formats.  <code>null</code> for
      *                             non-delimited formats.
      * @param mappingsForConversions Mappings (or partial mappings) that will be considered for field type conversions.
+     *                               The keys in the map are the top level field names - there is no properties layer.
      * @param timestampField The input field containing the timestamp to be parsed into <code>@timestamp</code>.
      *                       <code>null</code> if there is no timestamp.
      * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.

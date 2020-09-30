@@ -179,6 +179,47 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();
     }
+    
+    
+    public void testTermAndPrefixQueryIgnoreWildcardSyntax() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        Document doc = new Document();
+        ParseContext.Document parseDoc = new ParseContext.Document();
+        addFields(parseDoc, doc, "f*oo?");
+        indexDoc(parseDoc, doc, iw);
+
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+        
+        expectTermMatch(searcher, "f*oo*", 0);
+        expectTermMatch(searcher, "f*oo?", 1);
+        expectTermMatch(searcher, "*oo?", 0);
+
+        expectPrefixMatch(searcher, "f*o", 1);
+        expectPrefixMatch(searcher, "f*oo?", 1);
+        expectPrefixMatch(searcher, "f??o", 0);
+        
+        reader.close();
+        dir.close();
+    }
+    
+    private void expectTermMatch(IndexSearcher searcher, String term,long count) throws IOException {
+        Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_QSC);
+        TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
+        assertThat(td.totalHits.value, equalTo(count));        
+    }
+    
+    private void expectPrefixMatch(IndexSearcher searcher, String term,long count) throws IOException {
+        Query q = wildcardFieldType.fieldType().prefixQuery(term, null, MOCK_QSC);
+        TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
+        assertThat(td.totalHits.value, equalTo(count));        
+    }    
 
 
     public void testSearchResultsVersusKeywordField() throws IOException {
@@ -223,18 +264,21 @@ public class WildcardFieldMapperTests extends ESTestCase {
             switch (randomInt(4)) {
             case 0:
                 pattern = getRandomWildcardPattern();
-                wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
+                boolean caseInsensitive = randomBoolean();
+                wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_QSC);
                 break;
             case 1:
                 pattern = getRandomRegexPattern(values);
-                wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, 0, 20000, null, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, 0,20000, null, MOCK_QSC);
+                int matchFlags = randomBoolean()? 0 : RegExp.ASCII_CASE_INSENSITIVE;
+                wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags,20000, null, MOCK_QSC);
                 break;
             case 2:
                 pattern = randomABString(5);
-                wildcardFieldQuery = wildcardFieldType.fieldType().prefixQuery(pattern, null, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().prefixQuery(pattern, null, MOCK_QSC);
+                boolean caseInsensitivePrefix = randomBoolean();
+                wildcardFieldQuery = wildcardFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_QSC);
                 break;
             case 3:
                 int edits = randomInt(2);
@@ -779,7 +823,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         return result.toString();
     }
 
-    public void testFetchSourceValue() {
+    public void testFetchSourceValue() throws IOException {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 

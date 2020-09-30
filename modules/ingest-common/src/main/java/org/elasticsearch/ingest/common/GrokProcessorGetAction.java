@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -43,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
@@ -65,7 +65,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         Request(StreamInput in) throws IOException {
             super(in);
-            this.sorted = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false;
+            this.sorted = in.getVersion().onOrAfter(Version.V_7_10_0) ? in.readBoolean() : false;
         }
 
         @Override
@@ -76,7 +76,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
                 out.writeBoolean(sorted);
             }
         }
@@ -124,7 +124,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            this(transportService, actionFilters, GROK_PATTERNS);
+            this(transportService, actionFilters, Grok.BUILTIN_PATTERNS);
         }
 
         // visible for testing

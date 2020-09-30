@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -29,6 +30,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -49,10 +51,12 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final Map<String, Object> source = request.contentParser().map();
         final CloneSnapshotRequest cloneSnapshotRequest = new CloneSnapshotRequest(
                 request.param("repository"), request.param("snapshot"), request.param("target_snapshot"),
-                XContentMapValues.nodeStringArrayValue(request.contentParser().map().getOrDefault("indices", Collections.emptyList())));
+                XContentMapValues.nodeStringArrayValue(source.getOrDefault("indices", Collections.emptyList())));
         cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cloneSnapshotRequest.masterNodeTimeout()));
+        cloneSnapshotRequest.indicesOptions(IndicesOptions.fromMap(source, cloneSnapshotRequest.indicesOptions()));
         return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));
     }
 }

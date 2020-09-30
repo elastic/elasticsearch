@@ -25,7 +25,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -90,6 +92,28 @@ public class DataFrameAnalyticsManager {
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
+                // Check if existing destination index is incompatible.
+                // If it is, we delete it and start from reindexing.
+                IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
+                if (destIndex != null) {
+                    MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
+                    DestinationIndex.Metadata metadata = DestinationIndex.readMetadata(config.getId(), destIndexMapping);
+                    if (metadata.hasMetadata() && (metadata.isCompatible() == false)) {
+                        LOGGER.info("[{}] Destination index was created in version [{}] but minimum supported version is [{}]. " +
+                            "Deleting index and starting from scratch.", config.getId(), metadata.getVersion(),
+                            DestinationIndex.MIN_COMPATIBLE_VERSION);
+                        task.getStatsHolder().resetProgressTracker(config.getAnalysis().getProgressPhases(),
+                            config.getAnalysis().supportsInference());
+                        DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
+                            task.getAllocationId(), "destination index was out of date");
+                        task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
+                            updatedTask -> executeJobInMiddleOfReindexing(task, config),
+                            task::setFailed
+                        ));
+                        return;
+                    }
+                }
+
                 task.getStatsHolder().adjustProgressTracker(config.getAnalysis().getProgressPhases(),
                     config.getAnalysis().supportsInference());
 

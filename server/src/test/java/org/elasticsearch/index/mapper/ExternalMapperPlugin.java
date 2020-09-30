@@ -37,9 +37,9 @@ public class ExternalMapperPlugin extends Plugin implements MapperPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new HashMap<>();
-        mappers.put(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
-        mappers.put(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
-        mappers.put(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));
+        mappers.put(EXTERNAL, ExternalMapper.parser(EXTERNAL, "foo"));
+        mappers.put(EXTERNAL_BIS, ExternalMapper.parser(EXTERNAL_BIS, "bar"));
+        mappers.put(EXTERNAL_UPPER, ExternalMapper.parser(EXTERNAL_UPPER, "FOO BAR"));
         mappers.put(FakeStringFieldMapper.CONTENT_TYPE, new FakeStringFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
     }

@@ -137,6 +137,13 @@ public class AutoCreateIndexTests extends ESTestCase {
         expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
     }
 
+    public void testAutoCreationSystemIndexPatternDisabled() {
+        Settings settings =
+            Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "-" + TEST_SYSTEM_INDEX_NAME + "*").build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        assertThat(autoCreateIndex.shouldAutoCreate(TEST_SYSTEM_INDEX_NAME, buildClusterState()), equalTo(true));
+    }
+
     public void testAutoCreationMultiplePatternsWithWildcards() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(),
                 randomFrom("+test*,-index*", "test*,-index*")).build();

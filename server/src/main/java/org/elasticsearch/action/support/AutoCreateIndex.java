@@ -74,9 +74,14 @@ public final class AutoCreateIndex {
             return false;
         }
 
+        // Always auto-create system indexes
+        if (systemIndices.isSystemIndex(index)) {
+            return true;
+        }
+
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
-        if (autoCreate.autoCreateIndex == false && systemIndices.isSystemIndex(index) == false) {
+        if (autoCreate.autoCreateIndex == false) {
             throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
         }
 

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Rec
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.List;
+import java.util.Arrays;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ml.integration.ClassificationEvaluationIT.ANIMALS_DATA_INDEX;
@@ -65,11 +65,11 @@ public class OutlierDetectionEvaluationIT extends MlNativeDataFrameAnalyticsInte
                 new OutlierDetection(
                     IS_PREDATOR_BOOLEAN_FIELD,
                     IS_PREDATOR_PREDICTION_PROBABILITY_FIELD,
-                    List.of(
+                    Arrays.asList(
                         new AucRoc(false),
-                        new Precision(List.of(0.5)),
-                        new Recall(List.of(0.5)),
-                        new ConfusionMatrix(List.of(0.5)))));
+                        new Precision(Arrays.asList(0.5)),
+                        new Recall(Arrays.asList(0.5)),
+                        new ConfusionMatrix(Arrays.asList(0.5)))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(OutlierDetection.NAME.getPreferredName()));
         assertThat(
@@ -85,7 +85,7 @@ public class OutlierDetectionEvaluationIT extends MlNativeDataFrameAnalyticsInte
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
-                new OutlierDetection(actualField, predictedField, List.of(new AucRoc(includeCurve))));
+                new OutlierDetection(actualField, predictedField, Arrays.asList(new AucRoc(includeCurve))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(OutlierDetection.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));

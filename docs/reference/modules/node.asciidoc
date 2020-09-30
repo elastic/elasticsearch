@@ -30,6 +30,10 @@ configure this setting, then the node has the following roles by default:
 
 * `master`
 * `data`
+* `data_content`
+* `data_hot`
+* `data_warm`
+* `data_cold`
 * `ingest`
 * `ml`
 * `remote_cluster_client`
@@ -44,7 +48,10 @@ A node that has the `master` role (default), which makes it eligible to be
 <<data-node,Data node>>::
 
 A node that has the `data` role (default). Data nodes hold data and perform data
-related operations such as CRUD, search, and aggregations.
+related operations such as CRUD, search, and aggregations. The `data` role fulfils
+the role of any of the more specialised data nodes `data_content`,`data_hot`,
+`data_warm` or `data_cold`. Nodes could be configured to fulfil one or multiple
+specialised (concrete <<modules-tiers, data tiers>>) roles.
 
 <<node-ingest-node,Ingest node>>::
 
@@ -204,6 +211,67 @@ To create a dedicated data node, set:
 [source,yaml]
 ----
 node.roles: [ data ]
+----
+
+Data nodes can be more specialised in order to allow for tiered storage deployments.
+A collection of data nodes with the same specialised role is called a
+<<modules-tiers, data tier>>.
+
+IMPORTANT: If a node has a `data tier` role, it cannot *also*
+be a generic `data` node.
+
+The available <<modules-tiers, data tier>> roles are the following:
+
+[[data-content-node]]
+==== [x-pack]#Content data node#
+
+Content data nodes accommodate user-created content. They enable operations like CRUD,
+search and aggregations.
+
+To create a dedicated content node, set:
+[source,yaml]
+----
+node.roles: [ data_content ]
+----
+
+[[data-hot-node]]
+==== [x-pack]#Hot data node#
+
+Hot data nodes accommodate time series data as it enters {es}. The hot tier must be fast for
+both reads and writes, and requires more hardware resources (such as SSD drives).
+
+To create a dedicated hot node, set:
+[source,yaml]
+----
+node.roles: [ data_hot ]
+----
+
+[[data-warm-node]]
+==== [x-pack]#Warm data node#
+
+Warm data nodes hold indices after they are no longer being written to, but still being
+queried, usually at a lower frequency than it was in the hot tier. Lower performant
+hardware can usually be used in this tier.
+
+To create a dedicated warm node, set:
+[source,yaml]
+----
+node.roles: [ data_warm ]
+----
+
+[[data-cold-node]]
+==== [x-pack]#Cold data node#
+
+Cold data nodes hold indices after they are no longer updated in the warm tier. Lower
+performant hardware is used in this tier, along with optimizations related to
+disaster recovery and index replication that will ensure the resources needed to
+accommodate the indices are much lower than in the warm tier, at the expense of the indices
+being read only and backed by snapshots.
+
+To create a dedicated cold node, set:
+[source,yaml]
+----
+node.roles: [ data_cold ]
 ----
 
 [[node-ingest-node]]

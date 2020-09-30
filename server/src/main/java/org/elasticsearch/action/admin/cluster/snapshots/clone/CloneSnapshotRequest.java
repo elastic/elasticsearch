@@ -48,6 +48,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         source = in.readString();
         target = in.readString();
         indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     /**
@@ -73,6 +74,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         out.writeString(source);
         out.writeString(target);
         out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override

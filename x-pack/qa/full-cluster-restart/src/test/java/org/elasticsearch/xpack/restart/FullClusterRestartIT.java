@@ -194,14 +194,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
 
             // Wait for watcher to actually start....
-            Map<String, Object> startWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_start")));
-            assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-            assertBusy(() -> {
-                Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
-                List<?> states = ((List<?>) statsWatchResponse.get("stats"))
-                    .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
-                assertThat(states, everyItem(is("started")));
-            });
+            startWatcher();
 
             try {
                 assertOldTemplatesAreDeleted();
@@ -211,15 +204,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts
                  * down. This makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down.
                  */
-                Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_stop")));
-                assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-                assertBusy(() -> {
-                    Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
-                        new Request("GET", "_watcher/stats")));
-                    List<?> states = ((List<?>) statsStoppedWatchResponse.get("stats"))
-                        .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
-                    assertThat(states, everyItem(is("stopped")));
-                });
+                stopWatcher();
             }
         }
     }
@@ -236,7 +221,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Map<String, Object> createApiKeyResponse = entityAsMap(response);
 
             Request createWatchWithApiKeyRequest = new Request("PUT", "/_watcher/watch/watch_with_api_key");
-            createWatchWithApiKeyRequest.setJsonEntity(loadWatch("simple-watch.json"));
+            createWatchWithApiKeyRequest.setJsonEntity(loadWatch("logging-watch.json"));
             final byte[] keyBytes =
                 (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(StandardCharsets.UTF_8);
             final String authHeader = "ApiKey " + Base64.getEncoder().encodeToString(keyBytes);
@@ -250,16 +235,32 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             });
 
         } else {
-            final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
-            final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
-            final int version = (int) status.get("version");
+            logger.info("testing against {}", getOldClusterVersion());
+            try {
+                waitForYellow(".watches,.watcher-history*");
+            } catch (ResponseException e) {
+                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                logger.info("cluster_state_response=\n{}", rsp);
+                throw e;
+            }
 
-            assertBusy(() -> {
-                final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
-                final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
-                assertThat((int) newStatus.get("version"), greaterThan(version + 2));
-                assertEquals("executed", newStatus.get("execution_state"));
-            });
+            // Wait for watcher to actually start....
+            startWatcher();
+
+            try {
+                final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
+                final int version = (int) status.get("version");
+
+                assertBusy(() -> {
+                    final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                    final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
+                    assertThat((int) newStatus.get("version"), greaterThan(version + 2));
+                    assertEquals("executed", newStatus.get("execution_state"));
+                });
+            } finally {
+                stopWatcher();
+            }
         }
     }
 
@@ -502,6 +503,29 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 throw ioe;
             }
         }, 30, TimeUnit.SECONDS);
+    }
+
+    private void startWatcher() throws Exception {
+        Map<String, Object> startWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_start")));
+        assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertBusy(() -> {
+            Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
+            List<?> states = ((List<?>) statsWatchResponse.get("stats"))
+                .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
+            assertThat(states, everyItem(is("started")));
+        });
+    }
+
+    private void stopWatcher() throws Exception {
+        Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_stop")));
+        assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertBusy(() -> {
+            Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
+                new Request("GET", "_watcher/stats")));
+            List<?> states = ((List<?>) statsStoppedWatchResponse.get("stats"))
+                .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
+            assertThat(states, everyItem(is("stopped")));
+        });
     }
 
     static String toStr(Response response) throws IOException {

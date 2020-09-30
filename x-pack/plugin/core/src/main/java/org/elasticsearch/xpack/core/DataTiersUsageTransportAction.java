@@ -129,7 +129,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             totalByteCount, primaryByteCount.get(), primaryShardSizeMedian, primaryShardSizeMAD);
     }
 
-    private static long computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
+    // Visible for testing
+    static long computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
         if (valuesSketch.size() == 0) {
             return 0;
         } else {

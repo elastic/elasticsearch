@@ -686,7 +686,7 @@ setup:
             },
             "description": "yaml test transform on airline-data"
           }
-      - match: { acknowledged: true }
+  - match: { acknowledged: true }
 
   - do:
     transform.get_transform:

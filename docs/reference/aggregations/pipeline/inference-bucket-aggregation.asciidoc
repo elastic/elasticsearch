@@ -3,7 +3,9 @@
 [[search-aggregations-pipeline-inference-bucket-aggregation]]
 === {infer-cap} Bucket Aggregation
 
-A parent pipeline aggregation which loads a pre-trained model and performs
+experimental::[]
+
+A parent pipeline aggregation which loads a pre-trained model and performs 
 {infer} on the collated result fields from the parent bucket aggregation.
 
 To use the {infer} bucket aggregation, you need to have the same security

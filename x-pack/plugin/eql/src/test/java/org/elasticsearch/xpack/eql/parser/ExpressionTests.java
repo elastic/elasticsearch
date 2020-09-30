@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ExpressionTests extends ESTestCase {
 
@@ -124,7 +125,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expected, parsed);
     }
 
-    public void testBackQuotedAttribute() {
+    public void testBackQuotedIdentifier() {
         String quote = "`";
         String qualifier = "table";
         String name = "@timestamp";
@@ -134,6 +135,60 @@ public class ExpressionTests extends ESTestCase {
         assertThat(ua.name(), equalTo(qualifier + "." + name));
         assertThat(ua.qualifiedName(), equalTo(qualifier + "." + name));
         assertThat(ua.qualifier(), is(nullValue()));
+    }
+
+    public void testBackQuotedIdentifierWithEscapedBackQuote() {
+        String quote = "`";
+        String qualifier = "``test``table``";
+        String expectedQualifier = "`test`table`";
+        String name = "@timestamp";
+        Expression exp = expr(quote + qualifier + quote + "." + quote + name + quote);
+        assertThat(exp, instanceOf(UnresolvedAttribute.class));
+        UnresolvedAttribute ua = (UnresolvedAttribute) exp;
+        assertThat(ua.name(), equalTo(expectedQualifier + "." + name));
+        assertThat(ua.qualifiedName(), equalTo(expectedQualifier + "." + name));
+        assertThat(ua.qualifier(), is(nullValue()));
+
+        quote = "`";
+        qualifier = "``test_table";
+        expectedQualifier = "`test_table";
+        name = "@timestamp";
+        exp = expr(quote + qualifier + quote + "." + quote + name + quote);
+        assertThat(exp, instanceOf(UnresolvedAttribute.class));
+        ua = (UnresolvedAttribute) exp;
+        assertThat(ua.name(), equalTo(expectedQualifier + "." + name));
+        assertThat(ua.qualifiedName(), equalTo(expectedQualifier + "." + name));
+        assertThat(ua.qualifier(), is(nullValue()));
+    }
+
+    public void testBackQuotedIdentifierWithUnescapedBackQuotes() {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("`wrong_identifier == true"));
+        assertEquals("line 1:1: token recognition error at: '`wrong_identifier == true'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("``wrong_identifier == true"));
+        assertThat(e.getMessage(), startsWith("line 1:3: mismatched input 'wrong_identifier' expecting {<EOF>, "));
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("``wrong_identifier` == true"));
+        assertEquals("line 1:19: token recognition error at: '` == true'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("`wrong`identifier` == true"));
+        assertEquals("line 1:18: token recognition error at: '` == true'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("wrong_identifier` == true"));
+        assertEquals("line 1:17: token recognition error at: '` == true'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("wrong_identifier`` == true"));
+        assertThat(e.getMessage(), startsWith("line 1:17: mismatched input '``' expecting {<EOF>,"));
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("`wrong_identifier`` == true"));
+        assertEquals("line 1:19: token recognition error at: '` == true'", e.getMessage());
     }
 
     public void testFunctions() {

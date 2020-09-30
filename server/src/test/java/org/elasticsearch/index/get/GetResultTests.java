@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -250,9 +249,9 @@ public class GetResultTests extends ESTestCase {
         Map<String, DocumentField> fields = new HashMap<>(numFields);
         Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
         // As we are using this to construct a GetResult object that already contains
-        // index, type, id, version, seqNo, and source fields, we need to exclude them from random fields
+        // index, id, version, seqNo, and source fields, we need to exclude them from random fields
         Predicate<String> excludeMetaFieldFilter = field ->
-            field.equals(TypeFieldMapper.NAME) || field.equals(IndexFieldMapper.NAME) ||
+            field.equals(IndexFieldMapper.NAME) ||
             field.equals(IdFieldMapper.NAME) || field.equals(VersionFieldMapper.NAME) ||
             field.equals(SourceFieldMapper.NAME) || field.equals(SeqNoFieldMapper.NAME) ;
         while (fields.size() < numFields) {

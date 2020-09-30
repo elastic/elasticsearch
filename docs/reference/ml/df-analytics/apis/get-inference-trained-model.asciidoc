@@ -67,9 +67,7 @@ Specifies whether the included model definition should be returned as a JSON map
 
 `for_export`::
 (Optional, boolean)
-Indicates if certain fields should be removed from the model configuration on
-retrieval. This allows the model to be in an acceptable format to be retrieved
-and then added to another cluster. Default is false.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=for-export]
 
 `from`::
 (Optional, integer)

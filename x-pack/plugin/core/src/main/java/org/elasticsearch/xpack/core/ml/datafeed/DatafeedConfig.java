@@ -49,6 +49,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
+
 /**
  * Datafeed configuration options. Describes where to proactively pull input
  * data from.
@@ -451,17 +453,47 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
-        builder.field(Job.ID.getPreferredName(), jobId);
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
+        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
+            builder.field(ID.getPreferredName(), id);
+            // We don't include the job_id in export as we assume the PUT will be referring to a new job as well
+            builder.field(Job.ID.getPreferredName(), jobId);
+            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
+            }
+            if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(HEADERS.getPreferredName(), headers);
+            }
+            builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
+            builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
+            if (chunkingConfig != null) {
+                builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
+            }
+            builder.startObject(INDICES_OPTIONS.getPreferredName());
+            indicesOptions.toXContent(builder, params);
+            builder.endObject();
+        } else { // Don't include random defaults or unnecessary defauls in export
+            if (queryDelay.equals(defaultRandomQueryDelay()) == false) {
+                builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
+            }
+            // This is always "match_all"
+            if (queryProvider.equals(QueryProvider.defaultQuery()) == false) {
+                builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
+            }
+            // Indices options are a pretty advanced feature, better to not include them if they are just the default ones
+            if (indicesOptions.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+                builder.startObject(INDICES_OPTIONS.getPreferredName());
+                indicesOptions.toXContent(builder, params);
+                builder.endObject();
+            }
+            // Removing the default chunking config as it is determined by OTHER fields
+            if (chunkingConfig != null && chunkingConfig.equals(defaultChunkingConfig()) == false) {
+                builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
+            }
         }
-        builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         builder.field(INDICES.getPreferredName(), indices);
-        builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
         if (aggProvider != null) {
             builder.field(AGGREGATIONS.getPreferredName(), aggProvider.getAggs());
         }
@@ -473,24 +505,34 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             builder.endObject();
         }
         builder.field(SCROLL_SIZE.getPreferredName(), scrollSize);
-        if (chunkingConfig != null) {
-            builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
-        }
-        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(HEADERS.getPreferredName(), headers);
-        }
         if (delayedDataCheckConfig != null) {
             builder.field(DELAYED_DATA_CHECK_CONFIG.getPreferredName(), delayedDataCheckConfig);
         }
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
-        builder.startObject(INDICES_OPTIONS.getPreferredName());
-        indicesOptions.toXContent(builder, params);
-        builder.endObject();
-
         builder.endObject();
         return builder;
+    }
+
+    private TimeValue defaultRandomQueryDelay() {
+        Random random = new Random(jobId.hashCode());
+        long delayMillis = random.longs(Builder.MIN_DEFAULT_QUERY_DELAY.millis(), Builder.MAX_DEFAULT_QUERY_DELAY.millis())
+            .findFirst().getAsLong();
+        return TimeValue.timeValueMillis(delayMillis);
+    }
+
+    private ChunkingConfig defaultChunkingConfig() {
+        if (aggProvider == null || aggProvider.getParsedAggs() == null) {
+            return ChunkingConfig.newAuto();
+        } else {
+            long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(aggProvider.getParsedAggs());
+            if (histogramIntervalMillis <= 0) {
+                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+            }
+            return ChunkingConfig.newManual(TimeValue.timeValueMillis(
+                Builder.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
+        }
     }
 
     /**

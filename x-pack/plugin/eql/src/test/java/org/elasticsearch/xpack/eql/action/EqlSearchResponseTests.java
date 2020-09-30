@@ -112,7 +112,7 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
     public static EqlSearchResponse createRandomEventsResponse(TotalHits totalHits, XContentType xType) {
         EqlSearchResponse.Hits hits = null;
         if (randomBoolean()) {
-            hits = new EqlSearchResponse.Hits(randomEvents(xType), null, null, totalHits);
+            hits = new EqlSearchResponse.Hits(randomEvents(xType), null, totalHits);
         }
         if (randomBoolean()) {
             return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
@@ -138,7 +138,7 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         }
         EqlSearchResponse.Hits hits = null;
         if (randomBoolean()) {
-            hits = new EqlSearchResponse.Hits(null, seq, null, totalHits);
+            hits = new EqlSearchResponse.Hits(null, seq, totalHits);
         }
         if (randomBoolean()) {
             return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
@@ -158,41 +158,13 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         return randoms;
     }
 
-    public static EqlSearchResponse createRandomCountResponse(TotalHits totalHits) {
-        int size = randomIntBetween(1, 10);
-        List<EqlSearchResponse.Count> cn = null;
-        if (randomBoolean()) {
-            List<Supplier<Object[]>> randoms = getKeysGenerators();
-            cn = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                List<Object> keys = null;
-                if (randomBoolean()) {
-                    keys = Arrays.asList(randomFrom(randoms).get());
-                }
-                cn.add(new EqlSearchResponse.Count(randomIntBetween(0, 41), keys, randomFloat()));
-            }
-        }
-        EqlSearchResponse.Hits hits = null;
-        if (randomBoolean()) {
-            hits = new EqlSearchResponse.Hits(null, null, cn, totalHits);
-        }
-        if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
-        } else {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
-                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
-        }
-    }
-
     public static EqlSearchResponse createRandomInstance(TotalHits totalHits, XContentType xType) {
-        int type = between(0, 2);
+        int type = between(0, 1);
         switch(type) {
             case 0:
                 return createRandomEventsResponse(totalHits, xType);
             case 1:
                 return createRandomSequencesResponse(totalHits, xType);
-            case 2:
-                return createRandomCountResponse(totalHits);
             default:
                 return null;
         }

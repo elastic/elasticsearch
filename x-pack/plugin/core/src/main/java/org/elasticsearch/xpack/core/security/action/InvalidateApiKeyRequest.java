@@ -15,7 +15,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -29,6 +33,8 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     private final String id;
     private final String name;
     private final boolean ownedByAuthenticatedUser;
+    @Nullable
+    private final String[] ids;
 
     public InvalidateApiKeyRequest() {
         this(null, null, null, null, false);
@@ -45,15 +51,27 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         } else {
             ownedByAuthenticatedUser = false;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            ids = in.readOptionalStringArray();
+        } else {
+            ids = null;
+        }
     }
 
     public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String id,
                                    @Nullable String name, boolean ownedByAuthenticatedUser) {
+        this(realmName, userName, id, name, ownedByAuthenticatedUser, null);
+    }
+
+    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String id,
+                                   @Nullable String name, boolean ownedByAuthenticatedUser,
+                                   @Nullable String[] ids) {
         this.realmName = realmName;
         this.userName = userName;
         this.id = id;
         this.name = name;
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
+        this.ids = ids;
     }
 
     public String getRealmName() {
@@ -64,6 +82,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         return userName;
     }
 
+    @Deprecated
     public String getId() {
         return id;
     }
@@ -74,6 +93,17 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     public boolean ownedByAuthenticatedUser() {
         return ownedByAuthenticatedUser;
+    }
+
+    public Set<String> getAllIds() {
+        Set<String> apiKeyIds = new HashSet<>();
+        if (Strings.hasText(id)) {
+            apiKeyIds.add(id);
+        }
+        if (ids != null) {
+            apiKeyIds.addAll(Arrays.asList(ids));
+        }
+        return Set.copyOf(apiKeyIds);
     }
 
     /**
@@ -108,15 +138,15 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     }
 
     /**
-     * Creates invalidate API key request for given api key id
+     * Creates invalidate API key request for given api key ids
      *
-     * @param id api key id
+     * @param ids api key ids
      * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
      * {@code false}
      * @return {@link InvalidateApiKeyRequest}
      */
-    public static InvalidateApiKeyRequest usingApiKeyId(String id, boolean ownedByAuthenticatedUser) {
-        return new InvalidateApiKeyRequest(null, null, id, null, ownedByAuthenticatedUser);
+    public static InvalidateApiKeyRequest usingApiKeyIds(String[] ids, boolean ownedByAuthenticatedUser) {
+        return new InvalidateApiKeyRequest(null, null, null, null, ownedByAuthenticatedUser, ids);
     }
 
     /**
@@ -141,12 +171,12 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(id) == false
+        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && getAllIds().isEmpty()
             && Strings.hasText(name) == false && ownedByAuthenticatedUser == false) {
-            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified if " +
+            validationException = addValidationError("One of [api key ids, api key name, username, realm name] must be specified if " +
                 "[owner] flag is false", validationException);
         }
-        if (Strings.hasText(id) || Strings.hasText(name)) {
+        if (getAllIds().isEmpty() == false || Strings.hasText(name)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(
                     "username or realm name must not be specified when the api key id or api key name is specified",
@@ -160,8 +190,8 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
                     validationException);
             }
         }
-        if (Strings.hasText(id) && Strings.hasText(name)) {
-            validationException = addValidationError("only one of [api key id, api key name] can be specified", validationException);
+        if (getAllIds().isEmpty() == false && Strings.hasText(name)) {
+            validationException = addValidationError("only one of [api key ids, api key name] can be specified", validationException);
         }
         return validationException;
     }
@@ -175,6 +205,9 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         out.writeOptionalString(name);
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeOptionalBoolean(ownedByAuthenticatedUser);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeOptionalStringArray(ids);
         }
     }
 
@@ -191,11 +224,12 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
             Objects.equals(realmName, that.realmName) &&
             Objects.equals(userName, that.userName) &&
             Objects.equals(id, that.id) &&
-            Objects.equals(name, that.name);
+            Objects.equals(name, that.name) &&
+            Arrays.equals(ids, that.ids);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(realmName, userName, id, name, ownedByAuthenticatedUser);
+        return Objects.hash(realmName, userName, id, name, ownedByAuthenticatedUser, ids);
     }
 }

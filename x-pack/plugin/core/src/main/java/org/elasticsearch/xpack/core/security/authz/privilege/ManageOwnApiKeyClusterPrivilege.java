@@ -56,9 +56,15 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     getApiKeyRequest.getRealmName(), getApiKeyRequest.ownedByAuthenticatedUser());
             } else if (request instanceof InvalidateApiKeyRequest) {
                 final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
-                return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
-                    invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
-                    invalidateApiKeyRequest.ownedByAuthenticatedUser());
+                if (invalidateApiKeyRequest.getAllIds().isEmpty()) {
+                    return checkIfUserIsOwnerOfApiKeys(authentication, null,
+                        invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
+                        invalidateApiKeyRequest.ownedByAuthenticatedUser());
+                } else {
+                    return invalidateApiKeyRequest.getAllIds().stream().allMatch(id -> checkIfUserIsOwnerOfApiKeys(authentication, id,
+                        invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
+                        invalidateApiKeyRequest.ownedByAuthenticatedUser()));
+                }
             }
             throw new IllegalArgumentException(
                 "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")");

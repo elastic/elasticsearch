@@ -271,7 +271,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
                 .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId(), false), listener);
+        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { responses.get(0).getId() }, false), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         verifyInvalidateResponse(1, responses, invalidateResponse);
     }
@@ -304,7 +305,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         List<CreateApiKeyResponse> createdApiKeys = createApiKeys(2, null);
 
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(0).getId(), false),
+        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { createdApiKeys.get(0).getId() }, false),
                        listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
@@ -338,7 +340,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // invalidate API key to trigger remover
         listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(1).getId(), false),
+        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { createdApiKeys.get(1).getId() }, false),
                        listener);
         assertThat(listener.get().getInvalidatedApiKeys().size(), is(1));
 
@@ -419,7 +422,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Invalidate to trigger the remover
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(2).getId(), false),
+        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { createdApiKeys.get(2).getId() }, false),
                        listener);
         assertThat(listener.get().getInvalidatedApiKeys().size(), is(1));
 
@@ -471,7 +475,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         // trigger expired keys remover
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(1).getId(), false), listener);
+        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { responses.get(1).getId() }, false), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
         assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
@@ -494,7 +499,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Set<String> expectedValidKeyIds = null;
         if (invalidate) {
             PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-            client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId(), false),
+            client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyIds(
+                new String[] { responses.get(0).getId() }, false),
                            listener);
             InvalidateApiKeyResponse invalidateResponse = listener.get();
             invalidatedApiKeyIds = invalidateResponse.getInvalidatedApiKeys();
@@ -793,7 +799,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final PlainActionFuture<InvalidateApiKeyResponse> failureListener = new PlainActionFuture<>();
         // for any other API key id, it must deny access
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(1).getId(), randomBoolean()),
+        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { responses.get(1).getId() }, randomBoolean()),
             failureListener);
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> failureListener.actionGet());
         assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/invalidate", SecuritySettingsSource.TEST_SUPERUSER,
@@ -806,7 +813,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             responses.get(0).getId());
 
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId(), randomBoolean()),
+        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { responses.get(0).getId() }, randomBoolean()),
             listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
 

@@ -32,7 +32,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final Authentication authentication = createMockAuthentication("joe","_es_api_key",
             AuthenticationType.API_KEY, Map.of("_security_api_key_id", apiKeyId));
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
-        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
+        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { apiKeyId }, randomBoolean());
 
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
@@ -47,7 +48,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final Authentication authentication = createMockAuthentication("joe","_es_api_key",
             AuthenticationType.API_KEY, Map.of("_security_api_key_id", randomAlphaOfLength(7)));
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
-        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
+        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { apiKeyId }, randomBoolean());
 
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));

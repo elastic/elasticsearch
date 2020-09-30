@@ -26,7 +26,8 @@ import static org.hamcrest.Matchers.is;
 public class InvalidateApiKeyRequestTests extends ESTestCase {
 
     public void testRequestValidation() {
-        InvalidateApiKeyRequest request = InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5), randomBoolean());
+        InvalidateApiKeyRequest request = InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { randomAlphaOfLength(5) }, randomBoolean());
         ActionRequestValidationException ve = request.validate();
         assertNull(ve);
         request = InvalidateApiKeyRequest.usingApiKeyName(randomAlphaOfLength(5), randomBoolean());
@@ -118,7 +119,8 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final String apiKeyId = randomAlphaOfLength(5);
         final boolean ownedByAuthenticatedUser = true;
-        InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, ownedByAuthenticatedUser);
+        InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyIds(
+            new String[] { apiKeyId }, ownedByAuthenticatedUser);
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);

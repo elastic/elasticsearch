@@ -56,7 +56,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
                 = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(), ignoreZValue().value());
             ft.setGeometryParser(new GeoShapeParser(geometryParser));
             ft.setGeometryIndexer(new ShapeIndexer(ft.name()));
-            ft.setGeometryQueryBuilder(new ShapeQueryProcessor());
             ft.setOrientation(orientation().value());
             return new ShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), orientation(), multiFieldsBuilder.build(this, context), copyTo);
@@ -76,9 +75,19 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         }
     }
 
-    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
+    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry>
+        implements ShapeQueryable {
+
+        private final QueryProcessor queryProcessor;
+
         public ShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
+            this.queryProcessor = new ShapeQueryProcessor();
+        }
+
+        @Override
+        public QueryProcessor geometryQueryBuilder() {
+            return queryProcessor;
         }
 
         @Override

@@ -48,7 +48,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
                 return point;
             }, (ParsedCartesianPoint) nullValue, ignoreZValue.value(), ignoreMalformed.value()));
             ft.setGeometryIndexer(new PointIndexer(ft));
-            ft.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
             return new PointFieldMapper(simpleName, fieldType, ft, multiFields,
                 ignoreMalformed, ignoreZValue(context), nullValue, copyTo);
         }
@@ -113,14 +112,24 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         return (PointFieldType) mappedFieldType;
     }
 
-    public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
+    public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>>
+    implements ShapeQueryable {
+
+        private final QueryProcessor queryProcessor;
+
         private PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
+            this.queryProcessor = new ShapeQueryPointProcessor();
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public QueryProcessor geometryQueryBuilder() {
+            return queryProcessor;
         }
     }
 

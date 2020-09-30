@@ -260,7 +260,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             setupPrefixTrees(ft);
             ft.setGeometryIndexer(new LegacyGeoShapeIndexer(ft));
             ft.setGeometryParser(new LegacyGeoShapeParser());
-            ft.setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(ft));
             ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
             return ft;
         }
@@ -307,7 +306,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
-    public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>, Shape> {
+    public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>, Shape>
+        implements GeoShapeQueryable {
 
         private String tree = DeprecatedParameters.Defaults.TREE;
         private SpatialStrategy strategy = DeprecatedParameters.Defaults.STRATEGY;
@@ -322,12 +322,20 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         private RecursivePrefixTreeStrategy recursiveStrategy;
         private TermQueryPrefixTreeStrategy termStrategy;
 
+        private QueryProcessor queryProcessor;
+
         private GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
+            this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 
         public GeoShapeFieldType(String name) {
             this(name, true, false, true, Collections.emptyMap());
+        }
+
+        @Override
+        public QueryProcessor geometryQueryBuilder() {
+            return queryProcessor;
         }
 
         @Override

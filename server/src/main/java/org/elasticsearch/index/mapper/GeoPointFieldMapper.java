@@ -79,7 +79,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
                 return point;
             }, (ParsedGeoPoint) nullValue, ignoreZValue.value(), ignoreMalformed.value()));
             ft.setGeometryIndexer(new GeoPointIndexer(ft));
-            ft.setGeometryQueryBuilder(new VectorGeoPointShapeQueryProcessor());
             return new GeoPointFieldMapper(name, fieldType, ft, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
         }
     }
@@ -159,9 +158,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         return (GeoPointFieldType)mappedFieldType;
     }
 
-    public static class GeoPointFieldType extends AbstractPointGeometryFieldType<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
+    public static class GeoPointFieldType extends AbstractPointGeometryFieldType<List<ParsedGeoPoint>, List<? extends GeoPoint>>
+        implements GeoShapeQueryable {
+
+        private QueryProcessor queryProcessor;
+
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
+            this.queryProcessor = new VectorGeoPointShapeQueryProcessor();
         }
 
         public GeoPointFieldType(String name) {
@@ -171,6 +175,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public QueryProcessor geometryQueryBuilder() {
+            return queryProcessor;
         }
 
         @Override

@@ -243,10 +243,9 @@ in {transforms}:
   fields are created by a script. In this case, you might want to create the 
   mappings of the destination index yourself prior to creating the transform.
 
-* Using a script in a `group_by` may increase the runtime of the {transform} 
-  compared to using a non-scripted `group_by`.
-
-* Scripted output fields may make {transforms} run slower.
-
-It is recommended to use scripts for quick tests or ad-hoc analysis. Please 
-avoid scripting in a production environment when it is possible.
+* Scripted fields may increase the runtime of the {transform}.
+  
+* {transforms-cap} cannot optimize queries when you use scripts in `group_by`. 
+  As {transforms} write audit and log warning messages every time when the 
+  queries are not optimized, you may experience an increased number of warning 
+  messages when you use scripts.

@@ -76,12 +76,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 null,
                 new StringEntity(query(adminSql).mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
                 mode,
-                false);
+                false
+            );
             Map<String, Object> otherResponse = runSql(
                 user,
                 new StringEntity(query(adminSql).mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
                 mode,
-                false);
+                false
+            );
 
             String adminCursor = (String) adminResponse.remove("cursor");
             String otherCursor = (String) otherResponse.remove("cursor");
@@ -93,12 +95,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                     null,
                     new StringEntity(cursor(adminCursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
                     mode,
-                    false);
+                    false
+                );
                 otherResponse = runSql(
                     user,
                     new StringEntity(cursor(otherCursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
                     mode,
-                    false);
+                    false
+                );
                 adminCursor = (String) adminResponse.remove("cursor");
                 otherCursor = (String) otherResponse.remove("cursor");
                 assertResponse(adminResponse, otherResponse);
@@ -196,14 +200,26 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             expectMatchesAdmin("DESCRIBE test", user, "DESCRIBE test");
         }
 
-        private static Map<String, Object> runSql(@Nullable String asUser, String mode, String sql,
-                                                  boolean allowSystemIndexDeprecationWarning) throws IOException {
-            return runSql(asUser, new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON), mode,
-                allowSystemIndexDeprecationWarning);
+        private static Map<String, Object> runSql(
+            @Nullable String asUser,
+            String mode,
+            String sql,
+            boolean allowSystemIndexDeprecationWarning
+        ) throws IOException {
+            return runSql(
+                asUser,
+                new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON),
+                mode,
+                allowSystemIndexDeprecationWarning
+            );
         }
 
-        private static Map<String, Object> runSql(@Nullable String asUser, HttpEntity entity, String mode,
-                                                  boolean allowSystemIndexDeprecationWarning) throws IOException {
+        private static Map<String, Object> runSql(
+            @Nullable String asUser,
+            HttpEntity entity,
+            String mode,
+            boolean allowSystemIndexDeprecationWarning
+        ) throws IOException {
             Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
             RequestOptions.Builder options = request.getOptions().toBuilder();
             if (asUser != null) {
@@ -269,7 +285,8 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             null,
             new StringEntity(query("SELECT * FROM test").mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
             mode,
-            false);
+            false
+        );
 
         String cursor = (String) adminResponse.remove("cursor");
         assertNotNull(cursor);
@@ -280,7 +297,8 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 "full_access",
                 new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
                 mode,
-                false)
+                false
+            )
         );
         // TODO return a better error message for bad scrolls
         assertThat(e.getMessage(), containsString("No search context found for id"));

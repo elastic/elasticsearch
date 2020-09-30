@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -34,10 +36,16 @@ public class ClassificationFeatureImportanceTests extends AbstractSerializingTes
         return createRandomInstance();
     }
 
+    @SuppressWarnings("unchecked")
     public static ClassificationFeatureImportance createRandomInstance() {
+        Supplier<Object> classNameGenerator = randomFrom(
+            () -> randomAlphaOfLength(10),
+            ESTestCase::randomBoolean,
+            () -> randomIntBetween(0, 10)
+        );
         return new ClassificationFeatureImportance(
             randomAlphaOfLength(10),
-            Stream.generate(() -> randomAlphaOfLength(10))
+            Stream.generate(classNameGenerator)
                 .limit(randomLongBetween(2, 10))
                 .map(name -> new ClassificationFeatureImportance.ClassImportance(name, randomDoubleBetween(-10, 10, false)))
                 .collect(Collectors.toList()));

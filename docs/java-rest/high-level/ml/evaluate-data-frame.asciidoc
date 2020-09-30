@@ -51,11 +51,13 @@ include-tagged::{doc-tests-file}[{api}-evaluation-classification]
 <1> Constructing a new evaluation
 <2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) class the example belongs to.
 <3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) class of the example.
-<4> The remaining parameters are the metrics to be calculated based on the two fields described above
-<5> Accuracy
-<6> Precision
-<7> Recall
-<8> Multiclass confusion matrix of size 3
+<4> Name of the field in the index. Its value denotes the array of top classes. Must be nested.
+<5> The remaining parameters are the metrics to be calculated based on the two fields described above
+<6> Accuracy
+<7> Precision
+<8> Recall
+<9> Multiclass confusion matrix of size 3
+<10> {wikipedia}/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated for class "cat" treated as positive and the rest as negative
 
 ===== Regression
 
@@ -115,6 +117,9 @@ include-tagged::{doc-tests-file}[{api}-results-classification]
 <7> Fetching multiclass confusion matrix metric by name
 <8> Fetching the contents of the confusion matrix
 <9> Fetching the number of classes that were not included in the matrix
+<10> Fetching AucRoc metric by name
+<11> Fetching the actual AucRoc score
+<12> Fetching the number of documents that were used in order to calculate AucRoc score
 
 ===== Regression
 

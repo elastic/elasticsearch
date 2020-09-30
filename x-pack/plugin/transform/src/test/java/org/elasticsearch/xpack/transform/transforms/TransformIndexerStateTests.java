@@ -412,9 +412,15 @@ public class TransformIndexerStateTests extends ESTestCase {
             CountDownLatch searchLatch = indexer.createAwaitForSearchLatch(1);
 
             List<CountDownLatch> responseLatches = new ArrayList<>();
+            int timesStopAtCheckpointChanged = 0;
+            // default stopAtCheckpoint is false
+            boolean previousStopAtCheckpoint = false;
+
             for (int i = 0; i < 3; ++i) {
                 CountDownLatch latch = new CountDownLatch(1);
                 boolean stopAtCheckpoint = randomBoolean();
+                timesStopAtCheckpointChanged += (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
+                previousStopAtCheckpoint = stopAtCheckpoint;
                 countResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener), latch);
                 responseLatches.add(latch);
             }
@@ -422,10 +428,13 @@ public class TransformIndexerStateTests extends ESTestCase {
             // now let the indexer run again
             searchLatch.countDown();
 
-            // this time call it 3 times
-            assertResponse(listener -> setStopAtCheckpoint(indexer, randomBoolean(), listener));
-            assertResponse(listener -> setStopAtCheckpoint(indexer, randomBoolean(), listener));
-            assertResponse(listener -> setStopAtCheckpoint(indexer, randomBoolean(), listener));
+            // call it 3 times again
+            for (int i = 0; i < 3; ++i) {
+                boolean stopAtCheckpoint = randomBoolean();
+                timesStopAtCheckpointChanged += (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
+                previousStopAtCheckpoint = stopAtCheckpoint;
+                assertResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener));
+            }
 
             indexer.stop();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);
@@ -435,8 +444,9 @@ public class TransformIndexerStateTests extends ESTestCase {
                 assertTrue("timed out after 5s", l.await(5, TimeUnit.SECONDS));
             }
 
-            // listener must have been called by the indexing thread between 1 and 6 times
-            assertThat(indexer.getSaveStateListenerCallCount(), greaterThanOrEqualTo(1));
+            // listener must have been called by the indexing thread between timesStopAtCheckpointChanged and 6 times
+            // this is not exact, because we do not know _when_ the other thread persisted the flag
+            assertThat(indexer.getSaveStateListenerCallCount(), greaterThanOrEqualTo(timesStopAtCheckpointChanged));
             assertThat(indexer.getSaveStateListenerCallCount(), lessThanOrEqualTo(6));
         }
     }

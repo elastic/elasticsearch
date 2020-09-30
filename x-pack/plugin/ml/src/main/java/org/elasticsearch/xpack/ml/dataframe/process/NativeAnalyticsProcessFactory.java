@@ -72,7 +72,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
                                                          Consumer<String> onProcessCrash) {
         String jobId = config.getId();
         List<Path> filesToDelete = new ArrayList<>();
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AnalyticsBuilder.ANALYTICS, jobId,
                 false, true, true, hasState, config.getAnalysis().persistsState());
 
         // The extra 2 are for the checksum and the control field
@@ -83,7 +83,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         NativeAnalyticsProcess analyticsProcess =
             new NativeAnalyticsProcess(
                 jobId, nativeController, processPipes, numberOfFields, filesToDelete,
-                onProcessCrash, processConnectTimeout, analyticsProcessConfig, namedXContentRegistry);
+                onProcessCrash, analyticsProcessConfig, namedXContentRegistry);
 
         try {
             startProcess(config, executorService, analyticsProcess);

@@ -103,7 +103,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService.documentMapper();
     }
 
-    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
+    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(Version.CURRENT, mappings);
     }
 

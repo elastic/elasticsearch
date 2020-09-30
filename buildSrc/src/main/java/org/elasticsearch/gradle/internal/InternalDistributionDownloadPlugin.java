@@ -104,6 +104,9 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         }));
     }
 
+    /**
+     * Will be removed once this is backported to all unreleased branches.
+     * */
     private static String getProjectConfig(String distributionProjectName, BwcVersions.UnreleasedVersionInfo info) {
         return (info.gradleProjectPath.equals(":distribution") || info.version.before("7.10.0"))
             ? distributionProjectName

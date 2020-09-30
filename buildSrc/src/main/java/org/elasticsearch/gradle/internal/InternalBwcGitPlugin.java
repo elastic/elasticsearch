@@ -31,27 +31,40 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 
+import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.util.Arrays.asList;
 
 public class InternalBwcGitPlugin implements Plugin<Project> {
 
+    private final ProviderFactory providerFactory;
+    private final ExecOperations execOperations;
+
     private BwcGitExtension gitExtension;
     private Project project;
+
+    @Inject
+    public InternalBwcGitPlugin(ProviderFactory providerFactory, ExecOperations execOperations) {
+        this.providerFactory = providerFactory;
+        this.execOperations = execOperations;
+    }
 
     @Override
     public void apply(Project project) {
         this.project = project;
         this.gitExtension = project.getExtensions().create("bwcGitConfig", BwcGitExtension.class);
-        ProviderFactory providers = project.getProviders();
-        Provider<String> remote = project.getProviders().systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("elastic");
+        Provider<String> remote = providerFactory.systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("elastic");
 
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
@@ -79,8 +92,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             addRemote.setWorkingDir(gitExtension.getCheckoutDir().get());
             String remoteRepo = remote.get();
             // for testing only we can override the base remote url
-            String remoteRepoUrl = project.getProviders()
-                .systemProperty("testRemoteRepo")
+            String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
                 .forUseAtConfigurationTime()
                 .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
             addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, remoteRepoUrl));
@@ -112,11 +124,11 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                 Logger logger = project.getLogger();
 
                 String bwcBranch = this.gitExtension.getBwcBranch().get();
-                final String refspec = providers.systemProperty("bwc.refspec." + bwcBranch)
-                    .orElse(providers.systemProperty("tests.bwc.refspec." + bwcBranch))
+                final String refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
+                    .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
                     .getOrElse(remote.get() + "/" + bwcBranch);
 
-                String effectiveRefSpec = maybeAlignedRefSpec(project, logger, refspec);
+                String effectiveRefSpec = maybeAlignedRefSpec(logger, refspec);
 
                 logger.lifecycle("Performing checkout of {}...", refspec);
                 LoggedExec.exec(project, spec -> {
@@ -152,42 +164,40 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
      * passed as input. This means the results might not be deterministic in the current second, but this
      * should not matter in practice.
      */
-    private String maybeAlignedRefSpec(Project project, Logger logger, String defaultRefSpec) {
-        if (project.getProviders().systemProperty("bwc.checkout.align").isPresent() == false) {
+    private String maybeAlignedRefSpec(Logger logger, String defaultRefSpec) {
+        if (providerFactory.systemProperty("bwc.checkout.align").isPresent() == false) {
             return defaultRefSpec;
         }
 
-        String timeOfCurrent = execGit(execSpec -> {
+        String timeOfCurrent = execInCheckoutDir(execSpec -> {
             execSpec.commandLine(asList("git", "show", "--no-patch", "--no-notes", "--pretty='%cD'"));
             execSpec.workingDir(project.getRootDir());
         });
 
         logger.lifecycle("Commit date of current: {}", timeOfCurrent);
 
-        String mergeCommits = execGit(
+        String mergeCommits = execInCheckoutDir(
             spec -> spec.commandLine(asList("git", "rev-list", defaultRefSpec, "--after", timeOfCurrent, "--merges"))
         );
         if (mergeCommits.isEmpty() == false) {
             throw new IllegalStateException("Found the following merge commits which prevent determining bwc commits: " + mergeCommits);
         }
-        return execGit(
+        return execInCheckoutDir(
             spec -> spec.commandLine(asList("git", "rev-list", defaultRefSpec, "-n", "1", "--before", timeOfCurrent, "--date-order"))
         );
     }
 
     private void writeFile(File file, String content) {
         try {
-            FileWriter myWriter = new FileWriter(file, false);
-            myWriter.write(content);
-            myWriter.close();
+            Files.writeString(file.toPath(), content, CREATE, TRUNCATE_EXISTING);
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new UncheckedIOException(e);
         }
     }
 
-    private String execGit(Action<ExecSpec> execSpecConfig) {
+    private String execInCheckoutDir(Action<ExecSpec> execSpecConfig) {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        ExecResult exec = project.exec(execSpec -> {
+        ExecResult exec = execOperations.exec(execSpec -> {
             execSpec.setStandardOutput(os);
             execSpec.workingDir(gitExtension.getCheckoutDir().get());
             execSpecConfig.execute(execSpec);

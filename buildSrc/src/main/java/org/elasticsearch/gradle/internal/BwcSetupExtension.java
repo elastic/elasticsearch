@@ -49,11 +49,17 @@ public class BwcSetupExtension {
 
     private final Project project;
 
-    private Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
+    private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
     private Provider<File> checkoutDir;
 
-    public BwcSetupExtension(Project project) {
+    public BwcSetupExtension(
+        Project project,
+        Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
+        Provider<File> checkoutDir
+    ) {
         this.project = project;
+        this.unreleasedVersionInfo = unreleasedVersionInfo;
+        this.checkoutDir = checkoutDir;
     }
 
     TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration) {
@@ -65,10 +71,10 @@ public class BwcSetupExtension {
             // TODO revisit
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.setSpoolOutput(true);
-            loggedExec.setWorkingDir(getCheckoutDir().get());
+            loggedExec.setWorkingDir(checkoutDir.get());
             loggedExec.doFirst(t -> {
                 // Execution time so that the checkouts are available
-                String javaVersionsString = readFromFile(new File(getCheckoutDir().get(), ".ci/java-versions.properties"));
+                String javaVersionsString = readFromFile(new File(checkoutDir.get(), ".ci/java-versions.properties"));
                 loggedExec.environment(
                     "JAVA_HOME",
                     getJavaHome(
@@ -159,24 +165,11 @@ public class BwcSetupExtension {
         }
     }
 
-    public Provider<BwcVersions.UnreleasedVersionInfo> getUnreleasedVersionInfo() {
-        return unreleasedVersionInfo;
-    }
-
-    public void setUnreleasedVersionInfo(Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo) {
-        this.unreleasedVersionInfo = unreleasedVersionInfo;
-        this.checkoutDir = this.unreleasedVersionInfo.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch));
-    }
-
     private static String readFromFile(File file) {
         try {
             return FileUtils.readFileToString(file).trim();
         } catch (IOException ioException) {
             throw new GradleException("Cannot read java properties file.", ioException);
         }
-    }
-
-    public Provider<File> getCheckoutDir() {
-        return checkoutDir;
     }
 }

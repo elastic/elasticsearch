@@ -3494,14 +3494,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 new org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification( // <1>
                     "actual_class", // <2>
                     "predicted_class", // <3>
-                    "ml.top_classes.class_name", // <4>
-                    "ml.top_classes.class_probability", // <5>
-                    // Evaluation metrics // <6>
-                    new AccuracyMetric(), // <7>
-                    new PrecisionMetric(), // <8>
-                    new RecallMetric(), // <9>
-                    new MulticlassConfusionMatrixMetric(3), // <10>
-                    AucRocMetric.forClass("cat")); // <11>
+                    "ml.top_classes", // <4>
+                    // Evaluation metrics // <5>
+                    new AccuracyMetric(), // <6>
+                    new PrecisionMetric(), // <7>
+                    new RecallMetric(), // <8>
+                    new MulticlassConfusionMatrixMetric(3), // <9>
+                    AucRocMetric.forClass("cat")); // <10>
             // end::evaluate-data-frame-evaluation-classification
 
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(indexName, null, evaluation);

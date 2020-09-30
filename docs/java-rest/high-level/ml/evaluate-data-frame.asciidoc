@@ -51,14 +51,13 @@ include-tagged::{doc-tests-file}[{api}-evaluation-classification]
 <1> Constructing a new evaluation
 <2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) class the example belongs to.
 <3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) class of the example.
-<4> Name of the field in the index. Its value denotes the predicted class of the example. Must be nested under the predicted classes array.
-<5> Name of the field in the index. Its value denotes the predicted probability of the example. Must be nested under the predicted classes array.
-<6> The remaining parameters are the metrics to be calculated based on the two fields described above
-<7> Accuracy
-<8> Precision
-<9> Recall
-<10> Multiclass confusion matrix of size 3
-<11> {wikipedia}/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated for class "cat" treated as positive and the rest as negative
+<4> Name of the field in the index. Its value denotes the array of top classes. Must be nested.
+<5> The remaining parameters are the metrics to be calculated based on the two fields described above
+<6> Accuracy
+<7> Precision
+<8> Recall
+<9> Multiclass confusion matrix of size 3
+<10> {wikipedia}/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated for class "cat" treated as positive and the rest as negative
 
 ===== Regression
 

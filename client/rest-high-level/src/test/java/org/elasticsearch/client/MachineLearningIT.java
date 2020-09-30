@@ -1918,14 +1918,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         {  // AucRoc
             EvaluateDataFrameRequest evaluateDataFrameRequest =
                 new EvaluateDataFrameRequest(
-                    indexName,
-                    null,
-                    new Classification(
-                        actualClassField,
-                        null,
-                        topClassesNestedField + ".class_name",
-                        topClassesNestedField + ".class_probability",
-                        AucRocMetric.forClassWithCurve("cat")));
+                    indexName, null, new Classification(actualClassField, null, topClassesField, AucRocMetric.forClassWithCurve("cat")));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -1941,7 +1934,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         {  // Accuracy
             EvaluateDataFrameRequest evaluateDataFrameRequest =
                 new EvaluateDataFrameRequest(
-                    indexName, null, new Classification(actualClassField, predictedClassField, null, null, new AccuracyMetric()));
+                    indexName, null, new Classification(actualClassField, predictedClassField, null, new AccuracyMetric()));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -1965,9 +1958,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         {  // Precision
             EvaluateDataFrameRequest evaluateDataFrameRequest =
                 new EvaluateDataFrameRequest(
-                    indexName,
-                    null,
-                    new Classification(actualClassField, predictedClassField, null, null, new PrecisionMetric()));
+                    indexName, null, new Classification(actualClassField, predictedClassField, null, new PrecisionMetric()));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -1989,9 +1980,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         {  // Recall
             EvaluateDataFrameRequest evaluateDataFrameRequest =
                 new EvaluateDataFrameRequest(
-                    indexName,
-                    null,
-                    new Classification(actualClassField, predictedClassField, null, null, new RecallMetric()));
+                    indexName, null, new Classification(actualClassField, predictedClassField, null, new RecallMetric()));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -2017,7 +2006,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 new EvaluateDataFrameRequest(
                     indexName,
                     null,
-                    new Classification(actualClassField, predictedClassField, null, null, new MulticlassConfusionMatrixMetric()));
+                    new Classification(actualClassField, predictedClassField, null, new MulticlassConfusionMatrixMetric()));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -2062,7 +2051,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 new EvaluateDataFrameRequest(
                     indexName,
                     null,
-                    new Classification(actualClassField, predictedClassField, null, null, new MulticlassConfusionMatrixMetric(2)));
+                    new Classification(actualClassField, predictedClassField, null, new MulticlassConfusionMatrixMetric(2)));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -2136,7 +2125,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     private static final String actualClassField = "actual_class";
     private static final String predictedClassField = "predicted_class";
-    private static final String topClassesNestedField = "top_classes";
+    private static final String topClassesField = "top_classes";
 
     private static XContentBuilder mappingForClassification() throws IOException {
         return XContentFactory.jsonBuilder().startObject()
@@ -2147,7 +2136,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .startObject(predictedClassField)
                     .field("type", "keyword")
                 .endObject()
-                .startObject(topClassesNestedField)
+                .startObject(topClassesField)
                     .field("type", "nested")
                 .endObject()
             .endObject()
@@ -2160,7 +2149,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .source(XContentType.JSON,
                 actualClassField, actualClass,
                 predictedClassField, predictedClass,
-                topClassesNestedField, List.of(
+                topClassesField, List.of(
                     Map.of("class_name", predictedClass, "class_probability", p),
                     Map.of("class_name", "other", "class_probability", 1 - p)));
     }

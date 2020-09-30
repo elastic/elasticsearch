@@ -49,7 +49,6 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
             randomAlphaOfLength(10),
             randomBoolean() ? randomAlphaOfLength(10) : null,
             randomBoolean() ? randomAlphaOfLength(10) : null,
-            randomBoolean() ? randomAlphaOfLength(10) : null,
             metrics.isEmpty() ? null : metrics);
     }
 

@@ -21,10 +21,13 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteTrainedModelAction extends BaseRestHandler {
 
+
     @Override
     public List<Route> routes() {
         return singletonList(
-            new Route(DELETE, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
+            new ReplacedRoute(
+                DELETE, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
+                DELETE, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"));
     }
 
     @Override

@@ -42,8 +42,12 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
-            new Route(GET, MachineLearning.BASE_PATH + "inference"));
+            new ReplacedRoute(
+                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
+                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
+            new ReplacedRoute(
+                GET, MachineLearning.BASE_PATH + "trained_models",
+                GET, MachineLearning.BASE_PATH + "inference"));
     }
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =

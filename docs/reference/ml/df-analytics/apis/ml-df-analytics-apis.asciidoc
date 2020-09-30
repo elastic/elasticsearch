@@ -18,10 +18,10 @@ You can use the following APIs to perform {ml} {dfanalytics} activities.
 
 You can use the following APIs to perform {infer} operations.
 
-* <<put-inference>>
-* <<get-inference>>
-* <<get-inference-stats>>
-* <<delete-inference>>
+* <<put-trained-models>>
+* <<get-trained-models>>
+* <<get-trained-models-stats>>
+* <<delete-trained-models>>
 
 
 See also <<ml-apis>>.

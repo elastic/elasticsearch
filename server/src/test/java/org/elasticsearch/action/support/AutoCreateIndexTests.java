@@ -41,6 +41,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class AutoCreateIndexTests extends ESTestCase {
 
+    private static final String TEST_SYSTEM_INDEX_NAME = ".test-system-index";
+
     public void testParseFailed() {
         try {
             Settings settings = Settings.builder().put("action.auto_create_index", ",,,").build();
@@ -94,7 +96,7 @@ public class AutoCreateIndexTests extends ESTestCase {
     public void testSystemIndexWithAutoCreationDisabled() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        assertThat(autoCreateIndex.shouldAutoCreate(".foo", buildClusterState()), equalTo(true));
+        assertThat(autoCreateIndex.shouldAutoCreate(TEST_SYSTEM_INDEX_NAME, buildClusterState()), equalTo(true));
     }
 
     public void testAutoCreationEnabled() {
@@ -210,7 +212,7 @@ public class AutoCreateIndexTests extends ESTestCase {
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
-        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(".foo", ""))));
+        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))));
         return new AutoCreateIndex(settings, new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(), systemIndices);
     }

@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -44,6 +47,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
  */
 public final class DestinationIndex {
 
+    private static final Logger logger = LogManager.getLogger(DestinationIndex.class);
+
     public static final String INCREMENTAL_ID = "ml__incremental_id";
 
     /**
@@ -61,12 +66,21 @@ public final class DestinationIndex {
     private static final String PROPERTIES = "properties";
     private static final String META = "_meta";
 
+    private static final String DFA_CREATOR = "data-frame-analytics";
+
     /**
      * We only preserve the most important settings.
      * If the user needs other settings on the destination index they
      * should create the destination index before starting the analytics.
      */
     private static final String[] PRESERVED_SETTINGS = new String[] {"index.number_of_shards", "index.number_of_replicas"};
+
+    /**
+     * This is the minimum compatible version of the destination index we can currently work with.
+     * If the results mappings change in a way existing destination indices will fail to index
+     * the results, this should be bumped accordingly.
+     */
+    public static final Version MIN_COMPATIBLE_VERSION = Version.V_7_10_0;
 
     private DestinationIndex() {}
 
@@ -125,7 +139,7 @@ public final class DestinationIndex {
         checkResultsFieldIsNotPresentInProperties(config, properties);
         properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties)));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
-        metadata.putAll(createMetadata(config.getId(), clock));
+        metadata.putAll(createMetadata(config.getId(), clock, Version.CURRENT));
         return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
     }
 
@@ -164,11 +178,12 @@ public final class DestinationIndex {
         return properties;
     }
 
-    private static Map<String, Object> createMetadata(String analyticsId, Clock clock) {
+    // Visible for testing
+    static Map<String, Object> createMetadata(String analyticsId, Clock clock, Version version) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(CREATION_DATE_MILLIS, clock.millis());
-        metadata.put(CREATED_BY, "data-frame-analytics");
-        metadata.put(VERSION, Map.of(CREATED, Version.CURRENT));
+        metadata.put(CREATED_BY, DFA_CREATOR);
+        metadata.put(VERSION, Map.of(CREATED, version.toString()));
         metadata.put(ANALYTICS, analyticsId);
         return metadata;
     }
@@ -218,6 +233,79 @@ public final class DestinationIndex {
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
                 resultsField,
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Metadata readMetadata(String jobId, MappingMetadata mappingMetadata) {
+        Map<String, Object> mappings = mappingMetadata.getSourceAsMap();
+        Map<String, Object> meta = (Map<String, Object>) mappings.get(META);
+        if ((meta == null) || (DFA_CREATOR.equals(meta.get(CREATED_BY)) == false)) {
+            return new NoMetadata();
+        }
+        return new DestMetadata(getVersion(jobId, meta));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Version getVersion(String jobId, Map<String, Object> meta) {
+        try {
+            Map<String, Object> version = (Map<String, Object>) meta.get(VERSION);
+            String createdVersionString = (String) version.get(CREATED);
+            return Version.fromString(createdVersionString);
+        } catch (Exception e) {
+            logger.error(new ParameterizedMessage("[{}] Could not retrieve destination index version", jobId), e);
+            return null;
+        }
+    }
+
+    public interface Metadata {
+
+        boolean hasMetadata();
+
+        boolean isCompatible();
+
+        String getVersion();
+    }
+
+    private static class NoMetadata implements Metadata {
+
+        @Override
+        public boolean hasMetadata() {
+            return false;
+        }
+
+        @Override
+        public boolean isCompatible() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getVersion() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class DestMetadata implements Metadata {
+
+        private final Version version;
+
+        private DestMetadata(Version version) {
+            this.version = version;
+        }
+
+        @Override
+        public boolean hasMetadata() {
+            return true;
+        }
+
+        @Override
+        public boolean isCompatible() {
+            return version == null ? false : version.onOrAfter(MIN_COMPATIBLE_VERSION);
+        }
+
+        @Override
+        public String getVersion() {
+            return version == null ? "unknown" : version.toString();
         }
     }
 }

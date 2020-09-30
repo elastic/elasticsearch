@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -130,17 +131,18 @@ public final class InferenceHelpers {
         return originalFeatureImportance;
     }
 
-    public static List<FeatureImportance> transformFeatureImportanceRegression(Map<String, double[]> featureImportance) {
-        List<FeatureImportance> importances = new ArrayList<>(featureImportance.size());
-        featureImportance.forEach((k, v) -> importances.add(FeatureImportance.forRegression(k, v[0])));
+    public static List<RegressionFeatureImportance> transformFeatureImportanceRegression(Map<String, double[]> featureImportance) {
+        List<RegressionFeatureImportance> importances = new ArrayList<>(featureImportance.size());
+        featureImportance.forEach((k, v) -> importances.add(new RegressionFeatureImportance(k, v[0])));
         return importances;
     }
 
-    public static List<FeatureImportance> transformFeatureImportanceClassification(Map<String, double[]> featureImportance,
-                                                                                   final int predictedValue,
-                                                                                   @Nullable List<String> classificationLabels,
-                                                                                   @Nullable PredictionFieldType predictionFieldType) {
-        List<FeatureImportance> importances = new ArrayList<>(featureImportance.size());
+    public static List<ClassificationFeatureImportance> transformFeatureImportanceClassification(
+            Map<String, double[]> featureImportance,
+            final int predictedValue,
+            @Nullable List<String> classificationLabels,
+            @Nullable PredictionFieldType predictionFieldType) {
+        List<ClassificationFeatureImportance> importances = new ArrayList<>(featureImportance.size());
         final PredictionFieldType fieldType = predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
         featureImportance.forEach((k, v) -> {
             // This indicates logistic regression (binary classification)
@@ -152,27 +154,26 @@ public final class InferenceHelpers {
                 final int otherClass = 1 - predictedValue;
                 String predictedLabel = classificationLabels == null ? null : classificationLabels.get(predictedValue);
                 String otherLabel = classificationLabels == null ? null : classificationLabels.get(otherClass);
-                importances.add(FeatureImportance.forBinaryClassification(k,
-                    v[0],
+                importances.add(new ClassificationFeatureImportance(k,
                     Arrays.asList(
-                        new FeatureImportance.ClassImportance(
+                        new ClassificationFeatureImportance.ClassImportance(
                             fieldType.transformPredictedValue((double)predictedValue, predictedLabel),
                             v[0]),
-                        new FeatureImportance.ClassImportance(
+                        new ClassificationFeatureImportance.ClassImportance(
                             fieldType.transformPredictedValue((double)otherClass, otherLabel),
                             -v[0])
                     )));
             } else {
-                List<FeatureImportance.ClassImportance> classImportance = new ArrayList<>(v.length);
+                List<ClassificationFeatureImportance.ClassImportance> classImportance = new ArrayList<>(v.length);
                 // If the classificationLabels exist, their length must match leaf_value length
                 assert classificationLabels == null || classificationLabels.size() == v.length;
                 for (int i = 0; i < v.length; i++) {
                     String label = classificationLabels == null ? null : classificationLabels.get(i);
-                    classImportance.add(new FeatureImportance.ClassImportance(
+                    classImportance.add(new ClassificationFeatureImportance.ClassImportance(
                         fieldType.transformPredictedValue((double)i, label),
                         v[i]));
                 }
-                importances.add(FeatureImportance.forClassification(k, classImportance));
+                importances.add(new ClassificationFeatureImportance(k, classImportance));
             }
         });
         return importances;

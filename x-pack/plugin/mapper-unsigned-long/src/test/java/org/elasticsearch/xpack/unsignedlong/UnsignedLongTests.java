@@ -6,10 +6,13 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -21,7 +24,6 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,6 +69,16 @@ public class UnsignedLongTests extends ESIntegTestCase {
             builders.add(client().prepareIndex("idx").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
         }
         indexRandom(true, builders);
+
+        prepareCreate("idx2").setMapping("ul_field", "type=long").setSettings(settings).get();
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 4; i++) {
+            IndexRequest indexRequest = new IndexRequest("idx2").source("ul_field", values[i]);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        bulkRequestBuilder.get();
+
         ensureSearchable();
     }
 
@@ -267,16 +279,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
     }
 
-    public void testSortDifferentFormatsShouldFail() throws IOException, InterruptedException {
-        Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", 1);
-        prepareCreate("idx2").setMapping("ul_field", "type=long").setSettings(settings).get();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            builders.add(client().prepareIndex("idx2").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
-        }
-        indexRandom(true, builders);
-        ensureSearchable();
-
+    public void testSortDifferentFormatsShouldFail() {
         Exception exception = expectThrows(
             SearchPhaseExecutionException.class,
             () -> client().prepareSearch()

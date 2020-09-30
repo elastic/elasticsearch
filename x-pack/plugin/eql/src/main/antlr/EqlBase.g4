@@ -192,7 +192,7 @@ PIPE: '|';
 
 
 ESCAPED_IDENTIFIER
-    : '`' (~'`')* '`'
+    : '`' ( ~'`' | '``' )* '`'
     ;
 
 STRING

@@ -39,15 +39,15 @@ public class HighLevelRestClientCompressionIT extends ESRestHighLevelClientTestC
         client().performRequest(doc);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING)
-            .build();
+        RequestOptions.Builder requestOptionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        requestOptionsBuilder.addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING);
+        RequestOptions requestOptions = requestOptionsBuilder.build();
 
         SearchRequest searchRequest = new SearchRequest("company");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);
 
         assertThat(searchResponse.status().getStatus(), equalTo(200));
-        assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        assertEquals(1L, searchResponse.getHits().getTotalHits());
         assertEquals(SAMPLE_DOCUMENT, searchResponse.getHits().getHits()[0].getSourceAsString());
     }
 

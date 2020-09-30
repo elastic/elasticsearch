@@ -133,3 +133,9 @@ tasks.register("regen") {
     }
   }
 }
+
+allprojects {
+  task checkNoBwc {
+    dependsOn tasks.withType(Test).matching { it.name.contains('bwc') == false }
+  }
+}

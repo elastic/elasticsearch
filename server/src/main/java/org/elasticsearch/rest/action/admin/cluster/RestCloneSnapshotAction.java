@@ -39,7 +39,7 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_snapshot/{repository}/{source_snapshot}/_clone/{target_snapshot}"));
+        return List.of(new Route(PUT, "/_snapshot/{repository}/{snapshot}/_clone/{target_snapshot}"));
     }
 
     @Override
@@ -50,7 +50,7 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final CloneSnapshotRequest cloneSnapshotRequest = new CloneSnapshotRequest(
-                request.param("repository"), request.param("source_snapshot"), request.param("target_snapshot"),
+                request.param("repository"), request.param("snapshot"), request.param("target_snapshot"),
                 XContentMapValues.nodeStringArrayValue(request.contentParser().map().getOrDefault("indices", Collections.emptyList())));
         cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cloneSnapshotRequest.masterNodeTimeout()));
         return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));

@@ -73,7 +73,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             }, listener::onFailure));
     }
 
-    private static Map<String, List<NodeStats>> separateTiers(NodesStatsResponse nodesStatsResponse) {
+    // Visible for testing
+    static Map<String, List<NodeStats>> separateTiers(NodesStatsResponse nodesStatsResponse) {
         Map<String, List<NodeStats>> responses = new HashMap<>();
         DataTier.ALL_DATA_TIERS.forEach(tier ->
             responses.put(tier, nodesStatsResponse.getNodes().stream()
@@ -81,10 +82,6 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                     .map(DiscoveryNodeRole::roleName)
                     .anyMatch(rn -> rn.equals(tier)))
                 .collect(Collectors.toList())));
-        // Also manually add the "data" role so we calculate statistics for it
-        responses.put(DiscoveryNodeRole.DATA_ROLE.roleName(), nodesStatsResponse.getNodes().stream()
-            .filter(stats -> stats.getNode().getRoles().stream().anyMatch(rn -> rn.equals(DiscoveryNodeRole.DATA_ROLE)))
-            .collect(Collectors.toList()));
         return responses;
     }
 

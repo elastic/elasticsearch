@@ -55,7 +55,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (FORK (EQ booleanValue)?)? (by=joinKeys)?
+   : subquery (EQ booleanValue)? (by=joinKeys)?
    ;
 
 subquery
@@ -76,7 +76,6 @@ expression
 
 booleanExpression
     : NOT booleanExpression                                               #logicalNot
-    | relationship=IDENTIFIER OF subquery                                 #processCheck
     | valueExpression                                                     #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression         #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression          #logicalBinary
@@ -154,13 +153,11 @@ AND: 'and';
 ANY: 'any';
 BY: 'by';
 FALSE: 'false';
-FORK: 'fork';
 IN: 'in';
 JOIN: 'join';
 MAXSPAN: 'maxspan';
 NOT: 'not';
 NULL: 'null';
-OF: 'of';
 OR: 'or';
 SEQUENCE: 'sequence';
 TRUE: 'true';

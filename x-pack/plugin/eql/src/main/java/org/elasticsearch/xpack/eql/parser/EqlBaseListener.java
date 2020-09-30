@@ -182,18 +182,6 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitBooleanDefault(EqlBaseParser.BooleanDefaultContext ctx);
   /**
-   * Enter a parse tree produced by the {@code processCheck}
-   * labeled alternative in {@link EqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterProcessCheck(EqlBaseParser.ProcessCheckContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code processCheck}
-   * labeled alternative in {@link EqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitProcessCheck(EqlBaseParser.ProcessCheckContext ctx);
-  /**
    * Enter a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

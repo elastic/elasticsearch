@@ -128,7 +128,6 @@ public class RefreshListenersTests extends ESTestCase {
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(
                 shardId,
-                allocationId,
                 threadPool,
                 indexSettings,
                 null,

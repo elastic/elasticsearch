@@ -1,0 +1,54 @@
+[role="xpack"]
+[[data-tier-allocation-filtering]]
+=== Index-level data tier allocation filtering
+
+You can use index level allocation settings to control which <<modules-tiers, data tier>>
+is the index allocated to. The data tier allocator is a specialised
+<<shard-allocation-filtering, shard allocation filter>> that makes use of two built-in
+node attributes, the `_tier` and `_tier_preference`.
+
+The accepted values for data tier allocation filtering are the valid <<modules-tiers, data tiers>>
+node roles:
+
+* <<data-content-node, data_content>>
+* <<data-hot-node, data_hot>>
+* <<data-warm-node, data_warm>>
+* <<data-cold-node, data_cold>>
+
+NOTE: The <<data-node, data>> role is not a valid data tier and cannot be used
+for data tier filtering
+
+[discrete]
+[[data-tier-allocation-filters]]
+==== Enabling data tier allocation filtering
+
+To enable data tier allocation the following index settings can be used:
+
+`index.routing.allocation.include._tier`::
+
+    Assign the index to a node whose `_tier` has at least one of the
+    comma-separated values.
+
+`index.routing.allocation.require._tier`::
+
+    Assign the index to a node whose `_tier` has _all_ of the
+    comma-separated values.
+
+`index.routing.allocation.exclude._tier`::
+
+    Assign the index to a node whose `_tier` has _none_ of the
+    comma-separated values.
+
+`index.routing.allocation.include._tier_preference`::
+
+    Assign a preference-based list of tiers for an index to be assigned to. This
+    defines a priority list. The first tier in the list for which there is a node
+    _available_ in the cluster will be the target tier where the index will be
+    allocated. This prevents the indices from remaining unallocated in case no nodes
+    of a preferred tier are available.
+
+    eg. "index.routing.allocation.include._tier_preference": "data_hot,data_warm"
+
+    If the cluster contains any nodes with the data_hot role, the decider will only allow them to be
+    allocated on the data_hot node(s). If there are no data_hot nodes, but there are data_warm and
+    data_content nodes, then the index will be allowed to be allocated on data_warm nodes.

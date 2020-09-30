@@ -6,12 +6,8 @@ in the mapping and access it at search time without indexing your data during
 ingest time.
 
 Runtime fields beta[] are accessible from the search API like any other field.
-Use the <<search-field-caps,field capabilities API>> to return runtime fields
+The <<search-field-caps,field capabilities API>> returns runtime fields
 as searchable and aggregatable.
-
-including the cost of these operations.
-that is indexed and has <<doc-values,doc_values>>. You can retrieve and query
-these fields, as well as sort and aggregate on them.
 
 Runtime fields help to alleviate several common issues when using {es}:
 
@@ -40,6 +36,10 @@ you created an anomaly detection job that operates on the `@timestamp` field.
 If the `@timestamp` field is a runtime field, the search cost would be extremely
 high because the data isn't indexed and {es} must compute the value for each
 document that matches the query.
+
+NOTE: Computing values for runtime fields in each document that might match a
+query impacts search speed. Use the <<async-search,asynchronous search API>>
+to run searches that include runtime fields.
 
 Runtime fields are useful when working with log data, especially when you're
 unsure about the data structure. Your search speed decreases, but your index
@@ -81,7 +81,7 @@ PUT /my-index
       "day_of_week": {
         "type": "runtime", <1>
         "runtime_type": "keyword", <2>
-        "script": {
+        "script": { <3>
           "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
         }
       }
@@ -92,33 +92,7 @@ PUT /my-index
 
 <1> Runtime fields are of the `runtime` data type.
 <2> Each runtime has its own field type, defined by `runtime_type`.
-
-[[runtime-retrieving-fields]]
-==== Retrieving a runtime field
-Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
-the values of runtime fields. This API works for all fields, even those that
-were not sent as part of the original `_source`.
-
-NOTE: We highly recommended using the <<async-search,asynchronous search API>>
-to run searches that use runtime fields.
-
-The following request uses the search API to retrieve the `day_of_week` field
-that the previous request defined in the mapping.
-
-[source,console]
-----
-GET /my-index/_search
-{
-  "aggs": {
-    "days_of_week": {
-      "terms": {
-        "field": "day_of_week"
-      }
-    }
-  }
-}
-----
-// TEST[continued]
+<3> The script defines the evaluation to calculate at search time.
 
 [[runtime-params]]
 ==== Parameters for `runtime` fields
@@ -141,6 +115,30 @@ Runtime fields with a `runtime_type` of `date` can accept the
 `script`::
 The <<modules-scripting-using,painless script>> that is evaluated at search
 time to produce the value of the runtime field.
+
+[[runtime-retrieving-fields]]
+==== Retrieving a runtime field
+Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
+the values of runtime fields. This API works for all fields, even those that
+were not sent as part of the original `_source`.
+
+The following request uses the search API to retrieve the `day_of_week` field
+that the previous request defined in the mapping.
+
+[source,console]
+----
+GET /my-index/_search
+{
+  "aggs": {
+    "days_of_week": {
+      "terms": {
+        "field": "day_of_week"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
 
 [[runtime-examples]]
 ==== Examples
@@ -283,14 +281,7 @@ and determine which fields to index.
 [source,console-result]
 ----
 {
-  "took" : 150,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 1,
-    "successful" : 1,
-    "skipped" : 0,
-    "failed" : 0
-  },
+  ...
   "hits" : {
     "total" : {
       "value" : 2,
@@ -342,7 +333,7 @@ and determine which fields to index.
   }
 }
 ----
-// TESTRESPONSE[s/"took" : 150/"took": $body.took/]
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 // TESTRESPONSE[s/"_id" : "8Jh81nQBp2DRDXdiOxVt"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"_id" : "8Zh81nQBp2DRDXdiOxVu"/"_id": $body.hits.hits.1._id/]
 
@@ -355,9 +346,105 @@ The value for this field is calculated dynamically at runtime without
 reindexing the document or adding the `day_of_week` field. This flexibility
 allows you to modify the mapping without changing any field values.
 
+////
+[source,console]
+----
+PUT /my-index/
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "format": "strict_date_optional_time||epoch_second",
+        "type": "date"
+      },
+      "message": {
+        "type": "wildcard"
+      }
+    }
+  }
+}
+
+POST /my-index/_bulk?refresh
+{ "index": {}}
+{ "@timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "@timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:30:17-05:00", "message" : "40.135.0.0 - - [2020-04-30T14:30:17-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:30:53-05:00", "message" : "232.0.0.0 - - [2020-04-30T14:30:53-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:12-05:00", "message" : "26.1.0.0 - - [2020-04-30T14:31:12-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:19-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:19-05:00] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [2020-04-30T14:31:27-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_brdl.gif HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_arw.gif HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:32-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:32-05:00] \"GET /images/nav_bg_top.gif HTTP/1.0\" 200 929"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:43-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:43-05:00] \"GET /french/images/nav_venue_off.gif HTTP/1.0\" 304 0"}
+
+PUT /my-index/_mappings
+{
+  "properties": {
+    "clientip": {
+      "type": "runtime",
+      "runtime_type": "ip",
+      "script" : {
+      "source" : "String m = doc[\"message\"].value; int end = m.indexOf(\" \"); emit(m.substring(0, end));"
+      }
+    }
+  }
+}
+
+PUT /my-index/_mappings
+{
+  "properties": {
+    "day_of_week": {
+      "type": "runtime",
+      "runtime_type": "keyword",
+      "script": {
+        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+      }
+    }
+  }
+}
+
+GET my-index/_search
+{
+  "query": {
+    "match": {
+      "clientip": "211.11.9.0"
+    }
+  },
+  "fields" : ["*"]
+}
+----
+////
+
 [source,console-result]
 ----
-...
+{
+  ...
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "8Jh81nQBp2DRDXdiOxVt",
+        "_score" : 1.0,
+        "_source" : {
+          "@timestamp" : "2020-06-21T15:00:01-05:00",
+          "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
+        },
         "fields" : {
           "@timestamp" : [
             "2020-06-21T20:00:01.000Z"
@@ -366,16 +453,45 @@ allows you to modify the mapping without changing any field values.
             "211.11.9.0"
           ],
           "message" : [
-            """211.11.9.0 - - [2020-06-21T15:00:01-05:00] "GET /english/index.html HTTP/1.0" 304 0"""
+            "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
           ],
           "day_of_week" : [
-            "Sunday" <1>
+            "Sunday"
           ]
         }
       },
-  ...
+      {
+        "_index" : "my-index",
+        "_id" : "8Zh81nQBp2DRDXdiOxVu",
+        "_score" : 1.0,
+        "_source" : {
+          "@timestamp" : "2020-06-21T15:00:01-05:00",
+          "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
+        },
+        "fields" : {
+          "@timestamp" : [
+            "2020-06-21T20:00:01.000Z"
+          ],
+          "clientip" : [
+            "211.11.9.0"
+          ],
+          "message" : [
+            "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
+          ],
+          "day_of_week" : [
+            "Sunday"
+          ]
+        }
+      }
+    ]
+  }
+}
 ----
-// TEST[skip:not a complete result]
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_id" : "8Jh81nQBp2DRDXdiOxVt"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "8Zh81nQBp2DRDXdiOxVu"/"_id": $body.hits.hits.1._id/]
+// TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
+// TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.1.fields.day_of_week/]
 
 <1> This value was calculated at search time using the runtime script defined
 in the mapping.

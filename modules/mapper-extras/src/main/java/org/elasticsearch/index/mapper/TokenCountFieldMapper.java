@@ -78,6 +78,8 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
+                false,
+                nullValue.getValue(),
                 meta.getValue());
             return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }

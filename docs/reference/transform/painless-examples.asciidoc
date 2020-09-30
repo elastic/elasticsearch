@@ -164,6 +164,7 @@ Create the index:
 --------------------------------------------------
 PUT /pivot_logs
 --------------------------------------------------
+// NOTCONSOLE
 
 
 Create the mapping of the index:
@@ -180,6 +181,7 @@ PUT /pivot_logs/_mapping
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 
 Then you can create the {transform}. The example below shows you how to create a 

@@ -22,10 +22,9 @@ package org.elasticsearch.gradle;
 import org.gradle.api.tasks.WorkResult;
 
 /**
- * A marker interface for tasks signaling that they support basic file operations.
+ * An interface for tasks that support basic file operations.
  * Methods will be added as needed.
  */
-
 public interface FileSystemOperationsAware {
     WorkResult delete(Object... objects);
 }

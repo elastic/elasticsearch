@@ -54,14 +54,11 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
 
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
     private Consumer<Logger> outputLogger;
+    private FileSystemOperations fileSystemOperations;
 
     @Inject
-    protected FileSystemOperations getFileSystemOperations() {
-        throw new UnsupportedOperationException();
-    }
-
-    public LoggedExec() {
-
+    public LoggedExec(FileSystemOperations fileSystemOperations) {
+        this.fileSystemOperations = fileSystemOperations;
         if (getLogger().isInfoEnabled() == false) {
             setIgnoreExitValue(true);
             setSpoolOutput(false);
@@ -165,6 +162,6 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
 
     @Override
     public WorkResult delete(Object... objects) {
-        return getFileSystemOperations().delete(d -> d.delete(objects));
+        return fileSystemOperations.delete(d -> d.delete(objects));
     }
 }

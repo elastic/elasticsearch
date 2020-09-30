@@ -97,7 +97,7 @@ public class Classification implements Evaluation {
     }
 
     public Classification(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             this.fields =
                 new EvaluationFields(
                     in.readString(),
@@ -135,7 +135,7 @@ public class Classification implements Evaluation {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fields.getActualField());
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalString(fields.getPredictedField());
             out.writeOptionalString(fields.getTopClassesField());
             out.writeOptionalString(fields.getPredictedClassField());

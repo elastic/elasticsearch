@@ -246,7 +246,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
         public Result(StreamInput in) throws IOException {
             this.score = in.readDouble();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
                 this.docCount = in.readOptionalLong();
             }  else {
                 this.docCount = null;
@@ -279,7 +279,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeDouble(score);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
                 out.writeOptionalLong(docCount);
             }
             out.writeList(curve);

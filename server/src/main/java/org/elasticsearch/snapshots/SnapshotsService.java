@@ -2272,11 +2272,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 final Set<RepositoryShardId> reusedShardIds =
                         reusedRepoShardIdsByRepo.computeIfAbsent(updatedRepository, k -> new HashSet<>());
-                final Set<ShardId> reusedConcreteShardIds =
-                        reusedShardIdsByRepo.computeIfAbsent(updatedRepository, k -> new HashSet<>());
+                final Set<ShardId> reusedRoutingShardIds = reusedShardIdsByRepo.computeIfAbsent(updatedRepository, k -> new HashSet<>());
                 if (updateSnapshotState.isClone()) {
+                    // A clone operation for a shard has finished
                     final RepositoryShardId finishedShardId = updateSnapshotState.repoShardId;
                     if (entry.snapshot().getSnapshotId().equals(updatedSnapshot.getSnapshotId())) {
+                        final ShardSnapshotStatus existing = entry.clones().get(finishedShardId);
+                        if (existing == null) {
+                            logger.warn("Received clone shard snapshot status update [{}] but this shard is not tracked in [{}]",
+                                    updateSnapshotState, entry);
+                            assert false : "This should never happen, master will not submit a state update for a non-existing clone";
+                            continue;
+                        }
+                        if (existing.state().completed()) {
+                            // No point in doing noop updates that might happen if data nodes resends shard status after a disconnect.
+                            iterator.remove();
+                            continue;
+                        }
                         logger.trace("[{}] Updating shard clone [{}] with status [{}]", updatedSnapshot,
                                 finishedShardId, updateSnapshotState.updatedState.state());
                         if (clones == null) {
@@ -2287,32 +2299,33 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         executedTasks.add(updateSnapshotState);
                     } else if (executedTasks.contains(updateSnapshotState)) {
                         if (entry.source() == null) {
+                            // Clone was updated, checking if we can update a normal snapshot
                             final IndexMetadata indexMeta = currentState.metadata().index(finishedShardId.indexName());
                             if (indexMeta == null) {
+                                // The index name that finished cloning does not exist in the cluster state so it isn't relevant to a
+                                // normal snapshot
                                 continue;
                             }
-                            final ShardId finishedConcreteShardId = new ShardId(indexMeta.getIndex(), finishedShardId.shardId());
-                            if (reusedConcreteShardIds.contains(finishedConcreteShardId) == false) {
-                                final ShardSnapshotStatus existingStatus = entry.shards().get(finishedConcreteShardId);
-                                if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
-                                    continue;
-                                }
-                                if (shards == null) {
-                                    shards = ImmutableOpenMap.builder(entry.shards());
-                                }
-                                final ShardSnapshotStatus finishedStatus = updateSnapshotState.updatedState;
-                                logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
-                                        finishedStatus.nodeId(), finishedStatus.generation());
-                                // A clone was updated, so we must use the correct data node id for the reassignment as actual shard
-                                // snapshot
-                                final ShardSnapshotStatus shardSnapshotStatus = startShardSnapshotAfterClone(currentState,
-                                        updateSnapshotState.updatedState.generation(), finishedConcreteShardId);
-                                shards.put(finishedConcreteShardId, shardSnapshotStatus);
+                            final ShardId finishedRoutingShardId = new ShardId(indexMeta.getIndex(), finishedShardId.shardId());
+                            final ShardSnapshotStatus existingStatus = entry.shards().get(finishedRoutingShardId);
+                            if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
+                                continue;
+                            }
+                            if (shards == null) {
+                                shards = ImmutableOpenMap.builder(entry.shards());
+                            }
+                            final ShardSnapshotStatus finishedStatus = updateSnapshotState.updatedState;
+                            logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
+                                    finishedStatus.nodeId(), finishedStatus.generation());
+                            // A clone was updated, so we must use the correct data node id for the reassignment as actual shard
+                            // snapshot
+                            final ShardSnapshotStatus shardSnapshotStatus = startShardSnapshotAfterClone(currentState,
+                                    updateSnapshotState.updatedState.generation(), finishedRoutingShardId);
+                            shards.put(finishedRoutingShardId, shardSnapshotStatus);
+                            if (shardSnapshotStatus.isActive()) {
+                                // only remove the update from the list of tasks that might hold a reusable shard if we actually
+                                // started a snapshot and didn't just fail
                                 iterator.remove();
-                                if (shardSnapshotStatus.isActive()) {
-                                    reusedShardIds.add(finishedShardId);
-                                    reusedConcreteShardIds.add(finishedConcreteShardId);
-                                }
                             }
                         } else if (reusedShardIds.contains(finishedShardId) == false) {
                             final ShardSnapshotStatus existingStatus = entry.clones().get(finishedShardId);
@@ -2325,12 +2338,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             final ShardSnapshotStatus finishedStatus = updateSnapshotState.updatedState;
                             logger.trace("Starting clone [{}] on [{}] with generation [{}]", finishedShardId,
                                     finishedStatus.nodeId(), finishedStatus.generation());
+                            assert finishedStatus.nodeId().equals(localNodeId) : "Clone updated with node id [" + finishedStatus.nodeId() +
+                                    "] but local node id is [" + localNodeId + "]";
                             clones.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(), finishedStatus.generation()));
                             reusedShardIds.add(finishedShardId);
                             iterator.remove();
                             final IndexMetadata indexMeta = currentState.metadata().index(finishedShardId.indexName());
                             if (indexMeta != null) {
-                                reusedConcreteShardIds.add(new ShardId(indexMeta.getIndex(), finishedShardId.shardId()));
+                                // only if we can resolve a real index we can add the reuse here
+                                reusedRoutingShardIds.add(new ShardId(indexMeta.getIndex(), finishedShardId.shardId()));
                             }
                         }
                     }
@@ -2359,11 +2375,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         executedTasks.add(updateSnapshotState);
                         changedCount++;
                     } else if (executedTasks.contains(updateSnapshotState)) {
-                        if (indicesLookup == null) {
-                            indicesLookup = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
-                        }
-                        if (reusedConcreteShardIds.contains(finishedShardId) == false) {
+                        // We applied the update for a shard snapshot state to its snapshot entry, now check if we can update
+                        // either a clone or a snapshot
+                        if (reusedRoutingShardIds.contains(finishedShardId) == false) {
+                            // Since we updated a normal snapshot we need to translate its shard ids to repository shard ids which requires
+                            // a lookup for the index ids
+                            if (indicesLookup == null) {
+                                indicesLookup = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
+                            }
                             if (entry.source() == null) {
+                                // shard snapshot was completed, we check if we can start another snapshot
                                 final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
                                 if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
                                     continue;
@@ -2375,13 +2396,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
                                         finishedStatus.nodeId(), finishedStatus.generation());
                                 shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(), finishedStatus.generation()));
-                                reusedConcreteShardIds.add(finishedShardId);
-                                final RepositoryShardId repoShardId = new RepositoryShardId(
-                                        indicesLookup.get(finishedShardId.getIndexName()), finishedShardId.getId());
-                                reusedShardIds.add(repoShardId);
+                                reusedRoutingShardIds.add(finishedShardId);
+                                reusedShardIds.add(
+                                        new RepositoryShardId(indicesLookup.get(finishedShardId.getIndexName()), finishedShardId.getId()));
                                 iterator.remove();
                             } else {
+                                // shard snapshot was completed, we check if we can start a clone operation for the same repo shard
                                 final IndexId indexId = indicesLookup.get(finishedShardId.getIndexName());
+                                // If the lookup finds the index id then at least the entry is concerned with the index id just updated
+                                // so we check on a shard level
                                 if (indexId != null) {
                                     final RepositoryShardId repoShardId = new RepositoryShardId(indexId, finishedShardId.getId());
                                     final ShardSnapshotStatus existingStatus = entry.clones().get(repoShardId);
@@ -2392,10 +2415,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         clones = ImmutableOpenMap.builder(entry.clones());
                                     }
                                     final ShardSnapshotStatus finishedStatus = updateSnapshotState.updatedState;
-                                    logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
+                                    logger.trace("Starting clone [{}] on [{}] with generation [{}]", finishedShardId,
                                             finishedStatus.nodeId(), finishedStatus.generation());
                                     clones.put(repoShardId, new ShardSnapshotStatus(localNodeId, finishedStatus.generation()));
-                                    reusedConcreteShardIds.add(finishedShardId);
+                                    reusedRoutingShardIds.add(finishedShardId);
                                     reusedShardIds.add(repoShardId);
                                     iterator.remove();
                                     startedCount++;

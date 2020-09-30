@@ -278,6 +278,7 @@ GET /my_ip_locations/_search
         "_source" : {
           "geoip" : {
             "continent_name" : "North America",
+            "country_name" : "United States",
             "country_iso_code" : "US",
             "location" : {
               "lon" : -97.822,

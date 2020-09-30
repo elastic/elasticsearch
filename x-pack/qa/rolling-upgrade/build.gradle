@@ -106,6 +106,13 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     if (Version.fromString(oldVersion).before('7.3.0')) {
       toBlackList << 'old_cluster/80_transform_jobs_crud/Test put continuous transform on old cluster'
     }
+    if (Version.fromString(oldVersion).before('7.9.0')) {
+      toBlackList.addAll([
+        'old_cluster/90_ml_data_frame_analytics_crud/Put outlier_detection job on the old cluster',
+        'old_cluster/90_ml_data_frame_analytics_crud/Put regression job on the old cluster',
+        'old_cluster/90_ml_data_frame_analytics_crud/Put classification job on the old cluster'
+      ])
+    }
     if (!toBlackList.empty) {
       systemProperty 'tests.rest.blacklist', toBlackList.join(',')
     }
@@ -130,6 +137,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
       'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
       'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
+      'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
+      'mixed_cluster/90_ml_data_frame_analytics_crud/Put and delete jobs',
       'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster',
     ]
     // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
@@ -137,6 +146,18 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       toBlackList.addAll([
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
         'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
+      ])
+    }
+    if (Version.fromString(oldVersion).before('7.9.0')) {
+      toBlackList.addAll([
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job stats',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old classification job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old classification job stats',
       ])
     }
     systemProperty 'tests.rest.blacklist', toBlackList.join(',')
@@ -160,6 +181,20 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
         'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
         'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
+      ])
+    }
+    if (Version.fromString(oldVersion).before('7.9.0')) {
+      toBlackList.addAll([
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job stats',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old classification job',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Get old classification job stats',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
+        'mixed_cluster/90_ml_data_frame_analytics_crud/Put and delete jobs'
       ])
     }
     if (!toBlackList.empty) {
@@ -191,6 +226,19 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     if (Version.fromString(oldVersion).before('7.4.0')) {
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Get start, stop mixed cluster batch transform'
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Test GET, mixed continuous transforms'
+    }
+    if (Version.fromString(oldVersion).before('7.9.0')) {
+      toBlackList.addAll([
+        'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old cluster outlier_detection job',
+        'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old cluster outlier_detection job stats',
+        'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old cluster regression job',
+        'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old cluster regression job stats',
+        'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old classification job',
+        'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old classification job stats',
+        'upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job',
+        'upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job stats',
+        'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old classification job stats'
+      ])
     }
 
     if (!toBlackList.empty) {

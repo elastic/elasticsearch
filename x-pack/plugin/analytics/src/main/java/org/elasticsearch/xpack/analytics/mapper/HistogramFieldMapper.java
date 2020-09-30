@@ -10,10 +10,8 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
@@ -23,32 +21,27 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -57,7 +50,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -67,97 +59,54 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * Field Mapper for pre-aggregated histograms.
  */
-public class HistogramFieldMapper extends FieldMapper {
+public class HistogramFieldMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "histogram";
-
-    public static class Names {
-        public static final String IGNORE_MALFORMED = "ignore_malformed";
-    }
-
-    public static class Defaults {
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
-    }
 
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
     public static final ParseField VALUES_FIELD = new ParseField("values");
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
-        protected Boolean ignoreMalformed;
+    private static HistogramFieldMapper toType(FieldMapper in) {
+        return (HistogramFieldMapper) in;
+    }
 
-        public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final Parameter<Explicit<Boolean>> ignoreMalformed;
+
+        public Builder(String name, boolean ignoreMalformedByDefault) {
+            super(name);
+            this.ignoreMalformed
+                = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
         }
 
-        public Builder ignoreMalformed(boolean ignoreMalformed) {
-            this.ignoreMalformed = ignoreMalformed;
-            return builder;
-        }
-
-        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
-            if (ignoreMalformed != null) {
-                return new Explicit<>(ignoreMalformed, true);
-            }
-            if (context.indexSettings() != null) {
-                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
-            }
-            return HistogramFieldMapper.Defaults.IGNORE_MALFORMED;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(ignoreMalformed, meta);
         }
 
         @Override
         public HistogramFieldMapper build(BuilderContext context) {
-            return new HistogramFieldMapper(name, fieldType, new HistogramFieldType(buildFullName(context), hasDocValues, meta),
-                multiFieldsBuilder.build(this, context), ignoreMalformed(context), copyTo);
+            return new HistogramFieldMapper(name, new HistogramFieldType(buildFullName(context), meta.getValue()),
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            Builder builder = new HistogramFieldMapper.Builder(name);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals(Names.IGNORE_MALFORMED)) {
-                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.IGNORE_MALFORMED));
-                    iterator.remove();
-                }
-                if (propName.equals("meta")) {
-                    builder.meta(TypeParsers.parseMeta(propName, propNode));
-                    iterator.remove();
-                }
-            }
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER
+        = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
 
-    protected Explicit<Boolean> ignoreMalformed;
+    private final Explicit<Boolean> ignoreMalformed;
+    private final boolean ignoreMalformedByDefault;
 
-    public HistogramFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
-        this.ignoreMalformed = ignoreMalformed;
+    public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                MultiFields multiFields, CopyTo copyTo, Builder builder) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.ignoreMalformed = builder.ignoreMalformed.getValue();
+        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
     }
 
     boolean ignoreMalformed() {
         return ignoreMalformed.value();
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) other;
-        if (gpfmMergeWith.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
-        }
     }
 
     @Override
@@ -166,7 +115,12 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), ignoreMalformedByDefault).init(this);
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
@@ -185,8 +139,8 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class HistogramFieldType extends MappedFieldType {
 
-        public HistogramFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public HistogramFieldType(String name, Map<String, String> meta) {
+            super(name, false, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         @Override
@@ -197,88 +151,77 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new IndexFieldData.Builder() {
+            return (cache, breakerService, mapperService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
-                public IndexFieldData<?> build(
-                    IndexFieldDataCache cache,
-                    CircuitBreakerService breakerService,
-                    MapperService mapperService
-                ) {
-
-                    return new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
-
+                public LeafHistogramFieldData load(LeafReaderContext context) {
+                    return new LeafHistogramFieldData() {
                         @Override
-                        public LeafHistogramFieldData load(LeafReaderContext context) {
-                            return new LeafHistogramFieldData() {
-                                @Override
-                                public HistogramValues getHistogramValues() throws IOException {
-                                    try {
-                                        final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
-                                        final InternalHistogramValue value = new InternalHistogramValue();
-                                        return new HistogramValues() {
+                        public HistogramValues getHistogramValues() throws IOException {
+                            try {
+                                final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
+                                final InternalHistogramValue value = new InternalHistogramValue();
+                                return new HistogramValues() {
 
-                                            @Override
-                                            public boolean advanceExact(int doc) throws IOException {
-                                                return values.advanceExact(doc);
-                                            }
-
-                                            @Override
-                                            public HistogramValue histogram() throws IOException {
-                                                try {
-                                                    value.reset(values.binaryValue());
-                                                    return value;
-                                                } catch (IOException e) {
-                                                    throw new IOException("Cannot load doc value", e);
-                                                }
-                                            }
-                                        };
-                                    } catch (IOException e) {
-                                        throw new IOException("Cannot load doc values", e);
+                                    @Override
+                                    public boolean advanceExact(int doc) throws IOException {
+                                        return values.advanceExact(doc);
                                     }
-                                }
 
-                                @Override
-                                public ScriptDocValues<?> getScriptValues() {
-                                    throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " +
-                                        "support scripts");
-                                }
-
-                                @Override
-                                public SortedBinaryDocValues getBytesValues() {
-                                    throw new UnsupportedOperationException("String representation of doc values " +
-                                        "for [" + CONTENT_TYPE + "] fields is not supported");
-                                }
-
-                                @Override
-                                public long ramBytesUsed() {
-                                    return 0; // Unknown
-                                }
-
-                                @Override
-                                public void close() {
-
-                                }
-                            };
+                                    @Override
+                                    public HistogramValue histogram() throws IOException {
+                                        try {
+                                            value.reset(values.binaryValue());
+                                            return value;
+                                        } catch (IOException e) {
+                                            throw new IOException("Cannot load doc value", e);
+                                        }
+                                    }
+                                };
+                            } catch (IOException e) {
+                                throw new IOException("Cannot load doc values", e);
+                            }
                         }
 
                         @Override
-                        public LeafHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
-                            return load(context);
+                        public ScriptDocValues<?> getScriptValues() {
+                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " +
+                                "support scripts");
                         }
 
                         @Override
-                        public SortField sortField(Object missingValue, MultiValueMode sortMode,
-                                                   XFieldComparatorSource.Nested nested, boolean reverse) {
-                            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                        public SortedBinaryDocValues getBytesValues() {
+                            throw new UnsupportedOperationException("String representation of doc values " +
+                                "for [" + CONTENT_TYPE + "] fields is not supported");
                         }
 
                         @Override
-                        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
-                            throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
+                        public long ramBytesUsed() {
+                            return 0; // Unknown
+                        }
+
+                        @Override
+                        public void close() {
+
                         }
                     };
+                }
+
+                @Override
+                public LeafHistogramFieldData loadDirect(LeafReaderContext context) {
+                    return load(context);
+                }
+
+                @Override
+                public SortField sortField(Object missingValue, MultiValueMode sortMode,
+                                           Nested nested, boolean reverse) {
+                    throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                }
+
+                @Override
+                public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
+                        Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                    throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
                 }
             };
         }
@@ -297,7 +240,7 @@ public class HistogramFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
         context.path().add(simpleName());
-        XContentParser.Token token = null;
+        XContentParser.Token token;
         XContentSubParser subParser = null;
         try {
             token = context.parser().currentToken();
@@ -400,19 +343,6 @@ public class HistogramFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || ignoreMalformed.explicit()) {
-            builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
-        }
-    }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
     }
 
     /** re-usable {@link HistogramValue} implementation */

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,25 +68,14 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
 
     public RegressionInferenceResults(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.featureImportance = in.readList(RegressionFeatureImportance::new);
-        } else {
-            this.featureImportance = in.readList(LegacyFeatureImportance::new)
-                .stream()
-                .map(LegacyFeatureImportance::forRegression)
-                .collect(Collectors.toList());
-        }
+        this.featureImportance = in.readList(RegressionFeatureImportance::new);
         this.resultsField = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeList(featureImportance);
-        } else {
-            out.writeList(featureImportance.stream().map(LegacyFeatureImportance::fromRegression).collect(Collectors.toList()));
-        }
+        out.writeList(featureImportance);
         out.writeString(resultsField);
     }
 

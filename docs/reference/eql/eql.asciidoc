@@ -68,10 +68,10 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-The API returns the following response. Matching events are included in the
-`hits.events` property. These events are sorted by timestamp, converted to
-milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
-ascending order.
+By default, EQL searches return only the top 10 matching hits. For basic EQL
+queries, these hits are matching events and are included in the `hits.events`
+property. Matching events are sorted by timestamp, converted to milliseconds
+since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 
 [source,console-result]
 ----
@@ -130,6 +130,21 @@ ascending order.
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
 // TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 
+You can use the `size` request body parameter to get a larger or smaller set of
+hits. For example, the following request retrieves up to `50` matching hits.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """,
+  "size": 50
+}
+----
+// TEST[setup:sec_logs]
+
 [discrete]
 [[eql-search-sequence]]
 === Search for a sequence of events
@@ -165,8 +180,7 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-The API returns the following response. Matching sequences are included in the
-`hits.sequences` property.
+Matching sequences are returned in the `hits.sequences` property.
 
 [source,console-result]
 ----
@@ -413,6 +427,31 @@ GET /my-index-000001/_eql/search
   """
 }
 ----
+// TEST[setup:sec_logs]
+
+[discrete]	
+[[eql-search-specify-a-sort-tiebreaker]]	
+=== Specify a sort tiebreaker	
+
+By default, the EQL search API sorts matching hits in the search response by
+timestamp. However, if two or more events share the same timestamp, you can use
+a tiebreaker field to sort the events in ascending, lexicographic order.
+
+The EQL search API uses `event.sequence` as the default tiebreaker field. You	
+can use the `tiebreaker_field` parameter to specify another field.	
+
+The following request specifies `event.id` as the tiebreaker field.	
+
+[source,console]	
+----	
+GET /my-index-000001/_eql/search	
+{	
+  "tiebreaker_field": "event.id",	
+  "query": """	
+    process where process.name == "cmd.exe" and stringContains(process.executable, "System32")	
+  """	
+}	
+----	
 // TEST[setup:sec_logs]
 
 [discrete]

@@ -2179,9 +2179,15 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .source(XContentType.JSON,
                 actualClassField, actualClass,
                 predictedClassField, predictedClass,
-                topClassesField, List.of(
-                    Map.of("class_name", predictedClass, "class_probability", p),
-                    Map.of("class_name", "other", "class_probability", 1 - p)));
+                topClassesField, Arrays.asList(
+                    new HashMap<String, Object>() {{
+                        put("class_name", predictedClass);
+                        put("class_probability", p);
+                    }},
+                    new HashMap<String, Object>() {{
+                        put("class_name", "other");
+                        put("class_probability", 1 - p);
+                    }}));
     }
 
     private static final String actualRegression = "regression_actual";

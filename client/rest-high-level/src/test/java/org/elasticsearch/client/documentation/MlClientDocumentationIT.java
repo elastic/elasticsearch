@@ -3468,9 +3468,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .source(XContentType.JSON,
                     "actual_class", actualClass,
                     "predicted_class", predictedClass,
-                    "ml.top_classes", List.of(
-                        Map.of("class_name", predictedClass, "class_probability", p),
-                        Map.of("class_name", "other", "class_probability", 1 - p)));
+                    "ml.top_classes", Arrays.asList(
+                        new HashMap<String, Object>() {{
+                            put("class_name", predictedClass);
+                            put("class_probability", p);
+                        }},
+                        new HashMap<String, Object>() {{
+                            put("class_name", "other");
+                            put("class_probability", 1 - p);
+                        }}));
         };
         BulkRequest bulkRequest =
             new BulkRequest(indexName)

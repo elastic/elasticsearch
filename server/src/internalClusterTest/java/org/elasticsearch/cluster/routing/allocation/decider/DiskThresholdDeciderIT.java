@@ -128,6 +128,7 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
         return List.of(InternalSettingsPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62326")
     public void testHighWatermarkNotExceeded() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();

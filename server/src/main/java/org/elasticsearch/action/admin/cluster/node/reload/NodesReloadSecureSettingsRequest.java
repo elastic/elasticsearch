@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -53,18 +52,16 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
 
     public NodesReloadSecureSettingsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            final BytesReference bytesRef = in.readOptionalBytesReference();
-            if (bytesRef != null) {
-                byte[] bytes = BytesReference.toBytes(bytesRef);
-                try {
-                    this.secureSettingsPassword = new SecureString(CharArrays.utf8BytesToChars(bytes));
-                } finally {
-                    Arrays.fill(bytes, (byte) 0);
-                }
-            } else {
-                this.secureSettingsPassword = null;
+        final BytesReference bytesRef = in.readOptionalBytesReference();
+        if (bytesRef != null) {
+            byte[] bytes = BytesReference.toBytes(bytesRef);
+            try {
+                this.secureSettingsPassword = new SecureString(CharArrays.utf8BytesToChars(bytes));
+            } finally {
+                Arrays.fill(bytes, (byte) 0);
             }
+        } else {
+            this.secureSettingsPassword = null;
         }
     }
 
@@ -99,16 +96,14 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            if (this.secureSettingsPassword == null) {
-                out.writeOptionalBytesReference(null);
-            } else {
-                final byte[] passwordBytes = CharArrays.toUtf8Bytes(this.secureSettingsPassword.getChars());
-                try {
-                    out.writeOptionalBytesReference(new BytesArray(passwordBytes));
-                } finally {
-                    Arrays.fill(passwordBytes, (byte) 0);
-                }
+        if (this.secureSettingsPassword == null) {
+            out.writeOptionalBytesReference(null);
+        } else {
+            final byte[] passwordBytes = CharArrays.toUtf8Bytes(this.secureSettingsPassword.getChars());
+            try {
+                out.writeOptionalBytesReference(new BytesArray(passwordBytes));
+            } finally {
+                Arrays.fill(passwordBytes, (byte) 0);
             }
         }
     }

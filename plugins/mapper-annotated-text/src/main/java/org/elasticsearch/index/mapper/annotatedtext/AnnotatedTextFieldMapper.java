@@ -403,8 +403,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
           }
         }
 
-
-
         @Override
         public void reset() throws IOException {
             pendingStates.clear();
@@ -469,6 +467,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 return false;
             }
         }
+
         private void setType(AnnotationToken token) {
             //Default annotation type - in future AnnotationTokens may contain custom type info
             typeAtt.setType("annotation");
@@ -515,16 +514,15 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
       }
 
-
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
-        public AnnotatedTextFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
-            NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
+        private AnnotatedTextFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
+                                       NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
             super(name, fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer, meta);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
-            super(name, true, meta);
+            super(name, true, false, meta);
         }
 
         public void setIndexAnalyzer(NamedAnalyzer delegate, int positionIncrementGap) {
@@ -542,7 +540,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-
     }
 
     private int positionIncrementGap;

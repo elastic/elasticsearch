@@ -30,13 +30,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
-public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeaturesFieldMapper.Builder> {
+public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "store", "doc_values", "index");
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field("foo", 10).field("bar", 20).endObject();
+    }
+
+    @Override
+    protected void assertExistsQuery(MapperService mapperService) {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> super.assertExistsQuery(mapperService));
+        assertEquals("[rank_features] fields do not support [exists] queries", iae.getMessage());
     }
 
     @Override
@@ -50,6 +55,11 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
     }
 
     @Override
+    protected void registerParameters(ParameterChecker checker) {
+        // no parameters to configure
+    }
+
+    @Override
     protected boolean supportsMeta() {
         return false;
     }
@@ -58,7 +68,7 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(b -> b.startObject("field").field("foo", 10).field("bar", 20).endObject()));
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -100,10 +110,5 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
         })));
         assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
                 "the same document", e.getCause().getMessage());
-    }
-
-    @Override
-    protected RankFeaturesFieldMapper.Builder newBuilder() {
-        return new RankFeaturesFieldMapper.Builder("rf");
     }
 }

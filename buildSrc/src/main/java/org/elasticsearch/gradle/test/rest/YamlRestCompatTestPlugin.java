@@ -44,6 +44,8 @@ import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
  */
+//TODO: support running tests against multiple prior versions in addition to bwc:minor. To achieve this we will need to create published
+// artifacts that include all of the REST tests for the latest 7.x.y releases
 public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
     public static final String SOURCE_SET_NAME = "yamlRestCompatTest";
@@ -71,9 +73,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         ElasticsearchCluster testCluster = createTestCluster(project, yamlCompatTestSourceSet);
         testCluster.setTestDistribution(TestDistribution.DEFAULT);
 
-        // TODO: this is pretty fragile but the existing logic to checkout prior version branches isn't general purpose
-        // eventually we will want to test against multiple minor versions and will need a better way to checkout an arbitrary prior branch
-        // however, for now we will just get a reference to the checkout directory for ":distribution:bwc:minor:checkoutBwcBranch"
+        //TODO: once https://github.com/elastic/elasticsearch/pull/62473 lands refactor this to reference the checkoutDir as an artifact
         int priorMajorVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
         final Path checkoutDir = project.findProject(":distribution:bwc:minor")
             .getBuildDir()

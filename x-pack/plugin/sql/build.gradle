@@ -132,3 +132,11 @@ tasks.register("regen") {
     }
   }
 }
+
+task checkNoBwc {
+  dependsOn 'check'
+  ext.bwc_tests_enabled = false
+  subprojects {
+    ext.bwc_tests_enabled = false
+  }
+}

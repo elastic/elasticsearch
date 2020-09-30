@@ -689,9 +689,9 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-    transform.get_transform:
-      transform_id: "airline-transform"
-      for_export: true
+      transform.get_transform:
+        transform_id: "airline-transform"
+        for_export: true
 
   - match: {transforms.0.source.index: "airline-data"}
   - match: {transforms.0.dest.index: "airline-data"}

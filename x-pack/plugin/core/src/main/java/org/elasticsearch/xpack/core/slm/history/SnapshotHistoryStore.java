@@ -56,12 +56,12 @@ public class SnapshotHistoryStore {
                 SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), item);
             return;
         }
-        logger.trace("about to index snapshot history item in index [{}]: [{}]", SLM_HISTORY_DATA_STREAM, item);
+        logger.trace("about to index snapshot history item in data stream [{}]: [{}]", SLM_HISTORY_DATA_STREAM, item);
         Metadata metadata = clusterService.state().getMetadata();
         if (metadata.dataStreams().containsKey(SLM_HISTORY_DATA_STREAM) == false &&
             metadata.templatesV2().containsKey(SLM_TEMPLATE_NAME) == false) {
-            logger.error(new ParameterizedMessage("failed to index snapshot history item in index [{}]: [{}]",
-                SLM_HISTORY_DATA_STREAM, item));
+            logger.error(new ParameterizedMessage("failed to index snapshot history item, data stream [{}] and template [{}] don't exist",
+                SLM_HISTORY_DATA_STREAM, SLM_TEMPLATE_NAME));
             return;
         }
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -70,14 +70,14 @@ public class SnapshotHistoryStore {
                 .opType(DocWriteRequest.OpType.CREATE)
                 .source(builder);
             client.index(request, ActionListener.wrap(indexResponse -> {
-                logger.debug("successfully indexed snapshot history item with id [{}] in index [{}]: [{}]",
+                logger.debug("successfully indexed snapshot history item with id [{}] in data stream [{}]: [{}]",
                     indexResponse.getId(), SLM_HISTORY_DATA_STREAM, item);
             }, exception -> {
-                logger.error(new ParameterizedMessage("failed to index snapshot history item in index [{}]: [{}]",
+                logger.error(new ParameterizedMessage("failed to index snapshot history item in data stream [{}]: [{}]",
                     SLM_HISTORY_DATA_STREAM, item), exception);
             }));
         } catch (IOException exception) {
-            logger.error(new ParameterizedMessage("failed to index snapshot history item in index [{}]: [{}]",
+            logger.error(new ParameterizedMessage("failed to index snapshot history item in data stream [{}]: [{}]",
                 SLM_HISTORY_DATA_STREAM, item), exception);
         }
     }

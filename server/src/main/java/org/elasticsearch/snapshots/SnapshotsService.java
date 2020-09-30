@@ -2303,24 +2303,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 final ShardSnapshotStatus finishedStatus = updateSnapshotState.updatedState;
                                 logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
                                         finishedStatus.nodeId(), finishedStatus.generation());
-                                // A clone was updated, so we must use a node id different than that in the current update for the
-                                // reassignment to actual shard snapshots
-                                ShardRouting primary = currentState.routingTable().index(finishedConcreteShardId.getIndex())
-                                        .shard(finishedConcreteShardId.id()).primaryShard();
-                                final String newGeneration = updateSnapshotState.updatedState.generation();
-                                final ShardSnapshotStatus shardSnapshotStatus;
-                                if (primary == null || !primary.assignedToNode()) {
-                                    shardSnapshotStatus = new ShardSnapshotStatus(
-                                            null, ShardState.MISSING, "primary shard is not allocated", newGeneration);
-                                } else if (primary.relocating() || primary.initializing()) {
-                                    shardSnapshotStatus =
-                                            new ShardSnapshotStatus(primary.currentNodeId(), ShardState.WAITING, newGeneration);
-                                } else if (primary.started() == false) {
-                                    shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
-                                            "primary shard hasn't been started yet", newGeneration);
-                                } else {
-                                    shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), newGeneration);
-                                }
+                                // A clone was updated, so we must use the correct data node id for the reassignment as actual shard
+                                // snapshot
+                                final ShardSnapshotStatus shardSnapshotStatus = startShardSnapshotAfterClone(currentState,
+                                        updateSnapshotState.updatedState.generation(), finishedConcreteShardId);
                                 shards.put(finishedConcreteShardId, shardSnapshotStatus);
                                 iterator.remove();
                                 if (shardSnapshotStatus.isActive()) {
@@ -2439,6 +2425,33 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         return ClusterStateTaskExecutor.ClusterTasksResult.<ShardSnapshotUpdate>builder().successes(tasks).build(currentState);
     };
+
+    /**
+     * Creates a {@link ShardSnapshotStatus} entry for a snapshot after the shard has become available for snapshotting as a result
+     * of a snapshot clone completing.
+     *
+     * @param currentState            current cluster state
+     * @param shardGeneration         shard generation of the shard in the repository
+     * @param shardId shard id of the shard that just finished cloning
+     * @return shard snapshot status
+     */
+    private static ShardSnapshotStatus startShardSnapshotAfterClone(ClusterState currentState, String shardGeneration, ShardId shardId) {
+        final ShardRouting primary = currentState.routingTable().index(shardId.getIndex()).shard(shardId.id()).primaryShard();
+        final ShardSnapshotStatus shardSnapshotStatus;
+        if (primary == null || !primary.assignedToNode()) {
+            shardSnapshotStatus = new ShardSnapshotStatus(
+                    null, ShardState.MISSING, "primary shard is not allocated", shardGeneration);
+        } else if (primary.relocating() || primary.initializing()) {
+            shardSnapshotStatus =
+                    new ShardSnapshotStatus(primary.currentNodeId(), ShardState.WAITING, shardGeneration);
+        } else if (primary.started() == false) {
+            shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
+                    "primary shard hasn't been started yet", shardGeneration);
+        } else {
+            shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardGeneration);
+        }
+        return shardSnapshotStatus;
+    }
 
     /**
      * An update to the snapshot state of a shard.

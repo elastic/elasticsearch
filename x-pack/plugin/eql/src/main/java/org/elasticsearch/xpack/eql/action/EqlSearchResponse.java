@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -380,111 +381,11 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         }
     }
 
-    // Count
-    public static class Count implements ToXContentObject, Writeable {
-        private static final class Fields {
-            static final String COUNT = "_count";
-            static final String KEYS = "_keys";
-            static final String PERCENT = "_percent";
-        }
-
-        private final int count;
-        private final List<Object> keys;
-        private final float percent;
-
-        private static final ParseField COUNT = new ParseField(Fields.COUNT);
-        private static final ParseField KEYS = new ParseField(Fields.KEYS);
-        private static final ParseField PERCENT = new ParseField(Fields.PERCENT);
-
-        private static final ConstructingObjectParser<EqlSearchResponse.Count, Void> PARSER =
-            new ConstructingObjectParser<>("eql/search_response_count", true,
-                args -> {
-                    int i = 0;
-                    int count = (int) args[i++];
-                    @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
-                    float percent = (float) args[i];
-                    return new EqlSearchResponse.Count(count, joinKeys, percent);
-                });
-
-        static {
-            PARSER.declareInt(constructorArg(), COUNT);
-            PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p), KEYS,
-                ObjectParser.ValueType.VALUE_ARRAY);
-            PARSER.declareFloat(constructorArg(), PERCENT);
-        }
-
-        public Count(int count, List<Object> keys, float percent) {
-            this.count = count;
-            this.keys = keys == null ? Collections.emptyList() : keys;
-            this.percent = percent;
-        }
-
-        @SuppressWarnings("unchecked")
-        public Count(StreamInput in) throws IOException {
-            count = in.readVInt();
-            keys = (List<Object>) in.readGenericValue();
-            percent = in.readFloat();
-        }
-
-        public static Count fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(count);
-            out.writeGenericValue(keys);
-            out.writeFloat(percent);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Fields.COUNT, count);
-            builder.field(Fields.KEYS, keys);
-            builder.field(Fields.PERCENT, percent);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Count that = (Count) o;
-            return Objects.equals(count, that.count)
-                && Objects.equals(keys, that.keys)
-                && Objects.equals(percent, that.percent);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(count, keys, percent);
-        }
-
-        public int count() {
-            return count;
-        }
-
-        public List<Object> keys() {
-            return keys;
-        }
-
-        public float percent() {
-            return percent;
-        }
-    }
-
     public static class Hits implements Writeable, ToXContentFragment {
-        public static final Hits EMPTY = new Hits(null, null, null, null);
+        public static final Hits EMPTY = new Hits(null, null, null);
 
         private final List<Event> events;
         private final List<Sequence> sequences;
-        private final List<Count> counts;
         private final TotalHits totalHits;
 
         private static final class Fields {
@@ -492,14 +393,11 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             static final String TOTAL = "total";
             static final String EVENTS = "events";
             static final String SEQUENCES = "sequences";
-            static final String COUNTS = "counts";
         }
 
-        public Hits(@Nullable List<Event> events, @Nullable List<Sequence> sequences, @Nullable List<Count> counts,
-                    @Nullable TotalHits totalHits) {
+        public Hits(@Nullable List<Event> events, @Nullable List<Sequence> sequences, @Nullable TotalHits totalHits) {
             this.events = events;
             this.sequences = sequences;
-            this.counts = counts;
             this.totalHits = totalHits;
         }
 
@@ -512,7 +410,19 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
             events = in.readBoolean() ? in.readList(Event::new) : null;
             sequences = in.readBoolean() ? in.readList(Sequence::new) : null;
-            counts = in.readBoolean() ? in.readList(Count::new) : null;
+
+            // compatibility with 7.9 experimental release
+            if (in.getVersion().before(Version.V_7_10_0)) {
+                if (in.readBoolean()) {
+                    // old read count
+                    in.readList(input -> {
+                        input.readVInt();
+                        input.readGenericValue();
+                        input.readFloat();
+                        return null;
+                    });
+                }
+            }
         }
 
         @Override
@@ -534,23 +444,21 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 out.writeBoolean(false);
             }
-            if (counts != null) {
-                out.writeBoolean(true);
-                out.writeList(counts);
-            } else {
+            // compatibility with 7.9 experimental release
+            if (out.getVersion().before(Version.V_7_10_0)) {
+                // no counts
                 out.writeBoolean(false);
             }
         }
 
         private static final ConstructingObjectParser<EqlSearchResponse.Hits, Void> PARSER =
-            new ConstructingObjectParser<>("eql/search_response_count", true,
+            new ConstructingObjectParser<>("eql/search_response_hits", true,
                 args -> {
                     int i = 0;
                     @SuppressWarnings("unchecked") List<Event> events = (List<Event>) args[i++];
                     @SuppressWarnings("unchecked") List<Sequence> sequences = (List<Sequence>) args[i++];
-                    @SuppressWarnings("unchecked") List<Count> counts = (List<Count>) args[i++];
                     TotalHits totalHits = (TotalHits) args[i];
-                    return new EqlSearchResponse.Hits(events, sequences, counts, totalHits);
+                    return new EqlSearchResponse.Hits(events, sequences, totalHits);
                 });
 
         static {
@@ -558,8 +466,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 new ParseField(Fields.EVENTS));
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Sequence.PARSER,
                 new ParseField(Fields.SEQUENCES));
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Count.PARSER,
-                new ParseField(Fields.COUNTS));
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHits.parseTotalHitsFragment(p),
                 new ParseField(Fields.TOTAL));
         }
@@ -587,9 +493,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (sequences != null) {
                 builder.field(Fields.SEQUENCES, sequences);
             }
-            if (counts != null) {
-                builder.field(Fields.COUNTS, counts);
-            }
             builder.endObject();
 
             return builder;
@@ -606,13 +509,12 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             Hits that = (Hits) o;
             return Objects.equals(events, that.events)
                 && Objects.equals(sequences, that.sequences)
-                && Objects.equals(counts, that.counts)
                 && Objects.equals(totalHits, that.totalHits);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(events, sequences, counts, totalHits);
+            return Objects.hash(events, sequences, totalHits);
         }
 
         public List<Event> events() {
@@ -621,10 +523,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         public List<Sequence> sequences() {
             return this.sequences;
-        }
-
-        public List<Count> counts() {
-            return this.counts;
         }
 
         public TotalHits totalHits() {

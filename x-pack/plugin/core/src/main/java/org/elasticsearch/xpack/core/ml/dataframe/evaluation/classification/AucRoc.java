@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
+package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
@@ -14,16 +14,18 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.nested.Nested;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AbstractAucRoc;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -35,7 +37,6 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetection.actualIsTrueQuery;
 
 /**
  * Area under the curve (AUC) of the receiver operating characteristic (ROC).
@@ -58,16 +59,20 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetect
 public class AucRoc extends AbstractAucRoc {
 
     public static final ParseField INCLUDE_CURVE = new ParseField("include_curve");
+    public static final ParseField CLASS_NAME = new ParseField("class_name");
 
     public static final ConstructingObjectParser<AucRoc, Void> PARSER =
-        new ConstructingObjectParser<>(NAME.getPreferredName(), a -> new AucRoc((Boolean) a[0]));
+        new ConstructingObjectParser<>(NAME.getPreferredName(), a -> new AucRoc((Boolean) a[0], (String) a[1]));
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_CURVE);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CLASS_NAME);
     }
 
     private static final String TRUE_AGG_NAME = NAME.getPreferredName() + "_true";
     private static final String NON_TRUE_AGG_NAME = NAME.getPreferredName() + "_non_true";
+    private static final String NESTED_AGG_NAME = "nested";
+    private static final String NESTED_FILTER_AGG_NAME = "nested_filter";
     private static final String PERCENTILES_AGG_NAME = "percentiles";
 
     public static AucRoc fromXContent(XContentParser parser) {
@@ -75,31 +80,38 @@ public class AucRoc extends AbstractAucRoc {
     }
 
     private final boolean includeCurve;
+    private final String className;
     private final SetOnce<EvaluationFields> fields = new SetOnce<>();
     private final SetOnce<EvaluationMetricResult> result = new SetOnce<>();
 
-    public AucRoc(Boolean includeCurve) {
+    public AucRoc(Boolean includeCurve, String className) {
         this.includeCurve = includeCurve == null ? false : includeCurve;
+        this.className = ExceptionsHelper.requireNonNull(className, CLASS_NAME.getPreferredName());
     }
 
     public AucRoc(StreamInput in) throws IOException {
         this.includeCurve = in.readBoolean();
+        this.className = in.readOptionalString();
     }
 
     @Override
     public String getWriteableName() {
-        return registeredMetricName(OutlierDetection.NAME, NAME);
+        return registeredMetricName(Classification.NAME, NAME);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(includeCurve);
+        out.writeOptionalString(className);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INCLUDE_CURVE.getPreferredName(), includeCurve);
+        if (className != null) {
+            builder.field(CLASS_NAME.getPreferredName(), className);
+        }
         builder.endObject();
         return builder;
     }
@@ -107,7 +119,9 @@ public class AucRoc extends AbstractAucRoc {
     @Override
     public Set<String> getRequiredFields() {
         return Sets.newHashSet(
-            EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName());
+            EvaluationFields.ACTUAL_FIELD.getPreferredName(),
+            EvaluationFields.PREDICTED_CLASS_FIELD.getPreferredName(),
+            EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName());
     }
 
     @Override
@@ -115,12 +129,13 @@ public class AucRoc extends AbstractAucRoc {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AucRoc that = (AucRoc) o;
-        return includeCurve == that.includeCurve;
+        return includeCurve == that.includeCurve
+            && Objects.equals(className, that.className);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(includeCurve);
+        return Objects.hash(includeCurve, className);
     }
 
     @Override
@@ -132,22 +147,28 @@ public class AucRoc extends AbstractAucRoc {
         // Store given {@code fields} for the purpose of generating error messages in {@code process}.
         this.fields.trySet(fields);
 
-        String actualField = fields.getActualField();
-        String predictedProbabilityField = fields.getPredictedProbabilityField();
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
         AggregationBuilder percentilesAgg =
             AggregationBuilders
                 .percentiles(PERCENTILES_AGG_NAME)
-                .field(predictedProbabilityField)
+                .field(fields.getPredictedProbabilityField())
                 .percentiles(percentiles);
+        AggregationBuilder nestedAgg =
+            AggregationBuilders
+                .nested(NESTED_AGG_NAME, fields.getTopClassesField())
+                .subAggregation(
+                    AggregationBuilders
+                        .filter(NESTED_FILTER_AGG_NAME, QueryBuilders.termQuery(fields.getPredictedClassField(), className))
+                        .subAggregation(percentilesAgg));
+        QueryBuilder actualIsTrueQuery = QueryBuilders.termQuery(fields.getActualField(), className);
         AggregationBuilder percentilesForClassValueAgg =
             AggregationBuilders
-                .filter(TRUE_AGG_NAME, actualIsTrueQuery(actualField))
-                .subAggregation(percentilesAgg);
+                .filter(TRUE_AGG_NAME, actualIsTrueQuery)
+                .subAggregation(nestedAgg);
         AggregationBuilder percentilesForRestAgg =
             AggregationBuilders
-                .filter(NON_TRUE_AGG_NAME, QueryBuilders.boolQuery().mustNot(actualIsTrueQuery(actualField)))
-                .subAggregation(percentilesAgg);
+                .filter(NON_TRUE_AGG_NAME, QueryBuilders.boolQuery().mustNot(actualIsTrueQuery))
+                .subAggregation(nestedAgg);
         return Tuple.tuple(
             List.of(percentilesForClassValueAgg, percentilesForRestAgg),
             List.of());
@@ -159,24 +180,43 @@ public class AucRoc extends AbstractAucRoc {
             return;
         }
         Filter classAgg = aggs.get(TRUE_AGG_NAME);
+        Nested classNested = classAgg.getAggregations().get(NESTED_AGG_NAME);
+        Filter classNestedFilter = classNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
         if (classAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] requires at least one [{}] to have the value [{}]", getName(), fields.get().getActualField(), "true");
+                "[{}] requires at least one [{}] to have the value [{}]",
+                getName(), fields.get().getActualField(), className);
         }
-        double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES_AGG_NAME));
+        if (classNestedFilter.getDocCount() == 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] requires at least one [{}] to have the value [{}]",
+                getName(), fields.get().getPredictedClassField(), className);
+        }
+        Percentiles classPercentiles = classNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
+        double[] tpPercentiles = percentilesArray(classPercentiles);
+
         Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
+        Nested restNested = restAgg.getAggregations().get(NESTED_AGG_NAME);
+        Filter restNestedFilter = restNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
         if (restAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] requires at least one [{}] to have a different value than [{}]", getName(), fields.get().getActualField(), "true");
+                "[{}] requires at least one [{}] to have a different value than [{}]",
+                getName(), fields.get().getActualField(), className);
         }
-        double[] fpPercentiles = percentilesArray(restAgg.getAggregations().get(PERCENTILES_AGG_NAME));
+        if (restNestedFilter.getDocCount() == 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] requires at least one [{}] to have the value [{}]",
+                getName(), fields.get().getPredictedClassField(), className);
+        }
+        Percentiles restPercentiles = restNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
+        double[] fpPercentiles = percentilesArray(restPercentiles);
 
         List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
         double aucRocScore = calculateAucScore(aucRocCurve);
         result.set(
             new Result(
                 aucRocScore,
-                classAgg.getDocCount() + restAgg.getDocCount(),
+                classNestedFilter.getDocCount() + restNestedFilter.getDocCount(),
                 includeCurve ? aucRocCurve : Collections.emptyList()));
     }
 

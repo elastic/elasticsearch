@@ -25,8 +25,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -236,16 +233,12 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
+
         protected Indexer<Parsed, Processed> geometryIndexer;
         protected Parser<Parsed> geometryParser;
-        protected QueryProcessor geometryQueryBuilder;
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-        }
-
-        public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
-            this.geometryQueryBuilder = geometryQueryBuilder;
         }
 
         public void setGeometryIndexer(Indexer<Parsed, Processed> geometryIndexer) {
@@ -264,28 +257,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             return geometryParser;
         }
 
-        public QueryProcessor geometryQueryBuilder() {
-            return geometryQueryBuilder;
-        }
-
-        /**
-         * interface representing a query builder that generates a query from the given geometry
-         */
-        public interface QueryProcessor {
-            Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
-
-            @Deprecated
-            default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
-                                  QueryShardContext context) {
-                return process(shape, fieldName, relation, context);
-            }
-        }
-
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context,
                 "Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
-                + name() + "]");
+                    + name() + "]");
         }
     }
 

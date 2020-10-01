@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -53,11 +54,15 @@ public class StoreListShortcutNode extends StoreNode {
 
     /* ---- end visitor ---- */
 
+    public StoreListShortcutNode(Location location) {
+        super(location);
+    }
+
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         getChildNode().write(classWriter, methodWriter, writeScope);
 
-        methodWriter.writeDebugInfo(location);
+        methodWriter.writeDebugInfo(getLocation());
         methodWriter.invokeMethodCall(setter);
         methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }

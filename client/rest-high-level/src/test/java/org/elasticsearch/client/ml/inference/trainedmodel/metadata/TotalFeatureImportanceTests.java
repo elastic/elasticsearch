@@ -50,11 +50,7 @@ public class TotalFeatureImportanceTests extends AbstractXContentTestCase<TotalF
     }
 
     private static TotalFeatureImportance.Importance randomImportance() {
-        return new TotalFeatureImportance.Importance(
-            randomDouble(),
-            randomDouble(),
-            randomDouble(),
-            randomBoolean() ? null : randomDouble());
+        return new TotalFeatureImportance.Importance(randomDouble(), randomDouble(), randomDouble());
     }
 
     @Override

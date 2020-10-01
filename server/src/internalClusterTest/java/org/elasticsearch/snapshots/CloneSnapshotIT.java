@@ -348,8 +348,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testMasterFailoverDuringCloneStep1() throws Exception {
-        // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
-        internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startMasterOnlyNodes(3);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -359,18 +358,25 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        final String targetSnapshot1 = "target-snapshot";
         blockMasterOnReadIndexMeta(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture =
-                startCloneFromDataNode(repoName, sourceSnapshot, targetSnapshot1, testIndex);
+                startCloneFromDataNode(repoName, sourceSnapshot, "target-snapshot", testIndex);
         awaitNumberOfSnapshotsInProgress(1);
         final String masterNode = internalCluster().getMasterName();
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
         internalCluster().restartNode(masterNode);
-        expectThrows(SnapshotException.class, cloneFuture::actionGet);
+        boolean cloneSucceeded = false;
+        try {
+            cloneFuture.actionGet(TimeValue.timeValueSeconds(30L));
+            cloneSucceeded = true;
+        } catch (SnapshotException sne) {
+            // ignored, most of the time we will throw here but we could randomly run into a situation where the data node retries the
+            // snapshot on disconnect slowly enough for it to work out
+        }
+
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
 
-        assertAllSnapshotsSuccessful(getRepositoryData(repoName), 1);
+        assertAllSnapshotsSuccessful(getRepositoryData(repoName), cloneSucceeded ? 2 : 1);
     }
 
     public void testFailsOnCloneMissingIndices() {

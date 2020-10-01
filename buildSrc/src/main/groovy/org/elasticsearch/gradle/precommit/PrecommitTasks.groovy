@@ -28,7 +28,7 @@ class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
 
-    public static void create(Project project, boolean includeDependencyLicenses) {
+    static void create(Project project, boolean includeDependencyLicenses) {
 
         project.pluginManager.apply(CheckstylePrecommitPlugin)
         project.pluginManager.apply(ForbiddenApisPrecommitPlugin)

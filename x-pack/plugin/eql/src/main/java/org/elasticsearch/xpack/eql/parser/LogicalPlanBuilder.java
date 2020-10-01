@@ -261,10 +261,6 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
-        if (ctx.FORK() != null) {
-            throw new ParsingException(source(ctx.FORK()), "sequence fork is unsupported");
-        }
-
         return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery());
     }
 

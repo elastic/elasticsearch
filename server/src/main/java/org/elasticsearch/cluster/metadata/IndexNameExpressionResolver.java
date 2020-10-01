@@ -339,7 +339,6 @@ public class IndexNameExpressionResolver {
                         assert false : errorMsg;
                         throw new IllegalArgumentException(errorMsg);
                 }
-                ;
             }
         }
     }

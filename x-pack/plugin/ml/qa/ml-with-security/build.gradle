@@ -119,6 +119,7 @@ yamlRestTest {
     'ml/evaluate_data_frame/Test classification auc_roc given actual_field is never equal to fish',
     'ml/evaluate_data_frame/Test classification auc_roc given predicted_class_field is never equal to mouse',
     'ml/evaluate_data_frame/Test classification auc_roc with missing class_name',
+    'ml/evaluate_data_frame/Test classification auc_roc with old results format',
     'ml/evaluate_data_frame/Test classification accuracy with missing predicted_field',
     'ml/evaluate_data_frame/Test regression given evaluation with empty metrics',
     'ml/evaluate_data_frame/Test regression given missing actual_field',

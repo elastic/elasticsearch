@@ -112,7 +112,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      */
     public static Entry startClone(Snapshot snapshot, SnapshotId source, List<IndexId> indices, long startTime,
                                    long repositoryStateId, Version version) {
-        return new SnapshotsInProgress.Entry(snapshot, false, false, State.STARTED, indices, Collections.emptyList(),
+        return new SnapshotsInProgress.Entry(snapshot, true, false, State.STARTED, indices, Collections.emptyList(),
                 startTime, repositoryStateId, ImmutableOpenMap.of(), null, Collections.emptyMap(), version, source,
                 ImmutableOpenMap.of());
     }

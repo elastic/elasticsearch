@@ -164,10 +164,9 @@ GET /_search
 [[missing-date-components]]
 ====== Missing date components
 
-For <<query-dsl-range-query,range>> queries and
-<<search-aggregations-bucket-daterange-aggregation,date range>> aggregations,
-{es} replaces missing date components with the following values. Missing year
-components are not replaced.
+For range queries and <<search-aggregations-bucket-daterange-aggregation,date
+range>> aggregations, {es} replaces missing date components with the following
+values. Missing year components are not replaced.
 
 [source,text]
 ----

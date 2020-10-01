@@ -10,9 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.TimeValue;
@@ -25,12 +23,12 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -170,72 +168,48 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             job.getId(),
             cutoffEpochMs));
 
-        SearchRequest searchRequest = new SearchRequest();
-        searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
-
-        QueryBuilder activeSnapshotFilter = QueryBuilders.termQuery(
-            ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), job.getModelSnapshotId());
-        QueryBuilder retainFilter = QueryBuilders.termQuery(ModelSnapshot.RETAIN.getPreferredName(), true);
-        QueryBuilder query = createQuery(job.getId(), cutoffEpochMs)
-            .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()))
-            .mustNot(activeSnapshotFilter)
-            .mustNot(retainFilter);
-
-        SearchSourceBuilder source = new SearchSourceBuilder();
-        source.query(query);
-        source.size(MODEL_SNAPSHOT_SEARCH_SIZE);
-        source.sort(ModelSnapshot.TIMESTAMP.getPreferredName());
-        source.fetchSource(false);
-        source.docValueField(Job.ID.getPreferredName(), null);
-        source.docValueField(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), null);
-        source.docValueField(ModelSnapshot.TIMESTAMP.getPreferredName(), "epoch_millis");
-        searchRequest.source(source);
-        searchRequest.setParentTask(getParentTaskId());
-
         long deleteAllBeforeMs = (job.getModelSnapshotRetentionDays() == null)
             ? 0 : latestTimeMs - TimeValue.timeValueDays(job.getModelSnapshotRetentionDays()).getMillis();
-        client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
-            MachineLearning.UTILITY_THREAD_POOL_NAME, expiredSnapshotsListener(job.getId(), deleteAllBeforeMs, listener), false));
+        ActionListener<QueryPage<ModelSnapshot>> snapshotsListener = expiredSnapshotsListener(job, deleteAllBeforeMs, listener);
+        jobResultsProvider.modelSnapshots(job.getId(),
+            0,
+            MODEL_SNAPSHOT_SEARCH_SIZE,
+            null,
+            String.valueOf(cutoffEpochMs),
+            ModelSnapshot.TIMESTAMP.getPreferredName(),
+            true,
+            null,
+            snapshotsListener::onResponse,
+            snapshotsListener::onFailure);
     }
 
-    private ActionListener<SearchResponse> expiredSnapshotsListener(String jobId,
-                                                                    long deleteAllBeforeMs,
-                                                                    ActionListener<Boolean> listener) {
+    private ActionListener<QueryPage<ModelSnapshot>> expiredSnapshotsListener(Job job,
+                                                                              long deleteAllBeforeMs,
+                                                                              ActionListener<Boolean> listener) {
         return new ActionListener<>() {
             @Override
-            public void onResponse(SearchResponse searchResponse) {
+            public void onResponse(QueryPage<ModelSnapshot> searchResponse) {
                 long nextToKeepMs = deleteAllBeforeMs;
                 try {
                     List<ModelSnapshot> snapshots = new ArrayList<>();
-                    for (SearchHit hit : searchResponse.getHits()) {
-                        String timestamp = stringFieldValueOrNull(hit, ModelSnapshot.TIMESTAMP.getPreferredName());
-                        if (timestamp == null) {
-                            LOGGER.warn("Model snapshot document [{}] has a null timestamp field", hit.getId());
+                    for (ModelSnapshot snapshot: searchResponse.results()) {
+                        if (snapshot.getSnapshotId().equals(job.getModelSnapshotId())) {
                             continue;
                         }
-                        long timestampMs = TimeUtils.parseToEpochMs(timestamp);
+                        if (snapshot.getTimestamp() == null) {
+                            LOGGER.warn("Model snapshot document [{}] has a null timestamp field", snapshot.getSnapshotId());
+                            continue;
+                        }
+                        long timestampMs = snapshot.getTimestamp().getTime();
                         if (timestampMs >= nextToKeepMs) {
                             do {
                                 nextToKeepMs += MS_IN_ONE_DAY;
                             } while (timestampMs >= nextToKeepMs);
                             continue;
                         }
-                        String jobId = stringFieldValueOrNull(hit, Job.ID.getPreferredName());
-                        String snapshotId = stringFieldValueOrNull(hit, ModelSnapshotField.SNAPSHOT_ID.getPreferredName());
-
-                        if (jobId != null && snapshotId != null) {
-                            jobResultsProvider.getModelSnapshot(
-                                jobId,
-                                snapshotId,
-                                // We are safe to grab this snapshot as the query is by DOC ID and we already filtered out the
-                                // currently active snapshot earlier in the call chain
-                                (shots) -> snapshots.add(shots.result),
-                                (failure) ->
-                                    LOGGER.warn(new ParameterizedMessage("[{}] failed to find snapshot [{}]", jobId, snapshotId), failure)
-                                );
-                        }
+                        snapshots.add(snapshot);
                     }
-                    deleteModelSnapshots(snapshots, jobId, listener);
+                    deleteModelSnapshots(snapshots, job.getId(), listener);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -243,7 +217,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("[{}] Search for expired snapshots failed", e, jobId));
+                listener.onFailure(new ElasticsearchException("[{}] Search for expired snapshots failed", e, job.getId()));
             }
         };
     }

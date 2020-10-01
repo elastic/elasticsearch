@@ -31,13 +31,11 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -48,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class Murmur3FieldMapper extends FieldMapper {
+public class Murmur3FieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "murmur3";
 
@@ -60,39 +58,35 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    private static Murmur3FieldMapper toType(FieldMapper in) {
+        return (Murmur3FieldMapper) in;
+    }
+
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(stored, meta);
         }
 
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
-            return new Murmur3FieldMapper(name, fieldType, new Murmur3FieldType(buildFullName(context), fieldType.stored(), meta),
-                    multiFieldsBuilder.build(this, context), copyTo);
+            return new Murmur3FieldMapper(
+                name,
+                new Murmur3FieldType(buildFullName(context), stored.getValue(), meta.getValue()),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            Builder builder = new Builder(name);
-
-            // tweaking these settings is no longer allowed, the entire purpose of murmur3 fields is to store a hash
-            if (node.get("doc_values") != null) {
-                throw new MapperParsingException("Setting [doc_values] cannot be modified for field [" + name + "]");
-            }
-            if (node.get("index") != null) {
-                throw new MapperParsingException("Setting [index] cannot be modified for field [" + name + "]");
-            }
-
-            TypeParsers.parseField(builder, name, node, parserContext);
-
-            return builder;
-        }
-    }
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
@@ -117,9 +111,16 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
-    protected Murmur3FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-            MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
+    protected Murmur3FieldMapper(String simpleName,
+                                 MappedFieldType mappedFieldType,
+                                 MultiFields multiFields,
+                                 CopyTo copyTo) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
 
     @Override
@@ -140,7 +141,7 @@ public class Murmur3FieldMapper extends FieldMapper {
             final BytesRef bytes = new BytesRef(value.toString());
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
-            if (fieldType.stored()) {
+            if (fieldType().isStored()) {
                 context.doc().add(new StoredField(name(), hash));
             }
         }
@@ -159,13 +160,4 @@ public class Murmur3FieldMapper extends FieldMapper {
         };
     }
 
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
-    }
 }

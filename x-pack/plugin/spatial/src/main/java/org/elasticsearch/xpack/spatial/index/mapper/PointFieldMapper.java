@@ -10,11 +10,15 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.ParsedCartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
@@ -48,7 +52,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
                 return point;
             }, (ParsedCartesianPoint) nullValue, ignoreZValue.value(), ignoreMalformed.value()));
             ft.setGeometryIndexer(new PointIndexer(ft));
-            ft.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
             return new PointFieldMapper(simpleName, fieldType, ft, multiFields,
                 ignoreMalformed, ignoreZValue(context), nullValue, copyTo);
         }
@@ -113,14 +116,24 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         return (PointFieldType) mappedFieldType;
     }
 
-    public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
+    public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>>
+    implements ShapeQueryable {
+
+        private final ShapeQueryPointProcessor queryProcessor;
+
         private PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
+            this.queryProcessor = new ShapeQueryPointProcessor();
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            return queryProcessor.shapeQuery(shape, fieldName, relation, context);
         }
     }
 

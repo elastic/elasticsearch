@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.painless.api.LimitedCharSequenceTests;
 
 public class RegexLimitTests extends ScriptTestCase {
     // This regex has backtracking due to .*?

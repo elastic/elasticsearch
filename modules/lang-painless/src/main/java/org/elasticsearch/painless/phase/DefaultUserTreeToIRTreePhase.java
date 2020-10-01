@@ -242,8 +242,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         irClassNode.addFieldNode(irFieldNode);
 
-        irFieldNode = new FieldNode();
-        irFieldNode.setLocation(internalLocation);
+        irFieldNode = new FieldNode(internalLocation);
         irFieldNode.setModifiers(modifiers);
         irFieldNode.setFieldType(Map.class);
         irFieldNode.setName("$COMPILERSETTINGS");
@@ -957,6 +956,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             BinaryMathNode irBinaryMathNode = new BinaryMathNode(userBinaryNode.getLocation());
 
+            if (operation == Operation.MATCH) {
+                irBinaryMathNode.setRegexLimit(scriptScope.getCompilerSettings().getRegexLimitFactor());
+            }
             irBinaryMathNode.setBinaryType(scriptScope.getDecoration(userBinaryNode, BinaryType.class).getBinaryType());
             irBinaryMathNode.setShiftType(shiftType);
             irBinaryMathNode.setOperation(operation);
@@ -1738,8 +1740,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                     throw new IllegalStateException("illegal tree structure");
                 }
 
-                ConstantNode constantNode = new ConstantNode();
-                constantNode.setLocation(userCallNode.getLocation());
+                ConstantNode constantNode = new ConstantNode(userCallNode.getLocation());
                 constantNode.setExpressionType(parameterType);
                 constantNode.setConstant(injection);
                 irInvokeCallNode.addArgumentNode(constantNode);

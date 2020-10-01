@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.api.Augmentation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -40,6 +41,8 @@ public class BinaryMathNode extends BinaryNode {
     private Class<?> binaryType;
     private Class<?> shiftType;
     private int flags;
+    // TODO(stu): DefaultUserTreeToIRTree -> visitRegex should have compiler settings in script set.  set it
+    private int regexLimit;
 
     public void setOperation(Operation operation) {
         this.operation = operation;
@@ -81,6 +84,14 @@ public class BinaryMathNode extends BinaryNode {
         return flags;
     }
 
+    public void setRegexLimit(int regexLimit) {
+        this.regexLimit = regexLimit;
+    }
+
+    public int getRegexLimit() {
+        return regexLimit;
+    }
+
     /* ---- end node data, begin visitor ---- */
 
     @Override
@@ -106,8 +117,9 @@ public class BinaryMathNode extends BinaryNode {
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
             getRightNode().write(classWriter, methodWriter, writeScope);
+            methodWriter.push(regexLimit);
             getLeftNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
+            methodWriter.invokeStatic(org.objectweb.asm.Type.getType(Augmentation.class), WriterConstants.PATTERN_MATCHER);
 
             if (operation == Operation.FIND) {
                 methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_FIND);

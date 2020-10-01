@@ -75,20 +75,16 @@ public class LimitedCharSequence implements CharSequence {
     }
 
     public String details(int index) {
+        // TODO(stu): pattern may be null
         return "pattern: [" + pattern.pattern() + "], " +
             "limit factor: [" + limitFactor + "], " +
             "char limit: [" + counter.charAtLimit + "], " +
-            "snippet: [" + sequenceSnippet(index) + "], " +
+            // TODO(stu): add ... for long fields
+            // "snippet: [" + sequenceSnippet(index) + "], " +
             "count: [" + counter.count + "], " +
-            // TODO(stu): remove these when sequenceSnippet is implemented
             "isSubSequence: [" + isSubSequence + "], " +
             "offset: [" + offset + "], " +
             "wrapped: [" + wrapped.toString() + "]";
-    }
-
-    String sequenceSnippet(int index) {
-        // TODO(stu): consider isSubSequence and snippetLimit
-        return original.toString();
     }
 
     @Override

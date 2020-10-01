@@ -56,6 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BYTE_IMPLICIT;
@@ -250,6 +251,7 @@ public final class PainlessLookupBuilder {
 
     public void addPainlessClass(Class<?> clazz, boolean importClassName) {
         Objects.requireNonNull(clazz);
+        //Matcher m = new Matcher();
 
         if (clazz == def.class) {
             throw new IllegalArgumentException("cannot add reserved class [" + DEF_CLASS_NAME + "]");

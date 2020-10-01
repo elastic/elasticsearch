@@ -494,6 +494,8 @@ public class AugmentationTests extends ScriptTestCase {
         assertTrue(cbe.getMessage().contains(regexCircuitMessage));
     }
 
+    //qpublic void testRegexInject
+
     private void setRegexLimitFactor(int factor) {
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), factor).build();
         scriptEngine = new PainlessScriptEngine(settings, scriptContexts());

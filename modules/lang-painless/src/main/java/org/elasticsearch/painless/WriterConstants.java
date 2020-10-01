@@ -80,7 +80,7 @@ public final class WriterConstants {
      * regex per time it is run.
      */
     public static final Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class, int.class);
-    public static final Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", CharSequence.class);
+    public static final Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", Pattern.class, int.class, CharSequence.class);
     public static final Method MATCHER_MATCHES = getAsmMethod(boolean.class, "matches");
     public static final Method MATCHER_FIND = getAsmMethod(boolean.class, "find");
 

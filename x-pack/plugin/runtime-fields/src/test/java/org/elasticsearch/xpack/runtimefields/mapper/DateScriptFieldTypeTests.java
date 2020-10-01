@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
+public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("date", null).format(1595432181354L), equalTo("2020-07-22"));
         assertThat(
@@ -84,7 +84,7 @@ public class DateScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
 
     public void testFormatDuel() throws IOException {
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random()));
-        DateScriptMappedFieldType scripted = build(new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()), formatter);
+        DateScriptFieldType scripted = build(new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()), formatter);
         DateFieldMapper.DateFieldType indexed = new DateFieldMapper.DateFieldType("test", formatter);
         for (int i = 0; i < 100; i++) {
             long date = randomDate();
@@ -105,7 +105,7 @@ public class DateScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DateScriptMappedFieldType ft = build("add_days", Map.of("days", 1));
+                DateScriptFieldType ft = build("add_days", Map.of("days", 1));
                 DateScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -316,7 +316,7 @@ public class DateScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     @Override
     protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
         long d1 = randomDate();
-        long d2 = randomValueOtherThan(d1, DateScriptMappedFieldTypeTests::randomDate);
+        long d2 = randomValueOtherThan(d1, DateScriptFieldTypeTests::randomDate);
         if (d1 > d2) {
             long backup = d2;
             d2 = d1;
@@ -389,11 +389,11 @@ public class DateScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
 
     @Override
     protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.termsQuery(randomList(1, 100, DateScriptMappedFieldTypeTests::randomDate), ctx);
+        return ft.termsQuery(randomList(1, 100, DateScriptFieldTypeTests::randomDate), ctx);
     }
 
     @Override
-    protected DateScriptMappedFieldType simpleMappedFieldType() throws IOException {
+    protected DateScriptFieldType simpleMappedFieldType() throws IOException {
         return build("read_timestamp");
     }
 
@@ -402,7 +402,7 @@ public class DateScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         return build("loop");
     }
 
-    private DateScriptMappedFieldType coolFormattedFieldType() throws IOException {
+    private DateScriptFieldType coolFormattedFieldType() throws IOException {
         return build(simpleMappedFieldType().script, DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz||epoch_millis"));
     }
 
@@ -411,15 +411,15 @@ public class DateScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         return "date";
     }
 
-    private static DateScriptMappedFieldType build(String code) throws IOException {
+    private static DateScriptFieldType build(String code) throws IOException {
         return build(code, Map.of());
     }
 
-    private static DateScriptMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static DateScriptFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, "test", code, params), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
     }
 
-    private static DateScriptMappedFieldType build(Script script, DateFormatter dateTimeFormatter) throws IOException {
+    private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -498,7 +498,7 @@ public class DateScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DateFieldScript.Factory factory = scriptService.compile(script, DateFieldScript.CONTEXT);
-            return new DateScriptMappedFieldType("test", script, factory, dateTimeFormatter, emptyMap());
+            return new DateScriptFieldType("test", script, factory, dateTimeFormatter, emptyMap());
         }
     }
 

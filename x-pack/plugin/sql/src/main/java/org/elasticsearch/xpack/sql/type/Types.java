@@ -73,7 +73,7 @@ public abstract class Types {
                     properties = Collections.emptyMap();
                 }
             } else {
-                properties = Collections.emptyMap();
+                properties = fromEs(content);
             }
             boolean docValues = boolSetting(content.get("doc_values"), esDataType.defaultDocValues);
             final EsField field;
@@ -91,7 +91,8 @@ public abstract class Types {
                     break;
                 case UNSUPPORTED:
                     String type = content.get("type").toString();
-                    field = new UnsupportedEsField(name, type);
+                    field = new UnsupportedEsField(name, type, null, properties);
+                    propagateUnsupportedType(name, type, properties);
                     break;
                 default:
                     field = new EsField(name, esDataType, properties, docValues);
@@ -112,5 +113,22 @@ public abstract class Types {
 
     private static int intSetting(Object value, int defaultValue) {
         return value == null ? defaultValue : Integer.parseInt(value.toString());
+    }
+    
+    private static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
+        if (properties != null && properties.isEmpty() == false) {
+            for (Entry<String, EsField> entry : properties.entrySet()) {
+                EsField field = entry.getValue();
+                UnsupportedEsField u;
+                if (field instanceof UnsupportedEsField) {
+                    u = (UnsupportedEsField) field;
+                    u = new UnsupportedEsField(u.getName(), originalType, inherited, u.getProperties());
+                } else {
+                    u = new UnsupportedEsField(field.getName(), originalType, inherited, field.getProperties());
+                }
+                entry.setValue(u);
+                propagateUnsupportedType(inherited, originalType, u.getProperties());
+            }
+        }
     }
 }

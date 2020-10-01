@@ -59,6 +59,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
@@ -183,6 +184,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
         vagrant.setBox(box);
         vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH"));
+        // pass these along to get correct build scans
+        if (System.getenv("JENKINS_URL") != null) {
+            Stream.of("JOB_NAME", "JENKINS_URL", "BUILD_NUMBER", "BUILD_URL").forEach(name ->
+                vagrant.vmEnv(name, System.getenv(name))
+            );
+        }
         vagrant.setIsWindowsVM(isWindows(project));
 
         return Arrays.asList(gradleJdk);

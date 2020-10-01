@@ -470,11 +470,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             private void logRetentionLeaseFailure(final String retentionLeaseId, final Throwable cause) {
                 assert cause instanceof ElasticsearchSecurityException == false : cause;
-                logger.warn(new ParameterizedMessage(
-                                "{} background management of retention lease [{}] failed while following",
-                                params.getFollowShardId(),
-                                retentionLeaseId),
+                if (CcrRetentionLeases.isInvalidRetainingSequenceNumberError(retentionLeaseId, cause) == false) {
+                    logger.warn(new ParameterizedMessage(
+                            "{} background management of retention lease [{}] failed while following",
+                            params.getFollowShardId(),
+                            retentionLeaseId),
                         cause);
+                }
             }
 
         };

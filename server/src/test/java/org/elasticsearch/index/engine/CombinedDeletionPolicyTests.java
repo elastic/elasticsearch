@@ -229,22 +229,28 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             lastCheckpoint = randomLongBetween(lastCheckpoint, lastMaxSeqNo);
             commitList.add(mockIndexCommit(lastCheckpoint, lastMaxSeqNo, translogUUID, lastTranslogGen));
         }
-        IndexCommit safeCommit = randomFrom(commitList);
-        globalCheckpoint.set(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
+        int safeCommitIndex = randomIntBetween(0, commitList.size() - 1);
+        globalCheckpoint.set(Long.parseLong(commitList.get(safeCommitIndex).getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
         commitList.forEach(this::resetDeletion);
         indexPolicy.onCommit(commitList);
-        if (safeCommit == commitList.get(commitList.size() - 1)) {
+
+        if (safeCommitIndex == commitList.size() - 1) {
             // Safe commit is the last commit - no need to clean up
             assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastTranslogGen));
             assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
             assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
         } else {
-            // Advanced but not enough
-            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), lastMaxSeqNo - 1));
-            assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
-            // Advanced enough
+            // Advanced but not enough for any commit after the safe commit becomes safe
+            IndexCommit nextSafeCommit = commitList.get(safeCommitIndex + 1);
+            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(),
+                Long.parseLong(nextSafeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)) - 1));
+            assertFalse(indexPolicy.hasUnreferencedCommits());
+            // Advanced enough for some index commit becomes safe
+            globalCheckpoint.set(randomLongBetween(
+                Long.parseLong(nextSafeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), lastMaxSeqNo));
+            assertTrue(indexPolicy.hasUnreferencedCommits());
+            // Advanced enough for the last commit becomes safe
             globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
-            assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(true));
             commitList.forEach(this::resetDeletion);
             indexPolicy.onCommit(commitList);
             // Safe commit is the last commit - no need to clean up

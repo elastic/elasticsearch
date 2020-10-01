@@ -112,8 +112,11 @@ public class IndexLifecycleClient {
 
     /**
      * Delete a lifecycle definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-delete-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -127,8 +130,11 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously delete a lifecycle definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-delete-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -141,8 +147,11 @@ public class IndexLifecycleClient {
 
     /**
      * Remove the index lifecycle policy for an index
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-remove-lifecycle-policy-from-index.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -156,8 +165,11 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously remove the index lifecycle policy for an index
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-remove-lifecycle-policy-from-index.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -170,8 +182,11 @@ public class IndexLifecycleClient {
 
     /**
      * Start the Index Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-start-ilm.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -184,8 +199,11 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously start the Index Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-start-ilm.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -197,8 +215,11 @@ public class IndexLifecycleClient {
 
     /**
      * Stop the Index Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-stop-ilm.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -210,9 +231,28 @@ public class IndexLifecycleClient {
     }
 
     /**
+     * Asynchronously stop the Index Lifecycle Management feature.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-stop-ilm.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void stopILMAsync(StopILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::stopILM, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Get the status of index lifecycle management
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-status.html
+     * </pre>
+     * for more.
      *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -225,9 +265,11 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously get the status of index lifecycle management
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
-     *
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-status.html
+     * </pre>
+     * for more.
      * @param request  the request
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -239,22 +281,12 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Asynchronously stop the Index Lifecycle Management feature.
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     */
-    public void stopILMAsync(StopILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::stopILM, options,
-                AcknowledgedResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
      * Explain the lifecycle state for an index
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-explain-lifecycle.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -267,8 +299,11 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously explain the lifecycle state for an index
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-explain-lifecycle.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -281,8 +316,11 @@ public class IndexLifecycleClient {
 
     /**
      * Retry lifecycle step for given indices
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-retry-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -295,8 +333,11 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously retry the lifecycle step for given indices
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-ilm-retry-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion

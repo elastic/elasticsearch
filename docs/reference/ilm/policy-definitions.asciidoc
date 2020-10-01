@@ -88,7 +88,7 @@ executing.
 The below list shows the actions which are available in each phase.
 
 NOTE: The order that configured actions are performed in within each phase is
-determined by automatically by {ilm-init}, and cannot be changed by changing the
+determined automatically by {ilm-init}, and cannot be changed by changing the
 policy definition.
 
 * Hot
@@ -126,6 +126,8 @@ two separate index settings updates, both can be configured at once.
 For more information about how {es} uses replicas for scaling, see
 <<scalability>>. See <<shard-allocation-filtering>> for more information about
 controlling where Elasticsearch allocates shards of a particular index.
+
+Note: As allocate action is not allowed in `hot` phase, the initial allocation for the index should be done manually or via index templates, as ILM won't take care of index allocation during `hot` phase.
 
 [[ilm-allocate-options]]
 .Allocate Options

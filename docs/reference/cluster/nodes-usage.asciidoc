@@ -1,5 +1,8 @@
 [[cluster-nodes-usage]]
-=== Nodes Feature Usage
+=== Nodes feature usage API
+++++
+<titleabbrev>Nodes feature usage</titleabbrev>
+++++
 
 Returns information on the usage of features.
 

@@ -16,13 +16,13 @@ POST /twitter/_flush
 [[flush-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/flush`
+`POST /<index>/_flush`
 
-`GET /<index>/flush`
+`GET /<index>/_flush`
 
-`POST /flush`
+`POST /_flush`
 
-`GET /flush`
+`GET /_flush`
 
 
 [[flush-api-desc]]

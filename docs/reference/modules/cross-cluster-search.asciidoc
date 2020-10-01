@@ -250,9 +250,31 @@ PUT _cluster/settings
 If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
 include matching documents from that cluster in the final results.
 
-[float]
+[discrete]
 [[ccs-works]]
 == How {ccs} works
+
+include::./remote-clusters.asciidoc[tag=how-remote-clusters-work]
+
+[discrete]
+[[ccs-gateway-seed-nodes]]
+=== Selecting gateway and seed nodes
+
+Gateway and seed nodes need to be accessible from the local cluster via your
+network.
+
+By default, any master-ineligible node can act as a gateway node. If wanted,
+you can define the gateway nodes for a cluster by setting
+`cluster.remote.node.attr.gateway` to `true`.
+
+For {ccs}, we recommend you use gateway nodes that are capable of serving as
+<<coordinating-node,coordinating nodes>> for search requests. If
+wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
+
+[discrete]
+[[ccs-network-delays]]
+=== How {ccs} handles network delays
+
 Because {ccs} involves sending requests to remote clusters, any network delays
 can impact search speed. To avoid slow searches, {ccs} offers two options for
 handling network delays:
@@ -276,65 +298,63 @@ latency.
 +
 See <<ccs-unmin-roundtrips>> to learn how this option works.
 
-
-
 [float]
 [[ccs-min-roundtrips]]
-=== Minimize network roundtrips
+==== Minimize network roundtrips
 
 Here's how {ccs} works when you minimize network roundtrips.
 
 . You send a {ccs} request to your local cluster. A coordinating node in that
 cluster receives and parses the request.
 +
-image:images/ccs/ccs-min-roundtrip-client-request.png[]
+image:images/ccs/ccs-min-roundtrip-client-request.svg[]
 
 . The coordinating node sends a single search request to each cluster, including
 its own. Each cluster performs the search request independently.
 +
-image:images/ccs/ccs-min-roundtrip-cluster-search.png[]
+image:images/ccs/ccs-min-roundtrip-cluster-search.svg[]
 
 . Each remote cluster sends its search results back to the coordinating node.
 +
-image:images/ccs/ccs-min-roundtrip-cluster-results.png[]
+image:images/ccs/ccs-min-roundtrip-cluster-results.svg[]
 
 . After collecting results from each cluster, the coordinating node returns the
 final results in the {ccs} response.
 +
-image:images/ccs/ccs-min-roundtrip-client-response.png[]
+image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 
 [float]
 [[ccs-unmin-roundtrips]]
-=== Don't minimize network roundtrips
+==== Don't minimize network roundtrips
 
 Here's how {ccs} works when you don't minimize network roundtrips.
 
 . You send a {ccs} request to your local cluster. A coordinating node in that
 cluster receives and parses the request.
 +
-image:images/ccs/ccs-min-roundtrip-client-request.png[]
+image:images/ccs/ccs-min-roundtrip-client-request.svg[]
 
 . The coordinating node sends a <<search-shards,search shards>> API request to
 each remote cluster.
 +
-image:images/ccs/ccs-min-roundtrip-cluster-search.png[]
+image:images/ccs/ccs-min-roundtrip-cluster-search.svg[]
 
 . Each remote cluster sends its response back to the coordinating node.
 This response contains information about the indices and shards the {ccs}
 request will be executed on.
 +
-image:images/ccs/ccs-min-roundtrip-cluster-results.png[]
+image:images/ccs/ccs-min-roundtrip-cluster-results.svg[]
 
 . The coordinating node sends a search request to each shard, including those in
 its own cluster. Each shard performs the search request independently.
 +
-image:images/ccs/ccs-dont-min-roundtrip-shard-search.png[]
+image:images/ccs/ccs-dont-min-roundtrip-shard-search.svg[]
 
 . Each shard sends its search results back to the coordinating node.
 +
-image:images/ccs/ccs-dont-min-roundtrip-shard-results.png[]
+image:images/ccs/ccs-dont-min-roundtrip-shard-results.svg[]
 
 . After collecting results from each cluster, the coordinating node returns the
 final results in the {ccs} response.
 +
-image:images/ccs/ccs-min-roundtrip-client-response.png[]
+image:images/ccs/ccs-min-roundtrip-client-response.svg[]

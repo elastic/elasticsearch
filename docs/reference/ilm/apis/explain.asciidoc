@@ -8,42 +8,48 @@
 
 Shows an index's current lifecycle status.
 
-==== Request
+[[ilm-explain-lifecycle-request]]
+==== {api-request-title}
 
 `GET <index>/_ilm/explain`
 
-==== Description
+[[ilm-explain-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage_ilm` or both privileges on the indices being
+managed to use this API. For more information, see <<security-privileges>>.
+
+[[ilm-explain-lifecycle-desc]]
+==== {api-description-title}
 
 Retrieves information about the index's current lifecycle state, such as
 the currently executing phase, action, and step. Shows when the index entered
 each one, the definition of the running phase, and information
 about any failures.
 
-==== Path Parameters
+[[ilm-explain-lifecycle-path-params]]
+==== {api-path-parms-title}
 
-`index` (required)::
-  (string) Identifier for the index.
+`<index>`::
+  (Required, string) Identifier for the index.
 
-==== Request Parameters
+[[ilm-explain-lifecycle-query-params]]
+==== {api-query-parms-title}
 
 `only_managed`::
-  (boolean) Filters the returned indices to only indices that are managed by
+  (Optional, boolean) Filters the returned indices to only indices that are managed by
   ILM.
 
 `only_errors`::
-  (boolean) Filters the returned indices to only indices that are managed by
+  (Optional, boolean) Filters the returned indices to only indices that are managed by
   ILM and are in an error state, either due to an encountering an error while
   executing the policy, or attempting to use a policy that does not exist.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
-
-You must have the `view_index_metadata` or `manage_ilm` or both privileges on the indices
-being managed to use this API.
-For more information, see <<security-privileges>>.
-
-==== Examples
+[[ilm-explain-lifecycle-example]]
+==== {api-examples-title}
 
 The following example retrieves the lifecycle state of `my_index`:
 

@@ -235,7 +235,7 @@ The `HAVING` clause can be used _only_ along aggregate functions (and thus `GROU
 
 [source, sql]
 ----
-GROUP BY condition
+HAVING condition
 ----
 
 where:

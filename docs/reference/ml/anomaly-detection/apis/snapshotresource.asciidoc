@@ -4,7 +4,7 @@
 === Model snapshot resources
 
 Model snapshots are saved to an internal index within the Elasticsearch cluster.
-By default, this is occurs approximately every 3 hours to 4 hours and is
+By default, this occurs approximately every 3 hours to 4 hours and is
 configurable with the `background_persist_interval` property.
 
 By default, model snapshots are retained for one day (twenty-four hours). You

@@ -36,7 +36,7 @@ from the outside. Defaults to the actual port assigned via `http.port`.
 
 |`http.publish_host` |The host address to publish for HTTP clients to connect to. Defaults to `http.host` (if set) or `network.publish_host`.
 
-|`http.host` |Used to set the `http.bind_host` and the `http.publish_host` Defaults to `http.host` or `network.host`.
+|`http.host` |Used to set the `http.bind_host` and the `http.publish_host`.
 
 |`http.max_content_length` |The max content of an HTTP request. Defaults to
 `100mb`.

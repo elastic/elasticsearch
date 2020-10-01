@@ -269,7 +269,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultipleColumns() {
-        assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
+        // We get only one message back because the messages are grouped by the node that caused the issue
+        assertEquals("1:43: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
     }
 
@@ -373,18 +374,32 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testUnsupportedType() {
-        assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:8: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT unsupported FROM test"));
     }
 
     public void testUnsupportedStarExpansion() {
-        assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:8: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT unsupported.* FROM test"));
     }
 
     public void testUnsupportedTypeInFilter() {
-        assertEquals("1:26: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:26: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT * FROM test WHERE unsupported > 1"));
+    }
+    
+    public void testValidRootFieldWithUnsupportedChildren() {
+        accept("SELECT x FROM test");
+    }
+    
+    public void testUnsupportedTypeInHierarchy() {
+        assertEquals("1:8: Cannot use field [x.y.z.w] with unsupported type [foobar] in hierarchy (field [y])",
+                error("SELECT x.y.z.w FROM test"));
+        assertEquals("1:8: Cannot use field [x.y.z.v] with unsupported type [foobar] in hierarchy (field [y])",
+                error("SELECT x.y.z.v FROM test"));
+        assertEquals("1:8: Cannot use field [x.y.z] with unsupported type [foobar] in hierarchy (field [y])",
+                error("SELECT x.y.z.* FROM test"));
+        assertEquals("1:8: Cannot use field [x.y] with unsupported type [foobar]", error("SELECT x.y FROM test"));
     }
 
     public void testTermEqualitOnInexact() {
@@ -400,12 +415,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testUnsupportedTypeInFunction() {
-        assertEquals("1:12: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:12: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT ABS(unsupported) FROM test"));
     }
 
     public void testUnsupportedTypeInOrder() {
-        assertEquals("1:29: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:29: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT * FROM test ORDER BY unsupported"));
     }
 

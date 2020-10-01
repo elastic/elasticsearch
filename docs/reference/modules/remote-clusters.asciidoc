@@ -13,12 +13,16 @@ connections to a remote cluster. This functionality is used in
 <<modules-cross-cluster-search,{ccs}>>.
 endif::[]
 
+// tag::how-remote-clusters-work[]
 Remote cluster connections work by configuring a remote cluster and connecting
 only to a limited number of nodes in that remote cluster. Each remote cluster
 is referenced by a name and a list of seed nodes. When a remote cluster is
 registered, its cluster state is retrieved from one of the seed nodes and up
 to three _gateway nodes_ are selected to be connected to as part of remote
-cluster requests. All the communication required between different clusters
+cluster requests.
+// end::how-remote-clusters-work[]
+
+All the communication required between different clusters
 goes through the <<modules-transport,transport layer>>. Remote cluster
 connections consist of uni-directional connections from the coordinating
 node to the selected remote _gateway nodes_ only.

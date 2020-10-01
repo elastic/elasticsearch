@@ -1,5 +1,8 @@
 [[cluster-remote-info]]
-=== Remote Cluster Info
+=== Remote cluster info API
+++++
+<titleabbrev>Remote cluster info</titleabbrev>
+++++
 
 Returns configured remote cluster information.
 

@@ -170,7 +170,7 @@ A replica shard failed to sync-flush.
 
 [source,console]
 ----
-POST /kimchy/_flush
+POST /kimchy/_flush/synced
 ----
 // TEST[s/^/PUT kimchy\n/]
 

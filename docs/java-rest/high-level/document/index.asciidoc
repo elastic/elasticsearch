@@ -85,7 +85,7 @@ include-tagged::{doc-tests-file}[{api}-request-version-type]
 include-tagged::{doc-tests-file}[{api}-request-op-type]
 --------------------------------------------------
 <1> Operation type provided as an `DocWriteRequest.OpType` value
-<2> Operation type provided as a `String`: can be `create` or `update` (default)
+<2> Operation type provided as a `String`: can be `create` or `index` (default)
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

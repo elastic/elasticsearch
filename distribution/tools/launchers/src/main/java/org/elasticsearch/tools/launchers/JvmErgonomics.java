@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.elasticsearch.tools.java_version_checker.JavaVersion;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,7 +59,18 @@ final class JvmErgonomics {
         final Map<String, Optional<String>> finalJvmOptions = finalJvmOptions(userDefinedJvmOptions);
         final long heapSize = extractHeapSize(finalJvmOptions);
         final Map<String, String> systemProperties = extractSystemProperties(userDefinedJvmOptions);
+
+        if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
+            Launchers.errPrintln("Warning: with JDK 8 on Windows, Elasticsearch may be unable to derive correct");
+            Launchers.errPrintln("  ergonomic settings due to a JDK issue (JDK-8074459). Please use a newer");
+            Launchers.errPrintln("  version of Java.");
+        }
+
         if (systemProperties.containsKey("io.netty.allocator.type") == false) {
+            if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
+                Launchers.errPrintln("Warning: io.netty.allocator.type may have been miscalculated due to JDK-8074459.");
+                Launchers.errPrintln("  Please use a newer version of Java or set io.netty.allocator.type explicitly");
+            }
             if (heapSize <= 1 << 30) {
                 ergonomicChoices.add("-Dio.netty.allocator.type=unpooled");
             } else {
@@ -65,7 +78,13 @@ final class JvmErgonomics {
             }
         }
         final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);
-        if (maxDirectMemorySize == 0) {
+        if (maxDirectMemorySize == 0 && userDefinedJvmOptions.stream().noneMatch(s -> s.startsWith("-XX:MaxDirectMemorySize"))) {
+
+            if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
+                Launchers.errPrintln("Warning: MaxDirectMemorySize may have been miscalculated due to JDK-8074459.");
+                Launchers.errPrintln("  Please use a newer version of Java or set MaxDirectMemorySize explicitly.");
+            }
+
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
         }
         return ergonomicChoices;

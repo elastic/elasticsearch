@@ -76,7 +76,7 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
-                Version.V_7_2_0))
+                Version.V_7_4_0))
             .add(new DiscoveryNode("current-data-node-with-2-tasks",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
@@ -121,6 +121,83 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
             equalTo("current-data-node-with-1-tasks"));
         assertThat(executor.getAssignment(new DataFrameTransform("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
             equalTo("past-data-node-1"));
+    }
+
+    public void testDoNotSelectOldNodes() {
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addIndices(metaData, routingTable);
+        PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
+            .addTask("transform-task-1",
+                DataFrameTransform.NAME,
+                new DataFrameTransform("transform-task-1", Version.CURRENT, null),
+                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-task", ""));
+
+        PersistentTasksCustomMetaData pTasks = pTasksBuilder.build();
+
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, pTasks);
+
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("old-data-node-1",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                Version.V_7_2_0))
+            .add(new DiscoveryNode("current-data-node-with-1-task",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                Version.CURRENT))
+            .add(new DiscoveryNode("non-data-node-1",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                Version.CURRENT));
+
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
+            .nodes(nodes);
+        csBuilder.routingTable(routingTable.build());
+        csBuilder.metaData(metaData);
+
+        ClusterState cs = csBuilder.build();
+        Client client = mock(Client.class);
+        DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);
+        DataFrameTransformsConfigManager transformsConfigManager = new DataFrameTransformsConfigManager(client, xContentRegistry());
+        DataFrameTransformsCheckpointService transformCheckpointService = new DataFrameTransformsCheckpointService(client,
+            transformsConfigManager, mockAuditor);
+        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
+            Collections.singleton(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(cSettings);
+        when(clusterService.state()).thenReturn(DataFrameInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
+        DataFrameTransformPersistentTasksExecutor executor = new DataFrameTransformPersistentTasksExecutor(client,
+            transformsConfigManager,
+            transformCheckpointService, mock(SchedulerEngine.class),
+            new DataFrameAuditor(client, ""),
+            mock(ThreadPool.class),
+            clusterService,
+            Settings.EMPTY);
+
+        // old-data-node-1 prevents assignment
+        assertNull(executor.getAssignment(new DataFrameTransform("new-task-id", Version.CURRENT, null), cs).getExecutorNode());
+
+        // remove the old 7.2 node
+        nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("current-data-node-with-1-task",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                Version.CURRENT))
+            .add(new DiscoveryNode("non-data-node-1",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                Version.CURRENT));
+        csBuilder.nodes(nodes);
+        cs = csBuilder.build();
+
+        assertThat(executor.getAssignment(new DataFrameTransform("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
+            equalTo("current-data-node-with-1-task"));
     }
 
     public void testVerifyIndicesPrimaryShardsAreActive() {

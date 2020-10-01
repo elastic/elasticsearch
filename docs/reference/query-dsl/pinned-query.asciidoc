@@ -19,7 +19,7 @@ GET /_search
             "ids" : ["1", "4", "100"],
             "organic" : {
             	"match":{
-            		"description": "iphone"
+            		"description": "brown shoes"
             	}
             }
         }

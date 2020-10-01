@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -96,8 +97,18 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             logger.debug(reason);
             return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
+
+        // see gh#48019 disable assignment if any node is using 7.2 or 7.3
+        if (clusterState.getNodes().getMinNodeVersion().before(Version.V_7_4_0)) {
+            String reason = "Not starting transform [" + params.getId() + "], " +
+                "because cluster contains nodes with version older than 7.4.0";
+            logger.debug(reason);
+            return new PersistentTasksCustomMetaData.Assignment(null, reason);
+        }
+
         DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, (node) ->
-            node.isDataNode() && node.getVersion().onOrAfter(params.getVersion())
+            node.isDataNode() &&
+            node.getVersion().onOrAfter(params.getVersion())
         );
         return discoveryNode == null ? NO_NODE_FOUND : new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
     }

@@ -338,7 +338,7 @@ connections are unreliable or slow, it is not optimised for this case and its
 performance may suffer. If you wish to geographically distribute your data, you
 should provision multiple clusters and use features such as
 {ref}/modules-cross-cluster-search.html[cross-cluster search] and
-{stack-ov}/xpack-ccr.html[cross-cluster replication].
+{ref}/xpack-ccr.html[cross-cluster replication].
 
 ===== Other recommendations
 

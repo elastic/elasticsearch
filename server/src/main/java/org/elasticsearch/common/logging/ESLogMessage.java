@@ -19,11 +19,9 @@
 
 package org.elasticsearch.common.logging;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressLoggerChecks;
 
-import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -32,7 +30,6 @@ import java.util.stream.Stream;
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
 public abstract class ESLogMessage extends ParameterizedMessage {
-    private static final JsonStringEncoder JSON_STRING_ENCODER = JsonStringEncoder.getInstance();
     private final Map<String, Object> fields;
 
     /**
@@ -43,11 +40,6 @@ public abstract class ESLogMessage extends ParameterizedMessage {
     public ESLogMessage(Map<String, Object> fields, String messagePattern, Object... args) {
         super(messagePattern, args);
         this.fields = fields;
-    }
-
-    public static String escapeJson(String text) {
-        byte[] sourceEscaped = JSON_STRING_ENCODER.quoteAsUTF8(text);
-        return new String(sourceEscaped, Charset.defaultCharset());
     }
 
     public String getValueFor(String key) {

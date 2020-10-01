@@ -1,11 +1,11 @@
 [role="xpack"]
 [[transform-search]]
-=== Search transform
+=== Search {watcher-transform}
 
-A <<transform,transform>> that executes a search on the cluster and replaces
-the current payload in the watch execution context with the returned search
-response. The following snippet shows how a simple search transform can be
-defined on the watch level:
+A <<transform,{watcher-transform}>> that executes a search on the cluster and
+replaces the current payload in the watch execution context with the returned
+search response. The following snippet shows how a simple search transform can
+be defined on the watch level:
 
 [source,js]
 --------------------------------------------------
@@ -22,8 +22,9 @@ defined on the watch level:
 // NOTCONSOLE
 
 Like every other search based construct, one can make use of the full search
-API supported by Elasticsearch. For example, the following search transform
-execute a search over all events indices, matching events with `error` priority:
+API supported by Elasticsearch. For example, the following search
+{watcher-transform} execute a search over all events indices, matching events
+with `error` priority:
 
 [source,js]
 --------------------------------------------------
@@ -45,10 +46,11 @@ execute a search over all events indices, matching events with `error` priority:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following table lists all available settings for the search transform:
+The following table lists all available settings for the search
+{watcher-transform}:
 
 [[transform-search-settings]]
-.Search transform settings
+.Search {watcher-transform} settings
 [cols=",^,,", options="header"]
 |======
 | Name                                          |Required   | Default           | Description
@@ -80,17 +82,17 @@ The following table lists all available settings for the search transform:
 
 | `timeout`                                     | no        | 30s               | The timeout for waiting for the search api call to
                                                                                   return. If no response is returned within this time,
-                                                                                  the search transform times out and fails. This setting
+                                                                                  the search {watcher-transform} times out and fails. This setting
                                                                                   overrides the default timeouts.
 |======
 
 [[transform-search-template]]
 ==== Template support
 
-The search transform support mustache <<templates, templates>>. This can either
-be as part of the body definition, or alternatively, point to an existing
-template (either defined in a file or <<pre-registered-templates,registered>>
-as a script in Elasticsearch).
+The search {watcher-transform} support mustache <<templates, templates>>. This
+can either be as part of the body definition or alternatively point to an
+existing template (either defined in a file or
+<<pre-registered-templates,registered>> as a script in Elasticsearch).
 
 For example, the following snippet shows a search that refers to the scheduled
 time of the watch:

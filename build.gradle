@@ -39,6 +39,7 @@ plugins {
 
 apply plugin: 'nebula.info-scm'
 apply from: 'gradle/build-scan.gradle'
+apply from: 'gradle/build-complete.gradle'
 
 // common maven publishing configuration
 allprojects {

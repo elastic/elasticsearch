@@ -1,7 +1,7 @@
 [[voting-config-exclusions]]
 === Voting configuration exclusions API
 ++++
-<titleabbrev>Voting Configuration Exclusions</titleabbrev>
+<titleabbrev>Voting configuration exclusions</titleabbrev>
 ++++
 
 Adds or removes master-eligible nodes from the

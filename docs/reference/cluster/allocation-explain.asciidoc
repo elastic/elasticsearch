@@ -1,5 +1,8 @@
 [[cluster-allocation-explain]]
-=== Cluster Allocation Explain API
+=== Cluster allocation explain API
+++++
+<titleabbrev>Cluster allocation explain</titleabbrev>
+++++
 
 Provides explanations for shard allocations in the cluster.
 

@@ -1474,7 +1474,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                             .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
-                    } catch (ElasticsearchException ignored) {
+                    } catch (IllegalStateException | ElasticsearchException ignored) {
                     }
                 }
             });

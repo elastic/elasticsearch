@@ -3,16 +3,13 @@
 [[sql-client-apps-workbench]]
 === SQL Workbench/J
 
-[quote, https://www.sql-workbench.eu/]
-____
-https://www.sql-workbench.eu/[SQL Workbench/J] is a free, DBMS-independent, cross-platform SQL query tool.
-____
+You can use the {es} JDBC driver to access {es} data from SQL Workbench/J.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
-* SQL Workbench/J build 125 or higher
+* https://www.sql-workbench.eu/[SQL Workbench/J] build 125 or higher
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== Add {es} JDBC driver

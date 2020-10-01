@@ -16,7 +16,7 @@ Available settings include:
 
 <<query-cache,Node query cache>>::
 
-    Configure the amount heap used to cache queries results.
+    Configure the amount of heap used to cache queries results.
 
 <<indexing-buffer,Indexing buffer>>::
 

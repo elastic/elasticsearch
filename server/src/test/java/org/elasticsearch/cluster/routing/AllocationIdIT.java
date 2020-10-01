@@ -208,8 +208,10 @@ public class AllocationIdIT extends ESIntegTestCase {
 
     private String historyUUID(String node, String indexName) {
         final ShardStats[] shards = client(node).admin().indices().prepareStats(indexName).clear().get().getShards();
+        final String nodeId = client(node).admin().cluster().prepareState().get().getState().nodes().resolveNode(node).getId();
         assertThat(shards.length, greaterThan(0));
         final Set<String> historyUUIDs = Arrays.stream(shards)
+            .filter(shard -> shard.getShardRouting().currentNodeId().equals(nodeId))
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY))
             .collect(Collectors.toSet());
         assertThat(historyUUIDs, hasSize(1));

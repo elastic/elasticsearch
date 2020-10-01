@@ -65,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -216,8 +217,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // unsupported types
             else if (DataTypes.isUnsupported(fa.dataType())) {
                 UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() + "] as is unsupported");
+                if (unsupportedField.hasInherited()) {
+                    named = u.withUnresolvedMessage(
+                            "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "] "
+                                    + "in hierarchy (field [" + unsupportedField.getInherited() + "])");
+                } else {
+                    named = u.withUnresolvedMessage(
+                            "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "]");
+                }
             }
             // compound fields
             else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
@@ -625,12 +632,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         .map(or -> tryResolveExpression(or, o.child()))
                         .collect(toList());
 
-                AttributeSet resolvedRefs = Expressions.references(maybeResolved.stream()
-                        .filter(Expression::resolved)
-                        .collect(toList()));
 
+                Set<Expression> resolvedRefs = maybeResolved.stream()
+                    .filter(Expression::resolved)
+                    .collect(Collectors.toSet());
 
-                AttributeSet missing = resolvedRefs.subtract(o.child().outputSet());
+                AttributeSet missing = Expressions.filterReferences(
+                    resolvedRefs,
+                    o.child().outputSet()
+                );
 
                 if (!missing.isEmpty()) {
                     // Add missing attributes but project them away afterwards

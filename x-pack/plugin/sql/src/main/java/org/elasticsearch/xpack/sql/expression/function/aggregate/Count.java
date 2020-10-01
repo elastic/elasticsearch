@@ -78,11 +78,15 @@ public class Count extends AggregateFunction {
     
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
         Count other = (Count) obj;
-        return Objects.equals(other.distinct(), distinct());
+        return Objects.equals(other.distinct(), distinct())
+            && Objects.equals(field(), other.field());
     }
 
     @Override

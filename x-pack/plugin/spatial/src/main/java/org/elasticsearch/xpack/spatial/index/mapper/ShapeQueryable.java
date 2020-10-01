@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -17,18 +16,5 @@ import org.elasticsearch.index.query.QueryShardContext;
 */
 public interface ShapeQueryable {
 
-    QueryProcessor geometryQueryBuilder();
-
-    /**
-     * interface representing a query builder that generates a query from the given geometry
-     */
-    interface QueryProcessor {
-        Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
-
-        @Deprecated
-        default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
-                              QueryShardContext context) {
-            return process(shape, fieldName, relation, context);
-        }
-    }
+    Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
 }

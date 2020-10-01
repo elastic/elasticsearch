@@ -29,7 +29,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
@@ -161,7 +163,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
     public static class GeoPointFieldType extends AbstractPointGeometryFieldType<List<ParsedGeoPoint>, List<? extends GeoPoint>>
         implements GeoShapeQueryable {
 
-        private QueryProcessor queryProcessor;
+        private final VectorGeoPointShapeQueryProcessor queryProcessor;
 
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
@@ -178,8 +180,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
 
         @Override
-        public QueryProcessor geometryQueryBuilder() {
-            return queryProcessor;
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            return queryProcessor.geoShapeQuery(shape, fieldName, relation, context);
         }
 
         @Override

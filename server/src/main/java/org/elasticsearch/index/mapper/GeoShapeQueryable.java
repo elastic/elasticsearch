@@ -31,19 +31,11 @@ import org.elasticsearch.index.query.QueryShardContext;
  */
 public interface GeoShapeQueryable {
 
-    QueryProcessor geometryQueryBuilder();
+    Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
 
-    /**
-     * interface representing a query builder that generates a query from the given geometry
-     */
-    interface QueryProcessor {
-        Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
-
-        @Deprecated
-        default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
-                              QueryShardContext context) {
-            return process(shape, fieldName, relation, context);
-        }
+    @Deprecated
+    default Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
+                          QueryShardContext context) {
+        return geoShapeQuery(shape, fieldName, relation, context);
     }
-
 }

@@ -107,7 +107,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
                 "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }
         final ShapeQueryable ft = (ShapeQueryable) fieldType;
-        return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, fieldType.name(), relation, context));
+        return new ConstantScoreQuery(ft.shapeQuery(shape, fieldType.name(), relation, context));
     }
 
     @Override

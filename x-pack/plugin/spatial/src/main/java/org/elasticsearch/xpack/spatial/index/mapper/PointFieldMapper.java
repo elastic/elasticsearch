@@ -10,11 +10,15 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.ParsedCartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
@@ -115,7 +119,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
     public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>>
     implements ShapeQueryable {
 
-        private final QueryProcessor queryProcessor;
+        private final ShapeQueryPointProcessor queryProcessor;
 
         private PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, meta);
@@ -128,8 +132,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         }
 
         @Override
-        public QueryProcessor geometryQueryBuilder() {
-            return queryProcessor;
+        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            return queryProcessor.shapeQuery(shape, fieldName, relation, context);
         }
     }
 

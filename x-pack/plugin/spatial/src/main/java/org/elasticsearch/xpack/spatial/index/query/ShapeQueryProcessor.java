@@ -28,16 +28,14 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
-import org.elasticsearch.xpack.spatial.index.mapper.ShapeQueryable.QueryProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
 
 
-public class ShapeQueryProcessor implements QueryProcessor {
+public class ShapeQueryProcessor  {
 
-    @Override
-    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         validateIsShapeFieldType(fieldName, context);
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
         if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {

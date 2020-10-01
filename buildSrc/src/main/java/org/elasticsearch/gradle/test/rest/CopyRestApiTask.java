@@ -58,8 +58,10 @@ public class CopyRestApiTask extends DefaultTask {
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
     String sourceSetName;
+    boolean skipHasRestTestCheck;
     Configuration coreConfig;
     Configuration xpackConfig;
+    Configuration additionalConfig;
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
@@ -89,6 +91,11 @@ public class CopyRestApiTask extends DefaultTask {
         return sourceSetName;
     }
 
+    @Input
+    public boolean isSkipHasRestTestCheck() {
+        return skipHasRestTestCheck;
+    }
+
     @SkipWhenEmpty
     @InputFiles
     public FileTree getInputDir() {
@@ -98,7 +105,7 @@ public class CopyRestApiTask extends DefaultTask {
             xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
             xpackFileTree = xpackConfig.getAsFileTree().matching(xpackPatternSet);
         }
-        boolean projectHasYamlRestTests = projectHasYamlRestTests();
+        boolean projectHasYamlRestTests = skipHasRestTestCheck || projectHasYamlRestTests();
         if (includeCore.get().isEmpty() == false || projectHasYamlRestTests) {
             if (BuildParams.isInternal()) {
                 corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
@@ -107,7 +114,10 @@ public class CopyRestApiTask extends DefaultTask {
                 coreFileTree = coreConfig.getAsFileTree(); // jar file
             }
         }
-        ConfigurableFileCollection fileCollection = getProject().files(coreFileTree, xpackFileTree);
+
+        ConfigurableFileCollection fileCollection = additionalConfig == null
+            ? getProject().files(coreFileTree, xpackFileTree)
+            : getProject().files(coreFileTree, xpackFileTree, additionalConfig.getAsFileTree());
 
         // if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
         return projectHasYamlRestTests || includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false
@@ -132,7 +142,7 @@ public class CopyRestApiTask extends DefaultTask {
         if (BuildParams.isInternal()) {
             getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
-                c.from(coreConfig.getSingleFile());
+                c.from(coreConfig.getAsFileTree());
                 c.into(getOutputDir());
                 c.include(corePatternSet.getIncludes());
             });
@@ -162,6 +172,14 @@ public class CopyRestApiTask extends DefaultTask {
                 c.from(xpackConfig.getSingleFile());
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
+            });
+        }
+        // TODO: once https://github.com/elastic/elasticsearch/pull/62968 lands ensure that this uses `getFileSystemOperations()`
+        // copy any additional config
+        if (additionalConfig != null) {
+            project.copy(c -> {
+                c.from(additionalConfig.getAsFileTree());
+                c.into(getOutputDir());
             });
         }
     }

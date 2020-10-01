@@ -1469,8 +1469,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final Set<SnapshotId> activeCloneSources = snapshots.entries()
                         .stream()
                         .filter(entry -> entry.source() != null)
-                        .map(SnapshotsInProgress.Entry::source
-                        ).collect(Collectors.toSet());
+                        .map(SnapshotsInProgress.Entry::source)
+                        .collect(Collectors.toSet());
                 for (SnapshotId snapshotId : snapshotIds) {
                     if (activeCloneSources.contains(snapshotId)) {
                         throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotId),

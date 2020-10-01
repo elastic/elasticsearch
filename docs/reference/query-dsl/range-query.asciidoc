@@ -184,7 +184,7 @@ SECOND_OF_MINUTE - 59
 NANO_OF_SECOND - 999_999_999
 ----
 
-When a millisecond part will not be provided, will be rounded to `999`.
+When a millisecond part will not be provided, it will be rounded to `999`.
 
 An example:
 [source,console]
@@ -201,7 +201,7 @@ GET /_search
 }
 ----
 
-A date `2020-01-01T12:00:00Z` will be have a fraction of a second part defaulted to `2020-01-01T12:00:00.999_999_999Z`
+A date `2020-01-01T12:00:00Z` will have a fraction of a second part defaulted to `2020-01-01T12:00:00.999_999_999Z`.
 
 {es} rounds <<date-math,date math>> values in parameters as follows:
 

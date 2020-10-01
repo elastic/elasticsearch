@@ -100,12 +100,17 @@ public class WildcardFieldMapperTests extends ESTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0)));
-        wildcardFieldType79 = builder.build(new Mapper.BuilderContext(createIndexSettings(Version.V_7_9_0).getSettings(), new ContentPath(0)));
-
+        wildcardFieldType = builder.build(
+            new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0))
+        );
+        wildcardFieldType79 = builder.build(
+            new Mapper.BuilderContext(createIndexSettings(Version.V_7_9_0).getSettings(), new ContentPath(0))
+        );
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
-        keywordFieldType = kwBuilder.build(new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0)));
+        keywordFieldType = kwBuilder.build(
+            new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0))
+        );
         super.setUp();
     }
 

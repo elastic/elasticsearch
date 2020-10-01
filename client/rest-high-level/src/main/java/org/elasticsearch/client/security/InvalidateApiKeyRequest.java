@@ -26,6 +26,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Request for invalidating API key(s) so that it can no longer be used
@@ -34,21 +38,29 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
 
     private final String realmName;
     private final String userName;
+    @Deprecated
     private final String id;
     private final String name;
     private final boolean ownedByAuthenticatedUser;
+    @Nullable
+    private final String[] ids;
 
     // pkg scope for testing
     InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
                             @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
+        this(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, null);
+    }
+
+    InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
+                            @Nullable String apiKeyName, boolean ownedByAuthenticatedUser, @Nullable String[] ids) {
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
-                && Strings.hasText(apiKeyName) == false && ownedByAuthenticatedUser == false) {
-            throwValidationError("One of [api key id, api key name, username, realm name] must be specified if [owner] flag is false");
+                && Strings.hasText(apiKeyName) == false && ownedByAuthenticatedUser == false && hasNonBlankId(ids) == false) {
+            throwValidationError("One of [api key ids, api key name, username, realm name] must be specified if [owner] flag is false");
         }
-        if (Strings.hasText(apiKeyId) || Strings.hasText(apiKeyName)) {
+        if (Strings.hasText(apiKeyId) || Strings.hasText(apiKeyName) || hasNonBlankId(ids)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 throwValidationError(
-                        "username or realm name must not be specified when the api key id or api key name is specified");
+                        "username or realm name must not be specified when the api key ids or api key name is specified");
             }
         }
         if (ownedByAuthenticatedUser) {
@@ -56,14 +68,15 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
                 throwValidationError("neither username nor realm-name may be specified when invalidating owned API keys");
             }
         }
-        if (Strings.hasText(apiKeyId) && Strings.hasText(apiKeyName)) {
-            throwValidationError("only one of [api key id, api key name] can be specified");
+        if ((Strings.hasText(apiKeyId) || hasNonBlankId(ids)) && Strings.hasText(apiKeyName)) {
+            throwValidationError("only one of [api key ids, api key name] can be specified");
         }
         this.realmName = realmName;
         this.userName = userName;
         this.id = apiKeyId;
         this.name = apiKeyName;
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
+        this.ids = ids;
     }
 
     private void throwValidationError(String message) {
@@ -78,6 +91,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         return userName;
     }
 
+    @Deprecated
     public String getId() {
         return id;
     }
@@ -88,6 +102,17 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
 
     public boolean ownedByAuthenticatedUser() {
         return ownedByAuthenticatedUser;
+    }
+
+    public Set<String> getAllIds() {
+        Set<String> apiKeyIds = new HashSet<>();
+        if (Strings.hasText(id)) {
+            apiKeyIds.add(id);
+        }
+        if (ids != null) {
+            apiKeyIds.addAll(Arrays.stream(ids).filter(Strings::hasText).collect(Collectors.toList()));
+        }
+        return Set.copyOf(apiKeyIds);
     }
 
     /**
@@ -120,13 +145,13 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
 
     /**
      * Creates invalidate API key request for given api key id
-     * @param apiKeyId api key id
+     * @param apiKeyIds api key id
      * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
      * {@code false}
      * @return {@link InvalidateApiKeyRequest}
      */
-    public static InvalidateApiKeyRequest usingApiKeyId(String apiKeyId, boolean ownedByAuthenticatedUser) {
-        return new InvalidateApiKeyRequest(null, null, apiKeyId, null, ownedByAuthenticatedUser);
+    public static InvalidateApiKeyRequest usingApiKeyIds(String[] apiKeyIds, boolean ownedByAuthenticatedUser) {
+        return new InvalidateApiKeyRequest(null, null, null, null, ownedByAuthenticatedUser, apiKeyIds);
     }
 
     /**
@@ -156,13 +181,21 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         if (userName != null) {
             builder.field("username", userName);
         }
-        if (id != null) {
-            builder.field("id", id);
-        }
         if (name != null) {
             builder.field("name", name);
         }
+        final Set<String> allIds = getAllIds();
+        if (allIds.isEmpty() == false) {
+            builder.array("ids", allIds.toArray(String[]::new));
+        }
         builder.field("owner", ownedByAuthenticatedUser);
         return builder.endObject();
+    }
+
+    private static boolean hasNonBlankId(String[] ids) {
+        if (ids == null || ids.length == 0) {
+            return false;
+        }
+        return Arrays.stream(ids).anyMatch(Strings::hasText);
     }
 }

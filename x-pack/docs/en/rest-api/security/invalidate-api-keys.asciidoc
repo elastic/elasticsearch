@@ -31,7 +31,12 @@ The following parameters can be specified in the body of a DELETE request and
 pertain to invalidating api keys:
 
 `id`::
+deprecated:[7.10.0, This parameter is deprecated and will be removed in future version. Use `ids` instead.]
 (Optional, string) An API key id. This parameter cannot be used with any of
+`name`, `realm_name` or `username` are used.
+
+`ids`::
+(Optional, array of strings) An array of API key ids. This parameter cannot be used with any of
 `name`, `realm_name` or `username` are used.
 
 `name`::
@@ -52,7 +57,7 @@ by the currently authenticated user. Defaults to false.
 The 'realm_name' or 'username' parameters cannot be specified when this
 parameter is set to 'true' as they are assumed to be the currently authenticated ones.
 
-NOTE: At least one of "id", "name", "username" and "realm_name" must be specified
+NOTE: At least one of "ids", "name", "username" and "realm_name" must be specified
  if "owner" is "false" (default).
 
 [[security-api-invalidate-api-key-response-body]]
@@ -97,7 +102,7 @@ immediately:
 --------------------------------------------------
 DELETE /_security/api_key
 {
-  "id" : "VuaCfGcBCdbkQm-e5aOx"
+  "ids" : ["VuaCfGcBCdbkQm-e5aOx"]
 }
 --------------------------------------------------
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
@@ -143,7 +148,7 @@ The following example invalidates the API key identified by the specified `id` i
 --------------------------------------------------
 DELETE /_security/api_key
 {
-  "id" : "VuaCfGcBCdbkQm-e5aOx",
+  "ids" : ["VuaCfGcBCdbkQm-e5aOx"],
   "owner" : "true"
 }
 --------------------------------------------------

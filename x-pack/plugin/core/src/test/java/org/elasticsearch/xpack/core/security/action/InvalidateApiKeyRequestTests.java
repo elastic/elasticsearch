@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -70,9 +71,10 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 super.writeTo(out);
                 out.writeOptionalString(realm);
                 out.writeOptionalString(user);
-                out.writeOptionalString(apiKeyId);
+                out.writeOptionalString(null);
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
+                out.writeOptionalStringArray(apiKeyId == null ? null : new String[] { apiKeyId });
             }
         }
 
@@ -87,13 +89,13 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             {randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true"},
         };
         String[][] expectedErrorMessages = new String[][]{
-            {"One of [api key id, api key name, username, realm name] must be specified if [owner] flag is false"},
-            {"username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id or api key name is specified"},
-            {"only one of [api key id, api key name] can be specified"},
+            {"One of [api key ids, api key name, username, realm name] must be specified if [owner] flag is false"},
+            {"username or realm name must not be specified when the api key ids or api key name is specified",
+                "only one of [api key ids, api key name] can be specified"},
+            {"username or realm name must not be specified when the api key ids or api key name is specified",
+                "only one of [api key ids, api key name] can be specified"},
+            {"username or realm name must not be specified when the api key ids or api key name is specified"},
+            {"only one of [api key ids, api key name] can be specified"},
             {"neither username nor realm-name may be specified when invalidating owned API keys"},
             {"neither username nor realm-name may be specified when invalidating owned API keys"}
         };
@@ -119,8 +121,8 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final String apiKeyId = randomAlphaOfLength(5);
         final boolean ownedByAuthenticatedUser = true;
-        InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyIds(
-            new String[] { apiKeyId }, ownedByAuthenticatedUser);
+        InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
+            null, null, apiKeyId, null, ownedByAuthenticatedUser);
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -134,6 +136,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             assertThat(requestFromInputStream.getId(), equalTo(invalidateApiKeyRequest.getId()));
             // old version so the default for `ownedByAuthenticatedUser` is false
             assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(false));
+            assertThat(requestFromInputStream.getAllIds(), equalTo(Set.of(apiKeyId)));
         }
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
@@ -146,7 +149,24 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));
+            assertThat(requestFromInputStream.getAllIds(), equalTo(Set.of(apiKeyId)));
         }
+
+        invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyIds(new String[] { apiKeyId }, ownedByAuthenticatedUser);
+        {
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setVersion(randomVersionBetween(random(), Version.V_7_10_0, Version.CURRENT));
+            invalidateApiKeyRequest.writeTo(out);
+
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_10_0, Version.CURRENT));
+            InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
+
+            assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));
+            assertThat(requestFromInputStream.getAllIds(), equalTo(Set.of(apiKeyId)));
+        }
+
     }
 
     private static String randomNullOrEmptyString() {

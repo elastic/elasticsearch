@@ -2136,7 +2136,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::invalidate-api-key-id-request
-            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyIds(
+                new String[]{ createApiKeyResponse1.getId() }, false);
             // end::invalidate-api-key-id-request
 
             // tag::invalidate-api-key-execute
@@ -2255,7 +2256,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(createApiKeyResponse6.getName(), equalTo("k6"));
             assertNotNull(createApiKeyResponse6.getKey());
 
-            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId(), false);
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyIds(
+                new String[]{ createApiKeyResponse6.getId() }, false);
 
             ActionListener<InvalidateApiKeyResponse> listener;
             // tag::invalidate-api-key-execute-listener

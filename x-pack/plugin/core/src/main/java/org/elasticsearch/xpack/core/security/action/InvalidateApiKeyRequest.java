@@ -16,10 +16,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -30,6 +30,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     private final String realmName;
     private final String userName;
+    @Deprecated
     private final String id;
     private final String name;
     private final boolean ownedByAuthenticatedUser;
@@ -101,7 +102,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
             apiKeyIds.add(id);
         }
         if (ids != null) {
-            apiKeyIds.addAll(Arrays.asList(ids));
+            apiKeyIds.addAll(Arrays.stream(ids).filter(Strings::hasText).collect(Collectors.toList()));
         }
         return Set.copyOf(apiKeyIds);
     }
@@ -179,7 +180,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         if (getAllIds().isEmpty() == false || Strings.hasText(name)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(
-                    "username or realm name must not be specified when the api key id or api key name is specified",
+                    "username or realm name must not be specified when the api key ids or api key name is specified",
                     validationException);
             }
         }

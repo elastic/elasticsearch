@@ -13,7 +13,7 @@ API Key(s) can be invalidated using this API.
 ==== Invalidate API Key Request
 The +{request}+ supports invalidating
 
-. A specific API key
+. Specific API keys of specified IDs
 
 . All API keys for a specific realm
 

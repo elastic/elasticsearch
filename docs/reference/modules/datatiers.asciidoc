@@ -66,8 +66,6 @@ This tier is where data goes once it is not queried very frequently in the <<hot
 anymore. It is a medium-fast, lower cost tier, that still allows data updates. Data within this
 tier is retained for weeks and the indices still have one or more replicas.
 
-The tradeoff when moving data from the Hot to Warm is search and ingest speed for costs.
-
 [[Cold-tier]]
 ==== Cold tier
 
@@ -78,9 +76,6 @@ tier it can be compressed, shrunken, with zero replicas and backed by a <<ilm-se
 These tier features offer a huge opportunity to make major cost savings. Data within this tier
 is retained for months and the indices have zero replicas as they are backed by a searchable
 snapshot.
-
-The tradeoff when moving data from Warm to Cold is writability for costs, with the search performance
-remaining the same as in the Warm tier.
 
 [[data-tier-allocation]]
 === Data tier index allocation

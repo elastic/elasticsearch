@@ -85,9 +85,6 @@
                 },
                 "mean_magnitude": {
                   "type": "double"
-                },
-                "baseline": {
-                  "type": "double"
                 }
               }
             },
@@ -107,9 +104,6 @@
                       "type": "double"
                     },
                     "mean_magnitude": {
-                      "type": "double"
-                    },
-                    "baseline": {
                       "type": "double"
                     }
                   }

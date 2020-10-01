@@ -56,7 +56,7 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
     }
 
     public void testNullStringEquals() {
-        assertEquals(true, p(seq(l(null), l(null))));
+        assertNull(p(seq(l(null), l(null))));
         assertNull(p(seq(l("a"), l(null))));
         assertNull(p(seq(l(null), l("a"))));
     }
@@ -71,7 +71,7 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
     }
 
     public void testNullStringNotEquals() {
-        assertEquals(false, p(sneq(l(null), l(null))));
+        assertNull(p(sneq(l(null), l(null))));
         assertNull(p(sneq(l("a"), l(null))));
         assertNull(p(sneq(l(null), l("a"))));
     }

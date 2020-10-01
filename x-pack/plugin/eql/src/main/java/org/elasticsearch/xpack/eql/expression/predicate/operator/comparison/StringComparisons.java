@@ -15,9 +15,6 @@ public final class StringComparisons {
     private StringComparisons() {}
 
     static Boolean insensitiveEquals(Object l, Object r) {
-        if (l == null && r == null) {
-            return Boolean.TRUE;
-        }
         if (l instanceof String && r instanceof String) {
             return ((String)l).compareToIgnoreCase((String) r) == 0;
         }

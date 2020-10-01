@@ -154,6 +154,23 @@ public class OptimizerTests extends ESTestCase {
         }
     }
 
+    // test wildcard gets applied for literals as well regardless of the side used
+    public void testEqualsWildcardWithLiterals() {
+        List<String> tests = Arrays.asList(
+            "foo where \"abc\": \"*b*\"",
+            "foo where \"*b*\" : \"abc\""
+        );
+
+        for (String q : tests) {
+            LogicalPlan plan = defaultPipes(accept(q));
+            assertTrue(plan instanceof Filter);
+            // check the optimizer kicked in and folding was applied
+            Filter filter = (Filter) plan;
+            Equals condition = (Equals) filter.condition();
+            assertEquals("foo", condition.right().fold());
+        }
+    }
+
     public void testNotEqualsWildcard() {
         List<String> tests = Arrays.asList(
             "foo where command_line !: \"* baz *\"",

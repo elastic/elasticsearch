@@ -56,7 +56,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BYTE_IMPLICIT;

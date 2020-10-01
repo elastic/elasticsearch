@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;

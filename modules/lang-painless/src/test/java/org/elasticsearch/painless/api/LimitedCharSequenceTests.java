@@ -24,7 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.regex.Pattern;
 
-public class LimitedCharSequenceTest extends ESTestCase {
+public class LimitedCharSequenceTests extends ESTestCase {
     public void testBadFactor() {
         IllegalArgumentException badArg = expectThrows(IllegalArgumentException.class,
             () -> new LimitedCharSequence("abc", null, -1)

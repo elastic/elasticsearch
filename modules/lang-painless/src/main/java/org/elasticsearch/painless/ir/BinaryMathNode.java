@@ -31,7 +31,6 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class BinaryMathNode extends BinaryNode {
 

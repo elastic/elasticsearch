@@ -10,6 +10,9 @@ format by which the `from` and `to` response fields will be returned.
 Note that this aggregation includes the `from` value and excludes the `to` value
 for each range.
 
+WARNING: If a format or date value is incomplete, {es} replaces any missing
+components with default values. See <<missing-date-formats>>.
+
 Example:
 
 [source,console,id=daterange-aggregation-example]

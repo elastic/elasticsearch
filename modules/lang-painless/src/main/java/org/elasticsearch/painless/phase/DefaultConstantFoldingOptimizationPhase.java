@@ -448,7 +448,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 irConstantNode.setExpressionType(String.class);
                 irStringConcatenationNode.getArgumentNodes().remove(i + 1);
             } else if (irLeftNode instanceof NullNode && irRightNode instanceof NullNode) {
-                ConstantNode irConstantNode = new ConstantNode();
+                ConstantNode irConstantNode = new ConstantNode(irLeftNode.getLocation());
                 irConstantNode.setConstant("" + null + null);
                 irConstantNode.setExpressionType(String.class);
                 irStringConcatenationNode.getArgumentNodes().set(i, irConstantNode);
@@ -531,12 +531,10 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 } else if (type == double.class) {
                     irLeftConstantNode.setConstant((double)irLeftConstantNode.getConstant() == (double)irRightConstantNode.getConstant());
                 } else if (irLeftConstantNode == null && irRightConstantNode == null) {
-                    irLeftConstantNode = new ConstantNode();
-                    irLeftConstantNode.setLocation(irComparisonNode.getLeftNode().getLocation());
+                    irLeftConstantNode = new ConstantNode(irComparisonNode.getLeftNode().getLocation());
                     irLeftConstantNode.setConstant(true);
                 } else if (irLeftConstantNode == null || irRightConstantNode == null) {
-                    irLeftConstantNode = new ConstantNode();
-                    irLeftConstantNode.setLocation(irComparisonNode.getLeftNode().getLocation());
+                    irLeftConstantNode = new ConstantNode(irComparisonNode.getLeftNode().getLocation());
                     irLeftConstantNode.setConstant(false);
                 } else {
                     if (operation == Operation.EQ) {
@@ -560,12 +558,10 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 } else if (type == double.class) {
                     irLeftConstantNode.setConstant((double)irLeftConstantNode.getConstant() != (double)irRightConstantNode.getConstant());
                 } else if (irLeftConstantNode == null && irRightConstantNode == null) {
-                    irLeftConstantNode = new ConstantNode();
-                    irLeftConstantNode.setLocation(irComparisonNode.getLeftNode().getLocation());
+                    irLeftConstantNode = new ConstantNode(irComparisonNode.getLeftNode().getLocation());
                     irLeftConstantNode.setConstant(false);
                 } else if (irLeftConstantNode == null || irRightConstantNode == null) {
-                    irLeftConstantNode = new ConstantNode();
-                    irLeftConstantNode.setLocation(irComparisonNode.getLeftNode().getLocation());
+                    irLeftConstantNode = new ConstantNode(irComparisonNode.getLeftNode().getLocation());
                     irLeftConstantNode.setConstant(true);
                 } else {
                     if (operation == Operation.NE) {

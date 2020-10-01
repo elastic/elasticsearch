@@ -10,7 +10,7 @@ Clones part or all of a snapshot into a new snapshot.
 ----
 PUT /_snapshot/my_repository/source_snapshot/_clone/target_snapshot
 {
-  "indices": "index_a, index_b"
+  "indices": "index_a,index_b"
 }
 ----
 // TEST[skip:TODO]

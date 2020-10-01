@@ -6,7 +6,7 @@ getting the artifact to using it in an application.
 
 [[java-rest-high-compatibility]]
 === Compatibility
-The Java High Level REST Client requires Java 1.8 and depends on the Elasticsearch
+The Java High Level REST Client requires at least Java 1.8 and depends on the Elasticsearch
 core project. The client version is the same as the Elasticsearch version that the
 client was developed for. It accepts the same request arguments as the `TransportClient`
 and returns the same response objects. See the <<java-rest-high-level-migration>>

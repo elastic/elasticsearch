@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin.XPackMetadataCustom;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 
 import java.io.IOException;
 import java.util.Collections;

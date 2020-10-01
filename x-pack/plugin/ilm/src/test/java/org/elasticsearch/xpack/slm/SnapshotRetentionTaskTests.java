@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 

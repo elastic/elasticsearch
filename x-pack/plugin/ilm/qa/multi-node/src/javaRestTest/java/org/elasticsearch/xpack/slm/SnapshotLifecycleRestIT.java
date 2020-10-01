@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
 import java.io.IOException;

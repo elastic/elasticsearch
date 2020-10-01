@@ -9,6 +9,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
@@ -33,7 +34,7 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
         PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
         // Should be OK as we don't make any client calls
-        trainedModelProvider.getTrainedModel("lang_ident_model_1", true, false, future);
+        trainedModelProvider.getTrainedModel("lang_ident_model_1", GetTrainedModelsAction.Includes.forModelDefinition(), future);
         TrainedModelConfig config = future.actionGet();
 
         config.ensureParsedDefinition(xContentRegistry());

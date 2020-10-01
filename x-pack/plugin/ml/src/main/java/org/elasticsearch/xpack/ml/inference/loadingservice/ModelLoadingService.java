@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -270,7 +271,7 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void loadModel(String modelId, Consumer consumer) {
-        provider.getTrainedModel(modelId, false, false, ActionListener.wrap(
+        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
             trainedModelConfig -> {
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
                 provider.getTrainedModelForInference(modelId, ActionListener.wrap(
@@ -306,7 +307,7 @@ public class ModelLoadingService implements ClusterStateListener {
         // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
         // by a simulated pipeline
         logger.trace(() -> new ParameterizedMessage("[{}] not actively loading, eager loading without cache", modelId));
-        provider.getTrainedModel(modelId, false, false, ActionListener.wrap(
+        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
             trainedModelConfig -> {
                 // Verify we can pull the model into memory without causing OOM
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);

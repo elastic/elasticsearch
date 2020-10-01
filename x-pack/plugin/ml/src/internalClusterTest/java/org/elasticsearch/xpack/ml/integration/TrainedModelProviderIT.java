@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
@@ -90,7 +91,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, true, false, listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
             getConfigHolder,
             exceptionHolder);
         getConfigHolder.get().ensureParsedDefinition(xContentRegistry());
@@ -124,7 +125,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(listener ->
-            trainedModelProvider.getTrainedModel(modelId, false, false, listener),
+            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), listener),
             getConfigHolder,
             exceptionHolder);
         getConfigHolder.get().ensureParsedDefinition(xContentRegistry());
@@ -138,7 +139,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, true, false, listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
             getConfigHolder,
             exceptionHolder);
         assertThat(exceptionHolder.get(), is(not(nullValue())));
@@ -163,7 +164,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, true, false, listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
             getConfigHolder,
             exceptionHolder);
         assertThat(exceptionHolder.get(), is(not(nullValue())));
@@ -205,7 +206,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, true, false, listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
             getConfigHolder,
             exceptionHolder);
         assertThat(getConfigHolder.get(), is(nullValue()));
@@ -253,7 +254,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         }
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, true, false, listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
             getConfigHolder,
             exceptionHolder);
         assertThat(getConfigHolder.get(), is(nullValue()));

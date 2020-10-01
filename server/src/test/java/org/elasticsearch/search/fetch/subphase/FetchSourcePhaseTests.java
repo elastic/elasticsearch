@@ -164,7 +164,6 @@ public class FetchSourcePhaseTests extends ESTestCase {
             leafReaderContext,
             1,
             new SourceLookup(),
-            leafReaderContext.reader()::document,
             new HashMap<>()
         );
         hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));

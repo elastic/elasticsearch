@@ -22,8 +22,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -47,7 +45,6 @@ public interface FetchSubPhase {
             LeafReaderContext context,
             int docId,
             SourceLookup sourceLookup,
-            CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
             Map<String, Object> cache
         ) {
             this.hit = hit;

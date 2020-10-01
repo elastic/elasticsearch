@@ -98,7 +98,6 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                 percolatorLeafReaderContext,
                                 slot,
                                 new SourceLookup(),
-                                percolatorLeafReaderContext.reader()::document,
                                 new HashMap<>()
                             );
                             subContext.sourceLookup().setSource(document);

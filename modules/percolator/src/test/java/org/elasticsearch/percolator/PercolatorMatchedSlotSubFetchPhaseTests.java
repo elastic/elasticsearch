@@ -70,7 +70,6 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         context,
                         0,
                         new SourceLookup(),
-                        context.reader()::document,
                         new HashMap<>()
                     );
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
@@ -98,7 +97,6 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         context,
                         0,
                         new SourceLookup(),
-                        context.reader()::document,
                         new HashMap<>()
                     );
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
@@ -125,7 +123,6 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         context,
                         0,
                         new SourceLookup(),
-                        context.reader()::document,
                         new HashMap<>()
                     );
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> null;

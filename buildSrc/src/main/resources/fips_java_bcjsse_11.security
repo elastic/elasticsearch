@@ -1,6 +1,6 @@
 # Security Properties for JDK 11 and higher, with BouncyCastle FIPS provider and BouncyCastleJsseProvider in FIPS mode
 
-security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider
+security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider C:HYBRID;ENABLE{All};
 security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips:BCFIPS
 security.provider.3=SUN
 security.provider.4=SunJGSS

@@ -40,6 +40,7 @@ public class TotalFeatureImportance implements ToXContentObject {
     public static final ParseField IMPORTANCE = new ParseField("importance");
     public static final ParseField CLASSES = new ParseField("classes");
     public static final ParseField MEAN_MAGNITUDE = new ParseField("mean_magnitude");
+    public static final ParseField BASELINE = new ParseField("baseline");
     public static final ParseField MIN = new ParseField("min");
     public static final ParseField MAX = new ParseField("max");
 
@@ -102,22 +103,25 @@ public class TotalFeatureImportance implements ToXContentObject {
 
         public static final ConstructingObjectParser<Importance, Void> PARSER = new ConstructingObjectParser<>(NAME,
             true,
-            a -> new Importance((double)a[0], (double)a[1], (double)a[2]));
+            a -> new Importance((double)a[0], (double)a[1], (double)a[2], (Double)a[3]));
 
         static {
             PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MEAN_MAGNITUDE);
             PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MIN);
             PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MAX);
+            PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), BASELINE);
         }
 
         private final double meanMagnitude;
         private final double min;
         private final double max;
+        private final Double baseline;
 
-        public Importance(double meanMagnitude, double min, double max) {
+        public Importance(double meanMagnitude, double min, double max, Double baseline) {
             this.meanMagnitude = meanMagnitude;
             this.min = min;
             this.max = max;
+            this.baseline = baseline;
         }
 
         @Override
@@ -127,12 +131,13 @@ public class TotalFeatureImportance implements ToXContentObject {
             Importance that = (Importance) o;
             return Double.compare(that.meanMagnitude, meanMagnitude) == 0 &&
                 Double.compare(that.min, min) == 0 &&
-                Double.compare(that.max, max) == 0;
+                Double.compare(that.max, max) == 0 &&
+                Objects.equals(that.baseline, baseline);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(meanMagnitude, min, max);
+            return Objects.hash(meanMagnitude, min, max, baseline);
         }
 
         @Override
@@ -141,6 +146,9 @@ public class TotalFeatureImportance implements ToXContentObject {
             builder.field(MEAN_MAGNITUDE.getPreferredName(), meanMagnitude);
             builder.field(MIN.getPreferredName(), min);
             builder.field(MAX.getPreferredName(), max);
+            if (baseline != null) {
+                builder.field(BASELINE.getPreferredName(), baseline);
+            }
             builder.endObject();
             return builder;
         }

@@ -62,8 +62,8 @@ By default, {es} uses the <<mapping-date-format,date `format`>> provided in the
 
 For valid syntax, see <<mapping-date-format,`format`>>.
 
-WARNING: If a format or date value is incomplete, {es} replaces any missing
-components with default values. See <<missing-date-components>>.
+WARNING: If a format or date value is incomplete, the range query replaces any
+missing components with default values. See <<missing-date-components>>.
 
 --
 

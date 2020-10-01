@@ -39,6 +39,12 @@ An <<glossary-index-pattern,index pattern>> that automatically configures new in
 For more information, see {ref}/ccr-auto-follow.html[Managing auto follow patterns].
 // end::auto-follow-pattern-def[]
 
+[[glossary-backup-snapshot]] backup snapshot ::
+// tag::backup-snapshot-def[]
+A snapshot of a cluster, data stream, or index that resides in a remote data store such as S3 
+and is used for backup and recovery.
+// end::backup-snapshot-def[]
+
 [[glossary-cluster]] cluster ::
 // tag::cluster-def[]
 One or more <<glossary-node,nodes>> that share the
@@ -450,6 +456,12 @@ in the <<glossary-mapping,mapping>>.
 // end::routing-def[]
 --
 
+[[glossary-searchable-snapshot]] searchable snapshot ::
+// tag::searchable-snapshot-def[]
+A <<glossary-snapshot, snapshot>> of an index or data stream that resides in a remote data store 
+such as S3 and can be accessed dynamically at query time.
+// end::searchable-snapshot-def[]
+
 [[glossary-shard]] shard ::
 +
 --
@@ -486,9 +498,13 @@ See the {ref}/indices-shrink-index.html[shrink index API].
 
 [[glossary-snapshot]] snapshot ::
 // tag::snapshot-def[]
-A backup taken from a running {es} cluster.
-A snapshot can include backups of an entire cluster or only data streams and
-indices you specify.
+Captures the state of a cluster, index, or data stream at a particular point in time. 
+See <<glossary-backup-snapshot, backup snapshot>> and <<glossary-searchable-snapshot, searchable snapshot>>.
+// end::snapshot-def[]
+
+[[glossary-snapshot]] snapshot-backed index ::
+// tag::snapshot-def[]
+A read-only index that relies on a <<glossary-searchable-snapshot, searchable snapshot>> for redundancy.
 // end::snapshot-def[]
 
 [[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::

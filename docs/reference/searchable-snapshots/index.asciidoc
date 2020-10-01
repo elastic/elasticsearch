@@ -3,29 +3,22 @@
 
 {search-snaps-cap} enable you to significantly reduce costs by 
 leveraging external storage for read-only data. 
-Searchable snapshots can be used in two ways:
+Like snapshots used for backup and recovery, a searchable snapshot is a point-in-time copy 
+of an index or data stream stored in a remote data store such as S3. 
 
-* Snapshot-backed indices: Instead of maintaining replicas of your data within the cluster, 
-a snapshot-backed index relies on a searchable snapshot for redundancy. 
-You can perform all regular data retrieval operations, but cannot write to the index. 
+Snapshot-backed indices use searchable snapshots for redundancy rather than replicas within the cluster. 
+They support all regular data retrieval operations with performance comparable to a normal index.
 In the event of a failure, data is recovered from the snapshot. 
 Latency increases during recovery, but you can continue to query your data.
 
-* Fully-remote storage: Data is only brought into the cluster from the snapshot 
-when it is needed to service a query. 
-Because of the additional overhead, querying your data takes significantly longer 
-and it’s only accessible via asynchronous search.
-
 A snapshot-backed index essentially halves the number of nodes you need for read-only data. 
-If you are using ILM to manage your data, in the cold phase it can 
+If you are using {ilm-init} to manage your data, in the cold phase it can 
 automatically create a searchable snapshot, convert your index to a snapshot-backed index, 
 and move it to nodes in the cold tier.
-
-When you use fully-remote storage, you have access to your data when you need it, 
-without the expense of maintaining it in the cluster at all. 
 
 While searchable snapshots are separate from the snapshots used for backup and recovery, 
 they are just snapshots. In fact, you can mount any existing snapshot as a snapshot-backed index. 
 When you use the same repository for both types of snapshots, each snapshot is incremental. 
 Files are shared among searchable snapshots and backup snapshots to avoid data duplication. 
 This means that the additional storage costs for using searchable snapshots are negligible.
+

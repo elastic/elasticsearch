@@ -260,8 +260,8 @@ Events in the API response are sorted by this field's value, converted to
 milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
 ascending order.
 
-The timestamp field is typically mapped as a <<date,`date`>> or
-<<date_nanos,`date_nanos`>> field.
+The timestamp field should be mapped as a <<date,`date`>>. The
+<<date_nanos,`date_nanos`>> field type is not supported.
 --
 
 [[eql-search-api-wait-for-completion-timeout]]

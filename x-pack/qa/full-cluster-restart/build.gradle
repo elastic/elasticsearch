@@ -73,7 +73,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     useCluster testClusters."${baseName}"
     dependsOn copyTestNodeKeyMaterial
     doFirst {
-      project.delete("${buildDir}/cluster/shared/repo/${baseName}")
+      delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
     systemProperty 'tests.is_old_cluster', 'true'
     exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'

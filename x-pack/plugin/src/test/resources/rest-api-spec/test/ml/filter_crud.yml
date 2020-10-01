@@ -3,22 +3,6 @@ setup:
   - skip:
       features:
         - headers
-        - allowed_warnings
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-        Content-Type: application/json
-      allowed_warnings:
-        - "index [.ml-meta] matches multiple legacy templates [.ml-meta, global], composable templates will only match a single template"
-      index:
-        index: .ml-meta
-        id: filter_imposter-filter
-        body: >
-          {
-            "filter_id": "imposter",
-            "items": ["a", "b"],
-            "type": "imposter"
-          }
 
   - do:
       headers:
@@ -317,19 +301,3 @@ setup:
   - match: { count: 0 }
   - match: { filters: [] }
 
----
-"Test get all filter given index exists but no mapping for filter_id":
-
-  - do:
-      indices.delete:
-        index: ".ml-meta"
-  - do:
-      allowed_warnings:
-        - "index [.ml-meta] matches multiple legacy templates [.ml-meta, global], composable templates will only match a single template"
-      indices.create:
-        index: ".ml-meta"
-
-  - do:
-      ml.get_filters: {}
-  - match: { count: 0 }
-  - match: { filters: [] }

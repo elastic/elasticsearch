@@ -37,7 +37,8 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     // version 1: initial
     // version 2: converted to hidden index
     // version 3: templates moved to composable templates
-    public static final int INDEX_TEMPLATE_VERSION = 3;
+    // version 4:converted data stream
+    public static final int INDEX_TEMPLATE_VERSION = 4;
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
     public static final String SLM_TEMPLATE_NAME = ".slm-history";

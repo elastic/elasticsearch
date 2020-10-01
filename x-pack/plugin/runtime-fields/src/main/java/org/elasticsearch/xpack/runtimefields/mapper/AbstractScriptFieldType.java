@@ -32,11 +32,11 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for scripted fields.
  */
-abstract class AbstractScriptMappedFieldType<LeafFactory> extends MappedFieldType {
+abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     protected final Script script;
     private final TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory;
 
-    AbstractScriptMappedFieldType(
+    AbstractScriptFieldType(
         String name,
         Script script,
         TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory,

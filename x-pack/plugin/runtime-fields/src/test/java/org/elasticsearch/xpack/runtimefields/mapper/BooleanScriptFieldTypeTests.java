@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BooleanScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
+public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -75,7 +75,7 @@ public class BooleanScriptMappedFieldTypeTests extends AbstractNonTextScriptMapp
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BooleanScriptMappedFieldType ft = simpleMappedFieldType();
+                BooleanScriptFieldType ft = simpleMappedFieldType();
                 BooleanScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -387,7 +387,7 @@ public class BooleanScriptMappedFieldTypeTests extends AbstractNonTextScriptMapp
     }
 
     @Override
-    protected BooleanScriptMappedFieldType simpleMappedFieldType() throws IOException {
+    protected BooleanScriptFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", Map.of());
     }
 
@@ -401,11 +401,11 @@ public class BooleanScriptMappedFieldTypeTests extends AbstractNonTextScriptMapp
         return "boolean";
     }
 
-    private static BooleanScriptMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static BooleanScriptFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static BooleanScriptMappedFieldType build(Script script) throws IOException {
+    private static BooleanScriptFieldType build(Script script) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -468,7 +468,7 @@ public class BooleanScriptMappedFieldTypeTests extends AbstractNonTextScriptMapp
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             BooleanFieldScript.Factory factory = scriptService.compile(script, BooleanFieldScript.CONTEXT);
-            return new BooleanScriptMappedFieldType("test", script, factory, emptyMap());
+            return new BooleanScriptFieldType("test", script, factory, emptyMap());
         }
     }
 }

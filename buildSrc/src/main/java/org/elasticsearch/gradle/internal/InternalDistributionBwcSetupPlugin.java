@@ -220,7 +220,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     }
 
     /**
-     * Represents an archive project (distribution/archives/*)
+     * Represents a distribution project (distribution/**)
      * we build from a bwc Version in a cloned repository
      */
     private static class DistributionProject {

@@ -36,6 +36,9 @@ public class LimitedCharSequence implements CharSequence {
     private final Pattern pattern;
     private final int limitFactor;
 
+    private static final int MAX_STR_LENGTH = 64;
+    private static final String SNIPPET = "...";
+
     public LimitedCharSequence(CharSequence wrap, Pattern pattern, int limitFactor) {
         if (limitFactor <= 0) {
             throw new IllegalArgumentException("limitFactor must be positive");
@@ -51,8 +54,6 @@ public class LimitedCharSequence implements CharSequence {
         return (pattern != null ? "pattern: [" +  pattern.pattern() + "], " : "") +
             "limit factor: [" + limitFactor + "], " +
             "char limit: [" + counter.charAtLimit + "], " +
-            // TODO(stu): add ... for long fields
-            // "snippet: [" + sequenceSnippet(index) + "], " +
             "count: [" + counter.count + "], " +
             "wrapped: [" + wrapped.toString() + "]";
     }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
-import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
@@ -72,7 +71,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
                 new ReplaceWildcards(),
-                new ReplaceInsensitiveComparisons(),
                 new ReplaceSurrogateFunction(),
                 new ReplaceMatchAll());
 
@@ -152,37 +150,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return value instanceof String && ((String) value).contains("*");
             }
             return false;
-        }
-    }
-
-    /**
-     * Replace insensitive equality with exact ones when dealing with non-string arguments.
-     * 12 : 23  becomes 12 == 34
-     * 12 !: 23 becomes 12 != 34
-     */
-    private static class ReplaceInsensitiveComparisons extends OptimizerRule<Filter> {
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(e -> {
-                if (e instanceof InsensitiveBinaryComparison) {
-                    InsensitiveBinaryComparison cmp = (InsensitiveBinaryComparison) e;
-
-                    // if right side (arbitrary picked - typically would be the literal) is non-string, make the switch
-                    // NB: the type resolution already forces both types to be the same
-                    if (DataTypes.isString(cmp.right().dataType()) == false) {
-                        if (cmp instanceof InsensitiveEquals) {
-                            InsensitiveEquals ie = (InsensitiveEquals) cmp;
-                            e = new Equals(ie.source(), ie.left(), ie.right(), ie.zoneId());
-                        }
-                        else if (cmp instanceof InsensitiveNotEquals) {
-                            InsensitiveNotEquals ine = (InsensitiveNotEquals) cmp;
-                            e = new NotEquals(ine.source(), ine.left(), ine.right(), ine.zoneId());
-                        }
-                    }
-                }
-
-                return e;
-            });
         }
     }
 

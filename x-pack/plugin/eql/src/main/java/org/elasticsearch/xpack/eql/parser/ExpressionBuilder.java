@@ -10,7 +10,6 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
-import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
@@ -134,8 +133,6 @@ public class ExpressionBuilder extends IdentifierBuilder {
         switch (op.getSymbol().getType()) {
             case EqlBaseParser.SEQ:
                 return new InsensitiveEquals(source, left, right, zoneId);
-            case EqlBaseParser.SNEQ:
-                return new InsensitiveNotEquals(source, left, right, zoneId);
             case EqlBaseParser.EQ:
                 return new Equals(source, left, right, zoneId);
             case EqlBaseParser.NEQ:

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
@@ -168,30 +167,6 @@ public class OptimizerTests extends ESTestCase {
             Filter filter = (Filter) plan;
             Equals condition = (Equals) filter.condition();
             assertEquals("foo", condition.right().fold());
-        }
-    }
-
-    public void testNotEqualsWildcard() {
-        List<String> tests = Arrays.asList(
-            "foo where command_line !: \"* baz *\"",
-            "foo where \"* baz *\" !: command_line"
-        );
-
-        for (String q : tests) {
-            LogicalPlan plan = defaultPipes(accept(q));
-
-            assertTrue(plan instanceof Filter);
-
-            Filter filter = (Filter) plan;
-            And condition = (And) filter.condition();
-            assertTrue(condition.right() instanceof Not);
-
-            Not not = (Not) condition.right();
-            Like like = (Like) not.field();
-            assertEquals(((FieldAttribute) like.field()).name(), "command_line");
-            assertEquals(like.pattern().asJavaRegex(), "^.* baz .*$");
-            assertEquals(like.pattern().asLuceneWildcard(), "* baz *");
-            assertEquals(like.pattern().asIndexNameWildcard(), "* baz *");
         }
     }
 

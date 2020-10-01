@@ -39,7 +39,7 @@ public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object,
         String op = function().symbol();
         TypeResolution resolution = TypeResolutions.isString(e, op, paramOrdinal);
         if (resolution.unresolved()) {
-            String message = LoggerMessageFormat.format(null, "{}; considering using [{}] instead", resolution.message(),
+            String message = LoggerMessageFormat.format(null, "{}; consider using [{}] instead", resolution.message(),
                 regularOperatorSymbol());
             resolution = new TypeResolution(message);
         }

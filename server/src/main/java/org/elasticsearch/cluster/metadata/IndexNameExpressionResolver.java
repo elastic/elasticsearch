@@ -139,7 +139,8 @@ public class IndexNameExpressionResolver {
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options, false, false, true, true, isSystemIndexAccessAllowed());
+        // Allow system index access - they'll be filtered out below as there's no such thing (yet) as system data streams
+        Context context = new Context(state, options, false, false, true, true, true);
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{"*"};
         }

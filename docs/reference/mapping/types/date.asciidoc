@@ -108,7 +108,7 @@ SECOND_OF_MINUTE: 59
 NANO_OF_SECOND:   999_999_999
 ----
 
-For example, if the format is `yyyy-MM`, {es} converts a dateq of `2020-12`
+For example, if the format is `yyyy-MM`, {es} converts a date of `2020-12`
 to `2020-12-01T23:59:59.999_999_999Z`. This date uses the provided year (`2020`)
 and month (`12`) but uses the default day (`01`), hour (`23`), minute (`59`),
 second (`59`), and nanosecond (`999_999_999`).

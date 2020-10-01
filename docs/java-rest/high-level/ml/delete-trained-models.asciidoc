@@ -1,5 +1,5 @@
 --
-:api: delete-trained-model
+:api: delete-trained-models
 :request: DeleteTrainedModelRequest
 :response: AcknowledgedResponse
 --

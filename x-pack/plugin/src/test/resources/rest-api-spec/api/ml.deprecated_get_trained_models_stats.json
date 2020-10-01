@@ -1,5 +1,5 @@
 {
-  "ml.get_trained_models_stats":{
+  "ml.deprecated_get_trained_models_stats":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models-stats.html",
       "description":"Retrieves usage information for trained inference models."
@@ -8,7 +8,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_ml/trained_models/{model_id}/_stats",
+          "path":"/_ml/inference/{model_id}/_stats",
           "methods":[
             "GET"
           ],
@@ -17,13 +17,21 @@
               "type":"string",
               "description":"The ID of the trained models stats to fetch"
             }
+          },
+          "deprecated": {
+            "version":"7.10.0",
+            "description":"[/_ml/inference/{model_id}/_stats] is deprecated, use [_ml/trained_models/{mode_id}/_stats]."
           }
         },
         {
-          "path":"/_ml/trained_models/_stats",
+          "path":"/_ml/inference/_stats",
           "methods":[
             "GET"
-          ]
+          ],
+          "deprecated": {
+            "version":"7.10.0",
+            "description":"[/_ml/inference/_stats] is deprecated, use [_ml/trained_models/_stats]."
+          }
         }
       ]
     },

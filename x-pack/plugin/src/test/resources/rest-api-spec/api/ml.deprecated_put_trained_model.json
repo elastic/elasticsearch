@@ -1,5 +1,5 @@
 {
-  "ml.put_trained_model":{
+  "ml.deprecated_put_trained_model":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-models.html",
       "description":"Creates an inference trained model."
@@ -8,7 +8,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_ml/trained_models/{model_id}",
+          "path":"/_ml/inference/{model_id}",
           "methods":[
             "PUT"
           ],
@@ -17,6 +17,10 @@
               "type":"string",
               "description":"The ID of the trained models to store"
             }
+          },
+          "deprecated": {
+            "version":"7.10.0",
+            "description":"[/_ml/inference/{model_id}] is deprecated, use [_ml/trained_models/{mode_id}]."
           }
         }
       ]

@@ -88,7 +88,7 @@ public class TransportBulkActionTests extends ESTestCase {
         TestTransportBulkAction() {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
-                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()),
+                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(), new SystemIndices(emptyMap())),
                     new IndexingPressure(Settings.EMPTY), new SystemIndices(emptyMap()));
         }
 
@@ -269,6 +269,28 @@ public class TransportBulkActionTests extends ESTestCase {
 
         List<String> mixed = Arrays.asList(".foo", ".test", "other");
         assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
+    }
+
+    public void testIncludesSystem() {
+        SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
+        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        indicesLookup.put(".foo",
+            new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
+        indicesLookup.put(".bar",
+            new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
+        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of("plugin",
+            org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(".test", ""))));
+        List<String> onlySystem = org.elasticsearch.common.collect.List.of(".foo", ".bar");
+        assertTrue(bulkAction.includesSystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+
+        onlySystem = org.elasticsearch.common.collect.List.of(".foo", ".bar", ".test");
+        assertTrue(bulkAction.includesSystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+
+        List<String> nonSystem = org.elasticsearch.common.collect.List.of("foo", "bar");
+        assertFalse(bulkAction.includesSystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
+
+        List<String> mixed = org.elasticsearch.common.collect.List.of(".foo", ".test", "other");
+        assertTrue(bulkAction.includesSystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

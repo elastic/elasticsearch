@@ -129,12 +129,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
                 IpFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), IpFieldScript.CONTEXT);
-                return new IpScriptFieldType(
-                    builder.buildFullName(context),
-                    builder.script.getValue(),
-                    factory,
-                    builder.meta.getValue()
-                );
+                return new IpScriptFieldType(builder.buildFullName(context), builder.script.getValue(), factory, builder.meta.getValue());
             },
             KeywordFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
@@ -151,12 +146,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
                 LongFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), LongFieldScript.CONTEXT);
-                return new LongScriptFieldType(
-                    builder.buildFullName(context),
-                    builder.script.getValue(),
-                    factory,
-                    builder.meta.getValue()
-                );
+                return new LongScriptFieldType(builder.buildFullName(context), builder.script.getValue(), factory, builder.meta.getValue());
             }
         );
 

@@ -546,8 +546,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     throw new IllegalArgumentException("Operation term is newer than the current term; "
                         + "current term[" + current.getPrimaryTerm() + "], operation term[" + operation + "]");
                 }
-                final Location location = current.add(bytes, operation.seqNo());
-                return location;
+                return current.add(bytes, operation.seqNo());
             }
         } catch (final AlreadyClosedException | IOException ex) {
             closeOnTragicEvent(ex);

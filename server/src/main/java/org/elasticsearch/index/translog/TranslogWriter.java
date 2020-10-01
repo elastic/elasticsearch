@@ -31,7 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.io.DirectPool;
+import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -206,7 +206,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
 
         if (bytesBufferedAfterAdd >= forceWriteThreshold) {
-            writeBufferedOps(Long.MAX_VALUE, false);
+            writeBufferedOps(Long.MAX_VALUE, bytesBufferedAfterAdd >= forceWriteThreshold * 4);
         }
 
         return location;
@@ -333,6 +333,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     }
                     // If we reached this point, all of the buffered ops should have been flushed successfully.
                     assert bufferedOps.size() == 0;
+                    assert totalOffset == lastSyncedCheckpoint.offset && operationCounter == lastSyncedCheckpoint.numOps;
                     if (closed.compareAndSet(false, true)) {
                         try {
                             checkpointChannel.close();
@@ -366,6 +367,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     } catch (IOException e) {
                         throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
                     }
+                    // If we reached this point, all of the buffered ops should have been flushed successfully.
+                    assert bufferedOps.size() == 0;
+                    assert totalOffset == lastSyncedCheckpoint.offset && operationCounter == lastSyncedCheckpoint.numOps;
                     return super.newSnapshot();
                 }
             }
@@ -454,7 +458,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private void writeAndReleaseOps(final ArrayDeque<Operation> operationsToWrite) throws IOException {
         try {
             assert writeLock.isHeldByCurrentThread();
-            ByteBuffer ioBuffer = DirectPool.getIoBuffer();
+            ByteBuffer ioBuffer = DiskIoBufferPool.getIoBuffer();
 
             Operation operation;
             while ((operation = operationsToWrite.pollFirst()) != null) {
@@ -532,10 +536,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     @Override
-    public final synchronized void close() throws IOException {
+    public final void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
-            Releasables.closeWhileHandlingException(bufferedOps);
-            bufferedOps.clear();
+            synchronized (this) {
+                Releasables.closeWhileHandlingException(bufferedOps);
+                bufferedOps.clear();
+            }
             IOUtils.close(checkpointChannel, channel);
         }
     }

@@ -30,6 +30,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,8 +59,8 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, TEMPLATE_SLM_HISTORY.loadBytes()));
         ClusterState state = clusterService.state();
-        Metadata.Builder metadataBuilder =
-            Metadata.builder(state.getMetadata()).indexTemplates(Map.of(TEMPLATE_SLM_HISTORY.getTemplateName(), template));
+        Map<String, ComposableIndexTemplate> templates = Collections.singletonMap(TEMPLATE_SLM_HISTORY.getTemplateName(), template);
+        Metadata.Builder metadataBuilder = Metadata.builder(state.getMetadata()).indexTemplates(templates);
         ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadataBuilder).build());
         historyStore = new SnapshotHistoryStore(Settings.EMPTY, client, clusterService);
         clusterService.stop();

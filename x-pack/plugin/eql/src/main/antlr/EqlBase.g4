@@ -55,7 +55,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (FORK (EQ booleanValue)?)? (by=joinKeys)?
+   : subquery (by=joinKeys)?
    ;
 
 subquery
@@ -65,7 +65,7 @@ subquery
 eventQuery
     : eventFilter
     ;
-    
+
 eventFilter
     : (ANY | event=identifier) WHERE expression
     ;
@@ -121,7 +121,7 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : SEQ | EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -154,7 +154,6 @@ AND: 'and';
 ANY: 'any';
 BY: 'by';
 FALSE: 'false';
-FORK: 'fork';
 IN: 'in';
 JOIN: 'join';
 MAXSPAN: 'maxspan';
@@ -169,6 +168,9 @@ WHERE: 'where';
 WITH: 'with';
 
 // Operators
+// dedicated string equality - case-insensitive and supporting * operator
+SEQ : ':';
+// regular operators
 ASGN : '=';
 EQ  : '==';
 NEQ : '!=';

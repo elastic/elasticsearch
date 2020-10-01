@@ -32,7 +32,7 @@ import java.util.Optional;
 
 public class GetDataFrameAnalyticsRequest implements Validatable {
 
-    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final String ALLOW_NO_MATCH = "allow_no_match";
     public static final String FOR_EXPORT = "for_export";
 
     private final List<String> ids;

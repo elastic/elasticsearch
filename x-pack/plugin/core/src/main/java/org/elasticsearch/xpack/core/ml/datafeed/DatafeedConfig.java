@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,6 +68,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private static final int TWO_MINS_SECONDS = 2 * SECONDS_IN_MINUTE;
     private static final int TWENTY_MINS_SECONDS = 20 * SECONDS_IN_MINUTE;
     private static final int HALF_DAY_SECONDS = 12 * 60 * SECONDS_IN_MINUTE;
+    public static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
+    private static final TimeValue MIN_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
+    private static final TimeValue MAX_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(2);
 
     private static final Logger logger = LogManager.getLogger(DatafeedConfig.class);
 
@@ -464,20 +468,15 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 builder.field(HEADERS.getPreferredName(), headers);
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
-            builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
             if (chunkingConfig != null) {
                 builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
             }
             builder.startObject(INDICES_OPTIONS.getPreferredName());
             indicesOptions.toXContent(builder, params);
             builder.endObject();
-        } else { // Don't include random defaults or unnecessary defauls in export
-            if (queryDelay.equals(defaultRandomQueryDelay()) == false) {
+        } else { // Don't include random defaults or unnecessary defaults in export
+            if (queryDelay.equals(defaultRandomQueryDelay(jobId)) == false) {
                 builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
-            }
-            // This is always "match_all"
-            if (queryProvider.equals(QueryProvider.defaultQuery()) == false) {
-                builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
             }
             // Indices options are a pretty advanced feature, better to not include them if they are just the default ones
             if (indicesOptions.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
@@ -486,10 +485,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 builder.endObject();
             }
             // Removing the default chunking config as it is determined by OTHER fields
-            if (chunkingConfig != null && chunkingConfig.equals(defaultChunkingConfig()) == false) {
+            if (chunkingConfig != null && chunkingConfig.equals(defaultChunkingConfig(aggProvider)) == false) {
                 builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
             }
         }
+        builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
@@ -515,14 +515,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return builder;
     }
 
-    private TimeValue defaultRandomQueryDelay() {
+    private static TimeValue defaultRandomQueryDelay(String jobId) {
         Random random = new Random(jobId.hashCode());
-        long delayMillis = random.longs(Builder.MIN_DEFAULT_QUERY_DELAY.millis(), Builder.MAX_DEFAULT_QUERY_DELAY.millis())
-            .findFirst().getAsLong();
+        long delayMillis = random.longs(MIN_DEFAULT_QUERY_DELAY.millis(), MAX_DEFAULT_QUERY_DELAY.millis()).findFirst().getAsLong();
         return TimeValue.timeValueMillis(delayMillis);
     }
 
-    private ChunkingConfig defaultChunkingConfig() {
+    private static ChunkingConfig defaultChunkingConfig(@Nullable AggProvider aggProvider) {
         if (aggProvider == null || aggProvider.getParsedAggs() == null) {
             return ChunkingConfig.newAuto();
         } else {
@@ -530,8 +529,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (histogramIntervalMillis <= 0) {
                 throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
             }
-            return ChunkingConfig.newManual(TimeValue.timeValueMillis(
-                Builder.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
+            return ChunkingConfig.newManual(TimeValue.timeValueMillis(DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
         }
     }
 
@@ -627,10 +625,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     }
 
     public static class Builder {
-
-        public static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
-        private static final TimeValue MIN_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
-        private static final TimeValue MAX_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(2);
 
         private String id;
         private String jobId;
@@ -868,25 +862,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         private void setDefaultChunkingConfig() {
             if (chunkingConfig == null) {
-                if (aggProvider == null || aggProvider.getParsedAggs() == null) {
-                    chunkingConfig = ChunkingConfig.newAuto();
-                } else {
-                    long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(aggProvider.getParsedAggs());
-                    if (histogramIntervalMillis <= 0) {
-                        throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
-                    }
-                    chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueMillis(
-                            DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
-                }
+                chunkingConfig = defaultChunkingConfig(aggProvider);
             }
         }
 
         private void setDefaultQueryDelay() {
             if (queryDelay == null) {
-                Random random = new Random(jobId.hashCode());
-                long delayMillis = random.longs(MIN_DEFAULT_QUERY_DELAY.millis(), MAX_DEFAULT_QUERY_DELAY.millis())
-                        .findFirst().getAsLong();
-                queryDelay = TimeValue.timeValueMillis(delayMillis);
+                queryDelay = defaultRandomQueryDelay(jobId);
             }
         }
 

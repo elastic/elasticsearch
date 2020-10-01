@@ -172,14 +172,37 @@ GET /_search
 
 [[range-query-date-math-rounding]]
 ====== Date math and rounding
-By default {es} is rounding dates when date fields are not present. For instance when a millisecond part will not be provided, will be rounded to `999`.
-For instance:
-```
-"datetime": {
+{es} is rounding dates when date fields are not present during range search.
+Default values for fields missing are:
+[source,text]
+----
+MONTH_OF_YEAR -  1
+DAY_OF_MONTH -  1
+HOUR_OF_DAY - 23
+MINUTE_OF_HOUR - 59
+SECOND_OF_MINUTE - 59
+NANO_OF_SECOND - 999_999_999
+----
+
+When a millisecond part will not be provided, will be rounded to `999`.
+
+An example:
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "range": {
+      "timestamp": {
         "gt": "2020-01-01T12:00:00Z"
       }
-```
-A date `2020-01-01T12:00:00Z` will be rounded to `2020-01-01T12:00:00.999_999_999Z`
+    }
+  }
+}
+----
+
+A date `2020-01-01T12:00:00Z` will be have a fraction of a second part defaulted to `2020-01-01T12:00:00.999_999_999Z`
+
 {es} rounds <<date-math,date math>> values in parameters as follows:
 
 `gt`::

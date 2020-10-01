@@ -42,6 +42,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Deletes all model snapshots that have expired the configured retention time
@@ -255,13 +256,13 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         JobDataDeleter deleter = new JobDataDeleter(client, jobId);
         deleter.deleteModelSnapshots(modelSnapshots, ActionListener.wrap(
             bulkResponse -> {
-                String msg = Messages.getMessage(
-                    Messages.JOB_AUDIT_SNAPSHOTS_DELETED,
-                    modelSnapshots.stream().map(ModelSnapshot::getSnapshotId),
-                    modelSnapshots.stream().map(ModelSnapshot::getDescription));
-
-                auditor.info(jobId, msg);
-                LOGGER.debug(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
+                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOTS_DELETED, modelSnapshots.size()));
+                LOGGER.debug(() -> new ParameterizedMessage(
+                    "[{}] deleted model snapshots {} with descriptions {}",
+                    jobId,
+                    modelSnapshots.stream().map(ModelSnapshot::getSnapshotId).collect(Collectors.toList()),
+                    modelSnapshots.stream().map(ModelSnapshot::getDescription).collect(Collectors.toList())
+                ));
                 listener.onResponse(true);
             },
             listener::onFailure

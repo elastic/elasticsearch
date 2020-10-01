@@ -135,6 +135,16 @@ public class EqlParser {
         }
 
         @Override
+        public void exitProcessCheck(EqlBaseParser.ProcessCheckContext context) {
+            Token token = context.relationship;
+            throw new ParsingException(
+                    "Process relationships are not supported",
+                    null,
+                    token.getLine(),
+                    token.getCharPositionInLine());
+        }
+
+        @Override
         public void exitQualifiedName(EqlBaseParser.QualifiedNameContext context) {
             if (context.INTEGER_VALUE().size() > 0) {
                 Token firstIndex = context.INTEGER_VALUE(0).getSymbol();

@@ -88,6 +88,15 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:11: Unknown column [pib], did you mean any of [pid, ppid]?", error("foo where pib == 1"));
     }
 
+    public void testProcessRelationshipsUnsupported() {
+        assertEquals("2:7: Process relationships are not supported",
+                errorParsing("process where opcode==1 and process_name == \"csrss.exe\"\n" +
+                        "  and descendant of [file where file_name == \"csrss.exe\" and opcode==0]"));
+        assertEquals("2:7: Process relationships are not supported",
+                errorParsing("process where process_name==\"svchost.exe\"\n" +
+                        "  and child of [file where file_name=\"svchost.exe\" and opcode==0]"));
+    }
+
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
         assertEquals("1:16: Unknown function [arrayContains], did you mean [stringcontains]?",

@@ -115,6 +115,13 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitBooleanDefault(EqlBaseParser.BooleanDefaultContext ctx);
   /**
+   * Visit a parse tree produced by the {@code processCheck}
+   * labeled alternative in {@link EqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitProcessCheck(EqlBaseParser.ProcessCheckContext ctx);
+  /**
    * Visit a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

@@ -220,6 +220,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterProcessCheck(EqlBaseParser.ProcessCheckContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitProcessCheck(EqlBaseParser.ProcessCheckContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLogicalBinary(EqlBaseParser.LogicalBinaryContext ctx) { }
   /**
    * {@inheritDoc}

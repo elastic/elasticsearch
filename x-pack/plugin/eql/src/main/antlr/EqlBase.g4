@@ -76,6 +76,7 @@ expression
 
 booleanExpression
     : NOT booleanExpression                                               #logicalNot
+    | relationship=IDENTIFIER OF subquery                                 #processCheck
     | valueExpression                                                     #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression         #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression          #logicalBinary
@@ -158,6 +159,7 @@ JOIN: 'join';
 MAXSPAN: 'maxspan';
 NOT: 'not';
 NULL: 'null';
+OF: 'of';
 OR: 'or';
 SEQUENCE: 'sequence';
 TRUE: 'true';

@@ -33,55 +33,27 @@ public class LimitedCharSequence implements CharSequence {
     private final Counter counter;
 
     // for errors
-    private final boolean isSubSequence;
-    private final int offset; // if this is a subSequence, the start of the subSequence
-    private final CharSequence original;
     private final Pattern pattern;
     private final int limitFactor;
 
-    private LimitedCharSequence(CharSequence wrap, Pattern pattern, int limitFactor) {
+    public LimitedCharSequence(CharSequence wrap, Pattern pattern, int limitFactor) {
+        if (limitFactor <= 0) {
+            throw new IllegalArgumentException("limitFactor must be positive");
+        }
         this.wrapped = wrap;
         this.counter = new Counter(limitFactor * wrapped.length());
 
-        this.isSubSequence = false;
-        this.offset = 0;
-        this.original = wrap;
         this.pattern = pattern;
         this.limitFactor = limitFactor;
     }
 
-    // subSequence constructor
-    private LimitedCharSequence(LimitedCharSequence superSequence, int start, int end) {
-        this.wrapped = superSequence.wrapped.subSequence(start, end);
-        this.counter = superSequence.counter;
-
-        this.isSubSequence = true;
-        this.offset = superSequence.offset + start;
-        this.original = superSequence.original;
-        this.pattern = superSequence.pattern;
-        this.limitFactor = superSequence.limitFactor;
-    }
-
-    public static CharSequence limitedCharSequence(CharSequence wrapped, Pattern pattern, int limitFactor) {
-        if (limitFactor <= 0) {
-            throw new IllegalArgumentException("limitFactor must be positive");
-        }
-        if (wrapped instanceof LimitedCharSequence) {
-            return wrapped;
-        }
-        return new LimitedCharSequence(wrapped, pattern, limitFactor);
-    }
-
     public String details(int index) {
-        // TODO(stu): pattern may be null
-        return pattern != null ? "pattern: [" +  pattern.pattern() + "], " : "" +
+        return (pattern != null ? "pattern: [" +  pattern.pattern() + "], " : "") +
             "limit factor: [" + limitFactor + "], " +
             "char limit: [" + counter.charAtLimit + "], " +
             // TODO(stu): add ... for long fields
             // "snippet: [" + sequenceSnippet(index) + "], " +
             "count: [" + counter.count + "], " +
-            "isSubSequence: [" + isSubSequence + "], " +
-            "offset: [" + offset + "], " +
             "wrapped: [" + wrapped.toString() + "]";
     }
 
@@ -103,7 +75,7 @@ public class LimitedCharSequence implements CharSequence {
 
     @Override
     public CharSequence subSequence(int start, int end) {
-        return new LimitedCharSequence(this, start, end);
+        return wrapped.subSequence(start, end);
     }
 
     @Override

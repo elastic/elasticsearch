@@ -689,27 +689,27 @@ public class Augmentation {
         if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
             return receiver.split(input);
         }
-        return receiver.split(LimitedCharSequence.limitedCharSequence(input, receiver, limitFactor));
+        return receiver.split(new LimitedCharSequence(input, receiver, limitFactor));
     }
 
     public static String[] split​(Pattern receiver, int limitFactor, CharSequence input, int limit) {
         if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
             return receiver.split(input, limit);
         }
-        return receiver.split(LimitedCharSequence.limitedCharSequence(input, receiver, limitFactor), limit);
+        return receiver.split(new LimitedCharSequence(input, receiver, limitFactor), limit);
     }
 
     public static Stream<String> splitAsStream​(Pattern receiver, int limitFactor, CharSequence input) {
         if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
             return receiver.splitAsStream(input);
         }
-        return receiver.splitAsStream(LimitedCharSequence.limitedCharSequence(input, receiver, limitFactor));
+        return receiver.splitAsStream(new LimitedCharSequence(input, receiver, limitFactor));
     }
 
     public static Matcher matcher(Pattern receiver, int limitFactor, CharSequence input) {
         if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
             return receiver.matcher(input);
         }
-        return receiver.matcher(LimitedCharSequence.limitedCharSequence(input, receiver, limitFactor));
+        return receiver.matcher(new LimitedCharSequence(input, receiver, limitFactor));
     }
 }

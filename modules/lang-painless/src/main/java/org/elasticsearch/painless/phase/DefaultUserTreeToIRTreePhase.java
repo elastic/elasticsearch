@@ -956,7 +956,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             BinaryMathNode irBinaryMathNode = new BinaryMathNode(userBinaryNode.getLocation());
 
-            if (operation == Operation.MATCH) {
+            if (operation == Operation.MATCH || operation == Operation.FIND) {
                 irBinaryMathNode.setRegexLimit(scriptScope.getCompilerSettings().getRegexLimitFactor());
             }
             irBinaryMathNode.setBinaryType(scriptScope.getDecoration(userBinaryNode, BinaryType.class).getBinaryType());

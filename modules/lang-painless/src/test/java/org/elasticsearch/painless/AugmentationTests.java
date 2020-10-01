@@ -494,7 +494,25 @@ public class AugmentationTests extends ScriptTestCase {
         assertTrue(cbe.getMessage().contains(regexCircuitMessage));
     }
 
-    //qpublic void testRegexInject
+    public void testRegexInjectFindOperator() {
+        String script = "if (" + charSequence + " =~ " + pattern + ") { return 100; } return 200";
+        setRegexLimitFactor(2);
+        assertEquals(Integer.valueOf(100), (Integer) exec(script));
+
+        setRegexLimitFactor(1);
+        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+        assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+    }
+
+    public void testRegexInjectMatchOperator() {
+        String script = "if (" + charSequence + " ==~ " + pattern + ") { return 100; } return 200";
+        setRegexLimitFactor(2);
+        assertEquals(Integer.valueOf(100), (Integer) exec(script));
+
+        setRegexLimitFactor(1);
+        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+        assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+    }
 
     private void setRegexLimitFactor(int factor) {
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), factor).build();

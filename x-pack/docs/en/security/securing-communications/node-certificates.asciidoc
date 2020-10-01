@@ -17,7 +17,14 @@ of generating certificates for the {stack}. It takes care of generating a CA and
 signing certificates with the CA. It can be used interactively or in a silent
 mode through the use of an input file. It also supports generation of
 certificate signing requests (CSR), so that a commercial- or
-organization-specific CA can be used to sign the certificates. For example:
+organization-specific CA can be used to sign the certificates.
+
+NOTE: If you choose not to use `elasticsearch-certutil`, the certificates that
+you obtain must allow for both `clientAuth` and `serverAuth` if the extended key
+usage extension is present. The certificates need to be in PEM or PKCS#12
+format. Although not required, it is highly recommended that the certificate
+contain the DNS names and/or IP addresses of the node so that hostname
+verification can be used.
 
 . Optional: Create a certificate authority for your {es} cluster.
 +
@@ -76,20 +83,20 @@ signing requests (CSR) for the nodes in your cluster. For more information, see
 --
 
 . Copy the node certificate to the appropriate locations.
+
+.. Create a folder in the configuration directory on each {es} node to contain
+your security certificates. For example, create a `certs` folder in the
+`/home/es/config/certs` directory.
 +
---
-Copy the applicable `.p12` file into a directory within the {ref}/settings.html#config-files-location[{es} configuration
-directory] on each node, otherwise permissions checks will fail at
-the start up. For example, `/home/es/config/certs`. There is no need
-to copy the CA file to this directory.
+NOTE: The {ref}/settings.html#config-files-location[{es} configuration
+directory] varies depending on your {es} installation.
 
-For each additional Elastic product that you want to configure, copy the
-certificates to the relevant configuration directory. 
---
+.. Copy the node certificates into the `certs` directory that you created in the
+previous step.
 
-NOTE: If you choose not to use `elasticsearch-certutil`, the certificates that
-you obtain must allow for both `clientAuth` and `serverAuth` if the extended key
-usage extension is present. The certificates need to be in PEM or PKCS#12
-format. Although not required, it is highly recommended that the certificate
-contain the DNS names and/or IP addresses of the node so that hostname
-verification can be used.
+.. Copy the `.p12` keystore into the {es} configuration directory. If this file
+does not exist in the location that {es} expects, permission checks will fail
+when {es} starts.
+
+.. For each additional Elastic product that you want to configure, copy the
+certificates to the relevant configuration directory.

@@ -500,7 +500,6 @@ public class WildcardFieldMapperTests extends ESTestCase {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
-            System.out.println(regex+"\n\t"+wildcardFieldQuery);
             testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
         }
 

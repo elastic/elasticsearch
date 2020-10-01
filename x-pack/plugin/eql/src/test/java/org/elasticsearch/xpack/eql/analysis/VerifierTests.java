@@ -23,9 +23,9 @@ public class VerifierTests extends ESTestCase {
 
     private static final String INDEX_NAME = "test";
 
-    private EqlParser parser = new EqlParser();
+    private final EqlParser parser = new EqlParser();
 
-    private IndexResolution index = loadIndexResolution("mapping-default.json");
+    private final IndexResolution index = loadIndexResolution("mapping-default.json");
 
     private static Map<String, EsField> loadEqlMapping(String name) {
         return TypesTests.loadMapping(name);

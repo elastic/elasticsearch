@@ -136,7 +136,7 @@ public class TrainedModelIT extends ESRestTestCase {
             MachineLearning.BASE_PATH + "trained_models/classification*?allow_no_match=false")));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
-        getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "inference?from=0&size=1"));
+        getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "trained_models?from=0&size=1"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());

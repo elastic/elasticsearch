@@ -41,6 +41,11 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         return List.of(
             new ReplacedRoute(
                 GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",

@@ -35,6 +35,8 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSystemIndicesUpgrades() throws Exception {
+        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
+            "access to system indices will be prevented by default";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // create index
             Request createTestIndex = new Request("PUT", "/test_index_old");
@@ -72,8 +74,6 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             getTasksIndex.addParameter("allow_no_indices", "false");
 
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
-                final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
-                    "access to system indices will be prevented by default";
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);
             }));
@@ -119,6 +119,10 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                 if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
                     // Verify that the alias survived the upgrade
                     Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
+                    getAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
+                        v.current(systemIndexWarning);
+                        v.compatible(systemIndexWarning);
+                    }));
                     Map<String, Object> aliasResponse = entityAsMap(client().performRequest(getAliasRequest));
                     assertThat(aliasResponse, hasKey(".tasks"));
                     assertThat(aliasResponse, hasKey("test_index_reindex"));

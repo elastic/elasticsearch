@@ -197,7 +197,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final String localNodeId = clusterService.localNode().getId();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
             final State entryState = entry.state();
-            if (entry.source() != null) {
+            if (entry.isClone()) {
                 // This is a snapshot clone, it will be executed on the current master
                 continue;
             }

@@ -379,6 +379,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return source;
         }
 
+        public boolean isClone() {
+            return source != null;
+        }
+
         public ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones() {
             return clones;
         }

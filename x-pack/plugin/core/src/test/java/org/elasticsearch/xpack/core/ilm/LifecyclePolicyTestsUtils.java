@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.xpack.ilm.LockableLifecycleType;
-
 import java.util.Map;
 
 /**

@@ -28,7 +28,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
-import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
@@ -96,7 +95,6 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
                 ignoreZValue().value());
             ft.setGeometryParser(new GeoShapeParser(geometryParser));
             ft.setGeometryIndexer(new GeoShapeIndexer(orientation().value().getAsBoolean(), ft.name()));
-            ft.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
             ft.setOrientation(orientation().value());
             return new GeoShapeWithDocValuesFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), orientation(), Version.V_7_8_0.onOrBefore(context.indexCreatedVersion()),

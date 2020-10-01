@@ -181,7 +181,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 this.clones = clones;
             }
-            assert assertShardsConsistent(source, state, indices, shards, this.clones);
+            assert assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.clones);
         }
 
         private Entry(StreamInput in) throws IOException {

@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.api.LimitedCharSequenceTests;
 
 public class RegexLimitTests extends ScriptTestCase {
     // This regex has backtracking due to .*?
@@ -283,6 +284,16 @@ public class RegexLimitTests extends ScriptTestCase {
         setRegexLimitFactor(1);
         CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
         assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+    }
+
+    public void testSnippetRegex() {
+        String charSequence = "abcdef123456".repeat(100);
+        String script = "if ('" + charSequence + "' ==~ " + pattern + ") { return 100; } return 200";
+
+        setRegexLimitFactor(1);
+        CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
+        assertTrue(cbe.getMessage().contains(regexCircuitMessage));
+        assertTrue(cbe.getMessage().contains(charSequence.subSequence(0, 61) + "..."));
     }
 
     private void setRegexLimitFactor(int factor) {

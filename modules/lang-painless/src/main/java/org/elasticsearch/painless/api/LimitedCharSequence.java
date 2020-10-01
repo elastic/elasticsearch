@@ -36,7 +36,7 @@ public class LimitedCharSequence implements CharSequence {
     private final Pattern pattern;
     private final int limitFactor;
 
-    private static final int MAX_STR_LENGTH = 64;
+    public static final int MAX_STR_LENGTH = 64;
     private static final String SNIPPET = "...";
 
     public LimitedCharSequence(CharSequence wrap, Pattern pattern, int limitFactor) {
@@ -50,12 +50,28 @@ public class LimitedCharSequence implements CharSequence {
         this.limitFactor = limitFactor;
     }
 
-    public String details(int index) {
+    public String details() {
         return (pattern != null ? "pattern: [" +  pattern.pattern() + "], " : "") +
             "limit factor: [" + limitFactor + "], " +
             "char limit: [" + counter.charAtLimit + "], " +
             "count: [" + counter.count + "], " +
-            "wrapped: [" + wrapped.toString() + "]";
+            "wrapped: [" + snippet(MAX_STR_LENGTH) + "]";
+    }
+
+    /**
+     * Snip a long wrapped CharSequences for error messages
+     */
+    String snippet(int maxStrLength) {
+        if (maxStrLength < SNIPPET.length() * 6) {
+            throw new IllegalArgumentException("max str length must be large enough to include three snippets and three context chars, " +
+                "at least [" + SNIPPET.length() * 6 +"], not [" + maxStrLength + "]");
+        }
+
+        if (wrapped.length() <= maxStrLength) {
+            return wrapped.toString();
+        }
+
+        return wrapped.subSequence(0, maxStrLength - SNIPPET.length()) + "..." ;
     }
 
     @Override
@@ -67,7 +83,7 @@ public class LimitedCharSequence implements CharSequence {
     public char charAt(int index) {
         counter.count++;
         if (counter.hitLimit()) {
-            throw new CircuitBreakingException("[scripting] Regular expression considered too many characters, " + details(index) +
+            throw new CircuitBreakingException("[scripting] Regular expression considered too many characters, " + details() +
             ", this limit can be changed by changed by the [" + CompilerSettings.REGEX_LIMIT_FACTOR.getKey() + "] setting",
                 CircuitBreaker.Durability.TRANSIENT);
         }

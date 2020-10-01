@@ -79,16 +79,16 @@ final class QueryTranslator {
             return doTranslate(bc, handler);
         }
 
+        public static Query doTranslate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
+            checkInsensitiveComparison(bc);
+            return handler.wrapFunctionQuery(bc, bc.left(), translate(bc, handler));
+        }
+
         public static void checkInsensitiveComparison(InsensitiveBinaryComparison bc) {
             Check.isTrue(bc.right().foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
                 bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
                 Expressions.name(bc.right()), bc.symbol());
-        }
-
-        public static Query doTranslate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
-            checkInsensitiveComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), translate(bc, handler));
         }
 
         private static Query translate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
@@ -102,8 +102,7 @@ final class QueryTranslator {
                     // (which is important for strings)
                     name = ((FieldAttribute) bc.left()).exactAttribute().name();
                 }
-                Query query;
-                query = new TermQuery(source, name, value);
+                Query query = new TermQuery(source, name, value);
 
                 if (bc instanceof InsensitiveNotEquals) {
                     query = new NotQuery(source, query);

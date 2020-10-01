@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Comparisons;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 
 /**
  * EQL specific string comparison utilities.
@@ -18,7 +18,10 @@ public final class StringComparisons {
         if (l instanceof String && r instanceof String) {
             return ((String)l).compareToIgnoreCase((String) r) == 0;
         }
-        return Comparisons.eq(l, r);
+        if (l == null || r == null) {
+            return null;
+        }
+        throw new EqlIllegalArgumentException("Insensitive comparison can be applied only on strings");
     }
 
     static Boolean insensitiveNotEquals(Object l, Object r) {

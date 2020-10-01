@@ -30,7 +30,7 @@ public class InsensitiveBinaryComparisonPipe extends BinaryPipe {
     }
 
     @Override
-    protected BinaryPipe replaceChildren(Pipe left, Pipe right) {
+    protected InsensitiveBinaryComparisonPipe replaceChildren(Pipe left, Pipe right) {
         return new InsensitiveBinaryComparisonPipe(source(), expression(), left, right, operation);
     }
 

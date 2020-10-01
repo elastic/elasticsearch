@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
@@ -49,10 +50,10 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
         assertEquals(false, p(seq(l("abc"), l("cba"))));
     }
 
-    public void testRegularEquals() {
-        assertEquals(true, p(seq(l(12), l(12))));
-        assertEquals(true, p(seq(l(2f), l(2f))));
-        assertEquals(false, p(seq(l(12), l(23))));
+    public void testNonStringArguments() {
+        expectThrows(EqlIllegalArgumentException.class, () -> p(seq(l(12), l(12))));
+        expectThrows(EqlIllegalArgumentException.class, () -> p(seq(l(12), l("12"))));
+        expectThrows(EqlIllegalArgumentException.class, () -> p(seq(l("12"), l(12))));
     }
 
     public void testNullStringEquals() {
@@ -77,9 +78,9 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
     }
 
     public void testRegularNotEquals() {
-        assertEquals(false, p(sneq(l(12), l(12))));
-        assertEquals(false, p(sneq(l(2f), l(2f))));
-        assertEquals(true, p(sneq(l(12), l(23))));
+        expectThrows(EqlIllegalArgumentException.class, () ->  p(sneq(l(12), l(12))));
+        expectThrows(EqlIllegalArgumentException.class, () ->  p(sneq(l(12), l("12"))));
+        expectThrows(EqlIllegalArgumentException.class, () ->  p(sneq(l("12"), l(12))));
     }
 
     private static Literal l(Object value) {

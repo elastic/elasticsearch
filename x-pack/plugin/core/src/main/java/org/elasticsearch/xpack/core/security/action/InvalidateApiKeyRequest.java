@@ -126,7 +126,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingApiKeyId(String id, boolean ownedByAuthenticatedUser) {
-        return new InvalidateApiKeyRequest(null, null, List.of(id), null, ownedByAuthenticatedUser);
+        return new InvalidateApiKeyRequest(null, null, List.of(Objects.requireNonNull(id)), null, ownedByAuthenticatedUser);
     }
 
     /**

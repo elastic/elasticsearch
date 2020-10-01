@@ -10,9 +10,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -28,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -40,37 +39,38 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.fielddata.LongScriptFieldData;
+import org.elasticsearch.xpack.runtimefields.fielddata.DoubleScriptFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
-public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
+public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
+        assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1.2), equalTo("1.2"));
         assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(11), equalTo("11"));
         assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(1123), equalTo("1,123"));
+        assertThat(simpleMappedFieldType().docValueFormat("#,##0.00", null).format(1123), equalTo("1,123.00"));
+        assertThat(simpleMappedFieldType().docValueFormat("#,##0.00", null).format(1123.1), equalTo("1,123.10"));
     }
 
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2, 1]}"))));
-            List<Long> results = new ArrayList<>();
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.0]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [3.14, 1.4]}"))));
+            List<Double> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                LongScriptMappedFieldType ft = build("add_param", org.elasticsearch.common.collect.Map.of("param", 1));
-                LongScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                DoubleScriptFieldType ft = build("add_param", org.elasticsearch.common.collect.Map.of("param", 1));
+                DoubleScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -79,7 +79,7 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        SortedNumericDocValues dv = ifd.load(context).getLongValues();
+                        SortedNumericDoubleValues dv = ifd.load(context).getDoubleValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}
@@ -95,7 +95,7 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                         };
                     }
                 });
-                assertThat(results, equalTo(org.elasticsearch.common.collect.List.of(2L, 2L, 3L)));
+                assertThat(results, equalTo(org.elasticsearch.common.collect.List.of(2.0, 2.4, 4.140000000000001)));
             }
         }
     }
@@ -103,47 +103,17 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     @Override
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [4]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.1]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [4.2]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                LongScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                DoubleScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
-                assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1]}"));
-                assertThat(reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [2]}"));
-                assertThat(reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [4]}"));
-            }
-        }
-    }
-
-    public void testNow() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}")))
-            );
-            try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
-                LongScriptFieldData ifd = build("millis_ago", Collections.emptyMap()).fielddataBuilder("test", mockContext()::lookup)
-                    .build(null, null, null);
-                SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
-                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
-                assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181356]}"));
-                assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181354]}"));
-                assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181351]}"));
-                long t1 = (Long) (((FieldDoc) docs.scoreDocs[0]).fields[0]);
-                assertThat(t1, greaterThan(3638011399L));
-                long t2 = (Long) (((FieldDoc) docs.scoreDocs[1]).fields[0]);
-                long t3 = (Long) (((FieldDoc) docs.scoreDocs[2]).fields[0]);
-                assertThat(t2, equalTo(t1 + 2));
-                assertThat(t3, equalTo(t1 + 5));
+                assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1.1]}"));
+                assertThat(reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [2.1]}"));
+                assertThat(reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [4.2]}"));
             }
         }
     }
@@ -151,9 +121,9 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [4]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.1]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [4.2]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 QueryShardContext qsc = mockContext(true, simpleMappedFieldType());
@@ -165,11 +135,11 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Collections.emptyMap(), qsc.lookup(), ctx) {
+                        return new ScoreScript(org.elasticsearch.common.collect.Map.of(), qsc.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
-                                ScriptDocValues.Longs longs = (ScriptDocValues.Longs) getDoc().get("test");
-                                return longs.get(0);
+                                ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) getDoc().get("test");
+                                return doubles.get(0);
                             }
                         };
                     }
@@ -195,14 +165,17 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
             iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.5]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
-                assertThat(searcher.count(ft.rangeQuery("2", "3", true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(2, 3, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(1.1, 3, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(1.1, 3, false, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(2, 3, false, true, null, null, null, mockContext())), equalTo(0));
+                assertThat(searcher.count(ft.rangeQuery("2", "3", true, true, null, null, null, mockContext())), equalTo(2));
+                assertThat(searcher.count(ft.rangeQuery(2, 3, true, true, null, null, null, mockContext())), equalTo(2));
+                assertThat(searcher.count(ft.rangeQuery(1.1, 3, true, true, null, null, null, mockContext())), equalTo(2));
+                assertThat(searcher.count(ft.rangeQuery(1.1, 3, false, true, null, null, null, mockContext())), equalTo(2));
+                assertThat(searcher.count(ft.rangeQuery(2, 3, false, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(ft.rangeQuery(2.5, 3, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(ft.rangeQuery(2.5, 3, false, true, null, null, null, mockContext())), equalTo(0));
             }
         }
     }
@@ -239,7 +212,7 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
@@ -255,11 +228,11 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                     equalTo(0)
                 );
                 assertThat(
-                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(1.1, 2), mockContext())),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(1.1, 2.1), mockContext())),
                     equalTo(1)
                 );
                 assertThat(
-                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(2, 1), mockContext())),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(2.1, 1), mockContext())),
                     equalTo(2)
                 );
             }
@@ -272,25 +245,25 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
     }
 
     @Override
-    protected LongScriptMappedFieldType simpleMappedFieldType() throws IOException {
-        return build("read_foo", Collections.emptyMap());
+    protected DoubleScriptFieldType simpleMappedFieldType() throws IOException {
+        return build("read_foo", org.elasticsearch.common.collect.Map.of());
     }
 
     @Override
-    protected LongScriptMappedFieldType loopFieldType() throws IOException {
+    protected MappedFieldType loopFieldType() throws IOException {
         return build("loop", org.elasticsearch.common.collect.Map.of());
     }
 
     @Override
     protected String runtimeType() {
-        return "long";
+        return "double";
     }
 
-    private static LongScriptMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static DoubleScriptFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static LongScriptMappedFieldType build(Script script) throws IOException {
+    private static DoubleScriptFieldType build(Script script) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -302,7 +275,7 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return org.elasticsearch.common.collect.Set.of(LongFieldScript.CONTEXT);
+                        return org.elasticsearch.common.collect.Set.of(DoubleFieldScript.CONTEXT);
                     }
 
                     @Override
@@ -317,34 +290,23 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                         return factory;
                     }
 
-                    private LongFieldScript.Factory factory(String code) {
+                    private DoubleFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emit(((Number) foo).longValue());
+                                            emit(((Number) foo).doubleValue());
                                         }
                                     }
                                 };
                             case "add_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
+                                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
                                         for (Object foo : (List<?>) getSource().get("foo")) {
-                                            emit(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
-                                        }
-                                    }
-                                };
-                            case "millis_ago":
-                                // Painless actually call System.currentTimeMillis. We could mock the time but this works fine too.
-                                long now = System.currentTimeMillis();
-                                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                            emit(now - ((Number) timestamp).longValue());
+                                            emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                                         }
                                     }
                                 };
@@ -366,8 +328,8 @@ public class LongScriptMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             org.elasticsearch.common.collect.List.of(scriptPlugin, new RuntimeFields())
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            LongFieldScript.Factory factory = scriptService.compile(script, LongFieldScript.CONTEXT);
-            return new LongScriptMappedFieldType("test", script, factory, emptyMap());
+            DoubleFieldScript.Factory factory = scriptService.compile(script, DoubleFieldScript.CONTEXT);
+            return new DoubleScriptFieldType("test", script, factory, emptyMap());
         }
     }
 }

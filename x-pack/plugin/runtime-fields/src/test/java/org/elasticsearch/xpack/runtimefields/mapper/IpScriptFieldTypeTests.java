@@ -54,7 +54,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class IpScriptMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
+public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
         Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));
@@ -77,7 +77,7 @@ public class IpScriptMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                IpScriptMappedFieldType ft = build("append_param", org.elasticsearch.common.collect.Map.of("param", ".1"));
+                IpScriptFieldType ft = build("append_param", org.elasticsearch.common.collect.Map.of("param", ".1"));
                 BinaryScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 DocValueFormat format = ft.docValueFormat(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
@@ -231,7 +231,7 @@ public class IpScriptMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
             iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                IpScriptMappedFieldType fieldType = build("append_param", org.elasticsearch.common.collect.Map.of("param", ".1"));
+                IpScriptFieldType fieldType = build("append_param", org.elasticsearch.common.collect.Map.of("param", ".1"));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.1", mockContext())), equalTo(1));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.7", mockContext())), equalTo(0));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.0/16", mockContext())), equalTo(2));
@@ -288,7 +288,7 @@ public class IpScriptMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
     }
 
     @Override
-    protected IpScriptMappedFieldType simpleMappedFieldType() throws IOException {
+    protected IpScriptFieldType simpleMappedFieldType() throws IOException {
         return build("read_foo", org.elasticsearch.common.collect.Map.of());
     }
 
@@ -302,11 +302,11 @@ public class IpScriptMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
         return "ip";
     }
 
-    private static IpScriptMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static IpScriptFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static IpScriptMappedFieldType build(Script script) throws IOException {
+    private static IpScriptFieldType build(Script script) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -372,7 +372,7 @@ public class IpScriptMappedFieldTypeTests extends AbstractScriptMappedFieldTypeT
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             IpFieldScript.Factory factory = scriptService.compile(script, IpFieldScript.CONTEXT);
-            return new IpScriptMappedFieldType("test", script, factory, emptyMap());
+            return new IpScriptFieldType("test", script, factory, emptyMap());
         }
     }
 }

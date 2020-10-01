@@ -59,7 +59,8 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject().field("_id", "1").endObject()), XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));
+            assertTrue(e.getCause().getMessage(),
+                e.getCause().getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));
         }
     }
 
@@ -82,8 +83,9 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
         IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) service.mapperService().fieldType("_id");
 
-        ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
-            ft, null, null, mapperService);
+        ft.fielddataBuilder("test", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null, mapperService);
         assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
 
         client().admin().cluster().prepareUpdateSettings()
@@ -91,8 +93,9 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
             .get();
         try {
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-                () -> ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
-                    ft, null, null, mapperService));
+                () -> ft.fielddataBuilder("test", () -> {
+                    throw new UnsupportedOperationException();
+                }).build(null, null, mapperService));
             assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         } finally {
             // unset cluster setting
@@ -100,7 +103,6 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
                 .setTransientSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
                 .get();
         }
-
     }
 
 }

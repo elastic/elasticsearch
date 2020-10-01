@@ -166,6 +166,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .field(SORT_FIELD, i + 1)
                     .field("text", "some text to entertain")
                     .field("field1", 5)
+                    .field("field2", 2.71)
                     .endObject()));
         }
 
@@ -315,7 +316,7 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat((Long) hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
             assertThat((Long) hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
 
-            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(4));
+            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
         }
     }
 
@@ -402,7 +403,7 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.getTotalHits().value, equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
 
-            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(4));
+            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
         }
     }
 
@@ -433,7 +434,7 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.getTotalHits().value, equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
 
-            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(4));
+            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
             id--;
         }
     }
@@ -597,6 +598,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             .explain(true)
                                             .storedField("text")
                                             .docValueField("field1")
+                                            .fetchField("field2")
                                             .scriptField("script",
                                                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                             .fetchSource("text", null)
@@ -639,13 +641,16 @@ public class TopHitsIT extends ESIntegTestCase {
 
             assertThat(hit.getMatchedQueries()[0], equalTo("test"));
 
-            DocumentField field = hit.field("field1");
-            assertThat(field.getValue().toString(), equalTo("5"));
+            DocumentField field1 = hit.field("field1");
+            assertThat(field1.getValue(), equalTo(5L));
+
+            DocumentField field2 = hit.field("field2");
+            assertThat(field2.getValue(), equalTo(2.71f));
 
             assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
 
-            field = hit.field("script");
-            assertThat(field.getValue().toString(), equalTo("5"));
+            field2 = hit.field("script");
+            assertThat(field2.getValue().toString(), equalTo("5"));
 
             assertThat(hit.getSourceAsMap().size(), equalTo(1));
             assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));

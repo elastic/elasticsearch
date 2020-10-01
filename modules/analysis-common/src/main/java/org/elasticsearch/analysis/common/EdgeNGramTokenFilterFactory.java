@@ -19,7 +19,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
@@ -34,8 +33,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(EdgeNGramTokenFilterFactory.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(EdgeNGramTokenFilterFactory.class);
 
     private final int minGram;
 
@@ -93,7 +91,7 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         }
         else {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+            DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
                 + "] will not be usable to parse synonyms after v7.0");
             return this;
         }

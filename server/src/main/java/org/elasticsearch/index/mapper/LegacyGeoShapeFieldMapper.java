@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -34,6 +33,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -44,15 +45,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -173,13 +177,12 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type",
                     fieldName, CONTENT_TYPE);
             }
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("geo_mapper_field_parameter",
+            DEPRECATION_LOGGER.deprecate("geo_mapper_field_parameter",
                 "Field parameter [{}] is deprecated and will be removed in a future version.", fieldName);
         }
     }
 
-    private static final Logger logger = LogManager.getLogger(LegacyGeoShapeFieldMapper.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LegacyGeoShapeFieldMapper.class);
 
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder,
         LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
@@ -257,12 +260,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         private GeoShapeFieldType buildFieldType(BuilderContext context) {
-            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, false, meta);
+            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, fieldType.stored(), false, meta);
             setupFieldTypeDeprecatedParameters(context, ft);
             setupPrefixTrees(ft);
             ft.setGeometryIndexer(new LegacyGeoShapeIndexer(ft));
-            ft.setGeometryParser(ShapeParser::parse);
-            ft.setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(ft));
+            ft.setGeometryParser(new LegacyGeoShapeParser());
             ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
             return ft;
         }
@@ -277,13 +279,40 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         @Override
         public LegacyGeoShapeFieldMapper build(BuilderContext context) {
+            if (name.isEmpty()) {
+                // Check for an empty name early so we can throw a consistent error message
+                throw new IllegalArgumentException("name cannot be empty string");
+            }
             return new LegacyGeoShapeFieldMapper(name, fieldType, buildFieldType(context), ignoreMalformed(context),
                 coerce(context), orientation(), ignoreZValue(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
-    public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>, Shape> {
+    private static class LegacyGeoShapeParser extends Parser<ShapeBuilder<?, ?, ?>> {
+        /**
+         * Note that this parser is only used for formatting values.
+         */
+        private final GeometryParser geometryParser;
+
+        private LegacyGeoShapeParser() {
+            this.geometryParser = new GeometryParser(true, true, true);
+        }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> parse(XContentParser parser) throws IOException, ParseException {
+            return ShapeParser.parse(parser);
+        }
+
+        @Override
+        public Object format(ShapeBuilder<?, ?, ?> value, String format) {
+            Geometry geometry = value.buildGeometry();
+            return geometryParser.geometryFormat(format).toXContentAsObject(geometry);
+        }
+    }
+
+    public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>, Shape>
+        implements GeoShapeQueryable {
 
         private String tree = DeprecatedParameters.Defaults.TREE;
         private SpatialStrategy strategy = DeprecatedParameters.Defaults.STRATEGY;
@@ -298,50 +327,26 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         private RecursivePrefixTreeStrategy recursiveStrategy;
         private TermQueryPrefixTreeStrategy termStrategy;
 
-        public GeoShapeFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        private final LegacyGeoShapeQueryProcessor queryProcessor;
+
+        private GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, meta);
+            this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 
         public GeoShapeFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
-        }
-
-        protected GeoShapeFieldType(GeoShapeFieldType ref) {
-            super(ref);
-            this.tree = ref.tree;
-            this.strategy = ref.strategy;
-            this.pointsOnly = ref.pointsOnly;
-            this.treeLevels = ref.treeLevels;
-            this.precisionInMeters = ref.precisionInMeters;
-            this.distanceErrorPct = ref.distanceErrorPct;
-            this.defaultDistanceErrorPct = ref.defaultDistanceErrorPct;
-            this.defaultPrefixTreeStrategy = ref.defaultPrefixTreeStrategy;
-            this.recursiveStrategy = ref.recursiveStrategy;
-            this.termStrategy = ref.termStrategy;
+            this(name, true, false, true, Collections.emptyMap());
         }
 
         @Override
-        public GeoShapeFieldType clone() {
-            return new GeoShapeFieldType(this);
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            GeoShapeFieldType that = (GeoShapeFieldType) o;
-            return treeLevels == that.treeLevels &&
-                precisionInMeters == that.precisionInMeters &&
-                defaultDistanceErrorPct == that.defaultDistanceErrorPct &&
-                Objects.equals(tree, that.tree) &&
-                Objects.equals(strategy, that.strategy) &&
-                pointsOnly == that.pointsOnly &&
-                Objects.equals(distanceErrorPct, that.distanceErrorPct);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), tree, strategy, pointsOnly, treeLevels, precisionInMeters, distanceErrorPct,
-                    defaultDistanceErrorPct);
+        public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
+                            QueryShardContext context) {
+            return queryProcessor.geoShapeQuery(shape, fieldName, strategy, relation, context);
         }
 
         @Override

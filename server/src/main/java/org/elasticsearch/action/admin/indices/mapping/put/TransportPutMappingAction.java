@@ -42,7 +42,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -97,9 +99,8 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     protected void masterOperation(final PutMappingRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
-            final Index[] concreteIndices = request.getConcreteIndex() == null ?
-                indexNameExpressionResolver.concreteIndices(state, request)
-                : new Index[] {request.getConcreteIndex()};
+            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
+
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
                 listener.onFailure(maybeValidationException.get());
@@ -110,6 +111,23 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
                 request.indices(), request.type()), ex);
             throw ex;
+        }
+    }
+
+    static Index[] resolveIndices(final ClusterState state, PutMappingRequest request, final IndexNameExpressionResolver iner) {
+        if (request.getConcreteIndex() == null) {
+            if (request.writeIndexOnly()) {
+                List<Index> indices = new ArrayList<>();
+                for (String indexExpression : request.indices()) {
+                    indices.add(iner.concreteWriteIndex(state, request.indicesOptions(), indexExpression,
+                        request.indicesOptions().allowNoIndices(), request.includeDataStreams()));
+                }
+                return indices.toArray(Index.EMPTY_ARRAY);
+            } else {
+                return iner.concreteIndices(state, request);
+            }
+        } else {
+            return new Index[]{request.getConcreteIndex()};
         }
     }
 

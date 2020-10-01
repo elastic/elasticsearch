@@ -18,6 +18,9 @@
  */
 import org.elasticsearch.gradle.info.BuildParams;
 
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
 dependencies {
   api project(":client:rest")
   api project(":client:sniffer")
@@ -66,7 +69,7 @@ test {
   systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
 }
 
-task integTest(type: Test) {
+tasks.register("integTest", Test) {
   include "**/*IT.class"
 }
 

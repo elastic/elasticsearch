@@ -82,6 +82,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -487,6 +488,36 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertEquals(seedNode, function.apply(seedNode.getId()));
                     assertNull(function.apply(seedNode.getId() + "foo"));
                     assertTrue(connection.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testNoChannelsExceptREG() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                String clusterAlias = "test-cluster";
+                Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
+
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                    PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
+                    connection.ensureConnected(plainActionFuture);
+                    plainActionFuture.get(10, TimeUnit.SECONDS);
+
+                    for (TransportRequestOptions.Type type : TransportRequestOptions.Type.values()) {
+                        if (type != TransportRequestOptions.Type.REG) {
+                            assertThat(expectThrows(IllegalStateException.class,
+                                    () -> connection.getConnection().sendRequest(randomNonNegativeLong(),
+                                    "arbitrary", TransportRequest.Empty.INSTANCE,
+                                    TransportRequestOptions.builder().withType(type).build())).getMessage(),
+                                    allOf(containsString("can't select"), containsString(type.toString())));
+                        }
+                    }
                 }
             }
         }

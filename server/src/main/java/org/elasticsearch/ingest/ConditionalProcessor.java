@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
@@ -47,11 +46,10 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
-    private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> FUNCTIONS = org.elasticsearch.common.collect.Map.of(
             "_type", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("conditional-processor__type",
+                deprecationLogger.deprecate("conditional-processor__type",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });
@@ -144,6 +142,10 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    public String getCondition(){
+        return condition.getIdOrCode();
     }
 
     private static Object wrapUnmodifiable(Object raw) {

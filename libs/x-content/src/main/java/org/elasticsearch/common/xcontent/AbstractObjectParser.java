@@ -210,6 +210,12 @@ public abstract class AbstractObjectParser<Value, Context> {
         declareField(consumer, p -> p.longValue(), field, ValueType.LONG);
     }
 
+    public void declareLongOrNull(BiConsumer<Value, Long> consumer, long nullValue, ParseField field) {
+        // Using a method reference here angers some compilers
+        declareField(consumer, p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : p.longValue(),
+            field, ValueType.LONG_OR_NULL);
+    }
+
     public void declareInt(BiConsumer<Value, Integer> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.intValue(), field, ValueType.INT);

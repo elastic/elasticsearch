@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_mappings_changes]]
 === Mapping changes
 
@@ -9,22 +9,22 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 [[all-meta-field-removed]]
-==== The `_all` meta field is removed
+==== The `_all` metadata field is removed
 
 The `_all` field deprecated in 6 have now been removed.
 
-[float]
+[discrete]
 [[uid-meta-field-removed]]
-==== The `_uid` meta field is removed
+==== The `_uid` metadata field is removed
 
 This field used to index a composite key formed of the `_type` and the `_id`.
 Now that indices cannot have multiple types, this has been removed in favour
 of `_id`.
 
 //tag::notable-breaking-changes[]
-[float]
+[discrete]
 [[default-mapping-not-allowed]]
 ==== The `_default_` mapping is no longer allowed
 
@@ -47,13 +47,13 @@ For more details on the `include_type_name` parameter and other types-related
 API changes, please see <<removal-of-types>>.
 //end::notable-breaking-changes[]
 
-[float]
+[discrete]
 [[index-options-numeric-fields-removed]]
 ==== `index_options` for numeric fields has been removed
 
 The `index_options` field for numeric  fields has been deprecated in 6 and has now been removed.
 
-[float]
+[discrete]
 [[limit-number-nested-json-objects]]
 ==== Limiting the number of `nested` json objects
 
@@ -61,13 +61,13 @@ To safeguard against out of memory errors, the number of nested json objects wit
 document across all fields has been limited to 10000. This default limit can be changed with
 the index setting `index.mapping.nested_objects.limit`.
 
-[float]
+[discrete]
 [[update-all-types-option-removed]]
 ==== The `update_all_types` option has been removed
 
 This option is useless now that all indices have at most one type.
 
-[float]
+[discrete]
 [[classic-similarity-removed]]
 ==== The `classic` similarity has been removed
 
@@ -77,13 +77,13 @@ Lucene, which means that the `classic` similarity now produces scores of lower
 quality. It is advised to switch to `BM25` instead, which is widely accepted
 as a better alternative.
 
-[float]
+[discrete]
 ==== Similarities fail when unsupported options are provided
 
 An error will now be thrown when unknown configuration options are provided
 to similarities. Such unknown parameters were ignored before.
 
-[float]
+[discrete]
 [[changed-default-geo-shape-index-strategy]]
 ==== Changed default `geo_shape` indexing strategy
 
@@ -97,7 +97,7 @@ IMPORTANT NOTE: If using timed index creation from templates, the `geo_shape` ma
 should also be changed in the template to explicitly define `tree` to one of `geohash`
 or `quadtree`. This will ensure compatibility with previously created indexes.
 
-[float]
+[discrete]
 [[deprecated-geo-shape-params]]
 ==== Deprecated `geo_shape` parameters
 
@@ -105,14 +105,14 @@ The following type parameters are deprecated for the `geo_shape` field type: `tr
 `precision`, `tree_levels`, `distance_error_pct`, `points_only`, and `strategy`. They
 will be removed in a future version.
 
-[float]
+[discrete]
 ==== Limiting the number of completion contexts
 
 The maximum allowed number of completion contexts in a mapping will be limited
 to 10 in the next major version. Completion fields that define more than 10
 contexts in a mapping will log a deprecation warning in this version.
 
-[float]
+[discrete]
 [[include-type-name-defaults-false]]
 ==== `include_type_name` now defaults to `false`
 The default for `include_type_name` is now `false` for all APIs that accept

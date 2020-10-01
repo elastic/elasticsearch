@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
@@ -158,25 +157,9 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     public abstract static class AbstractShapeGeometryFieldType<Parsed, Processed> extends AbstractGeometryFieldType<Parsed, Processed> {
         protected Orientation orientation = Defaults.ORIENTATION.value();
 
-        protected AbstractShapeGeometryFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, meta);
-        }
-
-        protected AbstractShapeGeometryFieldType(AbstractShapeGeometryFieldType ref) {
-            super(ref);
-            this.orientation = ref.orientation;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            AbstractShapeGeometryFieldType that = (AbstractShapeGeometryFieldType) o;
-            return orientation == that.orientation;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), orientation);
+        protected AbstractShapeGeometryFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                                                 Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, meta);
         }
 
         public Orientation orientation() { return this.orientation; }
@@ -205,6 +188,7 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
 
     @Override
     protected final void mergeOptions(FieldMapper other, List<String> conflicts) {
+        super.mergeOptions(other, conflicts);
         AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)other;
         if (gsfm.coerce.explicit()) {
             this.coerce = gsfm.coerce;

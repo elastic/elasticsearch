@@ -64,7 +64,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -214,14 +216,15 @@ public class TransportStartDataFrameAnalyticsAction
                 auditor.info(jobId,
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE, expectedMemoryWithoutDisk));
                 // Validate that model memory limit is sufficient to run the analysis
+                // We will only warn the caller if the configured limit is too low.
                 if (startContext.config.getModelMemoryLimit()
                     .compareTo(expectedMemoryWithoutDisk) < 0) {
-                    ElasticsearchStatusException e =
-                        ExceptionsHelper.badRequestException(
-                            "Cannot start because the configured model memory limit [{}] is lower than the expected memory usage [{}]",
-                            startContext.config.getModelMemoryLimit(), expectedMemoryWithoutDisk);
-                    listener.onFailure(e);
-                    return;
+                    String warning =  Messages.getMessage(
+                        Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE_HIGHER_THAN_CONFIGURED,
+                        startContext.config.getModelMemoryLimit(),
+                        expectedMemoryWithoutDisk);
+                    auditor.warning(jobId, warning);
+                    logger.warn("[{}] {}", jobId, warning);
                 }
                 // Refresh memory requirement for jobs
                 memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
@@ -322,7 +325,7 @@ public class TransportStartDataFrameAnalyticsAction
 
     private void validateSourceIndexHasAnalyzableData(StartContext startContext, ActionListener<StartContext> listener) {
         ActionListener<Void> validateAtLeastOneAnalyzedFieldListener = ActionListener.wrap(
-            aVoid -> validateSourceIndexHasRows(startContext, listener),
+            aVoid -> validateSourceIndexRowsCount(startContext, listener),
             listener::onFailure
         );
 
@@ -351,7 +354,7 @@ public class TransportStartDataFrameAnalyticsAction
         }
     }
 
-    private void validateSourceIndexHasRows(StartContext startContext, ActionListener<StartContext> listener) {
+    private void validateSourceIndexRowsCount(StartContext startContext, ActionListener<StartContext> listener) {
         DataFrameDataExtractorFactory extractorFactory = DataFrameDataExtractorFactory.createForSourceIndices(client,
             "validate_source_index_has_rows-" + startContext.config.getId(),
             startContext.config,
@@ -369,6 +372,9 @@ public class TransportStartDataFrameAnalyticsAction
                             startContext.config.getId(),
                             Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
                         ));
+                    } else if (Math.floor(startContext.config.getAnalysis().getTrainingPercent() * dataSummary.rows)  >= Math.pow(2, 32)) {
+                        listener.onFailure(ExceptionsHelper.badRequestException("Unable to start because too many documents " +
+                            "(more than 2^32) are included in the analysis. Consider downsampling."));
                     } else {
                         listener.onResponse(startContext);
                     }
@@ -593,6 +599,7 @@ public class TransportStartDataFrameAnalyticsAction
         private final DataFrameAnalyticsAuditor auditor;
         private final MlMemoryTracker memoryTracker;
         private final IndexNameExpressionResolver resolver;
+        private final IndexTemplateConfig inferenceIndexTemplate;
 
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
@@ -600,7 +607,8 @@ public class TransportStartDataFrameAnalyticsAction
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver,
+                            IndexTemplateConfig inferenceIndexTemplate) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.client = Objects.requireNonNull(client);
             this.clusterService = Objects.requireNonNull(clusterService);
@@ -608,6 +616,7 @@ public class TransportStartDataFrameAnalyticsAction
             this.auditor = Objects.requireNonNull(auditor);
             this.memoryTracker = Objects.requireNonNull(memoryTracker);
             this.resolver = Objects.requireNonNull(resolver);
+            this.inferenceIndexTemplate = Objects.requireNonNull(inferenceIndexTemplate);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
@@ -692,6 +701,20 @@ public class TransportStartDataFrameAnalyticsAction
                 return;
             }
 
+            ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
+                ok -> executeTask(analyticsTaskState, task),
+                error -> {
+                    Throwable cause = ExceptionsHelper.unwrapCause(error);
+                    String msg = "Failed to create internal index template [" + inferenceIndexTemplate.getTemplateName() + "]";
+                    logger.error(msg, cause);
+                    task.markAsFailed(error);
+                }
+            );
+
+            MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceIndexTemplate, templateCheckListener);
+        }
+
+        private void executeTask(DataFrameAnalyticsTaskState analyticsTaskState, AllocatedPersistentTask task) {
             if (analyticsTaskState == null) {
                 DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
                     task.getAllocationId(), null);

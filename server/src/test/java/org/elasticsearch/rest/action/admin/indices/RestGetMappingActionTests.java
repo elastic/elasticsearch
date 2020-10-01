@@ -27,6 +27,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -37,9 +40,17 @@ import static org.mockito.Mockito.mock;
 
 public class RestGetMappingActionTests extends RestActionTestCase {
 
+    private ThreadPool threadPool;
+
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestGetMappingAction());
+        threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
+        controller().registerHandler(new RestGetMappingAction(threadPool));
+    }
+
+    @After
+    public void tearDownAction() {
+        assertTrue(terminate(threadPool));
     }
 
     public void testTypeExistsDeprecation() throws Exception {
@@ -50,7 +61,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        RestGetMappingAction handler = new RestGetMappingAction();
+        RestGetMappingAction handler = new RestGetMappingAction(threadPool);
         handler.prepareRequest(request, mock(NodeClient.class));
 
         assertWarnings("Type exists requests are deprecated, as types have been deprecated.");

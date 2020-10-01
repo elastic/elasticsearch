@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -1073,6 +1076,40 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(authorizedIndices, hasItem(dataStreamName));
         assertThat(authorizedIndices, hasItems(backingIndices.stream()
             .map(im -> im.getIndex().getName()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY)));
+    }
+
+    public void testExplicitMappingUpdatesAreNotGrantedWithIngestPrivileges() {
+        final String dataStreamName = "my_data_stream";
+        User user = new User(randomAlphaOfLengthBetween(4, 12));
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(user);
+        Role role = Role.builder("test1")
+                .cluster(Collections.emptySet(), Collections.emptyList())
+                .add(IndexPrivilege.CREATE, "my_*")
+                .add(IndexPrivilege.WRITE, "my_data*")
+                .build();
+
+        TreeMap<String, IndexAbstraction> lookup = new TreeMap<>();
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        int numBackingIndices = randomIntBetween(1, 3);
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
+        }
+        DataStream ds = new DataStream(dataStreamName, null,
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices);
+        lookup.put(ds.getName(), iads);
+        for (IndexMetadata im : backingIndices) {
+            lookup.put(im.getIndex().getName(), new IndexAbstraction.Index(im, iads));
+        }
+
+        PutMappingRequest request = new PutMappingRequest("*");
+        request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
+                XContentType.JSON
+        );
+        List<String> authorizedIndices =
+                RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(request, PutMappingAction.NAME), lookup);
+        assertThat(authorizedIndices.isEmpty(), is(true));
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

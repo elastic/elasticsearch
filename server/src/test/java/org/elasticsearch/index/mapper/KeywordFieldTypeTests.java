@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -48,14 +49,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
-
-    @Override
-    protected KeywordFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new KeywordFieldMapper.KeywordFieldType(name, true, true, meta);
-    }
+public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsFieldWithinQuery() throws IOException {
         KeywordFieldType ft = new KeywordFieldType("field");
@@ -108,17 +103,21 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
     }
 
     public void testExistsQuery() {
-        KeywordFieldType ft = new KeywordFieldType("field");
-        ft.hasNorms = false;
-        assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
-
-        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        ft.hasNorms = true;
-        assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
-
-        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        ft.hasNorms = false;
-        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(null));
+        {
+            KeywordFieldType ft = new KeywordFieldType("field");
+            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
+        }
+        {
+            FieldType fieldType = new FieldType();
+            fieldType.setOmitNorms(false);
+            KeywordFieldType ft = new KeywordFieldType("field", false, fieldType, randomBoolean(), null, null, null, 1.0f,
+                Collections.emptyMap());
+            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
+        }
+        {
+            KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
+            assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(null));
+        }
     }
 
     public void testRangeQuery() {
@@ -135,15 +134,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
     public void testRegexpQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new RegexpQuery(new Term("field","foo.*")),
-                ft.regexpQuery("foo.*", 0, 10, null, MOCK_QSC));
+                ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> unsearchable.regexpQuery("foo.*", 0, 10, null, MOCK_QSC));
+                () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.regexpQuery("foo.*", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }

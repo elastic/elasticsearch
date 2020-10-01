@@ -739,6 +739,11 @@ final class BootstrapChecks {
     static class DiscoveryConfiguredCheck implements BootstrapCheck {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
+            if (DiscoveryModule.ZEN_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings()))) {
+                return BootstrapCheckResult.failure(String.format(Locale.ROOT,
+                    "discovery type [%s] is unsuitable for production use", DiscoveryModule.ZEN_DISCOVERY_TYPE));
+            }
+
             if (DiscoveryModule.ZEN2_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())) == false) {
                 return BootstrapCheckResult.success();
             }

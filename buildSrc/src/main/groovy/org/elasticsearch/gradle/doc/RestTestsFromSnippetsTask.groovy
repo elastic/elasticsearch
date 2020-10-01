@@ -259,6 +259,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                     case 'basic':
                     case 'gold':
                     case 'platinum':
+                    case 'enterprise':
                         current.println("        - xpack")
                         break;
                     default:
@@ -297,7 +298,9 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
             if (null == response.skip) {
                 current.println("  - match: ")
                 current.println("      \$body: ")
-                response.contents.eachLine { current.println("        $it") }
+                replaceBlockQuote(response.contents).eachLine {
+                    current.println("        $it")
+                }
             }
         }
 

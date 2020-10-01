@@ -49,7 +49,7 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
 
         // checks the type in the URL is propagated correctly to the request object
         // only works after the request is dispatched, so its params are filled from url.
-        UpdateByQueryRequest ubqRequest = action.buildRequest(request);
+        UpdateByQueryRequest ubqRequest = action.buildRequest(request, DEFAULT_NAMED_WRITABLE_REGISTRY);
         assertArrayEquals(new String[]{"some_type"}, ubqRequest.getDocTypes());
 
         // RestUpdateByQueryAction itself doesn't check for a deprecated type usage
@@ -58,7 +58,8 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
     }
 
     public void testParseEmpty() throws IOException {
-        UpdateByQueryRequest request = action.buildRequest(new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList())).build());
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList())).build();
+        UpdateByQueryRequest request = action.buildRequest(restRequest, DEFAULT_NAMED_WRITABLE_REGISTRY);
         assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());
         assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE, request.getSearchRequest().source().size());
     }

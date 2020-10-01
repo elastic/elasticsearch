@@ -13,8 +13,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.Before;
@@ -212,14 +212,14 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationSuccessRest() throws Exception {
-        User user = new User("_username", "r1");
-        String realm = "_realm";
+        Authentication authentication = new Authentication(new User("_username", "r1"), new RealmRef("_realm", null, null),
+                new RealmRef(null, null, null));
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationSuccess(requestId, realm, user, restRequest);
+        service.get().authenticationSuccess(requestId, authentication, restRequest);
         verify(licenseState).checkFeature(Feature.SECURITY_AUDITING);
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationSuccess(requestId, realm, user, restRequest);
+                verify(auditTrail).authenticationSuccess(requestId, authentication, restRequest);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -227,14 +227,14 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationSuccessTransport() throws Exception {
-        User user = new User("_username", "r1");
-        String realm = "_realm";
+        Authentication authentication = new Authentication(new User("_username", "r1"), new RealmRef("_realm", null, null),
+                new RealmRef(null, null, null));
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationSuccess(requestId, realm, user, "_action", request);
+        service.get().authenticationSuccess(requestId, authentication, "_action", request);
         verify(licenseState).checkFeature(Feature.SECURITY_AUDITING);
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationSuccess(requestId, realm, user, "_action", request);
+                verify(auditTrail).authenticationSuccess(requestId, authentication, "_action", request);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));

@@ -11,26 +11,22 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
-public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new ConstantKeywordFieldType(name, "foo", meta);
-    }
+public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
         assertEquals(new MatchAllDocsQuery(), ft.termQuery("foo", null));
+        assertEquals(new MatchAllDocsQuery(), ft.termQueryCaseInsensitive("fOo", null));
         assertEquals(new MatchNoDocsQuery(), ft.termQuery("bar", null));
+        assertEquals(new MatchNoDocsQuery(), ft.termQueryCaseInsensitive("bAr", null));
         ConstantKeywordFieldType bar = new ConstantKeywordFieldType("f", "bar");
         assertEquals(new MatchNoDocsQuery(), bar.termQuery("foo", null));
+        assertEquals(new MatchNoDocsQuery(), bar.termQueryCaseInsensitive("fOo", null));
     }
 
     public void testTermsQuery() {
@@ -46,18 +42,24 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase<MappedField
 
     public void testWildcardQuery() {
         ConstantKeywordFieldType bar = new ConstantKeywordFieldType("f", "bar");
-        assertEquals(new MatchNoDocsQuery(), bar.wildcardQuery("f*o", null, null));
+        assertEquals(new MatchNoDocsQuery(), bar.wildcardQuery("f*o", null, false, null));
+        assertEquals(new MatchNoDocsQuery(), bar.wildcardQuery("F*o", null, true, null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("f*o", null, null));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("b*r", null, null));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("f*o", null, false, null));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("F*o", null, true, null));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("b*r", null, false, null));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("B*r", null, true, null));
     }
 
     public void testPrefixQuery() {
         ConstantKeywordFieldType bar = new ConstantKeywordFieldType("f", "bar");
-        assertEquals(new MatchNoDocsQuery(), bar.prefixQuery("fo", null, null));
+        assertEquals(new MatchNoDocsQuery(), bar.prefixQuery("fo", null, false, null));
+        assertEquals(new MatchNoDocsQuery(), bar.prefixQuery("fO", null, true, null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("fo", null, null));
-        assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("ba", null, null));
+        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("fo", null, false, null));
+        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("fO", null, true, null));
+        assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("ba", null, false, null));
+        assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("Ba", null, true, null));
     }
 
     public void testExistsQuery() {
@@ -93,9 +95,9 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase<MappedField
 
     public void testRegexpQuery() {
         ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
-        assertEquals(new MatchNoDocsQuery(), none.regexpQuery("f..o", RegExp.ALL, 10, null, null));
+        assertEquals(new MatchNoDocsQuery(), none.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("f.o", RegExp.ALL, 10, null, null));
-        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("f..o", RegExp.ALL, 10, null, null));
+        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("f.o", RegExp.ALL, 0, 10, null, null));
+        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
     }
 }

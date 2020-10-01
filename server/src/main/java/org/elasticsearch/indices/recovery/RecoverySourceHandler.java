@@ -40,7 +40,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,7 +53,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
@@ -86,7 +85,9 @@ import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
@@ -113,13 +114,15 @@ public class RecoverySourceHandler {
     private final int chunkSizeInBytes;
     private final RecoveryTargetHandler recoveryTarget;
     private final int maxConcurrentFileChunks;
+    private final int maxConcurrentOperations;
     private final ThreadPool threadPool;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
-                                 StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks) {
+                                 StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks,
+                                 int maxConcurrentOperations) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.threadPool = threadPool;
@@ -129,6 +132,7 @@ public class RecoverySourceHandler {
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
         this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(Version.V_6_7_0) ? maxConcurrentFileChunks : 1;
+        this.maxConcurrentOperations = maxConcurrentOperations;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -228,7 +232,7 @@ public class RecoverySourceHandler {
             } else {
                 final Engine.IndexCommitRef safeCommitRef;
                 try {
-                    safeCommitRef = shard.acquireSafeIndexCommit();
+                    safeCommitRef = acquireSafeCommit(shard);
                     resources.add(safeCommitRef);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
@@ -321,12 +325,6 @@ public class RecoverySourceHandler {
                 final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetadata().getMappingVersion();
                 phase2(startingSeqNo, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
                     retentionLeases, mappingVersionOnPrimary, sendSnapshotStep);
-                sendSnapshotStep.whenComplete(
-                    r -> IOUtils.close(phase2Snapshot),
-                    e -> {
-                        IOUtils.closeWhileHandlingException(phase2Snapshot);
-                        onFailure.accept(new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e));
-                    });
 
             }, onFailure);
 
@@ -341,7 +339,7 @@ public class RecoverySourceHandler {
                 final RecoveryResponse response = new RecoveryResponse(sendFileResult.phase1FileNames, sendFileResult.phase1FileSizes,
                     sendFileResult.phase1ExistingFileNames, sendFileResult.phase1ExistingFileSizes, sendFileResult.totalSize,
                     sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime,
-                    prepareEngineStep.result().millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis());
+                    prepareEngineStep.result().millis(), sendSnapshotResult.sentOperations, sendSnapshotResult.tookTime.millis());
                 try {
                     future.onResponse(response);
                 } finally {
@@ -405,15 +403,32 @@ public class RecoverySourceHandler {
      */
     private Releasable acquireStore(Store store) {
         store.incRef();
-        return Releasables.releaseOnce(() -> {
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            assert threadPool.generic().isShutdown() == false;
-            // TODO: We shouldn't use the generic thread pool here as we already execute this from the generic pool.
-            //       While practically unlikely at a min pool size of 128 we could technically block the whole pool by waiting on futures
-            //       below and thus make it impossible for the store release to execute which in turn would block the futures forever
-            threadPool.generic().execute(ActionRunnable.run(future, store::decRef));
-            FutureUtils.get(future);
+        return Releasables.releaseOnce(() -> runWithGenericThreadPool(store::decRef));
+    }
+
+    /**
+     * Releasing a safe commit can access some commit files. It's better not to use {@link CancellableThreads} to interact
+     * with the file systems due to interrupt (see {@link org.apache.lucene.store.NIOFSDirectory} javadocs for more detail).
+     * This method acquires a safe commit and wraps it to make sure that it will be released using the generic thread pool.
+     */
+    private Engine.IndexCommitRef acquireSafeCommit(IndexShard shard) {
+        final Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit();
+        final AtomicBoolean closed = new AtomicBoolean(false);
+        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> {
+            if (closed.compareAndSet(false, true)) {
+                runWithGenericThreadPool(commitRef::close);
+            }
         });
+    }
+
+    private void runWithGenericThreadPool(CheckedRunnable<Exception> task) {
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        assert threadPool.generic().isShutdown() == false;
+        // TODO: We shouldn't use the generic thread pool here as we already execute this from the generic pool.
+        //       While practically unlikely at a min pool size of 128 we could technically block the whole pool by waiting on futures
+        //       below and thus make it impossible for the store release to execute which in turn would block the futures forever
+        threadPool.generic().execute(ActionRunnable.run(future, task));
+        FutureUtils.get(future);
     }
 
     static final class SendFileResult {
@@ -668,106 +683,122 @@ public class RecoverySourceHandler {
             throw new IndexShardClosedException(request.shardId());
         }
         logger.trace("recovery [phase2]: sending transaction log operations (from [" + startingSeqNo + "] to [" + endingSeqNo + "]");
-
-        final AtomicInteger skippedOps = new AtomicInteger();
-        final AtomicInteger totalSentOps = new AtomicInteger();
-        final AtomicInteger lastBatchCount = new AtomicInteger(); // used to estimate the count of the subsequent batch.
-        final CheckedSupplier<List<Translog.Operation>, IOException> readNextBatch = () -> {
-            // We need to synchronized Snapshot#next() because it's called by different threads through sendBatch.
-            // Even though those calls are not concurrent, Snapshot#next() uses non-synchronized state and is not multi-thread-compatible.
-            synchronized (snapshot) {
-                final List<Translog.Operation> ops = lastBatchCount.get() > 0 ? new ArrayList<>(lastBatchCount.get()) : new ArrayList<>();
-                long batchSizeInBytes = 0L;
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    if (shard.state() == IndexShardState.CLOSED) {
-                        throw new IndexShardClosedException(request.shardId());
-                    }
-                    cancellableThreads.checkForCancel();
-                    final long seqNo = operation.seqNo();
-                    if (seqNo < startingSeqNo || seqNo > endingSeqNo) {
-                        skippedOps.incrementAndGet();
-                        continue;
-                    }
-                    ops.add(operation);
-                    batchSizeInBytes += operation.estimateSize();
-                    totalSentOps.incrementAndGet();
-
-                    // check if this request is past bytes threshold, and if so, send it off
-                    if (batchSizeInBytes >= chunkSizeInBytes) {
-                        break;
-                    }
-                }
-                lastBatchCount.set(ops.size());
-                return ops;
-            }
-        };
-
         final StopWatch stopWatch = new StopWatch().start();
-        final ActionListener<Long> batchedListener = ActionListener.map(listener,
-            targetLocalCheckpoint -> {
-                assert snapshot.totalOperations() == snapshot.skippedOperations() + skippedOps.get() + totalSentOps.get()
+        final StepListener<Void> sendListener = new StepListener<>();
+        final OperationBatchSender sender = new OperationBatchSender(startingSeqNo, endingSeqNo, snapshot, maxSeenAutoIdTimestamp,
+            maxSeqNoOfUpdatesOrDeletes, retentionLeases, mappingVersion, sendListener);
+        sendListener.whenComplete(
+            ignored -> {
+                final long skippedOps = sender.skippedOps.get();
+                final int totalSentOps = sender.sentOps.get();
+                final long targetLocalCheckpoint = sender.targetLocalCheckpoint.get();
+                assert snapshot.totalOperations() == snapshot.skippedOperations() + skippedOps + totalSentOps
                     : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
-                    snapshot.totalOperations(), snapshot.skippedOperations(), skippedOps.get(), totalSentOps.get());
+                    snapshot.totalOperations(), snapshot.skippedOperations(), skippedOps, totalSentOps);
                 stopWatch.stop();
                 final TimeValue tookTime = stopWatch.totalTime();
                 logger.trace("recovery [phase2]: took [{}]", tookTime);
-                return new SendSnapshotResult(targetLocalCheckpoint, totalSentOps.get(), tookTime);
-            }
-        );
+                listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
+            }, listener::onFailure);
+        sender.start();
+    }
 
-        sendBatch(
-                readNextBatch,
-                true,
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
+    private static class OperationChunkRequest implements MultiChunkTransfer.ChunkRequest {
+        final List<Translog.Operation> operations;
+        final boolean lastChunk;
+
+        OperationChunkRequest(List<Translog.Operation> operations, boolean lastChunk) {
+            this.operations = operations;
+            this.lastChunk = lastChunk;
+        }
+
+        @Override
+        public boolean lastChunk() {
+            return lastChunk;
+        }
+    }
+
+    private class OperationBatchSender extends MultiChunkTransfer<Translog.Snapshot, OperationChunkRequest> {
+        private final long startingSeqNo;
+        private final long endingSeqNo;
+        private final Translog.Snapshot snapshot;
+        private final long maxSeenAutoIdTimestamp;
+        private final long maxSeqNoOfUpdatesOrDeletes;
+        private final RetentionLeases retentionLeases;
+        private final long mappingVersion;
+        private int lastBatchCount = 0; // used to estimate the count of the subsequent batch.
+        private final AtomicInteger skippedOps = new AtomicInteger();
+        private final AtomicInteger sentOps = new AtomicInteger();
+        private final AtomicLong targetLocalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        OperationBatchSender(long startingSeqNo, long endingSeqNo, Translog.Snapshot snapshot, long maxSeenAutoIdTimestamp,
+                             long maxSeqNoOfUpdatesOrDeletes, RetentionLeases retentionLeases, long mappingVersion,
+                             ActionListener<Void> listener) {
+            super(logger, threadPool.getThreadContext(), listener, maxConcurrentOperations, Collections.singletonList(snapshot));
+            this.startingSeqNo = startingSeqNo;
+            this.endingSeqNo = endingSeqNo;
+            this.snapshot = snapshot;
+            this.maxSeenAutoIdTimestamp = maxSeenAutoIdTimestamp;
+            this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
+            this.retentionLeases = retentionLeases;
+            this.mappingVersion = mappingVersion;
+        }
+
+        @Override
+        protected synchronized OperationChunkRequest nextChunkRequest(Translog.Snapshot snapshot) throws IOException {
+            // We need to synchronized Snapshot#next() because it's called by different threads through sendBatch.
+            // Even though those calls are not concurrent, Snapshot#next() uses non-synchronized state and is not multi-thread-compatible.
+            assert Transports.assertNotTransportThread("[phase2]");
+            cancellableThreads.checkForCancel();
+            final List<Translog.Operation> ops = lastBatchCount > 0 ? new ArrayList<>(lastBatchCount) : new ArrayList<>();
+            long batchSizeInBytes = 0L;
+            Translog.Operation operation;
+            while ((operation = snapshot.next()) != null) {
+                if (shard.state() == IndexShardState.CLOSED) {
+                    throw new IndexShardClosedException(request.shardId());
+                }
+                final long seqNo = operation.seqNo();
+                if (seqNo < startingSeqNo || seqNo > endingSeqNo) {
+                    skippedOps.incrementAndGet();
+                    continue;
+                }
+                ops.add(operation);
+                batchSizeInBytes += operation.estimateSize();
+                sentOps.incrementAndGet();
+
+                // check if this request is past bytes threshold, and if so, send it off
+                if (batchSizeInBytes >= chunkSizeInBytes) {
+                    break;
+                }
+            }
+            lastBatchCount = ops.size();
+            return new OperationChunkRequest(ops, operation == null);
+        }
+
+        @Override
+        protected void executeChunkRequest(OperationChunkRequest request, ActionListener<Void> listener) {
+            cancellableThreads.checkForCancel();
+            recoveryTarget.indexTranslogOperations(
+                request.operations,
                 snapshot.totalOperations(),
                 maxSeenAutoIdTimestamp,
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
                 mappingVersion,
-                batchedListener);
-    }
+                ActionListener.delegateFailure(listener, (l, newCheckpoint) -> {
+                    targetLocalCheckpoint.updateAndGet(curr -> SequenceNumbers.max(curr, newCheckpoint));
+                    l.onResponse(null);
+                }));
+        }
 
-    private void sendBatch(
-            final CheckedSupplier<List<Translog.Operation>, IOException> nextBatch,
-            final boolean firstBatch,
-            final long targetLocalCheckpoint,
-            final int totalTranslogOps,
-            final long maxSeenAutoIdTimestamp,
-            final long maxSeqNoOfUpdatesOrDeletes,
-            final RetentionLeases retentionLeases,
-            final long mappingVersionOnPrimary,
-            final ActionListener<Long> listener) throws IOException {
-        assert ThreadPool.assertCurrentMethodIsNotCalledRecursively();
-        assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[send translog]");
-        final List<Translog.Operation> operations = nextBatch.get();
-        // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
-        if (operations.isEmpty() == false || firstBatch) {
-            cancellableThreads.checkForCancel();
-            recoveryTarget.indexTranslogOperations(
-                operations,
-                totalTranslogOps,
-                maxSeenAutoIdTimestamp,
-                maxSeqNoOfUpdatesOrDeletes,
-                retentionLeases,
-                mappingVersionOnPrimary,
-                ActionListener.wrap(
-                    newCheckpoint -> {
-                        sendBatch(
-                            nextBatch,
-                            false,
-                            SequenceNumbers.max(targetLocalCheckpoint, newCheckpoint),
-                            totalTranslogOps,
-                            maxSeenAutoIdTimestamp,
-                            maxSeqNoOfUpdatesOrDeletes,
-                            retentionLeases,
-                            mappingVersionOnPrimary,
-                            listener);
-                    },
-                    listener::onFailure
-                ));
-        } else {
-            listener.onResponse(targetLocalCheckpoint);
+        @Override
+        protected void handleError(Translog.Snapshot snapshot, Exception e) {
+            throw new RecoveryEngineException(shard.shardId(), 2, "failed to send/replay operations", e);
+        }
+
+        @Override
+        public void close() throws IOException {
+            snapshot.close();
         }
     }
 
@@ -812,12 +843,12 @@ public class RecoverySourceHandler {
 
     static final class SendSnapshotResult {
         final long targetLocalCheckpoint;
-        final int totalOperations;
+        final int sentOperations;
         final TimeValue tookTime;
 
-        SendSnapshotResult(final long targetLocalCheckpoint, final int totalOperations, final TimeValue tookTime) {
+        SendSnapshotResult(final long targetLocalCheckpoint, final int sentOperations, final TimeValue tookTime) {
             this.targetLocalCheckpoint = targetLocalCheckpoint;
-            this.totalOperations = totalOperations;
+            this.sentOperations = sentOperations;
             this.tookTime = tookTime;
         }
     }
@@ -839,7 +870,7 @@ public class RecoverySourceHandler {
                 '}';
     }
 
-    private static class FileChunk implements MultiFileTransfer.ChunkRequest, Releasable {
+    private static class FileChunk implements MultiChunkTransfer.ChunkRequest, Releasable {
         final StoreFileMetadata md;
         final BytesReference content;
         final long position;
@@ -867,16 +898,16 @@ public class RecoverySourceHandler {
 
     void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetadata::length)); // send smallest first
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        final MultiFileTransfer<FileChunk> multiFileSender =
-            new MultiFileTransfer<FileChunk>(logger, threadContext, listener, maxConcurrentFileChunks, Arrays.asList(files)) {
+
+        final MultiChunkTransfer<StoreFileMetadata, FileChunk>multiFileSender = new MultiChunkTransfer<StoreFileMetadata, FileChunk>(
+            logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
                 final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
                 InputStreamIndexInput currentInput = null;
                 long offset = 0;
 
                 @Override
-                protected void onNewFile(StoreFileMetadata md) throws IOException {
+                protected void onNewResource(StoreFileMetadata md) throws IOException {
                     offset = 0;
                     IOUtils.close(currentInput, () -> currentInput = null);
                     final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Map;
@@ -33,7 +32,7 @@ public abstract class IngestConditionalScript {
 
     /** The context used to compile {@link IngestConditionalScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("processor_conditional", Factory.class,
-        200, TimeValue.timeValueMillis(0), new Tuple<>(375, TimeValue.timeValueMinutes(5)));
+        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;

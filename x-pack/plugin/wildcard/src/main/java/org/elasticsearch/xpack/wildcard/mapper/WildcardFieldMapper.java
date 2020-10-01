@@ -36,17 +36,16 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.RegExp.Kind;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -62,10 +61,13 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -80,7 +82,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -211,24 +212,14 @@ public class WildcardFieldMapper extends FieldMapper {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, true,
+        private WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+            super(name, true, fieldType.stored(), true,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
         }
 
-        protected WildcardFieldType(WildcardFieldType ref) {
-            super(ref);
-        }
-
-        public WildcardFieldType clone() {
-            WildcardFieldType result = new WildcardFieldType(this);
-            return result;
-        }
-
-
         @Override
-        public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
+        public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
 
             String ngramIndexPattern = addLineEndChars(toLowerCase(wildcardPattern));
 
@@ -286,7 +277,11 @@ public class WildcardFieldMapper extends FieldMapper {
                 clauseCount++;
             }
             Supplier<Automaton> deferredAutomatonSupplier = () -> {
-                return WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+                if(caseInsensitive) {
+                    return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern), Integer.MAX_VALUE);
+                } else {
+                    return WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+                }
             };
             AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), wildcardPattern, deferredAutomatonSupplier);
             if (clauseCount > 0) {
@@ -305,18 +300,13 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
+        public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
+            RewriteMethod method, QueryShardContext context) {
             if (value.length() == 0) {
                 return new MatchNoDocsQuery();
             }
 
-            if (context.allowExpensiveQueries() == false) {
-                throw new ElasticsearchException(
-                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
-                );
-            }
-
-            RegExp ngramRegex = new RegExp(addLineEndChars(toLowerCase(value)), flags);
+            RegExp ngramRegex = new RegExp(addLineEndChars(toLowerCase(value)), syntaxFlags, matchFlags);
 
             Query approxBooleanQuery = toApproximationQuery(ngramRegex);
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
@@ -327,7 +317,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return existsQuery(context);
             }
             Supplier<Automaton> deferredAutomatonSupplier = ()-> {
-                RegExp regex = new RegExp(value, flags);
+                RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
                 return regex.toAutomaton(maxDeterminizedStates);
             };
 
@@ -681,10 +671,6 @@ public class WildcardFieldMapper extends FieldMapper {
             DateMathParser parser,
             QueryShardContext context
         ) {
-            if (context.allowExpensiveQueries() == false) {
-                throw new ElasticsearchException("[range] queries on [wildcard] fields cannot be executed when '" +
-                        ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
-            }
             BytesRef lower = lowerTerm == null ? null : BytesRefs.toBytesRef(lowerTerm);
             BytesRef upper = upperTerm == null ? null : BytesRefs.toBytesRef(upperTerm);
             Query accelerationQuery = null;
@@ -849,26 +835,42 @@ public class WildcardFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-        
+
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
         }
-        
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
-        }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            return wildcardQuery(BytesRefs.toString(value), MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
+            String searchTerm = BytesRefs.toString(value);
+            return wildcardQuery(escapeWildcardSyntax(searchTerm),  MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
+        }
+
+        private String escapeWildcardSyntax(String term) {
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < term.length();) {
+                final int c = term.codePointAt(i);
+                int length = Character.charCount(c);
+                // Escape any reserved characters
+                if (c == WildcardQuery.WILDCARD_STRING || c == WildcardQuery.WILDCARD_CHAR || c == WildcardQuery.WILDCARD_ESCAPE) {
+                    result.append("\\");
+                }
+                result.appendCodePoint(c);
+                i += length;
+            }
+            return result.toString();
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            return wildcardQuery(value + "*", method, context);
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            String searchTerm = BytesRefs.toString(value);
+            return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
+        }
+
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+            return wildcardQuery(escapeWildcardSyntax(value) + "*", method, caseInsensitive, context);
         }
 
         @Override
@@ -881,15 +883,18 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new IndexFieldData.Builder() {
-
                 @Override
-                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                        CircuitBreakerService breakerService, MapperService mapperService) {
-                    return new StringBinaryIndexFieldData(indexSettings.getIndex(), fieldType.name(), CoreValuesSourceType.BYTES);
-                }};
+                public IndexFieldData<?> build(
+                    IndexFieldDataCache cache,
+                    CircuitBreakerService breakerService,
+                    MapperService mapperService
+                ) {
+                    return new StringBinaryIndexFieldData(name(), CoreValuesSourceType.BYTES);
+                }
+            };
         }
 
      }
@@ -956,6 +961,24 @@ public class WildcardFieldMapper extends FieldMapper {
         List<IndexableField> fields = new ArrayList<>();
         createFields(value, parseDoc, fields);
         parseDoc.addAll(fields);
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
+            @Override
+            protected String parseSourceValue(Object value) {
+                String keywordValue = value.toString();
+                if (keywordValue.length() > ignoreAbove) {
+                    return null;
+                }
+                return keywordValue;
+            }
+        };
     }
 
     void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {

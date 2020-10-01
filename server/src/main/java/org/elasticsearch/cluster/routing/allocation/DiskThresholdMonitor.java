@@ -73,7 +73,7 @@ public class DiskThresholdMonitor {
     private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
-    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     /**
      * The IDs of the nodes that were over the low threshold in the last check (and maybe over another threshold too). Tracked so that we
@@ -101,7 +101,7 @@ public class DiskThresholdMonitor {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
         if (diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
-            deprecationLogger.deprecatedAndMaybeLog(DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
+            deprecationLogger.deprecate(DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
                 "[{}] will be removed in version {}",
                 DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
         }
@@ -110,6 +110,7 @@ public class DiskThresholdMonitor {
     private void checkFinished() {
         final boolean checkFinished = checkInProgress.compareAndSet(true, false);
         assert checkFinished;
+        logger.trace("checkFinished");
     }
 
     public void onNewInfo(ClusterInfo info) {
@@ -121,9 +122,12 @@ public class DiskThresholdMonitor {
 
         final ImmutableOpenMap<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
         if (usages == null) {
+            logger.trace("skipping monitor as no disk usage information is available");
             checkFinished();
             return;
         }
+
+        logger.trace("processing new cluster info");
 
         boolean reroute = false;
         String explanation = "";
@@ -190,7 +194,7 @@ public class DiskThresholdMonitor {
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
 
-                if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                     reroute = true;
                     explanation = "high disk watermark exceeded on one or more nodes";
                     usagesOverHighThreshold.add(usage);
@@ -225,7 +229,7 @@ public class DiskThresholdMonitor {
                 if (nodesOverLowThreshold.contains(node)) {
                     // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more shards
                     // if we reroute now.
-                    if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                    if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                         reroute = true;
                         explanation = "one or more nodes has gone under the high or low watermark";
                         nodesOverLowThreshold.remove(node);
@@ -291,6 +295,7 @@ public class DiskThresholdMonitor {
                 listener.onFailure(e);
             }));
         } else {
+            logger.trace("no reroute required");
             listener.onResponse(null);
         }
         final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
@@ -305,7 +310,7 @@ public class DiskThresholdMonitor {
                 logger.info("releasing read-only-allow-delete block on indices: [{}]", indicesToAutoRelease);
                 updateIndicesReadOnly(indicesToAutoRelease, listener, false);
             } else {
-                deprecationLogger.deprecatedAndMaybeLog(
+                deprecationLogger.deprecate(
                     DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
                     "[{}] will be removed in version {}",
                     DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
@@ -314,10 +319,12 @@ public class DiskThresholdMonitor {
                 listener.onResponse(null);
             }
         } else {
+            logger.trace("no auto-release required");
             listener.onResponse(null);
         }
 
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
+        logger.trace("marking indices as read-only: [{}]", indicesToMarkReadOnly);
         if (indicesToMarkReadOnly.isEmpty() == false) {
             updateIndicesReadOnly(indicesToMarkReadOnly, listener, true);
         } else {

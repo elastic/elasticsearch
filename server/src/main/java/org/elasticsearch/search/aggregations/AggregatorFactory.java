@@ -61,28 +61,20 @@ public abstract class AggregatorFactory {
 
     protected abstract Aggregator createInternal(SearchContext searchContext,
                                                     Aggregator parent,
-                                                    boolean collectsFromSingleBucket,
+                                                    CardinalityUpperBound cardinality,
                                                     Map<String, Object> metadata) throws IOException;
 
     /**
-     * Creates the aggregator
+     * Creates the aggregator.
      *
-     *
-     * @param searchContext
-     *            The search context
-     * @param parent
-     *            The parent aggregator (if this is a top level factory, the
-     *            parent will be {@code null})
-     * @param collectsFromSingleBucket
-     *            If true then the created aggregator will only be collected
-     *            with {@code 0} as a bucket ordinal. Some factories can take
-     *            advantage of this in order to return more optimized
-     *            implementations.
-     *
-     * @return The created aggregator
+     * @param parent The parent aggregator (if this is a top level factory, the
+     *               parent will be {@code null})
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that the {@link Aggregator} created by this method
+     *                    will be asked to collect.
      */
-    public final Aggregator create(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(searchContext, parent, collectsFromSingleBucket, this.metadata);
+    public final Aggregator create(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality) throws IOException {
+        return createInternal(searchContext, parent, cardinality, this.metadata);
     }
 
     public AggregatorFactory getParent() {

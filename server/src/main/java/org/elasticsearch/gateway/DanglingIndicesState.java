@@ -64,7 +64,7 @@ public class DanglingIndicesState implements ClusterStateListener {
      */
     public static final Setting<Boolean> AUTO_IMPORT_DANGLING_INDICES_SETTING = Setting.boolSetting(
         "gateway.auto_import_dangling_indices",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Deprecated
     );

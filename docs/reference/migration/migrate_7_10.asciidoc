@@ -1,0 +1,71 @@
+[[breaking-changes-7.10]]
+== Breaking changes in 7.10
+++++
+<titleabbrev>7.10</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.10.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+// * <<breaking_710_blah_changes>>
+// * <<breaking_710_blah_changes>>
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_710_search_changes]]
+=== Search Changes
+
+[discrete]
+==== Missing checks for `index.max_docvalue_fields_search`
+The setting `index.max_docvalue_fields_search` limits the number of fields that
+can be retrieved through `docvalue_fields` in a search. Previously we only
+checked this limit when `docvalue_fields` appeared in the top-level search
+request body. Now we also enforce the limit when loading doc value fields in
+an `inner_hits` section or in a `top_hits` aggregation.
+
+[discrete]
+[[breaking_710_networking_changes]]
+=== Networking Changes
+
+[discrete]
+==== *.tcp.keep_idle and *.tcp.keep_interval now bounded
+The settings `{network,transport,http}.tcp.keep_idle` and
+`{network,transport,http}.tcp.keep_interval` are now limited to a maximum
+value of 300, which amounts to 5 minutes. This helps ensure that, if
+explicitly configured, only reasonable values are set.
+
+//end::notable-breaking-changes[]
+
+.Repository Stats API is deprecated
+[%collapsible]
+====
+*Details* +
+The Repository Stats API has been introduced in 7.8.0 as an experimental API
+and was never released. This API is superseded by the <<repositories-metering-apis,Repositories Metering APIs>>
+added in 7.10.0 which should be used instead. The Repository Stats API is
+deprecated starting 7.10.0 and will be removed in 8.0.0.
+
+*Impact* +
+Use the <<repositories-metering-apis,Repositories Metering APIs>>.
+====
+
+[[mapping-boosts]]
+.The `boost` parameter on field mappings has been deprecated
+[%collapsible]
+====
+*Details* +
+Index-time boosts have been deprecated since the 5x line, but it is still possible
+to declare field-specific boosts in the mappings.  This is now deprecated as well,
+and will be removed entirely in 8.0.  Mappings containing field boosts will continue
+to work in 7.x but will emit a deprecation warning.
+
+*Impact* +
+The `boost` setting should be removed from templates and mappings.  Use boosts
+directly on queries instead.
+====

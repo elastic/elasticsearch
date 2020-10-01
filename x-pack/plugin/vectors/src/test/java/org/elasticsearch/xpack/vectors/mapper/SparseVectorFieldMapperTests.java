@@ -11,30 +11,19 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.vectors.Vectors;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -42,56 +31,52 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class SparseVectorFieldMapperTests extends FieldMapperTestCase<SparseVectorFieldMapper.Builder> {
-    private DocumentMapper mapper;
+@SuppressWarnings("deprecation")
+public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store", "index");
-    }
-
-    @Before
-    public void setUpMapper() throws Exception {
-        IndexService indexService = createIndex("test-index");
-        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("_doc")
-                    .startObject("properties")
-                        .startObject("my-sparse-vector").field("type", "sparse_vector")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject());
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+    protected void assertParseMinimalWarnings() {
+        assertWarnings("The [sparse_vector] field type is deprecated and will be removed in 8.0.");
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(Vectors.class, LocalStateCompositeXPackPlugin.class);
+    protected void assertParseMaximalWarnings() {
+        assertParseMinimalWarnings();
     }
 
-    // this allows to set indexVersion as it is a private setting
     @Override
-    protected boolean forbidPrivateIndexSettings() {
-        return false;
+    protected void registerParameters(ParameterChecker checker) {
+        // no parameters to check
+    }
+
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+    }
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field("1", 1).endObject();
+    }
+
+    @Override
+    protected Collection<Plugin> getPlugins() {
+        return Collections.singletonList(new Vectors());
     }
 
     public void testDefaults() throws Exception {
         Version indexVersion = Version.CURRENT;
         int[] indexedDims = {65535, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("my-sparse-vector")
-                        .field(Integer.toString(indexedDims[0]), indexedValues[0])
-                        .field(Integer.toString(indexedDims[1]), indexedValues[1])
-                        .field(Integer.toString(indexedDims[2]), indexedValues[2])
-                    .endObject()
-                .endObject()),
-            XContentType.JSON));
-        IndexableField[] fields = doc1.rootDoc().getFields("my-sparse-vector");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc1 = mapper.parse(source(b -> {
+            b.startObject("field");
+            b.field(Integer.toString(indexedDims[0]), indexedValues[0]);
+            b.field(Integer.toString(indexedDims[1]), indexedValues[1]);
+            b.field(Integer.toString(indexedDims[2]), indexedValues[2]);
+            b.endObject();
+        }));
+        IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], Matchers.instanceOf(BinaryDocValuesField.class));
 
@@ -127,33 +112,18 @@ public class SparseVectorFieldMapperTests extends FieldMapperTestCase<SparseVect
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
         Version indexVersion = Version.V_7_4_0;
-        IndexService indexService = createIndex("test-index7_4",
-            Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion).build());
-        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("_doc")
-                    .startObject("properties")
-                        .startObject("my-sparse-vector").field("type", "sparse_vector")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject());
-        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = createDocumentMapper(indexVersion, fieldMapping(this::minimalMapping));
 
         int[] indexedDims = {65535, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_4", "_doc", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("my-sparse-vector")
-                .field(Integer.toString(indexedDims[0]), indexedValues[0])
-                .field(Integer.toString(indexedDims[1]), indexedValues[1])
-                .field(Integer.toString(indexedDims[2]), indexedValues[2])
-                .endObject()
-                .endObject()),
-            XContentType.JSON));
-        IndexableField[] fields = doc1.rootDoc().getFields("my-sparse-vector");
+        ParsedDocument doc1 = mapper.parse(source(b -> {
+            b.startObject("field");
+            b.field(Integer.toString(indexedDims[0]), indexedValues[0]);
+            b.field(Integer.toString(indexedDims[1]), indexedValues[1]);
+            b.field(Integer.toString(indexedDims[2]), indexedValues[2]);
+            b.endObject();
+        }));
+        IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], Matchers.instanceOf(BinaryDocValuesField.class));
 
@@ -180,17 +150,15 @@ public class SparseVectorFieldMapperTests extends FieldMapperTestCase<SparseVect
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
-    public void testDimensionNumberValidation() {
+    public void testDimensionNumberValidation() throws IOException {
         // 1. test for an error on negative dimension
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("my-sparse-vector")
-                        .field(Integer.toString(-50), 100f)
-                    .endObject()
-                .endObject()),
-            XContentType.JSON));
+            mapper.parse(source(b -> {
+                b.startObject("field");
+                b.field("-50", 100f);
+                b.endObject();
+            }));
         });
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), containsString(
@@ -198,14 +166,11 @@ public class SparseVectorFieldMapperTests extends FieldMapperTestCase<SparseVect
 
         // 2. test for an error on a dimension greater than MAX_DIMS_NUMBER
         e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("my-sparse-vector")
-                        .field(Integer.toString(70000), 100f)
-                    .endObject()
-                .endObject()),
-            XContentType.JSON));
+            mapper.parse(source(b -> {
+                b.startObject("field");
+                b.field("70000", 100f);
+                b.endObject();
+            }));
         });
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), containsString(
@@ -213,14 +178,11 @@ public class SparseVectorFieldMapperTests extends FieldMapperTestCase<SparseVect
 
         // 3. test for an error on a wrong formatted dimension
         e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("my-sparse-vector")
-                        .field("WrongDim123", 100f)
-                    .endObject()
-                .endObject()),
-            XContentType.JSON));
+            mapper.parse(source(b -> {
+                b.startObject("field");
+                b.field("WrongDim123", 100f);
+                b.endObject();
+            }));
         });
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), containsString(
@@ -228,14 +190,11 @@ public class SparseVectorFieldMapperTests extends FieldMapperTestCase<SparseVect
 
          // 4. test for an error on a wrong format for the map of dims to values
         e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("my-sparse-vector")
-                        .startArray(Integer.toString(10)).value(10f).value(100f).endArray()
-                    .endObject()
-                .endObject()),
-            XContentType.JSON));
+            mapper.parse(source(b -> {
+                b.startObject("field");
+                b.startArray("10").value(10f).value(100f).endArray();
+                b.endObject();
+            }));
         });
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), containsString(
@@ -249,41 +208,29 @@ public class SparseVectorFieldMapperTests extends FieldMapperTestCase<SparseVect
             .boxed()
             .collect(Collectors.toMap(String::valueOf, Function.identity()));
 
-        BytesReference validDoc = BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject()
-                .field("my-sparse-vector", validVector)
-            .endObject());
-        mapper.parse(new SourceToParse("test-index", "_doc", "1", validDoc, XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        mapper.parse(source(b -> b.field("field", validVector)));
 
         Map<String, Object> invalidVector = IntStream.range(0, SparseVectorFieldMapper.MAX_DIMS_COUNT + 1)
           .boxed()
           .collect(Collectors.toMap(String::valueOf, Function.identity()));
 
-        BytesReference invalidDoc = BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject()
-                .field("my-sparse-vector", invalidVector)
-            .endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test-index", "_doc", "1", invalidDoc, XContentType.JSON)));
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", invalidVector))));
         assertThat(e.getDetailedMessage(), containsString("has exceeded the maximum allowed number of dimensions"));
 
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     @Override
-    protected SparseVectorFieldMapper.Builder newBuilder() {
-        return new SparseVectorFieldMapper.Builder("sparsevector");
+    public void testUpdates() throws IOException {
+        // no updates to test
     }
 
     @Override
-    public void testSerialization() throws IOException {
-        super.testSerialization();
-        assertWarnings("The [sparse_vector] field type is deprecated and will be removed in 8.0.");
-    }
-
-    @Override
-    public void testMergeConflicts() {
-        super.testMergeConflicts();
-        assertWarnings("The [sparse_vector] field type is deprecated and will be removed in 8.0.");
+    public void testMeta() throws IOException {
+        super.testMeta();
+        assertParseMinimalWarnings();
     }
 }

@@ -529,6 +529,20 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             equalTo(new Term(KEYWORD_FIELD_NAME, "test")));
     }
 
+    /**
+     * Test that dissalowing leading wildcards causes exception
+     */
+    public void testAllowLeadingWildcard() throws Exception {
+        Query query = queryStringQuery("*test").field("mapped_string").allowLeadingWildcard(true).toQuery(createShardContext());
+        assertThat(query, instanceOf(WildcardQuery.class));
+        QueryShardException ex = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery("*test").field("mapped_string").allowLeadingWildcard(false).toQuery(createShardContext())
+        );
+        assertEquals("Failed to parse query [*test]", ex.getMessage());
+        assertEquals("Cannot parse '*test': '*' or '?' not allowed as first character in WildcardQuery", ex.getCause().getMessage());
+    }
+
     public void testToQueryDisMaxQuery() throws Exception {
         Query query = queryStringQuery("test").field(TEXT_FIELD_NAME, 2.2f)
             .field(KEYWORD_FIELD_NAME)
@@ -1105,7 +1119,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                                     "enabled=true"))),
                     MapperService.MergeReason.MAPPING_UPDATE);
         }
-        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}",  context.index().getName()));
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
     }
 
     public void testFromJson() throws IOException {

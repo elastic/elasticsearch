@@ -43,6 +43,9 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  */
 public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
+    // Flag set for disallowing index auto creation for an individual write request.
+    String REQUIRE_ALIAS = "require_alias";
+
     /**
      * Set the index for this request
      * @return the Request
@@ -163,6 +166,11 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      */
     OpType opType();
 
+    /**
+     * Should this request override specifically require the destination to be an alias?
+     * @return boolean flag, when true specifically requires an alias
+     */
+    boolean isRequireAlias();
     /**
      * Requested operation type to perform on the document
      */

@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
 public class RawInferenceResults implements InferenceResults {
@@ -53,8 +53,8 @@ public class RawInferenceResults implements InferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String parentResultField) {
-        throw new UnsupportedOperationException("[raw] does not support writing inference results");
+    public Map<String, Object> asMap() {
+        throw new UnsupportedOperationException("[raw] does not support map conversion");
     }
 
     @Override

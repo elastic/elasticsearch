@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -21,9 +20,9 @@ public class NativeMemoryUsageEstimationProcess extends AbstractNativeAnalyticsP
 
     protected NativeMemoryUsageEstimationProcess(String jobId, ProcessPipes processPipes,
                                                  int numberOfFields, List<Path> filesToDelete,
-                                                 Consumer<String> onProcessCrash, Duration processConnectTimeout) {
+                                                 Consumer<String> onProcessCrash) {
         super(NAME, MemoryUsageEstimationResult.PARSER, jobId, processPipes,
-            numberOfFields, filesToDelete, onProcessCrash, processConnectTimeout, NamedXContentRegistry.EMPTY);
+            numberOfFields, filesToDelete, onProcessCrash, NamedXContentRegistry.EMPTY);
     }
 
     @Override
@@ -32,7 +31,7 @@ public class NativeMemoryUsageEstimationProcess extends AbstractNativeAnalyticsP
     }
 
     @Override
-    public void restoreState(BytesReference state) {
+    public void restoreState(Client client, String stateDocIdPrefix) {
         throw new UnsupportedOperationException();
     }
 }

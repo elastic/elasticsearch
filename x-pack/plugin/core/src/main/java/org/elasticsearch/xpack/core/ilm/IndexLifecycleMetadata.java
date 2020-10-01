@@ -71,11 +71,7 @@ public class IndexLifecycleMetadata implements XPackMetadataCustom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(policyMetadatas.size());
-        for (Map.Entry<String, LifecyclePolicyMetadata> entry : policyMetadatas.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
+        out.writeMap(policyMetadatas, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeEnum(operationMode);
     }
 

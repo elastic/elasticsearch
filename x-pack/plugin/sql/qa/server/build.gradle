@@ -11,6 +11,8 @@ dependencies {
 
   // JDBC testing dependencies
   api project(path: xpackModule('sql:jdbc'))
+  // Common utilities from QL
+  api project(xpackModule('ql:test'))
 
   api "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
 
@@ -33,15 +35,12 @@ dependencies {
   testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
 }
 
-/* disable unit tests because these are all integration tests used
- * other qa projects. */
-test.enabled = false
-
-tasks.named("dependencyLicenses").configure { it.enabled = false }
-dependenciesInfo.enabled = false
-
-// just a test fixture: we aren't using this jars in releases and H2GIS requires disabling a lot of checks
-thirdPartyAudit.enabled = false
+// this is just a test fixture used by other projects and not in production
+['test', 'dependencyLicenses', 'thirdPartyAudit', 'dependenciesInfo'].each {
+  tasks.named(it).configure {
+    enabled = false
+  }
+}
 
 subprojects {
   if (subprojects.isEmpty()) {
@@ -68,6 +67,7 @@ subprojects {
       transitive = false
     }
     testImplementation project(":test:framework")
+    testRuntimeOnly project(xpackModule('ql:test'))
 
     // JDBC testing dependencies
     testRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"

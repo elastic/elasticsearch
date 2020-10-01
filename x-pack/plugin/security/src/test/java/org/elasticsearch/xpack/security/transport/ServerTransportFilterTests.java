@@ -215,13 +215,13 @@ public class ServerTransportFilterTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
         return new ServerTransportFilter.ClientProfile(authcService, authzService, threadContext, false, destructiveOperations,
-                reservedRealmEnabled, new SecurityContext(settings, threadContext), new XPackLicenseState(settings));
+                reservedRealmEnabled, new SecurityContext(settings, threadContext), new XPackLicenseState(settings, () -> 0));
     }
 
     private ServerTransportFilter.NodeProfile getNodeFilter(boolean reservedRealmEnabled) throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
         return new ServerTransportFilter.NodeProfile(authcService, authzService, threadContext, false, destructiveOperations,
-                reservedRealmEnabled, new SecurityContext(settings, threadContext), new XPackLicenseState(settings));
+                reservedRealmEnabled, new SecurityContext(settings, threadContext), new XPackLicenseState(settings, () -> 0));
     }
 }

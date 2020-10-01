@@ -164,6 +164,16 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * 7.8.0.
      */
     public final void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
+        if (pipelineAggregatorsForBwcSerialization != null) {
+            /*
+             * This method is called once per level on the results but only
+             * has useful pipeline aggregations on the top level. Every level
+             * below the top will always be empty. So if we've already been
+             * called we should bail. This is pretty messy but it is the kind
+             * of weird thing we have to do to deal with bwc serialization....
+             */
+            return;
+        }
         pipelineAggregatorsForBwcSerialization = pipelineTree.aggregators();
         forEachBucket(bucketAggs -> bucketAggs.mergePipelineTreeForBWCSerialization(pipelineTree));
     }
@@ -245,8 +255,16 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
      * try reusing an existing instance (typically the first in the given list) to save on redundant object
      * construction.
+     *
+     * @see #mustReduceOnSingleInternalAgg()
      */
     public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+
+    /**
+     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, ReduceContext)} phase needs to be called
+     * when there is only one {@linkplain InternalAggregation}.
+     */
+    protected abstract boolean mustReduceOnSingleInternalAgg();
 
     /**
      * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns

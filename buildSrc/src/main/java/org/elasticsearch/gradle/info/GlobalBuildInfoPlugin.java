@@ -1,6 +1,25 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.gradle.info;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.Util;
@@ -49,6 +68,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
     private static Integer _defaultParallel = null;
+    private static Boolean _isBundledJdkSupported = null;
 
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final ObjectFactory objects;
@@ -87,6 +107,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setRuntimeJavaHome(runtimeJavaHome);
             params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
             params.setIsRutimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
+            params.setRuntimeJavaDetails(getJavaInstallation(runtimeJavaHome).getImplementationName());
             params.setJavaVersions(getAvailableJavaVersions(minimumCompilerVersion));
             params.setMinimumCompilerVersion(minimumCompilerVersion);
             params.setMinimumRuntimeVersion(minimumRuntimeVersion);
@@ -100,6 +121,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
+            params.setIsBundledJdkSupported(findIfBundledJdkSupported(project));
             if (isInternal) {
                 params.setBwcVersions(resolveBwcVersions(rootDir));
             }
@@ -255,6 +277,32 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             throw new GradleException(exceptionMessage);
         }
         return versionedJavaHome;
+    }
+
+    private static boolean findIfBundledJdkSupported(Project project) {
+        if (_isBundledJdkSupported == null) {
+            if (Os.isFamily(Os.FAMILY_UNIX) == false || Os.isFamily(Os.FAMILY_MAC)) {
+                _isBundledJdkSupported = true;
+            } else {
+                // check if glibc version can support java 15+
+                ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+                project.exec(spec -> {
+                    spec.setCommandLine("getconf", "GNU_LIBC_VERSION");
+                    spec.setStandardOutput(stdout);
+                });
+                String version = stdout.toString().trim();
+                final int[] glibcVersion;
+                try {
+                    String[] parts = version.split(" ")[1].split("\\.");
+                    glibcVersion = new int[] { Integer.parseInt(parts[0]), Integer.parseInt(parts[1]) };
+                } catch (Exception e) {
+                    throw new IllegalStateException("Could not parse glibc version from " + version, e);
+                }
+                // as of java 15, java requires GLIBC 2.14+
+                _isBundledJdkSupported = glibcVersion[0] == 2 && glibcVersion[1] >= 14 || glibcVersion[0] > 2;
+            }
+        }
+        return _isBundledJdkSupported;
     }
 
     private static String getJavaHomeEnvVarName(String version) {

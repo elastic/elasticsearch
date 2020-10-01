@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -25,6 +26,9 @@ import static org.elasticsearch.license.License.OperationMode.PLATINUM;
 import static org.elasticsearch.license.License.OperationMode.STANDARD;
 import static org.elasticsearch.license.License.OperationMode.TRIAL;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.collection.IsMapContaining.hasEntry;
+import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.hamcrest.core.IsNot.not;
 
 /**
  * Unit tests for the {@link XPackLicenseState}
@@ -77,7 +81,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityDefaults() {
         Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
@@ -92,8 +96,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testTransportSslDoesNotAutomaticallyEnableSecurityOnTrialLicense() {
         Settings settings = Settings.builder().put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), true).build();
-        final XPackLicenseState licenseState;
-        licenseState = new XPackLicenseState(settings);
+        final XPackLicenseState licenseState= new XPackLicenseState(settings, () -> 0);
         assertSecurityNotAllowed(licenseState);
     }
 
@@ -116,7 +119,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityBasicWithExplicitSecurityEnabled() {
         final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         licenseState.update(BASIC, true, null);
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
@@ -148,7 +151,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityEnabledBasicExpired() {
         Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         licenseState.update(BASIC, false, null);
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
@@ -164,7 +167,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityStandard() {
         Settings settings = randomFrom(Settings.EMPTY,
             Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         licenseState.update(STANDARD, true, null);
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
@@ -178,7 +181,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityStandardExpired() {
         Settings settings = randomFrom(Settings.EMPTY,
             Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         licenseState.update(STANDARD, false, null);
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
@@ -192,7 +195,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityGold() {
         Settings settings = randomFrom(Settings.EMPTY,
             Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         licenseState.update(GOLD, true, null);
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
@@ -209,7 +212,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityGoldExpired() {
         Settings settings = randomFrom(Settings.EMPTY,
             Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         licenseState.update(GOLD, false, null);
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
@@ -226,7 +229,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityPlatinum() {
         Settings settings = randomFrom(Settings.EMPTY,
             Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         licenseState.update(PLATINUM, true, null);
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
@@ -243,7 +246,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityPlatinumExpired() {
         Settings settings = randomFrom(Settings.EMPTY,
             Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         licenseState.update(PLATINUM, false, null);
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
@@ -565,5 +568,25 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testTransformInactiveBasic() {
         assertAllowed(BASIC, false, s -> s.checkFeature(Feature.TRANSFORM), false);
+    }
+
+    public void testLastUsed() {
+        Feature basicFeature = Feature.SECURITY;
+        Feature goldFeature = Feature.SECURITY_DLS_FLS;
+        AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
+        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, currentTime::get);
+        assertThat("basic features not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
+        assertThat("initial epoch time", licenseState.getLastUsed(), not(hasKey(goldFeature)));
+        licenseState.isAllowed(basicFeature);
+        assertThat("basic features still not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
+        licenseState.isAllowed(goldFeature);
+        assertThat("isAllowed does not track", licenseState.getLastUsed(), not(hasKey(goldFeature)));
+        licenseState.checkFeature(basicFeature);
+        assertThat("basic features still not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
+        licenseState.checkFeature(goldFeature);
+        assertThat("checkFeature tracks used time", licenseState.getLastUsed(), hasEntry(goldFeature, 100L));
+        currentTime.set(200);
+        licenseState.checkFeature(goldFeature);
+        assertThat("checkFeature updates tracked time", licenseState.getLastUsed(), hasEntry(goldFeature, 200L));
     }
 }

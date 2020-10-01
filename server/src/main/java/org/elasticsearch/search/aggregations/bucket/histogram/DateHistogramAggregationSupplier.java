@@ -24,7 +24,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.Map;
 
 @FunctionalInterface
-public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
+public interface DateHistogramAggregationSupplier {
     Aggregator build(String name,
                      AggregatorFactories factories,
                      Rounding rounding,
@@ -40,10 +40,11 @@ public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
                      BucketOrder order,
                      boolean keyed,
                      long minDocCount,
-                     @Nullable ExtendedBounds extendedBounds,
+                     @Nullable LongBounds extendedBounds,
+                     @Nullable LongBounds hardBounds,
                      ValuesSourceConfig valuesSourceConfig,
                      SearchContext aggregationContext,
                      Aggregator parent,
-                     boolean collectsFromSingleBucket,
+                     CardinalityUpperBound cardinality,
                      Map<String, Object> metadata) throws IOException;
 }

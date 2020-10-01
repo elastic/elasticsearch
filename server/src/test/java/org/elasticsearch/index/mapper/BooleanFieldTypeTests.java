@@ -22,13 +22,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 
 import java.util.Collections;
-import java.util.Map;
 
-public class BooleanFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new BooleanFieldMapper.BooleanFieldType(name, true, true, meta);
-    }
+public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() {
         MappedFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
@@ -50,7 +45,7 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
         assertEquals(new TermQuery(new Term("field", "T")), ft.termQuery("true", null));
         assertEquals(new TermQuery(new Term("field", "F")), ft.termQuery("false", null));
 
-        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("true", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());

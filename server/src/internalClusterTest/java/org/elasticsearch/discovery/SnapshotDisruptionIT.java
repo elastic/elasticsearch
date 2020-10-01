@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
@@ -46,10 +45,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -75,84 +70,6 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
             .build();
-    }
-
-    public void testDisruptionOnSnapshotInitialization() throws Exception {
-        final String idxName = "test";
-        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
-        final String dataNode = internalCluster().startDataOnlyNode();
-        ensureStableCluster(4);
-
-        createRandomIndex(idxName);
-
-        logger.info("-->  creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
-        // Writing incompatible snapshot can cause this test to fail due to a race condition in repo initialization
-        // by the current master and the former master. It is not causing any issues in real life scenario, but
-        // might make this test to fail. We are going to complete initialization of the snapshot to prevent this failures.
-        logger.info("-->  initializing the repository");
-        assertEquals(SnapshotState.SUCCESS, client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
-            .setWaitForCompletion(true).setIncludeGlobalState(true).setIndices().get().getSnapshotInfo().state());
-
-        final String masterNode1 = internalCluster().getMasterName();
-        Set<String> otherNodes = new HashSet<>();
-        otherNodes.addAll(allMasterEligibleNodes);
-        otherNodes.remove(masterNode1);
-        otherNodes.add(dataNode);
-
-        NetworkDisruption networkDisruption =
-            new NetworkDisruption(new NetworkDisruption.TwoPartitions(Collections.singleton(masterNode1), otherNodes),
-                NetworkDisruption.UNRESPONSIVE);
-        internalCluster().setDisruptionScheme(networkDisruption);
-
-        ClusterService clusterService = internalCluster().clusterService(masterNode1);
-        CountDownLatch disruptionStarted = new CountDownLatch(1);
-        clusterService.addListener(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                SnapshotsInProgress snapshots = event.state().custom(SnapshotsInProgress.TYPE);
-                if (snapshots != null && snapshots.entries().size() > 0) {
-                    if (snapshots.entries().get(0).state() == SnapshotsInProgress.State.INIT) {
-                        // The snapshot started, we can start disruption so the INIT state will arrive to another master node
-                        logger.info("--> starting disruption");
-                        networkDisruption.startDisrupting();
-                        clusterService.removeListener(this);
-                        disruptionStarted.countDown();
-                    }
-                }
-            }
-        });
-
-        logger.info("--> starting snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client(masterNode1).admin().cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(false).setIndices(idxName).execute();
-
-        logger.info("--> waiting for disruption to start");
-        assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
-
-        awaitNoMoreRunningOperations(dataNode);
-
-        logger.info("--> verify that snapshot was successful or no longer exist");
-        assertBusy(() -> {
-            try {
-                assertSnapshotExists("test-repo", "test-snap-2");
-            } catch (SnapshotMissingException exception) {
-                logger.info("--> done verifying, snapshot doesn't exist");
-            }
-        }, 1, TimeUnit.MINUTES);
-
-        logger.info("--> stopping disrupting");
-        networkDisruption.stopDisrupting();
-        ensureStableCluster(4, masterNode1);
-        logger.info("--> done");
-
-        future.get();
-        awaitNoMoreRunningOperations(masterNode1);
     }
 
     public void testDisruptionAfterFinalization() throws Exception {

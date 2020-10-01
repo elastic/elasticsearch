@@ -32,13 +32,9 @@ import java.util.Map;
  */
 public abstract class SimpleMappedFieldType extends MappedFieldType {
 
-    protected SimpleMappedFieldType(String name, boolean isSearchable, boolean hasDocValues,
+    protected SimpleMappedFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
                                     TextSearchInfo textSearchInfo, Map<String, String> meta) {
-        super(name, isSearchable, hasDocValues, textSearchInfo, meta);
-    }
-
-    protected SimpleMappedFieldType(MappedFieldType ref) {
-        super(ref);
+        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override

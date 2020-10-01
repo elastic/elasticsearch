@@ -78,7 +78,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     5L,
                     4L,
                     Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")),
-                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate("@timestamp")))
+                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate()))
                 .put(IndexMetadata.builder("test12")
                         .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")
@@ -104,7 +104,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 .put(idx2, false)
                 .put(new DataStream("data-stream1", createTimestampField("@timestamp"),
                     org.elasticsearch.common.collect.List.of(idx1.getIndex())))
-                .put(new DataStream("data-stream2", createTimestampField("@timestamp2"),
+                .put(new DataStream("data-stream2", createTimestampField("@timestamp"),
                     org.elasticsearch.common.collect.List.of(idx2.getIndex())))
                 .build();
 
@@ -159,7 +159,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
         assertNotNull(parsedMetadata.dataStreams().get("data-stream2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp2"));
+        assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
     }
 
@@ -299,7 +299,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "        \"in_sync_allocations\" : {\n" +
             "          \"0\" : [ ]\n" +
             "        },\n" +
-            "        \"rollover_info\" : { }\n" +
+            "        \"rollover_info\" : { },\n" +
+            "        \"system\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -461,7 +462,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"met_conditions\" : { },\n" +
             "            \"time\" : 1\n" +
             "          }\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"system\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -566,7 +568,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"met_conditions\" : { },\n" +
             "            \"time\" : 1\n" +
             "          }\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"system\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +

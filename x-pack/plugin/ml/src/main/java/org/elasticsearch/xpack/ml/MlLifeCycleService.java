@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
@@ -22,14 +23,17 @@ public class MlLifeCycleService {
     private final ClusterService clusterService;
     private final DatafeedManager datafeedManager;
     private final AutodetectProcessManager autodetectProcessManager;
+    private final DataFrameAnalyticsManager analyticsManager;
     private final MlMemoryTracker memoryTracker;
 
     public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedManager datafeedManager,
-                              AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker) {
+                              AutodetectProcessManager autodetectProcessManager, DataFrameAnalyticsManager analyticsManager,
+                              MlMemoryTracker memoryTracker) {
         this.environment = environment;
         this.clusterService = clusterService;
         this.datafeedManager = datafeedManager;
         this.autodetectProcessManager = autodetectProcessManager;
+        this.analyticsManager = analyticsManager;
         this.memoryTracker = memoryTracker;
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -42,6 +46,9 @@ public class MlLifeCycleService {
     public synchronized void stop() {
         try {
             if (MachineLearningFeatureSet.isRunningOnMlPlatform(false)) {
+                // This prevents data frame analytics from being marked as failed due to exceptions occurring while the node is shutting
+                // down.
+                analyticsManager.markNodeAsShuttingDown();
                 // This prevents datafeeds from sending data to autodetect processes WITHOUT stopping the
                 // datafeeds, so they get reallocated.  We have to do this first, otherwise the datafeeds
                 // could fail if they send data to a dead autodetect process.

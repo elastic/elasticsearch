@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizationStatus;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
@@ -282,6 +281,7 @@ public class AutodetectResultProcessor {
         Annotation annotation = result.getAnnotation();
         if (annotation != null) {
             bulkAnnotationsPersister.persistAnnotation(annotation);
+            notifyCategorizationStatusChange(annotation);
         }
         Forecast forecast = result.getForecast();
         if (forecast != null) {
@@ -396,7 +396,6 @@ public class AutodetectResultProcessor {
 
         persister.persistModelSizeStats(modelSizeStats, this::isAlive);
         notifyModelMemoryStatusChange(modelSizeStats);
-        notifyCategorizationStatusChange(modelSizeStats);
 
         latestModelSizeStats = modelSizeStats;
     }
@@ -419,13 +418,11 @@ public class AutodetectResultProcessor {
         }
     }
 
-    private void notifyCategorizationStatusChange(ModelSizeStats modelSizeStats) {
-        CategorizationStatus categorizationStatus = modelSizeStats.getCategorizationStatus();
-        if (categorizationStatus != latestModelSizeStats.getCategorizationStatus()) {
-            if (categorizationStatus == CategorizationStatus.WARN) {
-                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, categorizationStatus,
-                    priorRunsBucketCount + currentRunBucketCount));
-            }
+    private void notifyCategorizationStatusChange(Annotation annotation) {
+        if (annotation.getEvent() == Annotation.Event.CATEGORIZATION_STATUS_CHANGE) {
+            long bucketCount = priorRunsBucketCount + currentRunBucketCount;
+            auditor.warning(jobId, annotation.getAnnotation() + " after "
+                + bucketCount + ((bucketCount == 1) ? " bucket" : " buckets"));
         }
     }
 

@@ -29,13 +29,8 @@ import org.elasticsearch.common.network.InetAddresses;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
-public class IpFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new IpFieldMapper.IpFieldType(name, true, true, meta);
-    }
+public class IpFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() throws Exception {
         MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
@@ -76,7 +71,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
         prefix = ip + "/16";
         assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, null));
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("::1", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -179,7 +174,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
                         InetAddresses.forString("2001:db8::")),
                 ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, null));
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery("::1", "2001::", true, true, null, null, null, null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());

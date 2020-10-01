@@ -22,10 +22,10 @@ import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
-import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -57,7 +57,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -94,9 +93,16 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
     }
 
+    public static void assumeNotJava8() {
+        assumeFalse("This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used " +
+            "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, " +
+            "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 " +
+            "for more background on this issue.", JavaVersion.current().equals(JavaVersion.parse("8")));
+    }
+
     @BeforeClass
     public static void skipJava8() {
-        GoogleCloudStorageBlobStoreRepositoryTests.assumeNotJava8();
+        assumeNotJava8();
     }
 
     @Override
@@ -157,20 +163,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(clientSettings.build()));
 
-        final List<HttpContext> httpContexts = Arrays.asList(
-            // Auth
-            httpServer.createContext("/token", new FakeOAuth2HttpHandler()),
-            // Does bucket exists?
-            httpServer.createContext("/storage/v1/b/bucket", safeHandler(exchange -> {
-                byte[] response = ("{\"kind\":\"storage#bucket\",\"name\":\"bucket\",\"id\":\"0\"}").getBytes(UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                exchange.getResponseBody().write(response);
-            }))
-        );
-
-        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service);
-        httpContexts.forEach(httpContext -> httpServer.removeContext(httpContext));
+        httpServer.createContext("/token", new FakeOAuth2HttpHandler());
+        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service,
+            randomIntBetween(1, 8) * 1024);
 
         return new GoogleCloudStorageBlobContainer(BlobPath.cleanPath(), blobStore);
     }

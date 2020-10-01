@@ -21,9 +21,12 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
@@ -57,10 +60,11 @@ interface SearchPhaseContext extends Executor {
 
     /**
      * Builds and sends the final search response back to the user.
+     *
      * @param internalSearchResponse the internal search response
-     * @param scrollId an optional scroll ID if this search is a scroll search
+     * @param queryResults           the results of the query phase
      */
-    void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId);
+    void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults);
 
     /**
      * Notifies the top-level listener of the provided exception
@@ -101,7 +105,9 @@ interface SearchPhaseContext extends Executor {
      * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
      *
      */
-    default void sendReleaseSearchContext(SearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    default void sendReleaseSearchContext(ShardSearchContextId contextId,
+                                          Transport.Connection connection,
+                                          OriginalIndices originalIndices) {
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }
@@ -118,4 +124,9 @@ interface SearchPhaseContext extends Executor {
      * a response is returned to the user indicating that all shards have failed.
      */
     void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
+
+    /**
+     * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
+     */
+    void addReleasable(Releasable releasable);
 }

@@ -5,7 +5,7 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 [[breaking_70_java_time_changes]]
 === Replacing Joda-Time with java time
 
@@ -18,7 +18,7 @@ to remove the Joda-Time dependency in the future.
 The mappings, aggregations and search code switched from Joda-Time to
 java time.
 
-[float]
+[discrete]
 ==== Joda based date formatters are replaced with java ones
 
 With the release of Elasticsearch 6.7 a backwards compatibility layer was
@@ -45,7 +45,7 @@ So, instead of using `YYYY.MM.dd` you should use `8yyyy.MM.dd`.
 You can find more information about available formatting strings in the
 https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter javadocs].
 
-[float]
+[discrete]
 ==== Date formats behavioural change
 
 The `epoch_millis` and `epoch_second` formatters no longer support
@@ -60,7 +60,7 @@ The year-of-era formatting character is a `Y` in Joda-Time, but a lowercase
 The week-based-year formatting character is a lowercase `x` in Joda-Time,
 but an upper-case `Y` in java time.
 
-[float]
+[discrete]
 ==== Using time zones in the Java client
 
 Timezones have to be specified as java time based zone objects. This means,
@@ -71,7 +71,7 @@ Examples of possible uses are the `QueryStringQueryBuilder`, the
 `RangeQueryBuilder` or the `DateHistogramAggregationBuilder`, each of them
 allow for an optional timezone for that part of the search request.
 
-[float]
+[discrete]
 ==== Parsing aggregation buckets in the Java client
 
 The date based aggregation buckets in responses used to be of
@@ -81,7 +81,7 @@ may run into class cast exceptions only when running the code, but not at
 compile time, ensure you have proper test coverage for this in your
 own code.
 
-[float]
+[discrete]
 [[parsing-gtm0-timezeone-jdk8-not-supported]]
 ==== Parsing `GMT0` timezone with JDK8 is not supported
 
@@ -91,7 +91,7 @@ JDK, which has not been fixed for JDK8. You can read more in the
 https://bugs.openjdk.java.net/browse/JDK-8138664[official issue]
 This bug is fixed in JDK9 and later versions.
 
-[float]
+[discrete]
 ==== Scripting with dates should use java time based methods
 
 If dates are used in scripting, a backwards compatibility layer has been added
@@ -121,14 +121,14 @@ and should be replaced.
 * `toString(String)` should be replaced with a `DateTimeFormatter`
 * `toString(String,Locale)` should be replaced with a `DateTimeFormatter`
 
-[float]
+[discrete]
 ==== Negative epoch timestamps are no longer supported
 
 With the switch to java time, support for negative timestamps has been removed.
 For dates before 1970, use a date format containing a year.
 
 
-[float]
+[discrete]
 ==== Migration guide
 For a detailed migration guide, see <<migrate-to-java-time>>.
 

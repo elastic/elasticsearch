@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -48,7 +47,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
  */
 public class DatafeedUpdate implements Writeable, ToXContentObject {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DatafeedUpdate.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DatafeedUpdate.class);
     private static final String DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE = "The ability to update a datafeed's job_id is deprecated.";
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", Builder::new);
@@ -348,7 +347,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
         if (jobId != null) {
             if (datafeedConfig.getJobId() != null && datafeedConfig.getJobId().equals(jobId) == false) {
-                deprecationLogger.deprecatedAndMaybeLog("update_datafeed_job_id", DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
+                deprecationLogger.deprecate("update_datafeed_job_id", DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
             }
             builder.setJobId(jobId);
         }

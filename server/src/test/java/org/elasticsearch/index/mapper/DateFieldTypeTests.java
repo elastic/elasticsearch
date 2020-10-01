@@ -56,16 +56,8 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
-import java.util.Map;
 
-public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
-
-
-    @Override
-    protected DateFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new DateFieldType(name, true, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            Resolution.MILLISECONDS, meta);
-    }
+public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static final long nowInMillis = 0;
 
@@ -78,13 +70,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
     }
 
     public void testIsFieldWithinQueryDateMillis() throws IOException {
-        DateFieldType ft = new DateFieldType("my_date", true, true,
+        DateFieldType ft = new DateFieldType("my_date", true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, Collections.emptyMap());
         isFieldWithinRangeTestCase(ft);
     }
 
     public void testIsFieldWithinQueryDateNanos() throws IOException {
-        DateFieldType ft = new DateFieldType("my_date", true, true,
+        DateFieldType ft = new DateFieldType("my_date", true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, Resolution.NANOSECONDS, Collections.emptyMap());
         isFieldWithinRangeTestCase(ft);
     }
@@ -183,7 +175,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999));
         assertEquals(expected, ft.termQuery(date, context));
 
-        MappedFieldType unsearchable = new DateFieldType("field", false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+        MappedFieldType unsearchable = new DateFieldType("field", false, false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery(date, context));
@@ -218,7 +210,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
         assertEquals(expected,
             ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
-        MappedFieldType unsearchable = new DateFieldType("field", false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+        MappedFieldType unsearchable = new DateFieldType("field", false, false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery(date1, date2, true, true, null, null, null, context));
@@ -266,10 +258,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
         docValuesField.setLongValue(1459641600000L);
         w.addDocument(doc);
         // Create the doc values reader
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        IndexSettings indexSettings =  new IndexSettings(IndexMetadata.builder("foo").settings(settings).build(), settings);
-        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(indexSettings.getIndex(), "my_date",
+        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData("my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS);
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

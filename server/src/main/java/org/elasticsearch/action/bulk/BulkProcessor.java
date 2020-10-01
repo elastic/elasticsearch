@@ -408,7 +408,7 @@ public class BulkProcessor implements Closeable {
         lock.lock();
         try {
             ensureOpen();
-            bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline,
+            bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, null,
                 true, xContentType);
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {

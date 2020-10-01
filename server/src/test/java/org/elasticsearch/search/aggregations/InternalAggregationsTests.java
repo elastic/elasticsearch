@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -37,7 +38,6 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,7 +61,7 @@ public class InternalAggregationsTests extends ESTestCase {
     }
 
     public void testNonFinalReduceTopLevelPipelineAggs()  {
-        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
+        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true), BucketOrder.key(true),
             10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
         List<InternalAggregations> aggs = singletonList(InternalAggregations.from(Collections.singletonList(terms)));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, maxBucketReduceContext().forPartialReduction());
@@ -70,7 +70,7 @@ public class InternalAggregationsTests extends ESTestCase {
     }
 
     public void testFinalReduceTopLevelPipelineAggs()  {
-        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
+        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true), BucketOrder.key(true),
             10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
 
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(terms));
@@ -129,35 +129,32 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        writeToAndReadFrom(aggregations, 0);
+        writeToAndReadFrom(aggregations, Version.CURRENT, 0);
     }
 
-    public void testGetTopLevelPipelineAggregators() throws Exception {
-        PipelineAggregator.PipelineTree pipelineTree = randomPipelineTree();
-        InternalAggregations aggs = createTestInstance(pipelineTree);
-        assertThat(aggs.getTopLevelPipelineAggregators(), equalTo(pipelineTree.aggregators()));
+    public void testSerializedSize() throws Exception {
+        InternalAggregations aggregations = createTestInstance();
+        assertThat(aggregations.getSerializedSize(),
+            equalTo((long) serialize(aggregations, Version.CURRENT).length));
     }
 
-    private void writeToAndReadFrom(InternalAggregations aggregations, int iteration) throws IOException {
-        Version version = VersionUtils.randomVersion(random());
+    private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {
+        BytesRef serializedAggs = serialize(aggregations, version);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(serializedAggs.bytes), registry)) {
+            in.setVersion(version);
+            InternalAggregations deserialized = InternalAggregations.readFrom(in);
+            assertEquals(aggregations.aggregations, deserialized.aggregations);
+            if (iteration < 2) {
+                writeToAndReadFrom(deserialized, version, iteration + 1);
+            }
+        }
+    }
+
+    private BytesRef serialize(InternalAggregations aggs, Version version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
-            aggregations.writeTo(out);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes), registry)) {
-                in.setVersion(version);
-                InternalAggregations deserialized = InternalAggregations.readFrom(in);
-                assertEquals(aggregations.aggregations, deserialized.aggregations);
-                if (iteration < 2) {
-                    /*
-                     * Add the pipeline tree for bwc serialization just like we
-                     * do when we merge the aggregation. Without that we can't
-                     * properly serialize to older versions.
-                     */
-                    InternalAggregations asThoughReduced = new InternalAggregations(
-                        deserialized.copyResults(), aggregations.getPipelineTreeForBwcSerialization());
-                    writeToAndReadFrom(asThoughReduced, iteration + 1);
-                }
-            }
+            aggs.writeTo(out);
+            return out.bytes().toBytesRef();
         }
     }
 }

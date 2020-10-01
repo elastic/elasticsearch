@@ -187,7 +187,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
     private class TestNativeProcess extends AbstractNativeProcess {
 
         TestNativeProcess() {
-            super("foo", processPipes, 0, null, onProcessCrash, Duration.ZERO);
+            super("foo", processPipes, 0, null, onProcessCrash);
         }
 
         @Override

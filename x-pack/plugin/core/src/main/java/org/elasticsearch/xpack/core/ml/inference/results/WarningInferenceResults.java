@@ -9,10 +9,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class WarningInferenceResults implements InferenceResults {
@@ -53,10 +53,10 @@ public class WarningInferenceResults implements InferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String parentResultField) {
-        ExceptionsHelper.requireNonNull(document, "document");
-        ExceptionsHelper.requireNonNull(parentResultField, "resultField");
-        document.setFieldValue(parentResultField + "." + NAME, warning);
+    public Map<String, Object> asMap() {
+        Map<String, Object> asMap = new LinkedHashMap<>();
+        asMap.put(NAME, warning);
+        return asMap;
     }
 
     @Override

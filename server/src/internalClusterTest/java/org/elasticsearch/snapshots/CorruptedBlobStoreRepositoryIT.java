@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -156,6 +157,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify index-N blob is found at the new location");
         assertThat(getRepositoryData(repository).getGenId(), is(beforeMoveGen + 1));
 
+        final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
+        logger.info("--> wait for all listeners on snapshots service to be resolved to avoid snapshot task batching causing a conflict");
+        assertBusy(() -> assertTrue(snapshotsService.assertAllListenersResolved()));
+
         logger.info("--> delete snapshot");
         client.admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
 
@@ -273,18 +278,19 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 SnapshotId::getUUID, Function.identity())),
             repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(
                 SnapshotId::getUUID, repositoryData::getSnapshotState)),
-            Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY);
+            Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY);
 
         Files.write(repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
-            BytesReference.toBytes(BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(),
-                true))), StandardOpenOption.TRUNCATE_EXISTING);
+            BytesReference.toBytes(BytesReference.bytes(
+                withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))),
+            StandardOpenOption.TRUNCATE_EXISTING);
 
         logger.info("--> verify that repo is assumed in old metadata format");
         final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
             ActionRunnable.supply(f, () ->
-                snapshotsService.minCompatibleVersion(Version.CURRENT, repoName, getRepositoryData(repoName), null)))),
+                snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)))),
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
@@ -293,7 +299,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
             ActionRunnable.supply(f, () ->
-                snapshotsService.minCompatibleVersion(Version.CURRENT, repoName, getRepositoryData(repoName), null)))),
+                snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)))),
             is(Version.CURRENT));
         final RepositoryData finalRepositoryData = getRepositoryData(repoName);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
@@ -403,11 +409,12 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                         Collectors.toMap(SnapshotId::getUUID, repositoryData1::getVersion)),
                 repositoryData1.getIndices().values().stream().collect(
                         Collectors.toMap(Function.identity(), repositoryData1::getSnapshots)
-                ),  ShardGenerations.builder().putAll(repositoryData1.shardGenerations()).put(indexId, 0, "0").build()
+                ),  ShardGenerations.builder().putAll(repositoryData1.shardGenerations()).put(indexId, 0, "0").build(),
+                repositoryData1.indexMetaDataGenerations()
         );
         Files.write(repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData1.getGenId()),
                 BytesReference.toBytes(BytesReference.bytes(
-                        brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), true))),
+                        brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))),
                 StandardOpenOption.TRUNCATE_EXISTING);
 
         logger.info("--> recreating repository to clear caches");

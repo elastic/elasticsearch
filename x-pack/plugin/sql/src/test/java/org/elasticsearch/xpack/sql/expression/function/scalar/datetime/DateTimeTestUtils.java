@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.OffsetTime;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -62,6 +63,10 @@ public class DateTimeTestUtils {
         LocalTime lt = LocalTime.of(hour, minute, second, nano);
         LocalDateTime ldt = lt.atDate(EPOCH);
         return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
+    }
+
+    public static ZonedDateTime date(int year, int month, int day, ZoneId zoneId) {
+        return LocalDate.of(year, month, day).atStartOfDay(zoneId);
     }
 
     static ZonedDateTime nowWithMillisResolution() {

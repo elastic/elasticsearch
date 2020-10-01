@@ -762,6 +762,16 @@ public class Strings {
     }
 
     /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed.
+     * Allows to configure the params.
+     * The content is not pretty-printed nor human readable.
+     */
+    public static String toString(ToXContent toXContent, ToXContent.Params params) {
+        return toString(toXContent, params, false, false);
+    }
+
+    /**
      * Returns a string representation of the builder (only applicable for text based xcontent).
      * @param xContentBuilder builder containing an object to converted to a string
      */
@@ -776,12 +786,22 @@ public class Strings {
      *
      */
     public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
+        return toString(toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed.
+     * Allows to configure the params.
+     * Allows to control whether the outputted json needs to be pretty printed and human readable.
+     */
+    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
             XContentBuilder builder = createBuilder(pretty, human);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
-            toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            toXContent.toXContent(builder, params);
             if (toXContent.isFragment()) {
                 builder.endObject();
             }
@@ -859,4 +879,18 @@ public class Strings {
             return sb.toString();
         }
     }
+    
+    public static String toLowercaseAscii(String in) {
+        StringBuilder out = new StringBuilder();
+        Iterator<Integer> iter = in.codePoints().iterator();
+        while (iter.hasNext()) {
+            int codepoint = iter.next();
+            if (codepoint > 128) {
+                out.appendCodePoint(codepoint);
+            } else {
+                out.appendCodePoint(Character.toLowerCase(codepoint));
+            }
+        }
+        return out.toString();
+    }    
 }

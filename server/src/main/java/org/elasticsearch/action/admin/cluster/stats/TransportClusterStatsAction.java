@@ -45,6 +45,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,8 +65,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     @Inject
     public TransportClusterStatsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                        NodeService nodeService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
+        super(ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, ClusterStatsRequest::new,
+                ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }
@@ -73,6 +74,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     @Override
     protected ClusterStatsResponse newResponse(ClusterStatsRequest request,
                                                List<ClusterStatsNodeResponse> responses, List<FailedNodeException> failures) {
+        assert Transports.assertNotTransportThread("Constructor of ClusterStatsResponse runs expensive computations on mappings found in" +
+                " the cluster state that are too slow for a transport thread");
         ClusterState state = clusterService.state();
         return new ClusterStatsResponse(
             System.currentTimeMillis(),
@@ -95,9 +98,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
-        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false);
+        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE,
-                true, true, true, false, true, false, false, false, false, false, true, false, false);
+                true, true, true, false, true, false, false, false, false, false, true, false, false, false);
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {

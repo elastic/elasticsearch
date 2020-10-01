@@ -8,8 +8,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -23,7 +23,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -161,7 +162,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
             = new KeyedFlatObjectFieldType( "field", true, true, "key2", false, Collections.emptyMap());
         when(mapperService.fieldType("json.key2")).thenReturn(fieldType2);
 
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataSupplier = (fieldType, searchLookup) -> {
             KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) fieldType;
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };

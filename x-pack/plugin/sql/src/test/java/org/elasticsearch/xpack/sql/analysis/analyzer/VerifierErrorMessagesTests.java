@@ -353,6 +353,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         );
     }
 
+    public void testFormatValidArgs() {
+        accept("SELECT FORMAT(date, 'HH:mm:ss.fff KK') FROM test");
+        accept("SELECT FORMAT(date::date, 'MM/dd/YYYY') FROM test");
+        accept("SELECT FORMAT(date::time, 'HH:mm:ss Z') FROM test");
+    }
+
+    public void testFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT FORMAT(date, int) FROM test")
+        );
+    }
+
     public void testValidDateTimeFunctionsOnTime() {
         accept("SELECT HOUR_OF_DAY(CAST(date AS TIME)) FROM test");
         accept("SELECT MINUTE_OF_HOUR(CAST(date AS TIME)) FROM test");
@@ -631,6 +648,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOrderByScore() {
         assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int] or an aggregate function",
                 error("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
+    }
+
+    public void testGroupByWithRepeatedAliases() {
+        accept("SELECT int as x, keyword as x, max(date) as a FROM test GROUP BY 1, 2");
+        accept("SELECT int as x, keyword as x, max(date) as a FROM test GROUP BY int, keyword");
     }
 
     public void testHavingOnColumn() {

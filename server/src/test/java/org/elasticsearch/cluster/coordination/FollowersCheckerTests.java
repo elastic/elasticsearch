@@ -168,18 +168,7 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     public void testFailsNodeThatDoesNotRespond() {
-        final Builder settingsBuilder = Settings.builder();
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), randomIntBetween(1, 10));
-        }
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), randomIntBetween(100, 100000) + "ms");
-        }
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), randomIntBetween(1, 100000) + "ms");
-        }
-        final Settings settings = settingsBuilder.build();
-
+        final Settings settings = randomSettings();
         testBehaviourOfFailingNode(settings, () -> null,
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis()
@@ -188,15 +177,7 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     public void testFailsNodeThatRejectsCheck() {
-        final Builder settingsBuilder = Settings.builder();
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), randomIntBetween(1, 10));
-        }
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), randomIntBetween(100, 100000) + "ms");
-        }
-        final Settings settings = settingsBuilder.build();
-
+        final Settings settings = randomSettings();
         testBehaviourOfFailingNode(settings, () -> {
                 throw new ElasticsearchException("simulated exception");
             },
@@ -206,15 +187,7 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     public void testFailureCounterResetsOnSuccess() {
-        final Builder settingsBuilder = Settings.builder();
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), randomIntBetween(2, 10));
-        }
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), randomIntBetween(100, 100000) + "ms");
-        }
-        final Settings settings = settingsBuilder.build();
-
+        final Settings settings = randomSettings();
         final int retryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
         final int maxRecoveries = randomIntBetween(3, 10);
 
@@ -297,16 +270,7 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     public void testFailsNodeThatIsUnhealthy() {
-        final Builder settingsBuilder = Settings.builder();
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), randomIntBetween(1, 10));
-        }
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), randomIntBetween(100, 100000) + "ms");
-        }
-        final Settings settings = settingsBuilder.build();
-
-        testBehaviourOfFailingNode(settings, () -> {
+        testBehaviourOfFailingNode(randomSettings(), () -> {
                 throw new NodeHealthCheckFailureException("non writable exception");
             }, "health check failed", 0, () -> new StatusInfo(HEALTHY, "healthy-info"));
     }
@@ -321,7 +285,7 @@ public class FollowersCheckerTests extends ESTestCase {
         final MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-                assertFalse(node.equals(localNode));
+                assertNotEquals(node, localNode);
                 deterministicTaskQueue.scheduleNow(new Runnable() {
                     @Override
                     public void run() {
@@ -672,6 +636,20 @@ public class FollowersCheckerTests extends ESTestCase {
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
             Version.CURRENT);
+    }
+
+    private static Settings randomSettings() {
+        final Builder settingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            settingsBuilder.put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), randomIntBetween(1, 10));
+        }
+        if (randomBoolean()) {
+            settingsBuilder.put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), randomIntBetween(100, 100000) + "ms");
+        }
+        if (randomBoolean()) {
+            settingsBuilder.put(FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), randomIntBetween(1, 100000) + "ms");
+        }
+        return settingsBuilder.build();
     }
 
     private static class ExpectsSuccess implements TransportResponseHandler<Empty> {

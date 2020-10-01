@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -47,9 +45,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
-
-    private static final Logger LOGGER = LogManager.getLogger(RootObjectMapper.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
 
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
@@ -252,22 +248,28 @@ public class RootObjectMapper extends ObjectMapper {
 
     @SuppressWarnings("rawtypes")
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
-        return findTemplateBuilder(context, name, matchType.defaultMappingType(), matchType);
+        return findTemplateBuilder(context, name, matchType, null);
+    }
+
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, DateFormatter dateFormatter) {
+        return findTemplateBuilder(context, name, XContentFieldType.DATE, dateFormatter);
     }
 
     /**
      * Find a template. Returns {@code null} if no template could be found.
      * @param name        the field name
-     * @param dynamicType the field type to give the field if the template does not define one
      * @param matchType   the type of the field in the json document or null if unknown
+     * @param dateFormat  a dateformatter to use if the type is a date, null if not a date or is using the default format
      * @return a mapper builder, or null if there is no template for such a field
      */
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType, XContentFieldType matchType) {
+    @SuppressWarnings("rawtypes")
+    private Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType, DateFormatter dateFormat) {
         DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
+        String dynamicType = matchType.defaultMappingType();
+        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(dateFormat);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
@@ -382,10 +384,11 @@ public class RootObjectMapper extends ObjectMapper {
                 continue;
             }
 
-            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
-            fieldTypeConfig.remove("type");
+            String templateName = "__dynamic__" + dynamicTemplate.name();
+            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, defaultDynamicType);
             try {
-                Mapper.Builder<?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                Mapper.Builder<?> dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
+                fieldTypeConfig.remove("type");
                 if (fieldTypeConfig.isEmpty()) {
                     Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
                     BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
@@ -411,7 +414,7 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 deprecationMessage = message;
             }
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("invalid_dynamic_template", deprecationMessage);
+                DEPRECATION_LOGGER.deprecate("invalid_dynamic_template", deprecationMessage);
         }
     }
 

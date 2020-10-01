@@ -47,34 +47,14 @@ import java.util.function.Supplier;
 
 public class EqlPlugin extends Plugin implements ActionPlugin {
 
-    private final boolean enabled;
-
-    private static final boolean EQL_FEATURE_FLAG_REGISTERED;
-
-    static {
-        final String property = System.getProperty("es.eql_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.eql_feature_flag_registered is only supported in non-snapshot builds");
-        }
-        if ("true".equals(property)) {
-            EQL_FEATURE_FLAG_REGISTERED = true;
-        } else if ("false".equals(property) || property == null) {
-            EQL_FEATURE_FLAG_REGISTERED = false;
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.eql_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
-            );
-        }
-    }
-
     public static final Setting<Boolean> EQL_ENABLED_SETTING = Setting.boolSetting(
         "xpack.eql.enabled",
-        false,
-        Setting.Property.NodeScope
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
 
-    public EqlPlugin(final Settings settings) {
-        this.enabled = EQL_ENABLED_SETTING.get(settings);
+    public EqlPlugin() {
     }
 
     @Override
@@ -106,23 +86,16 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        if (isSnapshot() || EQL_FEATURE_FLAG_REGISTERED) {
-            return Collections.singletonList(EQL_ENABLED_SETTING);
-        } else {
-            return Collections.emptyList();
-        }
+        return Collections.singletonList(EQL_ENABLED_SETTING);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (enabled) {
-            return Arrays.asList(
-                new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
-                new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
-                new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class)
-            );
-        }
-        return Collections.emptyList();
+        return org.elasticsearch.common.collect.List.of(
+            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class)
+        );
     }
 
     boolean isSnapshot() {
@@ -130,8 +103,8 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     }
 
     // TODO: this needs to be used by all plugin methods - including getActions and createComponents
-    public static boolean isEnabled(Settings settings) {
-        return EQL_ENABLED_SETTING.get(settings);
+    public static boolean isEnabled() {
+        return true; // basic license level features are always enabled
     }
 
     @Override
@@ -143,15 +116,12 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
-        if (enabled) {
-            return Arrays.asList(
-                new RestEqlSearchAction(),
-                new RestEqlStatsAction(),
-                new RestEqlGetAsyncResultAction(),
-                new RestEqlDeleteAsyncResultAction()
-            );
-        }
-        return Collections.emptyList();
+        return Arrays.asList(
+            new RestEqlSearchAction(),
+            new RestEqlStatsAction(),
+            new RestEqlGetAsyncResultAction(),
+            new RestEqlDeleteAsyncResultAction()
+        );
     }
 
     // overridable by tests

@@ -139,6 +139,10 @@
       "pipeline":{
         "type":"string",
         "description":"The pipeline id to preprocess incoming documents with"
+      },
+      "require_alias": {
+        "type": "boolean",
+        "description": "When true, requires destination to be an alias. Default is false"
       }
     },
     "body":{

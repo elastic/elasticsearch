@@ -142,15 +142,19 @@ public abstract class AggregationBuilder
     }
 
     /**
-     * Rough measure of how many buckets this aggregation can return. Just
-     * "zero", "one", and "many".
+     * A rough count of the number of buckets that {@link Aggregator}s built
+     * by this builder will contain per parent bucket used to validate sorts
+     * and pipeline aggregations. Just "zero", "one", and "many".
+     * <p>
+     * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
+     * instead of <strong>per parent bucket</strong>. 
      */
     public enum BucketCardinality {
         NONE, ONE, MANY;
     }
     /**
-     * Do aggregations built by this builder contain buckets? If so, do they
-     * contain *always* contain a single bucket?
+     * A rough count of the number of buckets that {@link Aggregator}s built
+     * by this builder will contain per owning parent bucket.
      */
     public abstract BucketCardinality bucketCardinality();
 

@@ -658,7 +658,12 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             if (general != null) {
                 return general.stats();
             }
-            return ScriptStats.sum(contextCache.values().stream().map(AtomicReference::get).map(ScriptCache::stats)::iterator);
+            List<ScriptContextStats> contextStats = new ArrayList<>(contextCache.size());
+            for (Map.Entry<String, AtomicReference<ScriptCache>> entry : contextCache.entrySet()) {
+                ScriptCache cache = entry.getValue().get();
+                contextStats.add(cache.stats(entry.getKey()));
+            }
+            return new ScriptStats(contextStats);
         }
 
         ScriptCacheStats cacheStats() {

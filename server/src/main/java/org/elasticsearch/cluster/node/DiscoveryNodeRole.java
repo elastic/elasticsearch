@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -83,6 +84,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     public abstract Setting<Boolean> legacySetting();
 
+    /**
+     * Indicates whether a node with the given role can contain data. Defaults to false and can be overridden
+     */
+    public boolean canContainData() {
+        return false;
+    }
+
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
@@ -123,6 +131,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             return Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
         }
 
+        @Override
+        public boolean canContainData() {
+            return true;
+        }
     };
 
     /**
@@ -171,6 +183,12 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
      */
     public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
         new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE)));
+
+    /**
+     * The version that {@link #REMOTE_CLUSTER_CLIENT_ROLE} is introduced. Nodes before this version do not have that role even
+     * they can connect to remote clusters.
+     */
+    public static final Version REMOTE_CLUSTER_CLIENT_ROLE_VERSION = Version.V_7_8_0;
 
     static SortedSet<DiscoveryNodeRole> LEGACY_ROLES =
         Collections.unmodifiableSortedSet(new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE)));

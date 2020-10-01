@@ -79,8 +79,8 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
         return jobs;
     }
 
-    public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
-        return groupOrJobLookup.expandJobIds(expression, allowNoJobs);
+    public Set<String> expandJobIds(String expression, boolean allowNoMatch) {
+        return groupOrJobLookup.expandJobIds(expression, allowNoMatch);
     }
 
     public SortedMap<String, DatafeedConfig> getDatafeeds() {
@@ -95,9 +95,9 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
         return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
     }
 
-    public Set<String> expandDatafeedIds(String expression, boolean allowNoDatafeeds) {
+    public Set<String> expandDatafeedIds(String expression, boolean allowNoMatch) {
         return NameResolver.newUnaliased(datafeeds.keySet(), ExceptionsHelper::missingDatafeedException)
-                .expand(expression, allowNoDatafeeds);
+                .expand(expression, allowNoMatch);
     }
 
     public boolean isUpgradeMode() {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
@@ -52,7 +51,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetSourceAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetSourceAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSourceAction.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source"
             + "requests is deprecated.";
 
@@ -74,7 +73,7 @@ public class RestGetSourceAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final GetRequest getRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
             getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         } else {
             getRequest = new GetRequest(request.param("index"), request.param("id"));

@@ -61,6 +61,10 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         return cols;
     }
 
+    public int threads() {
+        return threads;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

@@ -1456,4 +1456,190 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         final int numDocs = Integer.parseInt(loadInfoDocument("doc_count"));
         assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
     }
+
+    public void testCreateSystemIndexInOldVersion() throws Exception {
+        assumeTrue("only run on old cluster", isRunningAgainstOldCluster());
+        // create index
+        Request createTestIndex = new Request("PUT", "/test_index_old");
+        createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0, \"index.number_of_shards\": 1}}");
+        client().performRequest(createTestIndex);
+
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"_doc\"}}\n" +
+            "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+        if (isRunningAgainstAncientCluster() == false) {
+            bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
+        }
+        client().performRequest(bulk);
+
+        // start a async reindex job
+        Request reindex = new Request("POST", "/_reindex");
+        reindex.setJsonEntity(
+            "{\n" +
+                "  \"source\":{\n" +
+                "    \"index\":\"test_index_old\"\n" +
+                "  },\n" +
+                "  \"dest\":{\n" +
+                "    \"index\":\"test_index_reindex\"\n" +
+                "  }\n" +
+                "}");
+        reindex.addParameter("wait_for_completion", "false");
+        Map<String, Object> response = entityAsMap(client().performRequest(reindex));
+        String taskId = (String) response.get("task");
+
+        // wait for task
+        Request getTask = new Request("GET", "/_tasks/" + taskId);
+        getTask.addParameter("wait_for_completion", "true");
+        client().performRequest(getTask);
+
+        // make sure .tasks index exists
+        assertBusy(() -> {
+            Request getTasksIndex = new Request("GET", "/.tasks");
+            if (getOldClusterVersion().onOrAfter(Version.V_6_7_0) && getOldClusterVersion().before(Version.V_7_0_0)) {
+                getTasksIndex.addParameter("include_type_name", "false");
+            }
+            assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
+        });
+    }
+
+    @SuppressWarnings("unchecked" +
+        "")
+    public void testSystemIndexGetsUpdatedMetadata() throws Exception {
+        assumeFalse("only run in upgraded cluster", isRunningAgainstOldCluster());
+
+        assertBusy(() -> {
+            Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
+            Map<String, Object> response = entityAsMap(client().performRequest(clusterStateRequest));
+            Map<String, Object> metadata = (Map<String, Object>) response.get("metadata");
+            assertNotNull(metadata);
+            Map<String, Object> indices = (Map<String, Object>) metadata.get("indices");
+            assertNotNull(indices);
+
+            Map<String, Object> tasksIndex = (Map<String, Object>) indices.get(".tasks");
+            assertNotNull(tasksIndex);
+            assertThat(tasksIndex.get("system"), is(true));
+
+            Map<String, Object> testIndex = (Map<String, Object>) indices.get("test_index_old");
+            assertNotNull(testIndex);
+            assertThat(testIndex.get("system"), is(false));
+        });
+    }
+
+    public void testEnableSoftDeletesOnRestore() throws Exception {
+        final String snapshot = "snapshot-" + index;
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            createIndex(index, settings.build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(0, 100);
+            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            // create repo
+            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
+            {
+                repoConfig.field("type", "fs");
+                repoConfig.startObject("settings");
+                {
+                    repoConfig.field("compress", randomBoolean());
+                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                }
+                repoConfig.endObject();
+            }
+            repoConfig.endObject();
+            Request createRepoRequest = new Request("PUT", "/_snapshot/repo");
+            createRepoRequest.setJsonEntity(Strings.toString(repoConfig));
+            client().performRequest(createRepoRequest);
+            // create snapshot
+            Request createSnapshot = new Request("PUT", "/_snapshot/repo/" + snapshot);
+            createSnapshot.addParameter("wait_for_completion", "true");
+            createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
+            client().performRequest(createSnapshot);
+        } else {
+            String restoredIndex = "restored-" + index;
+            // Restore
+            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
+            restoreCommand.field("indices", index);
+            restoreCommand.field("rename_pattern", index);
+            restoreCommand.field("rename_replacement", restoredIndex);
+            restoreCommand.startObject("index_settings");
+            {
+                restoreCommand.field("index.soft_deletes.enabled", true);
+            }
+            restoreCommand.endObject();
+            restoreCommand.endObject();
+            Request restoreRequest = new Request("POST", "/_snapshot/repo/" + snapshot + "/_restore");
+            restoreRequest.addParameter("wait_for_completion", "true");
+            restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
+            client().performRequest(restoreRequest);
+            ensureGreen(restoredIndex);
+            int numDocs = countOfIndexedRandomDocuments();
+            assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + restoredIndex + "/_search"))));
+        }
+    }
+
+    public void testForbidDisableSoftDeletesOnRestore() throws Exception {
+        assumeTrue("soft deletes is introduced in 6.5", getOldClusterVersion().onOrAfter(Version.V_6_5_0));
+        final String snapshot = "snapshot-" + index;
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            createIndex(index, settings.build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(0, 100);
+            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            // create repo
+            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
+            {
+                repoConfig.field("type", "fs");
+                repoConfig.startObject("settings");
+                {
+                    repoConfig.field("compress", randomBoolean());
+                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                }
+                repoConfig.endObject();
+            }
+            repoConfig.endObject();
+            Request createRepoRequest = new Request("PUT", "/_snapshot/repo");
+            createRepoRequest.setJsonEntity(Strings.toString(repoConfig));
+            client().performRequest(createRepoRequest);
+            // create snapshot
+            Request createSnapshot = new Request("PUT", "/_snapshot/repo/" + snapshot);
+            createSnapshot.addParameter("wait_for_completion", "true");
+            createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
+            client().performRequest(createSnapshot);
+        } else {
+            // Restore
+            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
+            restoreCommand.field("indices", index);
+            restoreCommand.field("rename_pattern", index);
+            restoreCommand.field("rename_replacement", "restored-" + index);
+            restoreCommand.startObject("index_settings");
+            {
+                restoreCommand.field("index.soft_deletes.enabled", false);
+            }
+            restoreCommand.endObject();
+            restoreCommand.endObject();
+            Request restoreRequest = new Request("POST", "/_snapshot/repo/" + snapshot + "/_restore");
+            restoreRequest.addParameter("wait_for_completion", "true");
+            restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
+            final ResponseException error = expectThrows(ResponseException.class, () -> client().performRequest(restoreRequest));
+            assertThat(error.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
+        }
+    }
+
+    public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
+        Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
+        assertNoFailures(resp);
+        assertThat(XContentMapValues.extractValue("_shards.total", resp), equalTo(totalShards));
+        assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
+        assertThat(extractTotalHits(resp), equalTo(numHits));
+    }
+
 }

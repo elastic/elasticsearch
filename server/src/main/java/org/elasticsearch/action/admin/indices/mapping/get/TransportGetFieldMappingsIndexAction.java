@@ -38,7 +38,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -174,7 +174,7 @@ public class TransportGetFieldMappingsIndexAction
                                                                              DocumentMapper documentMapper,
                                                                              GetFieldMappingsIndexRequest request) {
         Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
-        final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
+        final MappingLookup allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (Mapper fieldMapper : allFieldMappers) {

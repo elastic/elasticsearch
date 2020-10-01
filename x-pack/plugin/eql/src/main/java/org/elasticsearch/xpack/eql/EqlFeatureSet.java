@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -34,8 +33,8 @@ public class EqlFeatureSet implements XPackFeatureSet {
     private final Client client;
 
     @Inject
-    public EqlFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, Client client) {
-        this.enabled = EqlPlugin.isEnabled(settings);
+    public EqlFeatureSet(@Nullable XPackLicenseState licenseState, Client client) {
+        this.enabled = EqlPlugin.isEnabled();
         this.licenseState = licenseState;
         this.client = client;
     }

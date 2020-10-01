@@ -176,6 +176,16 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                 SnapshotIndexShardStatus shardStatus = shardStatues.get(shardEntry.key);
                                 if (shardStatus != null) {
                                     // We have full information about this shard
+                                    if (shardStatus.getStage() == SnapshotIndexShardStage.DONE
+                                            && shardEntry.value.state() != SnapshotsInProgress.ShardState.SUCCESS) {
+                                        // Unlikely edge case:
+                                        // Data node has finished snapshotting the shard but the cluster state has not yet been updated
+                                        // to reflect this. We adjust the status to show up as snapshot metadata being written because
+                                        // technically if the data node failed before successfully reporting DONE state to master, then
+                                        // this shards state would jump to a failed state.
+                                        shardStatus = new SnapshotIndexShardStatus(shardEntry.key, SnapshotIndexShardStage.FINALIZE,
+                                                shardStatus.getStats(), shardStatus.getNodeId(), shardStatus.getFailure());
+                                    }
                                     shardStatusBuilder.add(shardStatus);
                                     continue;
                                 }
@@ -195,6 +205,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             break;
                         case INIT:
                         case WAITING:
+                        case QUEUED:
                             stage = SnapshotIndexShardStage.STARTED;
                             break;
                         case SUCCESS:
@@ -334,7 +345,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
         for (String index : snapshotInfo.indices()) {
             IndexId indexId = repositoryData.resolveIndexId(index);
-            IndexMetadata indexMetadata = repository.getSnapshotIndexMetadata(snapshotInfo.snapshotId(), indexId);
+            IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), indexId);
             if (indexMetadata != null) {
                 int numberOfShards = indexMetadata.getNumberOfShards();
                 for (int i = 0; i < numberOfShards; i++) {

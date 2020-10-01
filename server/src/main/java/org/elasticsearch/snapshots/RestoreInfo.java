@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -61,12 +60,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
 
     public RestoreInfo(StreamInput in) throws IOException {
         name = in.readString();
-        int size = in.readVInt();
-        List<String> indicesListBuilder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            indicesListBuilder.add(in.readString());
-        }
-        indices = Collections.unmodifiableList(indicesListBuilder);
+        indices = Collections.unmodifiableList(in.readStringList());
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
     }
@@ -173,10 +167,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeVInt(indices.size());
-        for (String index : indices) {
-            out.writeString(index);
-        }
+        out.writeStringCollection(indices);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
     }

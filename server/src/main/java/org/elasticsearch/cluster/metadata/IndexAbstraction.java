@@ -81,6 +81,11 @@ public interface IndexAbstraction {
     boolean isHidden();
 
     /**
+     * @return whether this index abstraction is hidden or not
+     */
+    boolean isSystem();
+
+    /**
      * An index abstraction type.
      */
     enum Type {
@@ -162,6 +167,11 @@ public interface IndexAbstraction {
         public boolean isHidden() {
             return INDEX_HIDDEN_SETTING.get(concreteIndex.getSettings());
         }
+
+        @Override
+        public boolean isSystem() {
+            return concreteIndex.isSystem();
+        }
     }
 
     /**
@@ -210,6 +220,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isHidden() {
             return isHidden;
+        }
+
+        @Override
+        public boolean isSystem() {
+            return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
         }
 
         /**
@@ -324,6 +339,12 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isHidden() {
+            return false;
+        }
+
+        @Override
+        public boolean isSystem() {
+            // No such thing as system data streams (yet)
             return false;
         }
 

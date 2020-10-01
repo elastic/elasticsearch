@@ -55,7 +55,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.io.IOException;
@@ -211,12 +212,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = threadPool.getThreadContext()
-            .getHeaders()
-            .entrySet()
-            .stream()
-            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
 
         TransformConfig config = request.getConfig().setHeaders(filteredHeaders).setCreateTime(Instant.now()).setVersion(Version.CURRENT);
 
@@ -288,7 +284,8 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
 
         final TransformConfig config = request.getConfig();
-        final Pivot pivot = new Pivot(config.getPivotConfig());
+        // create the function for validation
+        final Function function = FunctionFactory.create(config);
 
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
@@ -298,7 +295,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         }, listener::onFailure);
 
         // <2> Put our transform
-        ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
+        ActionListener<Boolean> validationListener = ActionListener.wrap(
             validationResult -> transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             validationException -> {
                 if (validationException instanceof ElasticsearchStatusException) {
@@ -321,38 +318,27 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             }
         );
 
-        try {
-            pivot.validateConfig();
-        } catch (ElasticsearchStatusException e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, e.status(), e)
-            );
-            return;
-        } catch (Exception e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    e
-                )
-            );
-            return;
-        }
-
-        if (request.isDeferValidation()) {
-            pivotValidationListener.onResponse(true);
-        } else {
-            if (config.getDestination().getPipeline() != null) {
-                if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
-                    listener.onFailure(new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
-                        RestStatus.BAD_REQUEST
-                        )
-                    );
-                    return;
+        function.validateConfig(ActionListener.wrap(r2 -> {
+            if (request.isDeferValidation()) {
+                validationListener.onResponse(true);
+            } else {
+                if (config.getDestination().getPipeline() != null) {
+                    if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                        return;
+                    }
+                }
+                if (request.isDeferValidation()) {
+                    validationListener.onResponse(true);
+                } else {
+                    function.validateQuery(client, config.getSource(), validationListener);
                 }
             }
-            pivot.validateQuery(client, config.getSource(), pivotValidationListener);
-        }
+        }, listener::onFailure));
     }
 }

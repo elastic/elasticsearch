@@ -42,7 +42,7 @@ public class ScriptCache {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
-    static final CompilationRate UNLIMITED_COMPILATION_RATE = new CompilationRate(0, TimeValue.ZERO);
+    public static final CompilationRate UNLIMITED_COMPILATION_RATE = new CompilationRate(0, TimeValue.ZERO);
 
     private final Cache<CacheKey, Object> cache;
     private final ScriptMetrics scriptMetrics;
@@ -134,6 +134,10 @@ public class ScriptCache {
 
     public ScriptStats stats() {
         return scriptMetrics.stats();
+    }
+
+    public ScriptContextStats stats(String context) {
+        return scriptMetrics.stats(context);
     }
 
     /**
@@ -243,7 +247,6 @@ public class ScriptCache {
             this.tokenSuccessfullyTaken = tokenSuccessfullyTaken;
         }
     }
-
 
     public static class CompilationRate {
         public final int count;

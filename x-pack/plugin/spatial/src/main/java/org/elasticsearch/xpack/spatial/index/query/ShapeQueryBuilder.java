@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
@@ -17,20 +16,15 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
-import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeQueryable;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -42,17 +36,13 @@ import java.util.function.Supplier;
 public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBuilder> {
     public static final String NAME = "shape";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(GeoShapeQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoShapeQueryBuilder.class);
 
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [geo_shape] queries. " +
         "The type should no longer be specified in the [indexed_shape] section.";
 
-    protected static final List<String> validContentTypes =
-        Collections.unmodifiableList(Arrays.asList(ShapeFieldMapper.CONTENT_TYPE, PointFieldMapper.CONTENT_TYPE));
-
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * Creates a new ShapeQueryBuilder whose Query will be against the given
      * field name using the given Shape
      *
      * @param fieldName
@@ -68,7 +58,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * Creates a new ShapeQueryBuilder whose Query will be against the given
      * field name using the given Shape
      *
      * @param fieldName
@@ -86,7 +76,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * Creates a new ShapeQueryBuilder whose Query will be against the given
      * field name and will use the Shape found with the given ID
      *
      * @param fieldName
@@ -125,22 +115,13 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
     @Override
     @SuppressWarnings({ "rawtypes" })
-    protected List<String> validContentTypes(){
-        return validContentTypes;
-    }
-
-    @Override
-    @SuppressWarnings({ "rawtypes" })
     public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
-        List<String> validContentTypes = validContentTypes();
-        if (validContentTypes.contains(fieldType.typeName()) == false) {
+        if ((fieldType instanceof ShapeQueryable) == false) {
             throw new QueryShardException(context,
-                "Field [" + fieldName + "] is not of type [" + String.join(" or ", validContentTypes())
-                    + "] but of type [" + fieldType.typeName() + "]");
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }
-
-        final AbstractGeometryFieldType ft = (AbstractGeometryFieldType) fieldType;
-        return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, ft.name(), relation, context));
+        final ShapeQueryable ft = (ShapeQueryable) fieldType;
+        return new ConstantScoreQuery(ft.shapeQuery(shape, fieldType.name(), relation, context));
     }
 
     @Override
@@ -185,7 +166,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
         ShapeQueryBuilder builder;
         if (pgsqb.type != null) {
-            deprecationLogger.deprecatedAndMaybeLog(
+            deprecationLogger.deprecate(
                 "geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 

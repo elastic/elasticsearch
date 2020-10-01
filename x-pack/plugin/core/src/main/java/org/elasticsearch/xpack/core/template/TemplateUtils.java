@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -167,9 +166,7 @@ public class TemplateUtils {
         for (Object typeMapping : mappings.values().toArray()) {
             CompressedXContent typeMappingXContent = (CompressedXContent) typeMapping;
             try {
-                Map<String, Object> typeMappingMap = convertToMap(
-                    new BytesArray(typeMappingXContent.uncompressed()), false,
-                    XContentType.JSON).v2();
+                Map<String, Object> typeMappingMap = convertToMap(typeMappingXContent.uncompressed(), false, XContentType.JSON).v2();
                 // should always contain one entry with key = typename
                 assert (typeMappingMap.size() == 1);
                 String key = typeMappingMap.keySet().iterator().next();

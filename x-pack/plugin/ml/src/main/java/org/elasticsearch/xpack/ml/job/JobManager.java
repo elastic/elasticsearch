@@ -85,7 +85,7 @@ import java.util.regex.Pattern;
 public class JobManager {
 
     private static final Logger logger = LogManager.getLogger(JobManager.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JobManager.class);
 
     private final JobResultsProvider jobResultsProvider;
     private final JobResultsPersister jobResultsPersister;
@@ -172,13 +172,13 @@ public class JobManager {
      * Note that when the {@code jobId} is {@link Metadata#ALL} all jobs are returned.
      *
      * @param expression   the jobId or an expression matching jobIds
-     * @param allowNoJobs  if {@code false}, an error is thrown when no job matches the {@code jobId}
+     * @param allowNoMatch if {@code false}, an error is thrown when no job matches the {@code jobId}
      * @param jobsListener The jobs listener
      */
-    public void expandJobs(String expression, boolean allowNoJobs, ActionListener<QueryPage<Job>> jobsListener) {
-        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoJobs, clusterService.state());
+    public void expandJobs(String expression, boolean allowNoMatch, ActionListener<QueryPage<Job>> jobsListener) {
+        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoMatch, clusterService.state());
 
-        jobConfigProvider.expandJobs(expression, allowNoJobs, false, ActionListener.wrap(
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, ActionListener.wrap(
                 jobBuilders -> {
                     // Check for duplicate jobs
                     for (Job.Builder jb : jobBuilders) {
@@ -203,10 +203,10 @@ public class JobManager {
         ));
     }
 
-    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoJobs, ClusterState clusterState) {
+    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoMatch, ClusterState clusterState) {
         Map<String, Job> jobIdToJob = new HashMap<>();
         try {
-            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
+            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoMatch);
             MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
             for (String expandedJobId : expandedJobIds) {
                 jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
@@ -247,7 +247,7 @@ public class JobManager {
         Job job = jobBuilder.build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            deprecationLogger.deprecatedAndMaybeLog("ml_create_job_delimited_data",
+            deprecationLogger.deprecate("ml_create_job_delimited_data",
                 "Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 

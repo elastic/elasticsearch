@@ -7,13 +7,13 @@ A multi-bucket aggregation that works on `geo_point` fields and conceptually wor
 --------------------------------------------------
 PUT /museums
 {
-    "mappings": {
-        "properties": {
-            "location": {
-                "type": "geo_point"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      }
     }
+  }
 }
 
 POST /museums/_bulk?refresh
@@ -32,19 +32,19 @@ POST /museums/_bulk?refresh
 
 POST /museums/_search?size=0
 {
-    "aggs" : {
-        "rings_around_amsterdam" : {
-            "geo_distance" : {
-                "field" : "location",
-                "origin" : "52.3760, 4.894",
-                "ranges" : [
-                    { "to" : 100000 },
-                    { "from" : 100000, "to" : 300000 },
-                    { "from" : 300000 }
-                ]
-            }
-        }
+  "aggs": {
+    "rings_around_amsterdam": {
+      "geo_distance": {
+        "field": "location",
+        "origin": "52.3760, 4.894",
+        "ranges": [
+          { "to": 100000 },
+          { "from": 100000, "to": 300000 },
+          { "from": 300000 }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -53,30 +53,30 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "rings_around_amsterdam" : {
-            "buckets": [
-                {
-                    "key": "*-100000.0",
-                    "from": 0.0,
-                    "to": 100000.0,
-                    "doc_count": 3
-                },
-                {
-                    "key": "100000.0-300000.0",
-                    "from": 100000.0,
-                    "to": 300000.0,
-                    "doc_count": 1
-                },
-                {
-                    "key": "300000.0-*",
-                    "from": 300000.0,
-                    "doc_count": 2
-                }
-            ]
+  ...
+  "aggregations": {
+    "rings_around_amsterdam": {
+      "buckets": [
+        {
+          "key": "*-100000.0",
+          "from": 0.0,
+          "to": 100000.0,
+          "doc_count": 3
+        },
+        {
+          "key": "100000.0-300000.0",
+          "from": 100000.0,
+          "to": 300000.0,
+          "doc_count": 1
+        },
+        {
+          "key": "300000.0-*",
+          "from": 300000.0,
+          "doc_count": 2
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -93,20 +93,20 @@ By default, the distance unit is `m` (meters) but it can also accept: `mi` (mile
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggs" : {
-        "rings" : {
-            "geo_distance" : {
-                "field" : "location",
-                "origin" : "52.3760, 4.894",
-                "unit" : "km", <1>
-                "ranges" : [
-                    { "to" : 100 },
-                    { "from" : 100, "to" : 300 },
-                    { "from" : 300 }
-                ]
-            }
-        }
+  "aggs": {
+    "rings": {
+      "geo_distance": {
+        "field": "location",
+        "origin": "52.3760, 4.894",
+        "unit": "km", <1>
+        "ranges": [
+          { "to": 100 },
+          { "from": 100, "to": 300 },
+          { "from": 300 }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -119,21 +119,21 @@ There are two distance calculation modes: `arc` (the default), and `plane`. The 
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggs" : {
-        "rings" : {
-            "geo_distance" : {
-                "field" : "location",
-                "origin" : "52.3760, 4.894",
-                "unit" : "km",
-                "distance_type" : "plane",
-                "ranges" : [
-                    { "to" : 100 },
-                    { "from" : 100, "to" : 300 },
-                    { "from" : 300 }
-                ]
-            }
-        }
+  "aggs": {
+    "rings": {
+      "geo_distance": {
+        "field": "location",
+        "origin": "52.3760, 4.894",
+        "unit": "km",
+        "distance_type": "plane",
+        "ranges": [
+          { "to": 100 },
+          { "from": 100, "to": 300 },
+          { "from": 300 }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -146,20 +146,20 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggs" : {
-        "rings_around_amsterdam" : {
-            "geo_distance" : {
-                "field" : "location",
-                "origin" : "52.3760, 4.894",
-                "ranges" : [
-                    { "to" : 100000 },
-                    { "from" : 100000, "to" : 300000 },
-                    { "from" : 300000 }
-                ],
-                "keyed": true
-            }
-        }
+  "aggs": {
+    "rings_around_amsterdam": {
+      "geo_distance": {
+        "field": "location",
+        "origin": "52.3760, 4.894",
+        "ranges": [
+          { "to": 100000 },
+          { "from": 100000, "to": 300000 },
+          { "from": 300000 }
+        ],
+        "keyed": true
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -169,27 +169,27 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "rings_around_amsterdam" : {
-            "buckets": {
-                "*-100000.0": {
-                    "from": 0.0,
-                    "to": 100000.0,
-                    "doc_count": 3
-                },
-                "100000.0-300000.0": {
-                    "from": 100000.0,
-                    "to": 300000.0,
-                    "doc_count": 1
-                },
-                "300000.0-*": {
-                    "from": 300000.0,
-                    "doc_count": 2
-                }
-            }
+  ...
+  "aggregations": {
+    "rings_around_amsterdam": {
+      "buckets": {
+        "*-100000.0": {
+          "from": 0.0,
+          "to": 100000.0,
+          "doc_count": 3
+        },
+        "100000.0-300000.0": {
+          "from": 100000.0,
+          "to": 300000.0,
+          "doc_count": 1
+        },
+        "300000.0-*": {
+          "from": 300000.0,
+          "doc_count": 2
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -200,20 +200,20 @@ It is also possible to customize the key for each range:
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggs" : {
-        "rings_around_amsterdam" : {
-            "geo_distance" : {
-                "field" : "location",
-                "origin" : "52.3760, 4.894",
-                "ranges" : [
-                    { "to" : 100000, "key": "first_ring" },
-                    { "from" : 100000, "to" : 300000, "key": "second_ring" },
-                    { "from" : 300000, "key": "third_ring" }
-                ],
-                "keyed": true
-            }
-        }
+  "aggs": {
+    "rings_around_amsterdam": {
+      "geo_distance": {
+        "field": "location",
+        "origin": "52.3760, 4.894",
+        "ranges": [
+          { "to": 100000, "key": "first_ring" },
+          { "from": 100000, "to": 300000, "key": "second_ring" },
+          { "from": 300000, "key": "third_ring" }
+        ],
+        "keyed": true
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -223,27 +223,27 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "rings_around_amsterdam" : {
-            "buckets": {
-                "first_ring": {
-                    "from": 0.0,
-                    "to": 100000.0,
-                    "doc_count": 3
-                },
-                "second_ring": {
-                    "from": 100000.0,
-                    "to": 300000.0,
-                    "doc_count": 1
-                },
-                "third_ring": {
-                    "from": 300000.0,
-                    "doc_count": 2
-                }
-            }
+  ...
+  "aggregations": {
+    "rings_around_amsterdam": {
+      "buckets": {
+        "first_ring": {
+          "from": 0.0,
+          "to": 100000.0,
+          "doc_count": 3
+        },
+        "second_ring": {
+          "from": 100000.0,
+          "to": 300000.0,
+          "doc_count": 1
+        },
+        "third_ring": {
+          "from": 300000.0,
+          "doc_count": 2
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]

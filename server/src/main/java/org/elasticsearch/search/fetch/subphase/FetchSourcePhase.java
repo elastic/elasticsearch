@@ -19,13 +19,15 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -34,20 +36,37 @@ import java.util.Map;
 public final class FetchSourcePhase implements FetchSubPhase {
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) {
-        if (context.sourceRequested() == false) {
-            return;
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
+        FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
+        if (fetchSourceContext == null || fetchSourceContext.fetchSource() == false) {
+            return null;
         }
-        final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
-        SourceLookup source = context.lookup().source();
-        FetchSourceContext fetchSourceContext = context.fetchSourceContext();
+        String index = fetchContext.getIndexName();
         assert fetchSourceContext.fetchSource();
+
+        return new FetchSubPhaseProcessor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {
+
+            }
+
+            @Override
+            public void process(HitContext hitContext) {
+                hitExecute(index, fetchSourceContext, hitContext);
+            }
+        };
+    }
+
+    private void hitExecute(String index, FetchSourceContext fetchSourceContext, HitContext hitContext) {
+
+        final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
+        SourceLookup source = hitContext.sourceLookup();
 
         // If source is disabled in the mapping, then attempt to return early.
         if (source.source() == null && source.internalSourceRef() == null) {
             if (containsFilters(fetchSourceContext)) {
                 throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
-                    "for index [" + context.indexShard().shardId().getIndexName() + "]");
+                    "for index [" + index + "]");
             }
             return;
         }

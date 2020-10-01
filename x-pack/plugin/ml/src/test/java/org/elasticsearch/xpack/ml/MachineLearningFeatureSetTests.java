@@ -338,7 +338,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testUsageWithOrphanedTask() throws Exception {
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
@@ -641,7 +641,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             IntStream.range(0, pipelineNames.size()).boxed().collect(Collectors.toMap(pipelineNames::get, processorStats::get)));
         return new NodeStats(mock(DiscoveryNode.class),
             Instant.now().toEpochMilli(), null, null, null, null, null, null, null, null,
-            null, null, null, ingestStats, null, null);
+            null, null, null, ingestStats, null, null, null);
 
     }
 

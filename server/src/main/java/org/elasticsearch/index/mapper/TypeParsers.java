@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -29,19 +28,20 @@ import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.TreeMap;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeParsers.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeParsers.class);
 
     public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";
@@ -181,12 +181,7 @@ public class TypeParsers {
     /**
      * Parse the {@code meta} key of the mapping.
      */
-    public static void parseMeta(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode) {
-        Object metaObject = fieldNode.remove("meta");
-        if (metaObject == null) {
-            // no meta
-            return;
-        }
+    public static Map<String, String> parseMeta(String name, Object metaObject) {
         if (metaObject instanceof Map == false) {
             throw new MapperParsingException("[meta] must be an object, got " + metaObject.getClass().getSimpleName() +
                     "[" + metaObject + "] for field [" + name +"]");
@@ -217,19 +212,20 @@ public class TypeParsers {
                         value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
             }
         }
-        final Function<Map.Entry<String, ?>, Object> entryValueFunction = Map.Entry::getValue;
-        final Function<Object, String> stringCast = String.class::cast;
-        Map<String, String> checkedMeta = Collections.unmodifiableMap(meta.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entryValueFunction.andThen(stringCast))));
-        builder.meta(checkedMeta);
+        Map<String, String> sortedMeta = new TreeMap<>();
+        for (Map.Entry<String, ?> entry : meta.entrySet()) {
+            sortedMeta.put(entry.getKey(), (String) entry.getValue());
+        }
+        return Collections.unmodifiableMap(sortedMeta);
     }
+
+
 
     /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
      */
     public static void parseField(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode,
                                   Mapper.TypeParser.ParserContext parserContext) {
-        parseMeta(builder, name, fieldNode);
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();
@@ -237,6 +233,9 @@ public class TypeParsers {
             checkNull(propName, propNode);
             if (propName.equals("store")) {
                 builder.store(XContentMapValues.nodeBooleanValue(propNode, name + ".store"));
+                iterator.remove();
+            } else if (propName.equals("meta")) {
+                builder.meta(parseMeta(name, propNode));
                 iterator.remove();
             } else if (propName.equals("index")) {
                 builder.index(XContentMapValues.nodeBooleanValue(propNode, name + ".index"));
@@ -246,33 +245,41 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
+                deprecationLogger.deprecate(
+                    "boost",
+                    "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
+                    name);
                 iterator.remove();
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                deprecationLogger.deprecatedAndMaybeLog("similarity",
+                deprecationLogger.deprecate("similarity",
                     "The [similarity] parameter has no effect on field [" + name + "] and will be removed in 8.0");
                 iterator.remove();
-            } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+            } else if (parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                 iterator.remove();
             } else if (propName.equals("copy_to")) {
                 if (parserContext.isWithinMultiField()) {
                     throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] " +
                         "which is within a multi field.");
                 } else {
-                    parseCopyFields(propNode, builder);
+                    List<String> copyFields = parseCopyFields(propNode);
+                    FieldMapper.CopyTo.Builder cpBuilder = new FieldMapper.CopyTo.Builder();
+                    copyFields.forEach(cpBuilder::add);
+                    builder.copyTo(cpBuilder.build());
                 }
                 iterator.remove();
             }
         }
     }
 
-    public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext,
-                                          String propName, Object propNode) {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static boolean parseMultiField(Consumer<Mapper.Builder> multiFieldsBuilder, String name,
+                                          Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
-                deprecationLogger.deprecatedAndMaybeLog("multifield_within_multifield", "At least one multi-field, [" + name + "], was " +
+                deprecationLogger.deprecate("multifield_within_multifield", "At least one multi-field, [" + name + "], was " +
                     "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
                     "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
                     "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +
@@ -320,7 +327,7 @@ public class TypeParsers {
                 if (typeParser == null) {
                     throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
                 }
-                builder.addMultiField(typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
+                multiFieldsBuilder.accept(typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
                 DocumentMapperParser.checkNoRemainingFields(propName, multiFieldNodes, parserContext.indexVersionCreated());
             }
@@ -375,21 +382,23 @@ public class TypeParsers {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public static void parseCopyFields(Object propNode, FieldMapper.Builder builder) {
-        FieldMapper.CopyTo.Builder copyToBuilder = new FieldMapper.CopyTo.Builder();
+    public static List<String> parseCopyFields(Object propNode) {
+        List<String> copyFields = new ArrayList<>();
         if (isArray(propNode)) {
             for (Object node : (List<Object>) propNode) {
-                copyToBuilder.add(nodeStringValue(node, null));
+                copyFields.add(nodeStringValue(node, null));
             }
         } else {
-            copyToBuilder.add(nodeStringValue(propNode, null));
+            copyFields.add(nodeStringValue(propNode, null));
         }
-        builder.copyTo(copyToBuilder.build());
+        return copyFields;
     }
 
-    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
+    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, Object value) {
+        if (value == null) {
+            return null;    // use default
+        }
+        SimilarityProvider similarityProvider = parserContext.getSimilarity(value.toString());
         if (similarityProvider == null) {
             throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");
         }

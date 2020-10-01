@@ -4,14 +4,14 @@
 Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
 
 [[breaking-7.6.2]]
-[float]
+[discrete]
 === Breaking changes
 
 Authorization::
 * Creation of derived API keys (keys created by existing keys) now requires explicit "no privileges" configuration {es-pull}53647[#53647], https://www.elastic.co/community/security[CVE-2020-7009]
 
 [[bug-7.6.2]]
-[float]
+[discrete]
 === Bug fixes
 
 Allocation::
@@ -71,7 +71,7 @@ Search::
 * Fix potential NPE in FuzzyTermsEnum {es-pull}53231[#53231] (issue: {es-issue}52894[#52894])
 
 [[upgrade-7.6.2]]
-[float]
+[discrete]
 === Upgrades
 
 Infra/Core::
@@ -83,7 +83,7 @@ Infra/Core::
 Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
 
 [[bug-7.6.1]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -140,7 +140,7 @@ Store::
 
 
 [[upgrade-7.6.1]]
-[float]
+[discrete]
 === Upgrades
 
 Authentication::
@@ -152,7 +152,7 @@ Authentication::
 Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
 
 [[known-issues-7.6.0]]
-[float]
+[discrete]
 === Known issues
 
 * Applying deletes or updates on an index after it has been shrunk may corrupt
@@ -186,7 +186,7 @@ incorrect date calculations. A workaround is to add the following line to the `j
 This issue is fixed in {es} 7.7.0 and later versions (issue: {es-issue}50916[#50916]).
 
 [[breaking-7.6.0]]
-[float]
+[discrete]
 === Breaking changes
 
 Mapping::
@@ -195,7 +195,7 @@ Mapping::
 
 
 [[breaking-java-7.6.0]]
-[float]
+[discrete]
 === Breaking Java changes
 
 Security::
@@ -204,7 +204,7 @@ Security::
 
 
 [[deprecation-7.6.0]]
-[float]
+[discrete]
 === Deprecations
 
 Analysis::
@@ -234,7 +234,7 @@ Search::
 
 
 [[feature-7.6.0]]
-[float]
+[discrete]
 === New features
 
 Aggregations::
@@ -272,7 +272,7 @@ Search::
 
 
 [[enhancement-7.6.0]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -508,7 +508,7 @@ Transform::
 
 
 [[bug-7.6.0]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -736,7 +736,7 @@ Transform::
 
 
 [[upgrade-7.6.0]]
-[float]
+[discrete]
 === Upgrades
 
 Engine::

@@ -24,14 +24,18 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -221,6 +225,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return copyTo;
     }
 
+    public MultiFields multiFields() {
+        return multiFields;
+    }
+
     /**
      * Whether this mapper can handle an array value during document parsing. If true,
      * when an array is encountered during parsing, the document parser will pass the
@@ -268,7 +276,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
-    protected void createFieldNamesField(ParseContext context) {
+    /**
+     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
+     */
+    public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
+
+    protected final void createFieldNamesField(ParseContext context) {
+        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
@@ -292,7 +306,50 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public final FieldMapper merge(Mapper mergeWith) {
+    public final void validate(MappingLookup mappers) {
+        if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {
+            if (mappers.isMultiField(this.name())) {
+                throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
+            }
+
+            final String sourceScope = mappers.getNestedScope(this.name());
+            for (String copyTo : this.copyTo().copyToFields()) {
+                if (mappers.isMultiField(copyTo)) {
+                    throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
+                }
+                if (mappers.isObjectField(copyTo)) {
+                    throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
+                }
+
+                final String targetScope = mappers.getNestedScope(copyTo);
+                checkNestedScopeCompatibility(sourceScope, targetScope);
+            }
+        }
+        for (Mapper multiField : multiFields()) {
+            multiField.validate(mappers);
+        }
+        doValidate(mappers);
+    }
+
+    protected void doValidate(MappingLookup mappers) { }
+
+    private static void checkNestedScopeCompatibility(String source, String target) {
+        boolean targetIsParentOfSource;
+        if (source == null || target == null) {
+            targetIsParentOfSource = target == null;
+        } else {
+            targetIsParentOfSource = source.equals(target) || source.startsWith(target + ".");
+        }
+        if (targetIsParentOfSource == false) {
+            throw new IllegalArgumentException(
+                "Illegal combination of [copy_to] and [nested] mappings: [copy_to] may only copy data to the current nested " +
+                    "document or any of its parents, however one [copy_to] directive is trying to copy data from nested object [" +
+                    source + "] to [" + target + "]");
+        }
+    }
+
+    @Override
+    public FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
         List<String> conflicts = new ArrayList<>();
         if (mergeWith instanceof FieldMapper == false) {
@@ -323,7 +380,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         FieldType other = mergeWith.fieldType;
         MappedFieldType otherm = mergeWith.mappedFieldType;
-        this.mappedFieldType.updateMeta(otherm.meta());
 
         boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
@@ -344,7 +400,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
         }
         if (fieldType.storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
+            conflicts.add("mapper [" + name() + "] has different [term_vector] values");
         }
         if (fieldType.storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
             conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
@@ -487,7 +543,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
-    public static class MultiFields {
+    public static class MultiFields implements Iterable<Mapper> {
 
         public static MultiFields empty() {
             return new MultiFields(ImmutableOpenMap.<String, FieldMapper>of());
@@ -502,8 +558,29 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public Builder add(Mapper mapper) {
+                mapperBuilders.put(mapper.simpleName(), new Mapper.Builder(mapper.simpleName()) {
+                    @Override
+                    public Mapper build(BuilderContext context) {
+                        return mapper;
+                    }
+                });
+                return this;
+            }
+
+            public Builder update(Mapper toMerge, ContentPath contentPath) {
+                if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
+                    add(toMerge);
+                } else {
+                    Mapper.Builder builder = mapperBuilders.get(toMerge.simpleName());
+                    Mapper existing = builder.build(new BuilderContext(Settings.EMPTY, contentPath));
+                    add(existing.merge(toMerge));
+                }
+                return this;
+            }
+
             @SuppressWarnings("unchecked")
-            public MultiFields build(FieldMapper.Builder mainFieldBuilder, BuilderContext context) {
+            public MultiFields build(Mapper.Builder mainFieldBuilder, BuilderContext context) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
@@ -568,6 +645,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return new MultiFields(mappers);
         }
 
+        @Override
         public Iterator<Mapper> iterator() {
             return StreamSupport.stream(mappers.values().spliterator(), false).map((p) -> (Mapper)p.value).iterator();
         }
@@ -633,6 +711,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     return EMPTY;
                 }
                 return new CopyTo(Collections.unmodifiableList(copyToBuilders));
+            }
+
+            public void reset(CopyTo copyTo) {
+                copyToBuilders.clear();
+                copyToBuilders.addAll(copyTo.copyToFields);
             }
         }
 

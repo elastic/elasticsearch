@@ -3,9 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ilm;
+package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.xpack.ilm.LockableLifecycleType;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
+import org.elasticsearch.xpack.core.ilm.LifecycleType;
+import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.TestLifecycleType;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.util.Map;
 

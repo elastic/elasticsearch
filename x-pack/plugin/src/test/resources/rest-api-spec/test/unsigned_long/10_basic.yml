@@ -12,6 +12,7 @@ setup:
             properties:
               ul:
                 type: unsigned_long
+                store: true
 
   - do:
       bulk:
@@ -243,3 +244,58 @@ setup:
   - match: { aggregations.ul_range.buckets.0.doc_count: 1 }
   - match: { aggregations.ul_range.buckets.1.doc_count: 2 }
   - match: { aggregations.ul_range.buckets.2.doc_count: 2 }
+
+
+---
+"Fields retrieval":
+
+  # fields API
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            match_all: {}
+          fields : [ "ul" ]
+          sort: [ { ul: asc } ]
+          _source : false
+
+  - match: { hits.hits.0.fields.ul.0 : 0 }
+  - match: { hits.hits.1.fields.ul.0 : 9223372036854775807 }
+  - match: { hits.hits.2.fields.ul.0 : 9223372036854775808 }
+  - match: { hits.hits.3.fields.ul.0 : 18446744073709551614 }
+  - match: { hits.hits.4.fields.ul.0 : 18446744073709551615 }
+
+  # doc values
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            match_all: {}
+          docvalue_fields: [ "ul" ]
+          sort: [ { ul: asc } ]
+          _source : false
+
+  - match: { hits.hits.0.fields.ul.0 : 0 }
+  - match: { hits.hits.1.fields.ul.0 : 9223372036854775807 }
+  - match: { hits.hits.2.fields.ul.0 : 9223372036854775808 }
+  - match: { hits.hits.3.fields.ul.0 : 18446744073709551614 }
+  - match: { hits.hits.4.fields.ul.0 : 18446744073709551615 }
+
+  # stored fields
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            match_all: {}
+          stored_fields: [ "ul" ]
+          sort: [ { ul: asc } ]
+          _source : false
+
+  - match: { hits.hits.0.fields.ul.0 : "0" }
+  - match: { hits.hits.1.fields.ul.0 : "9223372036854775807" }
+  - match: { hits.hits.2.fields.ul.0 : "9223372036854775808" }
+  - match: { hits.hits.3.fields.ul.0 : "18446744073709551614" }
+  - match: { hits.hits.4.fields.ul.0 : "18446744073709551615" }

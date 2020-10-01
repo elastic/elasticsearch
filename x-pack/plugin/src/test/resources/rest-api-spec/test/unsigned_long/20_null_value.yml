@@ -1,5 +1,4 @@
----
-"Null value":
+setup:
   - skip:
       version: " - 7.9.99"
       reason: "unsigned_long was added in 7.10"
@@ -13,6 +12,7 @@
               ul:
                 type: unsigned_long
                 null_value: 17446744073709551615
+                store: true
 
   - do:
       bulk:
@@ -30,7 +30,8 @@
           { "index": {"_id" : "5_missing"} }
           {}
 
-  # term query
+---
+"Term query" :
   - do:
       search:
         index: test1
@@ -43,7 +44,8 @@
   - match: {hits.hits.1._id: "3_null" }
 
 
-  # asc sort
+---
+"Asc sort" :
   - do:
       search:
         index: test1
@@ -61,7 +63,8 @@
   - match: {hits.hits.4._id: "5_missing" }
   - match: {hits.hits.4.sort: [18446744073709551615] }
 
-  # desc sort
+---
+"Desc sort" :
   - do:
       search:
         index: test1
@@ -78,3 +81,72 @@
   - match: {hits.hits.3.sort: [17446744073709551615] }
   - match: {hits.hits.4._id: "1" }
   - match: {hits.hits.4.sort: [0] }
+
+---
+"Fields retrieval" :
+
+  # fields API
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            match_all: {}
+          fields: [ "ul" ]
+          sort: { ul: { order: desc, missing: "_first" } }
+          _source: false
+
+  - match: { hits.hits.0._id: "5_missing" }
+  - is_false: hits.hits.0.fields
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.1.fields.ul: [18446744073709551614] }
+  - match: { hits.hits.2._id: "2_null" }
+  - match: { hits.hits.2.fields.ul: [17446744073709551615] }
+  - match: { hits.hits.3._id: "3_null" }
+  - match: { hits.hits.3.fields.ul: [17446744073709551615] }
+  - match: { hits.hits.4._id: "1" }
+  - match: { hits.hits.4.fields.ul: [0] }
+
+  # doc values fields
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            match_all: {}
+          docvalue_fields: [ "ul" ]
+          sort: { ul: { order: desc, missing: "_first" } }
+          _source: false
+
+  - match: { hits.hits.0._id: "5_missing" }
+  - is_false: hits.hits.0.fields
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.1.fields.ul: [18446744073709551614] }
+  - match: { hits.hits.2._id: "2_null" }
+  - match: { hits.hits.2.fields.ul: [17446744073709551615] }
+  - match: { hits.hits.3._id: "3_null" }
+  - match: { hits.hits.3.fields.ul: [17446744073709551615] }
+  - match: { hits.hits.4._id: "1" }
+  - match: { hits.hits.4.fields.ul: [0] }
+
+  # stored fields
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            match_all: {}
+          stored_fields: [ "ul" ]
+          sort: { ul: { order: desc, missing: "_first" } }
+          _source: false
+
+  - match: { hits.hits.0._id : "5_missing" }
+  - is_false: hits.hits.0.fields
+  - match: { hits.hits.1._id : "4" }
+  - match: { hits.hits.1.fields.ul : ["18446744073709551614"] }
+  - match: { hits.hits.2._id : "2_null" }
+  - match: { hits.hits.2.fields.ul : ["17446744073709551615"] }
+  - match: { hits.hits.3._id : "3_null" }
+  - match: { hits.hits.3.fields.ul  : ["17446744073709551615"] }
+  - match: { hits.hits.4._id : "1" }
+  - match: { hits.hits.4.fields.ul : ["0"] }

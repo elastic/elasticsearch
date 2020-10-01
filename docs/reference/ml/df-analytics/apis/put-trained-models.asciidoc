@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
-[[put-inference]]
+[[put-trained-models]]
 = Create trained model API
 [subs="attributes"]
 ++++
 <titleabbrev>Create trained model</titleabbrev>
 ++++
 
-Creates an trained model.
+Creates a trained model.
 
 WARNING: Models created in version 7.8.0 are not backwards compatible
          with older node versions. If in a mixed cluster environment,
@@ -18,13 +18,13 @@ WARNING: Models created in version 7.8.0 are not backwards compatible
 experimental[]
 
 
-[[ml-put-inference-request]]
+[[ml-put-trained-models-request]]
 == {api-request-title}
 
-`PUT _ml/inference/<model_id>`
+`PUT _ml/trained_models/<model_id>`
 
 
-[[ml-put-inference-prereq]]
+[[ml-put-trained-models-prereq]]
 == {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following
@@ -35,14 +35,14 @@ built-in roles or equivalent privileges:
 For more information, see <<built-in-roles>> and {ml-docs-setup-privileges}.
 
 
-[[ml-put-inference-desc]]
+[[ml-put-trained-models-desc]]
 == {api-description-title}
 
-The create trained model API enables you to supply a trained model that is not 
+The create trained model API enables you to supply a trained model that is not
 created by {dfanalytics}.
 
 
-[[ml-put-inference-path-params]]
+[[ml-put-trained-models-path-params]]
 == {api-path-parms-title}
 
 `<model_id>`::
@@ -50,7 +50,7 @@ created by {dfanalytics}.
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 [role="child_attributes"]
-[[ml-put-inference-request-body]]
+[[ml-put-trained-models-request-body]]
 == {api-request-body-title}
 
 `compressed_definition`::
@@ -61,7 +61,7 @@ If `compressed_definition` is specified, then `definition` cannot be specified.
 //Begin definition
 `definition`::
 (Required, object)
-The {infer} definition for the model. If `definition` is specified, then 
+The {infer} definition for the model. If `definition` is specified, then
 `compressed_definition` cannot be specified.
 +
 .Properties of `definition`
@@ -70,7 +70,7 @@ The {infer} definition for the model. If `definition` is specified, then
 //Begin preprocessors
 `preprocessors`::
 (Optional, object)
-Collection of preprocessors. See <<ml-put-inference-preprocessor-example>>.
+Collection of preprocessors. See <<ml-put-trained-models-preprocessor-example>>.
 +
 .Properties of `preprocessors`
 [%collapsible%open]
@@ -172,7 +172,7 @@ The definition for a binary decision tree.
 [%collapsible%open]
 ======
 `classification_labels`:::
-(Optional, string) An array of classification labels (used for 
+(Optional, string) An array of classification labels (used for
 `classification`).
 
 `feature_names`:::
@@ -249,7 +249,7 @@ The decision threshold with which to compare the feature value.
 //Begin ensemble
 `ensemble`::
 (Optional, object)
-The definition for an ensemble model. See <<ml-put-inference-model-example>>.
+The definition for an ensemble model. See <<ml-put-trained-models-model-example>>.
 +
 .Properties of `ensemble`
 [%collapsible%open]
@@ -259,7 +259,7 @@ The definition for an ensemble model. See <<ml-put-inference-model-example>>.
 (Required, object)
 An aggregated output object that defines how to aggregate the outputs of the
 `trained_models`. Supported objects are `weighted_mode`, `weighted_sum`, and
-`logistic_regression`. See <<ml-put-inference-aggregated-output-example>>.
+`logistic_regression`. See <<ml-put-trained-models-aggregated-output-example>>.
 +
 .Properties of `aggregate_output`
 [%collapsible%open]
@@ -448,10 +448,10 @@ An object map that contains metadata about the model.
 An array of tags to organize the model.
 
 
-[[ml-put-inference-example]]
+[[ml-put-trained-models-example]]
 == {api-examples-title}
 
-[[ml-put-inference-preprocessor-example]]
+[[ml-put-trained-models-preprocessor-example]]
 === Preprocessor examples
 
 The example below shows a `frequency_encoding` preprocessor object:
@@ -518,7 +518,7 @@ This example shows a `target_mean_encoding` preprocessor object:
 //NOTCONSOLE
 
 
-[[ml-put-inference-model-example]]
+[[ml-put-trained-models-model-example]]
 === Model examples
 
 The first example shows a `trained_model` object:
@@ -602,7 +602,7 @@ The following example shows an `ensemble` model object:
 //NOTCONSOLE
 
 
-[[ml-put-inference-aggregated-output-example]]
+[[ml-put-trained-models-aggregated-output-example]]
 === Aggregated output example
 
 Example of a `logistic_regression` object:
@@ -657,7 +657,7 @@ Example of an `exponent` object:
 //NOTCONSOLE
 
 
-[[ml-put-inference-json-schema]]
+[[ml-put-trained-models-json-schema]]
 === {infer-cap} JSON schema
 
 For the full JSON schema of model {infer},

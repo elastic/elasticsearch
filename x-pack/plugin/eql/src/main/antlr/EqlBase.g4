@@ -55,7 +55,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (FORK (EQ booleanValue)?)? (by=joinKeys)?
+   : subquery (by=joinKeys)?
    ;
 
 subquery
@@ -154,7 +154,6 @@ AND: 'and';
 ANY: 'any';
 BY: 'by';
 FALSE: 'false';
-FORK: 'fork';
 IN: 'in';
 JOIN: 'join';
 MAXSPAN: 'maxspan';

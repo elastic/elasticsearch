@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class BooleanScriptMappedFieldType extends AbstractScriptMappedFieldType<BooleanFieldScript.LeafFactory> {
-    BooleanScriptMappedFieldType(String name, Script script, BooleanFieldScript.Factory scriptFactory, Map<String, String> meta) {
+public class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
+    BooleanScriptFieldType(String name, Script script, BooleanFieldScript.Factory scriptFactory, Map<String, String> meta) {
         super(name, script, scriptFactory::newFactory, meta);
     }
 

@@ -35,10 +35,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class DateScriptMappedFieldType extends AbstractScriptMappedFieldType<DateFieldScript.LeafFactory> {
+public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
     private final DateFormatter dateTimeFormatter;
 
-    DateScriptMappedFieldType(
+    DateScriptFieldType(
         String name,
         Script script,
         DateFieldScript.Factory scriptFactory,

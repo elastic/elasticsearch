@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
+
 public abstract class LoopNode extends ConditionNode {
 
     /* ---- begin node data ---- */
@@ -34,5 +36,9 @@ public abstract class LoopNode extends ConditionNode {
     }
 
     /* ---- end node data ---- */
+
+    public LoopNode(Location location) {
+        super(location);
+    }
 
 }

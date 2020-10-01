@@ -2419,7 +2419,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testDeleteTrainedModel() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String modelId = "delete-trained-model-test";
+        String modelId = "delete-trained-models-test";
         putTrainedModel(modelId);
 
         GetTrainedModelsResponse getTrainedModelsResponse = execute(

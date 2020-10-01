@@ -35,8 +35,8 @@ import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.toSet;
 
-public final class KeywordScriptMappedFieldType extends AbstractScriptMappedFieldType<StringFieldScript.LeafFactory> {
-    KeywordScriptMappedFieldType(String name, Script script, StringFieldScript.Factory scriptFactory, Map<String, String> meta) {
+public final class KeywordScriptFieldType extends AbstractScriptFieldType<StringFieldScript.LeafFactory> {
+    KeywordScriptFieldType(String name, Script script, StringFieldScript.Factory scriptFactory, Map<String, String> meta) {
         super(name, script, scriptFactory::newFactory, meta);
     }
 

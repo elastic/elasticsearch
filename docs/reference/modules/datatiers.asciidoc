@@ -81,14 +81,15 @@ snapshot.
 === Data tier index allocation
 
 When an index is created {es} will automatically allocate the index to the <<content-tier, Content tier>>
-if the index is not part of a <<data-streams, data stream> or to the <<hot-tier, Hot tier>> if the index
-is part of a <<data-streams, data stream>>. The user created content will initially be allocated to the
-Content tier which is designed and optimised for this type of data. Timeseries data (ie. data streams)
-will initially be allocated to the Hot tier which offers high performance and is capable of efficiently
-ingesting large amounts of machine data (ie. logs, metrics) while also offering high query performance.
+if the index is not part of a <<data-streams, data stream>> or to the <<hot-tier, Hot tier>> if the index
+is part of a <<data-streams, data stream>>.
+{es} will configure the `index.routing.allocation.include._tier_preference` to `data_content` or `data_hot`
+respectively.
 
 These heuristics can be overridden by specifying any <<shard-allocation-filtering, shard allocation filtering>>
 settings in the create index request or index template that matches the new index.
+Specifying any configuration, including `null`, for `index.routing.allocation.include._tier_preference` will
+also opt out of the automatic new index allocation to tiers.
 
 [[data-tier-migration]]
 === Data tier index migration

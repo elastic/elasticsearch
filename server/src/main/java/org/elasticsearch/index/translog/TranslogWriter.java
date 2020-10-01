@@ -435,13 +435,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private void writeBufferedOps(long offset, boolean blockOnExistingWriter) throws IOException {
         try (ReleasableLock locked = blockOnExistingWriter ? writeLock.acquire() : writeLock.tryAcquire()) {
-            if (locked != null && offset > getWrittenOffset()) {
-                try {
+            try {
+                if (locked != null && offset > getWrittenOffset()) {
                     writeAndReleaseOps(pollOpsToWrite());
-                } catch (IOException e){
-                    closeWithTragicEvent(e);
-                    throw e;
                 }
+            } catch (IOException e){
+                closeWithTragicEvent(e);
+                throw e;
             }
         }
     }

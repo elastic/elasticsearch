@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,5 +39,9 @@ public abstract class ReferenceNode extends ExpressionNode {
     }
 
     /* ---- end node data ---- */
+
+    public ReferenceNode(Location location) {
+        super(location);
+    }
 
 }

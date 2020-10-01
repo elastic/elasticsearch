@@ -16,6 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -33,6 +35,8 @@ public class DataTier {
     public static final String DATA_HOT = "data_hot";
     public static final String DATA_WARM = "data_warm";
     public static final String DATA_COLD = "data_cold";
+
+    public static final Set<String> ALL_DATA_TIERS = new HashSet<>(Arrays.asList(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD));
 
     /**
      * Returns true if the given tier name is a valid tier

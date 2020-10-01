@@ -55,6 +55,28 @@ any where network.protocol == "http"
 ----
 
 [discrete]
+[[eql-syntax-escape-identifiers]]
+===== Escape an event category or field name
+
+Event categories or field names that contain a hyphen (`-`), contain a space, or
+start with a numeral must be escaped with enclosing backticks (+++`+++).
+
+[source,eql]
+----
+`my-field`
+`my field`
+`6myfield`
+----
+
+Any backticks (+++`+++) in an event category or field name must be escaped using
+double backticks (+++``+++).
+
+[source,eql]
+----
+my`field -> `my``field`
+----
+
+[discrete]
 [[eql-syntax-conditions]]
 ==== Conditions
 
@@ -300,8 +322,8 @@ any where true
 ----
 
 [discrete]
-[[eql-syntax-escaped-characters]]
-===== Escaped characters
+[[eql-syntax-escape-characters]]
+===== Escape characters in a string
 
 When used within a string, special characters, such as a carriage return or
 double quote (`"`), must be escaped with a preceding backslash (`\`).
@@ -354,21 +376,6 @@ in the resulting string.
 Raw strings cannot contain only a single backslash or end in an odd number of
 backslashes.
 ====
-
-[discrete]
-[[eql-syntax-non-alpha-field-names]]
-==== Non-alphanumeric field names
-
-Field names containing non-alphanumeric characters, such as underscores (`_`),
-dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
-
-[source,eql]
-----
-`my_field`
-`my.field`
-`my-field`
-`my field`
-----
 
 [discrete]
 [[eql-sequences]]

@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -33,7 +32,6 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 public class DocumentFieldMapperTests extends LuceneTestCase {
 
@@ -78,14 +76,14 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
     }
 
-    static class FakeFieldMapper extends FieldMapper {
+    static class FakeFieldMapper extends ParametrizedFieldMapper {
 
         FakeFieldMapper(FakeFieldType fieldType) {
-            super(fieldType.name(), new FieldType(), fieldType, MultiFields.empty(), CopyTo.empty());
+            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) throws IOException {
+        protected void parseCreateField(ParseContext context) {
         }
 
         @Override
@@ -94,15 +92,14 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
-        }
-
-        @Override
         protected String contentType() {
             return null;
         }
 
+        @Override
+        public Builder getMergeBuilder() {
+            return null;
+        }
     }
 
     public void testAnalyzers() throws IOException {

@@ -92,6 +92,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
 
     static final int MAX_FIELD_LENGTH = 30;
     static WildcardFieldMapper wildcardFieldType;
+    static WildcardFieldMapper wildcardFieldType79;
     static KeywordFieldMapper keywordFieldType;
 
     @Override
@@ -99,11 +100,12 @@ public class WildcardFieldMapperTests extends ESTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
+        wildcardFieldType = builder.build(new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0)));
+        wildcardFieldType79 = builder.build(new Mapper.BuilderContext(createIndexSettings(Version.V_7_9_0).getSettings(), new ContentPath(0)));
 
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
-        keywordFieldType = kwBuilder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
+        keywordFieldType = kwBuilder.build(new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0)));
         super.setUp();
     }
 
@@ -166,13 +168,13 @@ public class WildcardFieldMapperTests extends ESTestCase {
         
 
         // Unnatural circumstance - testing we fail if we were to use the new analyzer on old index
-        Query oldWildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("a b", null, MOCK_QSC);
+        Query oldWildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("a b", null, null);
         TopDocs oldWildcardFieldTopDocs = searcher.search(oldWildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(oldWildcardFieldTopDocs.totalHits.value, equalTo(0L));
         
         
-        // Natural  circumstance test we revert to the old analyzer for old indices
-        Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("a b", null, MOCK_7_9_QSC);
+        // Natural circumstance test we revert to the old analyzer for old indices
+        Query wildcardFieldQuery = wildcardFieldType79.fieldType().wildcardQuery("a b", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(1L));
 
@@ -493,6 +495,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            System.out.println(regex+"\n\t"+wildcardFieldQuery);
             testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
         }
 
@@ -935,9 +938,9 @@ public class WildcardFieldMapperTests extends ESTestCase {
         iw.addDocument(doc);
     }
 
-    protected IndexSettings createIndexSettings() {
+    protected IndexSettings createIndexSettings(Version version) {
         return new IndexSettings(
-                IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version))
                         .numberOfShards(1).numberOfReplicas(0).creationDate(System.currentTimeMillis()).build(),
                 Settings.EMPTY);
     }

@@ -24,7 +24,9 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
@@ -46,6 +48,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
 
 /**
  * Copies the files needed for the Rest YAML specs to the current projects test resources output directory.
@@ -73,6 +77,16 @@ public class CopyRestApiTask extends DefaultTask {
 
     @Inject
     protected Factory<PatternSet> getPatternSetFactory() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected FileSystemOperations getFileSystemOperations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected ArchiveOperations getArchiveOperations() {
         throw new UnsupportedOperationException();
     }
 
@@ -137,11 +151,11 @@ public class CopyRestApiTask extends DefaultTask {
 
     @TaskAction
     void copy() {
-        Project project = getProject();
         // always copy the core specs if the task executes
+        String projectPath = getProjectPathFromTask(getPath());
         if (BuildParams.isInternal()) {
-            getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", project.getPath());
-            project.copy(c -> {
+            getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", projectPath);
+            getFileSystemOperations().copy(c -> {
                 c.from(coreConfig.getAsFileTree());
                 c.into(getOutputDir());
                 c.include(corePatternSet.getIncludes());
@@ -149,11 +163,11 @@ public class CopyRestApiTask extends DefaultTask {
         } else {
             getLogger().debug(
                 "Rest specs for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
-                project.getPath(),
+                projectPath,
                 VersionProperties.getElasticsearch()
             );
-            project.copy(c -> {
-                c.from(project.zipTree(coreConfig.getSingleFile()));
+            getFileSystemOperations().copy(c -> {
+                c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile()));
                 // this ends up as the same dir as outputDir
                 c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {
@@ -167,8 +181,8 @@ public class CopyRestApiTask extends DefaultTask {
         }
         // only copy x-pack specs if explicitly instructed
         if (includeXpack.get().isEmpty() == false) {
-            getLogger().debug("X-pack rest specs for project [{}] will be copied to the test resources.", project.getPath());
-            project.copy(c -> {
+            getLogger().debug("X-pack rest specs for project [{}] will be copied to the test resources.", projectPath);
+            getFileSystemOperations().copy(c -> {
                 c.from(xpackConfig.getSingleFile());
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
@@ -177,7 +191,7 @@ public class CopyRestApiTask extends DefaultTask {
         // TODO: once https://github.com/elastic/elasticsearch/pull/62968 lands ensure that this uses `getFileSystemOperations()`
         // copy any additional config
         if (additionalConfig != null) {
-            project.copy(c -> {
+            getFileSystemOperations().copy(c -> {
                 c.from(additionalConfig.getAsFileTree());
                 c.into(getOutputDir());
             });

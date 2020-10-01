@@ -712,7 +712,7 @@ public class IndexNameExpressionResolver {
         return false;
     }
 
-    private boolean isSystemIndexAccessAllowed() {
+    public boolean isSystemIndexAccessAllowed() {
         return Booleans.parseBoolean(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY), true);
     }
 

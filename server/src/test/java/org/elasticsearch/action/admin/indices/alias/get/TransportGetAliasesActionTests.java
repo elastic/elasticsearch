@@ -39,7 +39,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .fPut("b", Collections.singletonList(new AliasMetadata.Builder("y").build()))
             .build();
         ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, new String[]{"a", "b", "c"}, aliases, ClusterState.EMPTY_STATE);
+            TransportGetAliasesAction.postProcess(request, new String[]{"a", "b", "c"}, aliases, ClusterState.EMPTY_STATE, false);
         assertThat(result.size(), equalTo(3));
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get("b").size(), equalTo(1));
@@ -50,7 +50,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut("b", Collections.singletonList(new AliasMetadata.Builder("y").build()))
             .build();
-        result = TransportGetAliasesAction.postProcess(request, new String[]{"a", "b", "c"}, aliases, ClusterState.EMPTY_STATE);
+        result = TransportGetAliasesAction.postProcess(request, new String[]{"a", "b", "c"}, aliases, ClusterState.EMPTY_STATE, false);
         assertThat(result.size(), equalTo(3));
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get("b").size(), equalTo(1));
@@ -60,7 +60,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut("b", Collections.singletonList(new AliasMetadata.Builder("y").build()))
             .build();
-        result = TransportGetAliasesAction.postProcess(request, new String[]{"a", "b", "c"}, aliases, ClusterState.EMPTY_STATE);
+        result = TransportGetAliasesAction.postProcess(request, new String[]{"a", "b", "c"}, aliases, ClusterState.EMPTY_STATE, false);
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("b").size(), equalTo(1));
     }
@@ -76,7 +76,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         final String[] concreteIndices = {"a", ".b", "c"};
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state);
+            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state, false);
         assertThat(result.size(), equalTo(3));
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get(".b").size(), equalTo(1));
@@ -96,7 +96,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         final String[] concreteIndices = {".b"};
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state);
+            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state, false);
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings("this request accesses system indices: [.b], but in a future major version, direct access to system " +
@@ -113,11 +113,26 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         final String[] concreteIndices = {"a", ".b", "c"};
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state);
+            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state, false);
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings("this request accesses system indices: [.b], but in a future major version, direct access to system " +
             "indices will be prevented by default");
+    }
+
+    public void testDeprecationWarningNotEmittedWhenSystemAccessAllowed() {
+        ClusterState state = systemIndexTestClusterState();
+
+        GetAliasesRequest request = new GetAliasesRequest(".y");
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
+            .fPut(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()))
+            .build();
+        final String[] concreteIndices = {"a", ".b", "c"};
+        assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
+        ImmutableOpenMap<String, List<AliasMetadata>> result =
+            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state, true);
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get(".b").size(), equalTo(1));
     }
 
     /**
@@ -134,7 +149,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         final String[] concreteIndices = {"c"};
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state);
+            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state, false);
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
     }

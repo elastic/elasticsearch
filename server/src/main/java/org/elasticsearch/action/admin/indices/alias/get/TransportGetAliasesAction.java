@@ -81,7 +81,8 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         }
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
-        listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state)));
+        listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state,
+            indexNameExpressionResolver.isSystemIndexAccessAllowed())));
     }
 
     /**
@@ -89,7 +90,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
      */
     static ImmutableOpenMap<String, List<AliasMetadata>> postProcess(GetAliasesRequest request, String[] concreteIndices,
                                                                      ImmutableOpenMap<String, List<AliasMetadata>> aliases,
-                                                                     ClusterState state) {
+                                                                     ClusterState state, boolean systemIndexAccessAllowed) {
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder(aliases);
         for (String index : concreteIndices) {
@@ -99,7 +100,9 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             }
         }
         final ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = mapBuilder.build();
-        checkSystemIndexAccess(state, finalResponse);
+        if (systemIndexAccessAllowed == false) {
+            checkSystemIndexAccess(state, finalResponse);
+        }
         return finalResponse;
     }
 

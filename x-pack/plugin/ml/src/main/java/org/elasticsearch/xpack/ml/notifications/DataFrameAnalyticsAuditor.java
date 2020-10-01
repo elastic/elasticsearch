@@ -20,6 +20,7 @@ public class DataFrameAnalyticsAuditor extends AbstractAuditor<DataFrameAnalytic
     public DataFrameAnalyticsAuditor(Client client, ClusterService clusterService) {
         super(new OriginSettingClient(client, ML_ORIGIN), NotificationsIndex.NOTIFICATIONS_INDEX,
             MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE,
+            clusterService.getNodeName(),
             DataFrameAnalyticsAuditMessage::new, clusterService);
     }
 }

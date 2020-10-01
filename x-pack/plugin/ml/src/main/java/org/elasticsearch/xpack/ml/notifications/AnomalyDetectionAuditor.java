@@ -20,6 +20,7 @@ public class AnomalyDetectionAuditor extends AbstractAuditor<AnomalyDetectionAud
     public AnomalyDetectionAuditor(Client client, ClusterService clusterService) {
         super(new OriginSettingClient(client, ML_ORIGIN), NotificationsIndex.NOTIFICATIONS_INDEX,
             MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE,
+            clusterService.getNodeName(),
             AnomalyDetectionAuditMessage::new, clusterService);
     }
 }

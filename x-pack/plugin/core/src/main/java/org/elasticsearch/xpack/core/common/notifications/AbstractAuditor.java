@@ -38,7 +38,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final AbstractAuditMessageFactory<T> messageFactory;
     private final AtomicBoolean hasLatestTemplate;
 
-    private final Queue<ToXContent> backlog;
+    private Queue<ToXContent> backlog;
     private final ClusterService clusterService;
     private final AtomicBoolean putTemplateInProgress;
 
@@ -46,6 +46,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     protected AbstractAuditor(OriginSettingClient client,
                               String auditIndex,
                               IndexTemplateConfig templateConfig,
+                              String nodeName,
                               AbstractAuditMessageFactory<T> messageFactory,
                               ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
@@ -53,7 +54,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         this.templateConfig = Objects.requireNonNull(templateConfig);
         this.messageFactory = Objects.requireNonNull(messageFactory);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.nodeName = clusterService.getNodeName();
+        this.nodeName = nodeName;
         this.backlog = new ConcurrentLinkedQueue<>();
         this.hasLatestTemplate = new AtomicBoolean();
         this.putTemplateInProgress = new AtomicBoolean();
@@ -85,10 +86,18 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             return;
         }
 
+        if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateConfig.getTemplateName())) {
+            synchronized (this) {
+                hasLatestTemplate.set(true);
+            }
+            writeDoc(toXContent);
+            return;
+        }
+
         ActionListener<Boolean> putTemplateListener = ActionListener.wrap(
             r -> {
                 synchronized (this) {
-                    this.hasLatestTemplate.set(true);
+                    hasLatestTemplate.set(true);
                 }
                 logger.info("Auditor template [{}] successfully installed", templateConfig.getTemplateName());
                 writeBacklog();
@@ -151,7 +160,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
         client.bulk(bulkRequest, ActionListener.wrap(
             bulkItemResponses -> {
-                backlog.clear();
+                backlog = null;
                 logger.trace("Successfully wrote audit message backlog after upgrading template");
             },
             this::onIndexFailure

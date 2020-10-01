@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.core.common.notifications;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
@@ -35,6 +38,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.allOf;
@@ -77,7 +81,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
         auditor.info("foo", "Here is my info");
 
-        verify(client).index(indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -94,7 +98,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
         auditor.warning("bar", "Here is my warning");
 
-        verify(client).index(indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -111,7 +115,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
         auditor.error("foobar", "Here is my error");
 
-        verify(client).index(indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -134,17 +138,17 @@ public class AbstractAuditorTests extends ESTestCase {
         auditor.warning("foobar", "Here is my warning to queue");
         auditor.info("foobar", "Here is my info to queue");
 
-        verify(client, never()).index(any(), any());
+        verify(client, never()).execute(eq(IndexAction.INSTANCE), any(), any());
         // fire the put template response
         writeSomeDocsBeforeTemplateLatch.countDown();
 
         // and the back log will be written some point later
         assertBusy(() -> {
-            verify(client, times(1)).bulk(any(), any());
+            verify(client, times(1)).execute(eq(BulkAction.INSTANCE), any(), any());
         });
 
         auditor.info("foobar", "Here is another message");
-        verify(client, times(1)).index(any(), any());
+        verify(client, times(1)).execute(eq(IndexAction.INSTANCE), any(), any());
     }
 
     private static AbstractAuditMessageTests.TestAuditMessage parseAuditMessage(BytesReference msg) throws IOException {
@@ -153,7 +157,7 @@ public class AbstractAuditorTests extends ESTestCase {
         return AbstractAuditMessageTests.TestAuditMessage.PARSER.apply(parser, null);
     }
 
-    @SuppressWarnings("unchecked")
+//    @SuppressWarnings("unchecked")
     private TestAuditor createTestAuditorWithTemplateInstalled(Client client) {
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
         templates.put(TEST_INDEX, mock(IndexTemplateMetadata.class));
@@ -164,7 +168,7 @@ public class AbstractAuditorTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
 
-        return new TestAuditor(client, clusterService);
+        return new TestAuditor(client, TEST_NODE_NAME, clusterService);
     }
 
     @SuppressWarnings("unchecked")
@@ -176,7 +180,7 @@ public class AbstractAuditorTests extends ESTestCase {
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         doAnswer(invocationOnMock -> {
             ActionListener<AcknowledgedResponse> listener =
-                (ActionListener<AcknowledgedResponse>)invocationOnMock.getArguments()[1];
+                (ActionListener<AcknowledgedResponse>)invocationOnMock.getArguments()[2];
 
             Runnable onPutTemplate = () -> {
                 try {
@@ -189,9 +193,7 @@ public class AbstractAuditorTests extends ESTestCase {
             new Thread(onPutTemplate).start();
 
             return null;
-        }).when(indicesAdminClient).putTemplate(any(), any());
-
-
+        }).when(client).execute(eq(PutIndexTemplateAction.INSTANCE), any(), any());
 
         AdminClient adminClient = mock(AdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
@@ -205,16 +207,17 @@ public class AbstractAuditorTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
 
-        return new TestAuditor(client, clusterService);
+        return new TestAuditor(client, TEST_NODE_NAME, clusterService);
     }
 
     public static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
 
-        TestAuditor(Client client, ClusterService clusterService) {
+        TestAuditor(Client client, String nodeName, ClusterService clusterService) {
             super(new OriginSettingClient(client, TEST_ORIGIN), TEST_INDEX,
                 new IndexTemplateConfig(TEST_INDEX,
-                    "not_a_real_file.json", Version.CURRENT.id, "xpack.ml.version"),
-                AbstractAuditMessageTests.TestAuditMessage::new, clusterService);
+                    "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
+                    Collections.singletonMap("xpack.ml.version.id", String.valueOf(Version.CURRENT.id))),
+                nodeName, AbstractAuditMessageTests.TestAuditMessage::new, clusterService);
         }
     }
 }

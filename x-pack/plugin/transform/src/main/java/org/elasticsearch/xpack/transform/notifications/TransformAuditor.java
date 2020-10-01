@@ -19,9 +19,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
  */
 public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
 
-    public TransformAuditor(Client client, ClusterService clusterService) {
+    public TransformAuditor(Client client, String nodeName, ClusterService clusterService) {
         super(new OriginSettingClient(client, TRANSFORM_ORIGIN), TransformInternalIndexConstants.AUDIT_INDEX,
             null,  // TODO
-            TransformAuditMessage::new, clusterService);
+            nodeName, TransformAuditMessage::new, clusterService);
     }
 }

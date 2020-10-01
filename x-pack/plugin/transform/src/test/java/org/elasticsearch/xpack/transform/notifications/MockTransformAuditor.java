@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.common.notifications.Level;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -33,12 +34,14 @@ import static org.mockito.Mockito.when;
  */
 public class MockTransformAuditor extends TransformAuditor {
 
+    private static final String MOCK_NODE_NAME = "mock_node_name";
+
     @SuppressWarnings("unchecked")
     public static MockTransformAuditor createMockAuditor() {
-        ImmutableOpenMap<String, IndexTemplateMetadata> templates = mock(ImmutableOpenMap.class);
-        when(templates.containsKey(eq("mock_node_name"))).thenReturn(Boolean.TRUE);
+        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
+        templates.put(TransformInternalIndexConstants.AUDIT_INDEX, mock(IndexTemplateMetadata.class));
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates);
+        when(metadata.getTemplates()).thenReturn(templates.build());
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         ClusterService clusterService = mock(ClusterService.class);
@@ -50,7 +53,7 @@ public class MockTransformAuditor extends TransformAuditor {
     private final List<AuditExpectation> expectations;
 
     public MockTransformAuditor(ClusterService clusterService) {
-        super(mock(Client.class), clusterService);
+        super(mock(Client.class), MOCK_NODE_NAME, clusterService);
         expectations = new CopyOnWriteArrayList<>();
     }
 

@@ -19,6 +19,6 @@ public class InferenceAuditor extends AbstractAuditor<InferenceAuditMessage> {
 
     public InferenceAuditor(Client client, ClusterService clusterService) {
         super(new OriginSettingClient(client, ML_ORIGIN), NotificationsIndex.NOTIFICATIONS_INDEX,
-            MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE, InferenceAuditMessage::new, clusterService);
+            MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE, clusterService.getNodeName(), InferenceAuditMessage::new, clusterService);
     }
 }

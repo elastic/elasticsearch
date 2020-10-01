@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
+import java.util.List;
+
 public final class TransportInvalidateApiKeyAction extends HandledTransportAction<InvalidateApiKeyRequest, InvalidateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
@@ -36,7 +38,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
 
     @Override
     protected void doExecute(Task task, InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
-        String apiKeyId = request.getId();
+        List<String> apiKeyIds = request.getId();
         String apiKeyName = request.getName();
         String username = request.getUserName();
         String realm = request.getRealmName();
@@ -53,7 +55,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
             realm = ApiKeyService.getCreatorRealmName(authentication);
         }
 
-        apiKeyService.invalidateApiKeys(realm, username, apiKeyName, apiKeyId, listener);
+        apiKeyService.invalidateApiKeys(realm, username, apiKeyName, apiKeyIds, listener);
     }
 
 }

@@ -15,7 +15,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -26,7 +28,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     private final String realmName;
     private final String userName;
-    private final String id;
+    private final List<String> id;
     private final String name;
     private final boolean ownedByAuthenticatedUser;
 
@@ -38,7 +40,11 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super(in);
         realmName = in.readOptionalString();
         userName = in.readOptionalString();
-        id = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            id = in.readOptionalStringList();
+        } else {
+            id = List.of(in.readOptionalString());
+        }
         name = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             ownedByAuthenticatedUser = in.readOptionalBoolean();
@@ -47,11 +53,15 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         }
     }
 
-    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String id,
+    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable List<String> id,
                                    @Nullable String name, boolean ownedByAuthenticatedUser) {
         this.realmName = realmName;
         this.userName = userName;
-        this.id = id;
+        if (id == null) {
+            this.id = List.of();
+        } else {
+            this.id = id.stream().filter(Strings::hasText).collect(Collectors.toList());
+        }
         this.name = name;
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
     }
@@ -64,7 +74,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         return userName;
     }
 
-    public String getId() {
+    public List<String> getId() {
         return id;
     }
 
@@ -116,7 +126,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingApiKeyId(String id, boolean ownedByAuthenticatedUser) {
-        return new InvalidateApiKeyRequest(null, null, id, null, ownedByAuthenticatedUser);
+        return new InvalidateApiKeyRequest(null, null, List.of(id), null, ownedByAuthenticatedUser);
     }
 
     /**
@@ -141,12 +151,12 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(id) == false
+        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && id.isEmpty()
             && Strings.hasText(name) == false && ownedByAuthenticatedUser == false) {
             validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified if " +
                 "[owner] flag is false", validationException);
         }
-        if (Strings.hasText(id) || Strings.hasText(name)) {
+        if (id.isEmpty() == false || Strings.hasText(name)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(
                     "username or realm name must not be specified when the api key id or api key name is specified",
@@ -160,7 +170,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
                     validationException);
             }
         }
-        if (Strings.hasText(id) && Strings.hasText(name)) {
+        if (id.isEmpty() == false && Strings.hasText(name)) {
             validationException = addValidationError("only one of [api key id, api key name] can be specified", validationException);
         }
         return validationException;
@@ -171,7 +181,18 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(userName);
-        out.writeOptionalString(id);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeOptionalStringCollection(id);
+        } else {
+            if (id.size() == 0) {
+                out.writeOptionalString(null);
+            }
+            else if (id.size() == 1) {
+                out.writeOptionalString(id.get(0));
+            } else {
+                throw new IllegalArgumentException("a request with multiple ids cannot be sent to version [" + out.getVersion() + "]");
+            }
+        }
         out.writeOptionalString(name);
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeOptionalBoolean(ownedByAuthenticatedUser);

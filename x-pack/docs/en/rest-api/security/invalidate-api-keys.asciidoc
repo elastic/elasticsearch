@@ -103,6 +103,16 @@ DELETE /_security/api_key
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
 
+The `id` field can also take an array of API key ids for bulk invalidation:
+
+[source,console]
+--------------------------------------------------
+DELETE /_security/api_key
+{
+  "id" : ["VuaCfGcBCdbkQm-e5aOx"]
+}
+--------------------------------------------------
+
 The following example invalidates the API key identified by specified `name`
 immediately:
 

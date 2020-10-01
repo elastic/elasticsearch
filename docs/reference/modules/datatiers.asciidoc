@@ -10,12 +10,12 @@ of a tiered hardware architecture is not new in {es}.
 implementing tiered architectures by automating the managemnt of indices according to
 performance, resiliency and data retention requirements.
 <<overview-index-lifecycle-management, Hot/warm/cold>> architectures are common
-for timeseries data such as logging and metrics. However without a formalised `tier`
-concept in {es} the hot-warm-cold architecture implementation was based on user specified
-node attributes used in conjunction with <<shard-allocation-awareness, shard allocation awareness>>.
+for timeseries data such as logging and metrics.
 
 A data tier is a collection of nodes with the same role. Data tiers are an integrated
 solution offering better support for optimising cost and improving performance.
+Formalized data tiers in ES allow configuration of the lifecycle and location of data
+in a hot/warm/cold topology without requiring the use of custom node attributes.
 Each tier formalises specific characteristics and data behaviours.
 
 The node roles that can currently define data tiers are:

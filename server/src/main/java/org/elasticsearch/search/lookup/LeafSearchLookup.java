@@ -64,7 +64,6 @@ public class LeafSearchLookup {
 
     public void setDocument(int docId) {
         docMap.setDocument(docId);
-        // TODO not sure that to pass in here as a fieldReader
         sourceLookup.setSegmentAndDocument(ctx, docId);
         fieldsLookup.setDocument(docId);
     }

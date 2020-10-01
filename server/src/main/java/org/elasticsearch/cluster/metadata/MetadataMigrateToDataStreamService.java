@@ -117,6 +117,10 @@ public class MetadataMigrateToDataStreamService {
         }
         IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
 
+        if (alias.getWriteIndex() == null) {
+            throw new IllegalArgumentException("alias [" + request.aliasName + "] must specify a write index");
+        }
+
         // check for "clean" alias without routing or filter query
         AliasMetadata aliasMetadata = alias.getFirstAliasMetadata();
         assert aliasMetadata != null : "alias metadata may not be null";

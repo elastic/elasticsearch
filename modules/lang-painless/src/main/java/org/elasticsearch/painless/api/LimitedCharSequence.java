@@ -39,8 +39,6 @@ public class LimitedCharSequence implements CharSequence {
     private final Pattern pattern;
     private final int limitFactor;
 
-    private static final int SNIPPET_LIMIT = 64;
-
     private LimitedCharSequence(CharSequence wrap, Pattern pattern, int limitFactor) {
         this.wrapped = wrap;
         this.counter = new Counter(limitFactor * wrapped.length());
@@ -76,7 +74,7 @@ public class LimitedCharSequence implements CharSequence {
 
     public String details(int index) {
         // TODO(stu): pattern may be null
-        return "pattern: [" + pattern.pattern() + "], " +
+        return pattern != null ? "pattern: [" +  pattern.pattern() + "], " : "" +
             "limit factor: [" + limitFactor + "], " +
             "char limit: [" + counter.charAtLimit + "], " +
             // TODO(stu): add ... for long fields

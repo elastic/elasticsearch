@@ -1,0 +1,79 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.painless.api;
+
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.test.ESTestCase;
+
+public class LimitedCharSequenceTest extends ESTestCase {
+    public void testBadFactor() {
+        IllegalArgumentException badArg = expectThrows(IllegalArgumentException.class,
+            () -> LimitedCharSequence.limitedCharSequence("abc", null, -1)
+        );
+        assertEquals("limitFactor must be positive", badArg.getMessage());
+
+        badArg = expectThrows(IllegalArgumentException.class,
+            () -> LimitedCharSequence.limitedCharSequence("abc", null, 0)
+        );
+        assertEquals("limitFactor must be positive", badArg.getMessage());
+    }
+
+    public void testLength() {
+        String str = "abc";
+        assertEquals(str.length(), LimitedCharSequence.limitedCharSequence("abc", null, 1).length());
+    }
+
+    public void testCharAtEqualLimit() {
+        String str = "abc";
+        for (int limitFactor=1; limitFactor < 4; limitFactor++){
+            CharSequence seq = LimitedCharSequence.limitedCharSequence(str, null, limitFactor);
+            for (int i=0; i<str.length() * limitFactor; i++) {
+                seq.charAt(0);
+            }
+        }
+    }
+
+
+    public void testCharAtAboveLimit() {
+        String str = "abc";
+        for (int limitFactor = 1; limitFactor < 4; limitFactor++){
+            CharSequence seq = LimitedCharSequence.limitedCharSequence(str, null, limitFactor);
+            int limit = str.length() * limitFactor;
+            for (int i = 0; i < limit; i++) {
+                seq.charAt(0);
+            }
+            CircuitBreakingException circuitBreakingException = expectThrows(CircuitBreakingException.class, () -> seq.charAt(0));
+            assertEquals(
+                "[scripting] Regular expression considered too many characters, " +
+                    "limit factor: [" + limitFactor + "], " +
+                    "char limit: [" + limit + "], " +
+                    "count: [" + (limit + 1) + "], " +
+                    "isSubSequence: [false], offset: [0], " +
+                    "wrapped: [" + str + "], " +
+                    "this limit can be changed by changed by the [script.painless.regex.limit-factor] setting",
+                circuitBreakingException.getMessage());
+        }
+    }
+
+    public void testToString() {
+        String str = "abc";
+        assertEquals(str, LimitedCharSequence.limitedCharSequence(str, null, 1).toString());
+    }
+}

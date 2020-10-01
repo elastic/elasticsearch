@@ -460,38 +460,15 @@ GET my-index/_search
           ]
         }
       },
-      {
-        "_index" : "my-index",
-        "_id" : "8Zh81nQBp2DRDXdiOxVu",
-        "_score" : 1.0,
-        "_source" : {
-          "@timestamp" : "2020-06-21T15:00:01-05:00",
-          "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
-        },
-        "fields" : {
-          "@timestamp" : [
-            "2020-06-21T20:00:01.000Z"
-          ],
-          "clientip" : [
-            "211.11.9.0"
-          ],
-          "message" : [
-            "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
-          ],
-          "day_of_week" : [
-            "Sunday"
-          ]
-        }
-      }
+      ***
     ]
   }
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 // TESTRESPONSE[s/"_id" : "8Jh81nQBp2DRDXdiOxVt"/"_id": $body.hits.hits.0._id/]
-// TESTRESPONSE[s/"_id" : "8Zh81nQBp2DRDXdiOxVu"/"_id": $body.hits.hits.1._id/]
 // TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
-// TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.1.fields.day_of_week/]
+// TESTRESPONSE[s/\*\*\*/$body.hits.hits.1/]
 
 <1> This value was calculated at search time using the runtime script defined
 in the mapping.

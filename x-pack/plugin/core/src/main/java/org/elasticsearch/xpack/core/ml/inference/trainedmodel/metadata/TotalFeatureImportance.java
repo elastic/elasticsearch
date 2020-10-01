@@ -35,6 +35,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     public static final ParseField MEAN_MAGNITUDE = new ParseField("mean_magnitude");
     public static final ParseField MIN = new ParseField("min");
     public static final ParseField MAX = new ParseField("max");
+    public static final ParseField BASELINE = new ParseField("baseline");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<TotalFeatureImportance, Void> LENIENT_PARSER = createParser(true);
@@ -124,27 +125,31 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         private static ConstructingObjectParser<Importance, Void> createParser(boolean ignoreUnknownFields) {
             ConstructingObjectParser<Importance, Void> parser = new ConstructingObjectParser<>(NAME,
                 ignoreUnknownFields,
-                a -> new Importance((double)a[0], (double)a[1], (double)a[2]));
+                a -> new Importance((double)a[0], (double)a[1], (double)a[2], (Double)a[3]));
             parser.declareDouble(ConstructingObjectParser.constructorArg(), MEAN_MAGNITUDE);
             parser.declareDouble(ConstructingObjectParser.constructorArg(), MIN);
             parser.declareDouble(ConstructingObjectParser.constructorArg(), MAX);
+            parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), BASELINE);
             return parser;
         }
 
         private final double meanMagnitude;
         private final double min;
         private final double max;
+        private final Double baseline;
 
-        public Importance(double meanMagnitude, double min, double max) {
+        public Importance(double meanMagnitude, double min, double max, Double baseline) {
             this.meanMagnitude = meanMagnitude;
             this.min = min;
             this.max = max;
+            this.baseline = baseline;
         }
 
         public Importance(StreamInput in) throws IOException {
             this.meanMagnitude = in.readDouble();
             this.min = in.readDouble();
             this.max = in.readDouble();
+            this.baseline = in.readOptionalDouble();
         }
 
         @Override
@@ -154,12 +159,13 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
             Importance that = (Importance) o;
             return Double.compare(that.meanMagnitude, meanMagnitude) == 0 &&
                 Double.compare(that.min, min) == 0 &&
-                Double.compare(that.max, max) == 0;
+                Double.compare(that.max, max) == 0 &&
+                Objects.equals(that.baseline, baseline);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(meanMagnitude, min, max);
+            return Objects.hash(meanMagnitude, min, max, baseline);
         }
 
         @Override
@@ -167,6 +173,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
             out.writeDouble(meanMagnitude);
             out.writeDouble(min);
             out.writeDouble(max);
+            out.writeOptionalDouble(baseline);
         }
 
         @Override
@@ -179,6 +186,9 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
             map.put(MEAN_MAGNITUDE.getPreferredName(), meanMagnitude);
             map.put(MIN.getPreferredName(), min);
             map.put(MAX.getPreferredName(), max);
+            if (baseline != null) {
+                map.put(BASELINE.getPreferredName(), baseline);
+            }
             return map;
         }
     }

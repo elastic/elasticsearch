@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,7 +71,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 super.writeTo(out);
                 out.writeOptionalString(realm);
                 out.writeOptionalString(user);
-                out.writeOptionalStringCollection(apiKeyId == null ? List.of() : List.of(apiKeyId));
+                out.writeOptionalStringCollection(Strings.hasText(apiKeyId) == false ? List.of() : List.of(apiKeyId));
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
             }

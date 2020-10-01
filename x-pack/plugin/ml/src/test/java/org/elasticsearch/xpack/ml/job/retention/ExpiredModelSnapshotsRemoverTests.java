@@ -13,18 +13,24 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
+import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
@@ -40,8 +46,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ml.job.retention.AbstractExpiredJobDataRemoverTests.TestListener;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -56,9 +64,10 @@ import static org.mockito.Mockito.when;
 public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
     private Client client;
+    private JobResultsProvider resultsProvider;
     private OriginSettingClient originSettingClient;
     private List<SearchRequest> capturedSearchRequests;
-    private List<DeleteModelSnapshotAction.Request> capturedDeleteModelSnapshotRequests;
+    private List<DeleteByQueryRequest> capturedDeleteModelSnapshotRequests;
     private TestListener listener;
 
     @Before
@@ -68,6 +77,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
+        resultsProvider = mock(JobResultsProvider.class);
 
         listener = new TestListener();
     }
@@ -77,7 +87,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         List<SearchResponse> responses = Collections.singletonList(
                 AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.emptyList()));
-        givenClientRequestsSucceed(responses);
+        givenClientRequestsSucceed(responses, Collections.emptyList());
 
         createExpiredModelSnapshotsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
@@ -110,7 +120,11 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(Collections.singletonList(snapshot2_1)));
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(Collections.emptyList()));
 
-        givenClientRequestsSucceed(searchResponses);
+        givenClientRequestsSucceed(searchResponses, Arrays.asList(
+            createModelSnapshot("job-1", "snapshots-1_1", eightDaysAndOneMsAgo),
+            createModelSnapshot("job-1", "fresh-snapshot", oneDayAgo),
+            createModelSnapshot("job-1", "old-snapshot", eightDaysAndOneMsAgo)
+        ));
         createExpiredModelSnapshotsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
@@ -123,9 +137,15 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         assertThat(searchRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("job-2")}));
 
         assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(1));
-        DeleteModelSnapshotAction.Request deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(0);
-        assertThat(deleteSnapshotRequest.getJobId(), equalTo("job-1"));
-        assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("old-snapshot"));
+        DeleteByQueryRequest deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(0);
+        assertThat(deleteSnapshotRequest.indices(),
+            arrayContainingInAnyOrder(AnomalyDetectorsIndex.jobResultsAliasedName("job-1"),
+                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                AnnotationIndex.READ_ALIAS_NAME));
+        assertThat(deleteSnapshotRequest.getSearchRequest().source().query() instanceof IdsQueryBuilder, is(true));
+        IdsQueryBuilder idsQueryBuilder = (IdsQueryBuilder)deleteSnapshotRequest.getSearchRequest().source().query();
+        assertTrue("expected ids related to [old-snapshot] but received [" + idsQueryBuilder.ids() + "]",
+            idsQueryBuilder.ids().stream().allMatch(s -> s.contains("old-snapshot")));
     }
 
     public void testRemove_GivenTimeout() throws IOException {
@@ -142,7 +162,11 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots1JobSnapshots));
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots2JobSnapshots));
 
-        givenClientRequestsSucceed(searchResponses);
+        givenClientRequestsSucceed(searchResponses, Arrays.asList(
+            createModelSnapshot("snapshots-1", "snapshots-1_1", now),
+            createModelSnapshot("snapshots-1", "snapshots-1_2", now),
+            createModelSnapshot("snapshots-2", "snapshots-2_1", now)
+        ));
 
         final int timeoutAfter = randomIntBetween(0, 1);
         AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
@@ -160,7 +184,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("snapshots-2").setModelSnapshotRetentionDays(17L).setModelSnapshotId("active").build()
         );
 
-        givenClientSearchRequestsFail(searchResponses);
+        givenClientSearchRequestsFail(searchResponses, Collections.emptyList());
         createExpiredModelSnapshotsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
@@ -195,7 +219,11 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         SearchHit snapshot2_2 = createModelSnapshotQueryHit("snapshots-2", "snapshots-2_1", eightDaysAndOneMsAgo);
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(Collections.singletonList(snapshot2_2)));
 
-        givenClientDeleteModelSnapshotRequestsFail(searchResponses);
+        givenClientDeleteModelSnapshotRequestsFail(searchResponses, Arrays.asList(
+            createModelSnapshot("snapshots-1", "snapshots-1_1", oneDayAgo),
+            createModelSnapshot("snapshots-1", "snapshots-1_2", eightDaysAndOneMsAgo),
+            createModelSnapshot("snapshots-2", "snapshots-2_1", eightDaysAndOneMsAgo)
+            ));
         createExpiredModelSnapshotsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
@@ -206,9 +234,15 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         assertThat(searchRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("snapshots-1")}));
 
         assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(1));
-        DeleteModelSnapshotAction.Request deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(0);
-        assertThat(deleteSnapshotRequest.getJobId(), equalTo("snapshots-1"));
-        assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-1_2"));
+        DeleteByQueryRequest deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(0);
+        assertThat(deleteSnapshotRequest.indices(),
+            arrayContainingInAnyOrder(AnomalyDetectorsIndex.jobResultsAliasedName("snapshots-1"),
+                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                AnnotationIndex.READ_ALIAS_NAME));
+        assertThat(deleteSnapshotRequest.getSearchRequest().source().query() instanceof IdsQueryBuilder, is(true));
+        IdsQueryBuilder idsQueryBuilder = (IdsQueryBuilder)deleteSnapshotRequest.getSearchRequest().source().query();
+        assertTrue("expected ids related to [snapshots-1_2] but received [" + idsQueryBuilder.ids() + "]",
+            idsQueryBuilder.ids().stream().allMatch(s -> s.contains("snapshots-1_2")));
     }
 
     @SuppressWarnings("unchecked")
@@ -219,7 +253,10 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         SearchHit snapshot1_1 = createModelSnapshotQueryHit("job-1", "newest-snapshot", oneDayAgo);
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(Collections.singletonList(snapshot1_1)));
 
-        givenClientRequests(searchResponses, true, true);
+        givenClientRequests(searchResponses,
+            true,
+            true,
+            Collections.singletonList(createModelSnapshot("job-1", "newest-snapshot", oneDayAgo)));
 
         long retentionDays = 3L;
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
@@ -228,17 +265,6 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         long dayInMills = 60 * 60 * 24 * 1000;
         long expectedCutoffTime = oneDayAgo.getTime() - (dayInMills * retentionDays);
         verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(oneDayAgo.getTime(), expectedCutoffTime)));
-    }
-
-    public void testJobSnapshotId() {
-        ExpiredModelSnapshotsRemover.JobSnapshotId id = new ExpiredModelSnapshotsRemover.JobSnapshotId("a", "b");
-        assertFalse(id.hasNullValue());
-        id = new ExpiredModelSnapshotsRemover.JobSnapshotId(null, "b");
-        assertTrue(id.hasNullValue());
-        id = new ExpiredModelSnapshotsRemover.JobSnapshotId("a", null);
-        assertTrue(id.hasNullValue());
-        id = new ExpiredModelSnapshotsRemover.JobSnapshotId(null, null);
-        assertTrue(id.hasNullValue());
     }
 
     private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover(Iterator<Job> jobIterator) {
@@ -253,7 +279,13 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                     return null;
                 }
         ).when(executor).execute(any());
-        return new ExpiredModelSnapshotsRemover(originSettingClient, jobIterator, threadPool, new TaskId("test", 0L));
+        return new ExpiredModelSnapshotsRemover(
+            originSettingClient,
+            jobIterator,
+            threadPool,
+            new TaskId("test", 0L),
+            resultsProvider,
+            mock(AnomalyDetectionAuditor.class));
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId, Date date) {
@@ -269,21 +301,23 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         return hitBuilder.build();
     }
 
-    private void givenClientRequestsSucceed(List<SearchResponse> searchResponses)  {
-        givenClientRequests(searchResponses, true, true);
+    private void givenClientRequestsSucceed(List<SearchResponse> searchResponses, List<ModelSnapshot> modelSnapshots)  {
+        givenClientRequests(searchResponses, true, true, modelSnapshots);
     }
 
-    private void givenClientSearchRequestsFail(List<SearchResponse> searchResponses) {
-        givenClientRequests(searchResponses, false, true);
+    private void givenClientSearchRequestsFail(List<SearchResponse> searchResponses, List<ModelSnapshot> snapshots) {
+        givenClientRequests(searchResponses, false, true, snapshots);
     }
 
-    private void givenClientDeleteModelSnapshotRequestsFail(List<SearchResponse> searchResponses) {
-        givenClientRequests(searchResponses, true, false);
+    private void givenClientDeleteModelSnapshotRequestsFail(List<SearchResponse> searchResponses, List<ModelSnapshot> snapshots) {
+        givenClientRequests(searchResponses, true, false, snapshots);
     }
 
     @SuppressWarnings("unchecked")
     private void givenClientRequests(List<SearchResponse> searchResponses,
-                                     boolean shouldSearchRequestsSucceed, boolean shouldDeleteSnapshotRequestsSucceed) {
+                                     boolean shouldSearchRequestsSucceed,
+                                     boolean shouldDeleteSnapshotRequestsSucceed,
+                                     List<ModelSnapshot> snapshots) {
 
         doAnswer(new Answer<Void>() {
             AtomicInteger callCount = new AtomicInteger();
@@ -306,7 +340,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         }).when(client).execute(same(SearchAction.INSTANCE), any(), any());
 
         doAnswer(invocationOnMock -> {
-                capturedDeleteModelSnapshotRequests.add((DeleteModelSnapshotAction.Request) invocationOnMock.getArguments()[1]);
+                capturedDeleteModelSnapshotRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
                 ActionListener<AcknowledgedResponse> listener =
                         (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
                 if (shouldDeleteSnapshotRequestsSucceed) {
@@ -316,6 +350,15 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                 }
                 return null;
             }
-        ).when(client).execute(same(DeleteModelSnapshotAction.INSTANCE), any(), any());
+        ).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
+
+        for (ModelSnapshot snapshot : snapshots) {
+            doAnswer(invocationOnMock -> {
+                Consumer<Result<ModelSnapshot>> listener = (Consumer<Result<ModelSnapshot>>) invocationOnMock.getArguments()[2];
+                listener.accept(new Result<>("", snapshot));
+                return null;
+            }).when(resultsProvider).getModelSnapshot(eq(snapshot.getJobId()), eq(snapshot.getSnapshotId()), any(), any());
+        }
+
     }
 }

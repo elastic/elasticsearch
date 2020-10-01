@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,14 +26,16 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
-import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
-import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -65,11 +67,16 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     private static final int MODEL_SNAPSHOT_SEARCH_SIZE = 10000;
 
     private final ThreadPool threadPool;
+    private final JobResultsProvider jobResultsProvider;
+    private final AnomalyDetectionAuditor auditor;
 
     public ExpiredModelSnapshotsRemover(OriginSettingClient client, Iterator<Job> jobIterator,
-                                        ThreadPool threadPool, TaskId parentTaskId) {
+                                        ThreadPool threadPool, TaskId parentTaskId, JobResultsProvider jobResultsProvider,
+                                        AnomalyDetectionAuditor auditor) {
         super(client, jobIterator, parentTaskId);
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.jobResultsProvider = jobResultsProvider;
+        this.auditor = auditor;
     }
 
     @Override
@@ -157,7 +164,10 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             listener.onResponse(true);
             return;
         }
-        LOGGER.debug("Considering model snapshots of job [{}] that have a timestamp before [{}] for removal", job.getId(), cutoffEpochMs);
+        LOGGER.debug(() -> new ParameterizedMessage(
+            "Considering model snapshots of job [{}] that have a timestamp before [{}] for removal",
+            job.getId(),
+            cutoffEpochMs));
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
@@ -187,14 +197,15 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             MachineLearning.UTILITY_THREAD_POOL_NAME, expiredSnapshotsListener(job.getId(), deleteAllBeforeMs, listener), false));
     }
 
-    private ActionListener<SearchResponse> expiredSnapshotsListener(String jobId, long deleteAllBeforeMs,
+    private ActionListener<SearchResponse> expiredSnapshotsListener(String jobId,
+                                                                    long deleteAllBeforeMs,
                                                                     ActionListener<Boolean> listener) {
         return new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 long nextToKeepMs = deleteAllBeforeMs;
                 try {
-                    List<JobSnapshotId> snapshotIds = new ArrayList<>();
+                    List<ModelSnapshot> snapshots = new ArrayList<>();
                     for (SearchHit hit : searchResponse.getHits()) {
                         String timestamp = stringFieldValueOrNull(hit, ModelSnapshot.TIMESTAMP.getPreferredName());
                         if (timestamp == null) {
@@ -208,15 +219,22 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                             } while (timestampMs >= nextToKeepMs);
                             continue;
                         }
-                        JobSnapshotId idPair = new JobSnapshotId(
-                            stringFieldValueOrNull(hit, Job.ID.getPreferredName()),
-                            stringFieldValueOrNull(hit, ModelSnapshotField.SNAPSHOT_ID.getPreferredName()));
+                        String jobId = stringFieldValueOrNull(hit, Job.ID.getPreferredName());
+                        String snapshotId = stringFieldValueOrNull(hit, ModelSnapshotField.SNAPSHOT_ID.getPreferredName());
 
-                        if (idPair.hasNullValue() == false) {
-                            snapshotIds.add(idPair);
+                        if (jobId != null && snapshotId != null) {
+                            jobResultsProvider.getModelSnapshot(
+                                jobId,
+                                snapshotId,
+                                // We are safe to grab this snapshot as the query is by DOC ID and we already filtered out the
+                                // currently active snapshot earlier in the call chain
+                                (shots) -> snapshots.add(shots.result),
+                                (failure) ->
+                                    LOGGER.warn(new ParameterizedMessage("[{}] failed to find snapshot [{}]", jobId, snapshotId), failure)
+                                );
                         }
                     }
-                    deleteModelSnapshots(new VolatileCursorIterator<>(snapshotIds), listener);
+                    deleteModelSnapshots(snapshots, jobId, listener);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -224,49 +242,30 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("[" + jobId +  "] Search for expired snapshots failed", e));
+                listener.onFailure(new ElasticsearchException("[{}] Search for expired snapshots failed", e, jobId));
             }
         };
     }
 
-    private void deleteModelSnapshots(Iterator<JobSnapshotId> modelSnapshotIterator, ActionListener<Boolean> listener) {
-        if (modelSnapshotIterator.hasNext() == false) {
+    private void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, String jobId, ActionListener<Boolean> listener) {
+        if (modelSnapshots.isEmpty()) {
             listener.onResponse(true);
             return;
         }
-        JobSnapshotId idPair = modelSnapshotIterator.next();
-        DeleteModelSnapshotAction.Request deleteSnapshotRequest =
-            new DeleteModelSnapshotAction.Request(idPair.jobId, idPair.snapshotId);
-        deleteSnapshotRequest.setParentTask(getParentTaskId());
-        client.execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse response) {
-                    try {
-                        deleteModelSnapshots(modelSnapshotIterator, listener);
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
+        JobDataDeleter deleter = new JobDataDeleter(client, jobId);
+        deleter.deleteModelSnapshots(modelSnapshots, ActionListener.wrap(
+            bulkResponse -> {
+                String msg = Messages.getMessage(
+                    Messages.JOB_AUDIT_SNAPSHOTS_DELETED,
+                    modelSnapshots.stream().map(ModelSnapshot::getSnapshotId),
+                    modelSnapshots.stream().map(ModelSnapshot::getDescription));
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(new ElasticsearchException("[" + idPair.jobId +  "] Failed to delete snapshot ["
-                            + idPair.snapshotId + "]", e));
-                }
-            });
+                auditor.info(jobId, msg);
+                LOGGER.debug(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
+                listener.onResponse(true);
+            },
+            listener::onFailure
+        ));
     }
 
-    static class JobSnapshotId {
-        private final String jobId;
-        private final String snapshotId;
-
-        JobSnapshotId(String jobId, String snapshotId) {
-            this.jobId = jobId;
-            this.snapshotId = snapshotId;
-        }
-
-        boolean hasNullValue() {
-            return jobId == null || snapshotId == null;
-        }
-    }
 }

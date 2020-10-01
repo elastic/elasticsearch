@@ -92,7 +92,7 @@ PUT my-index-000001
 --------------------------------------------------
 
 
-[[missing-date-formats]]
+[[missing-date-components]]
 ==== Missing date components
 
 If a format or date value is incomplete, {es} replaces any missing components
@@ -112,7 +112,6 @@ For example, if the format is `yyyy-MM`, {es} converts a date of `2020-12`
 to `2020-12-01T23:59:59.999_999_999Z`. This date uses the provided year (`2020`)
 and month (`12`) but uses the default day (`01`), hour (`23`), minute (`59`),
 second (`59`), and nanosecond (`999_999_999`).
-====
 
 [[date-params]]
 ==== Parameters for `date` fields

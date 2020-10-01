@@ -11,7 +11,7 @@ Note that this aggregation includes the `from` value and excludes the `to` value
 for each range.
 
 WARNING: If a format or date value is incomplete, {es} replaces any missing
-components with default values. See <<missing-date-formats>>.
+components with default values. See <<missing-date-components>>.
 
 Example:
 

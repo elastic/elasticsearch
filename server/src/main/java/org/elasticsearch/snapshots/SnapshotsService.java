@@ -2261,8 +2261,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * a task in the executed tasks collection applied to a shard it was waiting for to become available, then the shard snapshot operation
      * will be started for that snapshot entry and the task removed from the collection of tasks that need to be applied to snapshot
      * entries since it can not have any further effects.
+     *
+     * Package private to allow for tests.
      */
-    private static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = (currentState, tasks) -> {
+    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = (currentState, tasks) -> {
         int changedCount = 0;
         int startedCount = 0;
         final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
@@ -2489,8 +2491,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * An update to the snapshot state of a shard.
+     *
+     * Package private for testing
      */
-    private static final class ShardSnapshotUpdate {
+    static final class ShardSnapshotUpdate {
 
         private final Snapshot snapshot;
 
@@ -2500,14 +2504,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         private final ShardSnapshotStatus updatedState;
 
-        private ShardSnapshotUpdate(Snapshot snapshot, RepositoryShardId repositoryShardId, ShardSnapshotStatus updatedState) {
+        ShardSnapshotUpdate(Snapshot snapshot, RepositoryShardId repositoryShardId, ShardSnapshotStatus updatedState) {
             this.snapshot = snapshot;
             this.shardId = null;
             this.updatedState = updatedState;
             this.repoShardId = repositoryShardId;
         }
 
-        private ShardSnapshotUpdate(Snapshot snapshot, ShardId shardId, ShardSnapshotStatus updatedState) {
+        ShardSnapshotUpdate(Snapshot snapshot, ShardId shardId, ShardSnapshotStatus updatedState) {
             this.snapshot = snapshot;
             this.shardId = shardId;
             this.updatedState = updatedState;

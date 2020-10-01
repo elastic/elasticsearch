@@ -2294,6 +2294,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // The update applied to a shard clone operation
                     final RepositoryShardId finishedShardId = updateSnapshotState.repoShardId;
                     if (entry.snapshot().getSnapshotId().equals(updatedSnapshot.getSnapshotId())) {
+                        assert entry.source() != null : "Non-clone snapshot [" + entry + "] received update for clone ["
+                                + updateSnapshotState + "]";
                         final ShardSnapshotStatus existing = entry.clones().get(finishedShardId);
                         if (existing == null) {
                             logger.warn("Received clone shard snapshot status update [{}] but this shard is not tracked in [{}]",

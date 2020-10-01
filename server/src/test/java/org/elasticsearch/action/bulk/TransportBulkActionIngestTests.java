@@ -146,7 +146,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 null, new ActionFilters(Collections.emptySet()), null,
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                    new SystemIndices(Map.of())
                 ), new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
             );
         }

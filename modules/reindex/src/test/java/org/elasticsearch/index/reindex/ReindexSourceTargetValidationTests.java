@@ -35,8 +35,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.HashMap;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -62,7 +65,8 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER =
         new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER);
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER,
+            new SystemIndices(new HashMap<>()));
 
     private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
 

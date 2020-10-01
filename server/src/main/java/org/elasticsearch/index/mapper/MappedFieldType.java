@@ -360,10 +360,6 @@ public abstract class MappedFieldType {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
         }
-        if (termQuery instanceof TypeFieldMapper.TypesQuery) {
-            assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;
-            return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);
-        }
         if (termQuery instanceof TermInSetQuery) {
             TermInSetQuery tisQuery = (TermInSetQuery) termQuery;
             PrefixCodedTerms terms = tisQuery.getTermData();

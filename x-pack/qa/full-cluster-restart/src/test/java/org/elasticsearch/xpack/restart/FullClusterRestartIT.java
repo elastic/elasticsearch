@@ -216,7 +216,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster()) {
             final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
-            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\"}");
+            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\",\"role_descriptors\":" +
+                "{\"r\":{\"cluster\":[\"all\"],\"indices\":[{\"names\":[\"*\"],\"privileges\":[\"all\"]}]}}}");
             final Response response = client().performRequest(createApiKeyRequest);
             final Map<String, Object> createApiKeyResponse = entityAsMap(response);
 

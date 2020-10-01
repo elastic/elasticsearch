@@ -121,7 +121,7 @@ constant
     ;
 
 comparisonOperator
-    : SEQ | SNEQ | EQ | NEQ | LT | LTE | GT | GTE
+    : SEQ | EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -171,7 +171,7 @@ WITH: 'with';
 // Operators
 // dedicated string equality - case-insensitive and supporting * operator
 SEQ : ':';
-SNEQ: '!:';
+// regular operators
 ASGN : '=';
 EQ  : '==';
 NEQ : '!=';

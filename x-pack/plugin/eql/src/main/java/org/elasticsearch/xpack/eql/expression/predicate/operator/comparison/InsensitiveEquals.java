@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -43,4 +44,8 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison implements Ne
         return new InsensitiveNotEquals(source(), left(), right(), zoneId());
     }
 
+    @Override
+    protected String regularOperatorSymbol() {
+        return BinaryComparisonOperation.EQ.symbol();
+    }
 }

@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
@@ -33,9 +35,21 @@ public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object,
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
-        return TypeResolutions.isExact(e, sourceText(), paramOrdinal);
+    protected TypeResolution resolveInputType(Expression e, ParamOrdinal paramOrdinal) {
+        String op = function().symbol();
+        TypeResolution resolution = TypeResolutions.isString(e, op, paramOrdinal);
+        if (resolution.unresolved()) {
+            String message = LoggerMessageFormat.format(null, "{}; considering using [{}] instead", resolution.message(),
+                regularOperatorSymbol());
+            resolution = new TypeResolution(message);
+        }
+        return resolution;
     }
+
+    /**
+     * Symbol of the regular
+     */
+    protected abstract String regularOperatorSymbol();
 
     @Override
     protected Expression canonicalize() {

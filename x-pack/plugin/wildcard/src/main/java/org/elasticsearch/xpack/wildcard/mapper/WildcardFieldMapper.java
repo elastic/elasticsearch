@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
@@ -37,6 +38,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.RegExp.Kind;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
@@ -91,13 +93,98 @@ public class WildcardFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "wildcard";
     public static short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10;
     public static final int NGRAM_SIZE = 3;
-    static final NamedAnalyzer WILDCARD_ANALYZER = new NamedAnalyzer("_wildcard", AnalyzerScope.GLOBAL, new Analyzer() {
+    static final NamedAnalyzer WILDCARD_ANALYZER_7_10 = new NamedAnalyzer("_wildcard_7_10", AnalyzerScope.GLOBAL, new Analyzer() {
         @Override
         public TokenStreamComponents createComponents(String fieldName) {
             Tokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
-            return new TokenStreamComponents(tokenizer);
+            TokenStream tok = new NormaliseThinningFilter(tokenizer);
+            
+            return new TokenStreamComponents(r -> {
+                tokenizer.setReader(r);
+            }, tok);            
+            
+            
         }
     });
+    
+    // @deprecated - used for BWC with elasticsearch 7.9
+    static final NamedAnalyzer WILDCARD_ANALYZER_7_9 = new NamedAnalyzer("_wildcard", AnalyzerScope.GLOBAL, new Analyzer() {
+        @Override
+        public TokenStreamComponents createComponents(String fieldName) {
+            Tokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
+                return new TokenStreamComponents(tokenizer);
+        }
+    });
+    
+    public static class NormaliseThinningFilter extends TokenFilter {
+        private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+        
+        /**
+         * Create a new NormaliseThinningFilter, that normalizes token text such that even-numbered ascii values
+         * are made odd and punctuation is replaced with /
+         * 
+         * @param in TokenStream to filter
+         */
+        public NormaliseThinningFilter(TokenStream in) {
+          super(in);
+        }
+        
+        @Override
+        public final boolean incrementToken() throws IOException {
+          if (input.incrementToken()) {
+              normalize(termAtt.buffer(), 0, termAtt.length());
+            return true;
+          } else
+            return false;
+        }
+        
+        public static String normalize(String s) {
+            char[] chars = s.toCharArray();
+            normalize(chars, 0, chars.length);
+            return new String(chars);            
+        }
+        
+        /**
+         * Normalizes a token
+         */
+        public static void normalize(final char[] buffer, final int offset, final int limit) {
+          assert buffer.length >= limit;
+          assert 0 <= offset && offset <= buffer.length;
+          for (int i = offset; i < limit;) {
+            int codepoint = Character.codePointAt(buffer, i, limit);
+            i += Character.toChars(
+                    normalize(codepoint), buffer, i);
+           }
+        }
+
+        private static int normalize(int codepoint) {
+            // Normalize  space ! " # $ % &  ' ( } * + , - . chars to / 
+            if (codepoint >=32 && codepoint <= 47) {
+                return 47; 
+            }
+            // Normalize : ; < = > ? @ chars to / 
+            if (codepoint >=58 && codepoint <= 64) {
+                return 47; 
+            }
+            // Normalize  [ \ ] ^ _ ` chars to / 
+            if (codepoint >=91 && codepoint <= 96) {
+                return 47; 
+            }
+            // Normalize  { | } ~ chars to / 
+            if (codepoint >=123 && codepoint <= 126) {
+                return 47; 
+            }
+            // All other ascii characters, normalize even numbers to prior odd.
+            if (codepoint > 48 && codepoint <= 128 && codepoint % 2 == 0) {
+                // Odd ascii chars in 0-9 a-z range.
+                return codepoint - 1;
+            } else {
+                // return even ascii char or non-ascii chars
+                return codepoint;
+            }
+        }        
+        
+      }
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
@@ -215,13 +302,15 @@ public class WildcardFieldMapper extends FieldMapper {
         private WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
             super(name, true, fieldType.stored(), true,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
-            setIndexAnalyzer(WILDCARD_ANALYZER);
+            setIndexAnalyzer(WILDCARD_ANALYZER_7_10);
         }
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
 
             String ngramIndexPattern = addLineEndChars(toLowerCase(wildcardPattern));
+            
+            Analyzer analyzer = getCorrectAnalyzerForIndexVersion(context);
 
             // Break search term into tokens
             Set<String> tokens = new LinkedHashSet<>();
@@ -234,14 +323,14 @@ public class WildcardFieldMapper extends FieldMapper {
                 switch (c) {
                     case WildcardQuery.WILDCARD_STRING:
                         if (sequence.length() > 0) {
-                            getNgramTokens(tokens, sequence.toString());
+                            getNgramTokens(tokens, sequence.toString(), analyzer);
                             sequence = new StringBuilder();
                         }
                         numWildcardStrings++;
                         break;
                     case WildcardQuery.WILDCARD_CHAR:
                         if (sequence.length() > 0) {
-                            getNgramTokens(tokens, sequence.toString());
+                            getNgramTokens(tokens, sequence.toString(), analyzer);
                             sequence = new StringBuilder();
                         }
                         numWildcardChars++;
@@ -264,7 +353,7 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             if (sequence.length() > 0) {
-                getNgramTokens(tokens, sequence.toString());
+                getNgramTokens(tokens, sequence.toString(), analyzer);
             }
 
             BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
@@ -298,6 +387,18 @@ public class WildcardFieldMapper extends FieldMapper {
             return verifyingQuery;
 
         }
+        
+        private static Analyzer getCorrectAnalyzerForIndexVersion(QueryShardContext context) {
+            // Tests use a null context
+            if (context == null || context.indexVersionCreated() == null) {
+                return WILDCARD_ANALYZER_7_10;
+            }
+            if (context.indexVersionCreated().onOrAfter(Version.V_7_10_0)) {
+                return WILDCARD_ANALYZER_7_10;
+            } else {
+                return WILDCARD_ANALYZER_7_9;
+            }
+        }
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
@@ -305,11 +406,13 @@ public class WildcardFieldMapper extends FieldMapper {
             if (value.length() == 0) {
                 return new MatchNoDocsQuery();
             }
+            
+            Analyzer analyzer = getCorrectAnalyzerForIndexVersion(context);
 
             RegExp ngramRegex = new RegExp(addLineEndChars(toLowerCase(value)), syntaxFlags, matchFlags);
 
             Query approxBooleanQuery = toApproximationQuery(ngramRegex);
-            Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
+            Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery, analyzer);
 
             // MatchAll is a special case meaning the regex is known to match everything .* and
             // there is no need for verification.
@@ -479,7 +582,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         // Takes a BooleanQuery + TermQuery tree representing query logic and rewrites using ngrams of appropriate size.
-        private Query rewriteBoolToNgramQuery(Query approxQuery) {
+        private Query rewriteBoolToNgramQuery(Query approxQuery, Analyzer analyzer) {
             //TODO optimise more intelligently so we:
             // 1) favour full-length term queries eg abc over short eg a* when pruning too many clauses.
             // 2) make MAX_CLAUSES_IN_APPROXIMATION_QUERY a global cap rather than per-boolean clause.
@@ -491,7 +594,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 int clauseCount = 0;
                 for (BooleanClause clause : bq) {
-                    Query q = rewriteBoolToNgramQuery(clause.getQuery());
+                    Query q = rewriteBoolToNgramQuery(clause.getQuery(), analyzer);
                     if (q != null) {
                         if (clause.getOccur().equals(Occur.MUST)) {
                             // Can't drop "should" clauses because it can elevate a sibling optional item
@@ -518,7 +621,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
                 // Break term into tokens
                 Set<String> tokens = new LinkedHashSet<>();
-                getNgramTokens(tokens, s);
+                getNgramTokens(tokens, s, analyzer);
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 for (String string : tokens) {
                     addClause(string, rewritten, Occur.MUST);
@@ -590,53 +693,42 @@ public class WildcardFieldMapper extends FieldMapper {
             return q instanceof MatchAllDocsQuery || q instanceof MatchAllButRequireVerificationQuery;
         }
 
-        protected String firstNgramToken(String fragment) {
+        protected String firstNgramToken(String fragment, Analyzer analyzer) {
             LinkedHashSet<String> tokens = new LinkedHashSet<>();
-            getNgramTokens(tokens, fragment);
+            getNgramTokens(tokens, fragment, analyzer);
             return tokens.iterator().next();
         }
 
-        protected void getNgramTokens(Set<String> tokens, String fragment) {
+        protected void getNgramTokens(Set<String> tokens, String fragment, Analyzer analyzer) {
             if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
                 // If a regex is a form of match-all e.g. ".*" we only produce the token start/end markers as search
                 // terms which can be ignored.
                 return;
             }
             // Break fragment into multiple Ngrams
-            TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), fragment);
+            TokenStream tokenizer = analyzer.tokenStream(name(), fragment);
             CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
-            // If fragment length < NGRAM_SIZE then it is not emitted by token stream so need
-            // to initialise with the value here
-            String lastUnusedToken = fragment;
+            int foundTokens = 0;
             try {
                 tokenizer.reset();
-                boolean takeThis = true;
-                // minimise number of terms searched - eg for "12345" and 3grams we only need terms
-                // `123` and `345` - no need to search for 234. We take every other ngram.
                 while (tokenizer.incrementToken()) {
                     String tokenValue = termAtt.toString();
-                    if (takeThis) {
-                        tokens.add(tokenValue);
-                        lastUnusedToken = null;
-                    } else {
-                        lastUnusedToken = tokenValue;
-                    }
-                    // alternate
-                    takeThis = !takeThis;
-                    if (tokens.size() >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                        lastUnusedToken = null;
-                        break;
-                    }
-                }
-                if (lastUnusedToken != null) {
-                    // given `cake` and 3 grams the loop above would output only `cak` and we need to add trailing
-                    // `ake` to complete the logic.
-                    tokens.add(lastUnusedToken);
+                    tokens.add(tokenValue);
+                    foundTokens++;
                 }
                 tokenizer.end();
                 tokenizer.close();
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard regex pattern fragment [" + fragment + "]");
+            }
+            
+            if (foundTokens == 0 && fragment.length() > 0) {
+                // fragment must have been less than NGRAM_SIZE - add a placeholder which may be used in a prefix query e.g. ab*
+                fragment = toLowerCase(fragment);
+                if (analyzer == WILDCARD_ANALYZER_7_10) {
+                    fragment = NormaliseThinningFilter.normalize(fragment);
+                }
+                tokens.add(fragment);
             }
         }
 
@@ -673,6 +765,7 @@ public class WildcardFieldMapper extends FieldMapper {
         ) {
             BytesRef lower = lowerTerm == null ? null : BytesRefs.toBytesRef(lowerTerm);
             BytesRef upper = upperTerm == null ? null : BytesRefs.toBytesRef(upperTerm);
+            Analyzer analyzer = getCorrectAnalyzerForIndexVersion(context);
             Query accelerationQuery = null;
             if (lowerTerm != null && upperTerm != null) {
                 // Long common prefixes e.g. "C:/Program Files/a,txt" to "C:/Program Files/z,txt"
@@ -694,7 +787,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
                 if (commonPrefix.length() > 0) {
                     Set<String> tokens = new HashSet<>();
-                    getNgramTokens(tokens, commonPrefix.toString());
+                    getNgramTokens(tokens, commonPrefix.toString(), analyzer);
                     BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
                     for (String token : tokens) {
                         int tokenSize = token.codePointCount(0, token.length());
@@ -717,22 +810,14 @@ public class WildcardFieldMapper extends FieldMapper {
                     }
                 }
             }
-            if (accelerationQuery == null) {
-                // Fallback - if there is no common prefix sequence then we look for the range of ngrams that appear at the start
-                // of the string e.g. given 100 to 999 we would search for ngrams in the range
-                //   TOKEN_START_OR_END_CHAR + "10" to
-                //   TOKEN_START_OR_END_CHAR + "99"
-                BytesRef lowerNgram = lower == null ? null : new BytesRef(firstNgramToken(
-                    addLineEndChars(toLowerCase(lower.utf8ToString()))));
-                BytesRef upperNgram = upper == null ? null : new BytesRef(firstNgramToken(
-                    addLineEndChars(toLowerCase(upper.utf8ToString()))));
-                accelerationQuery = new TermRangeQuery(name(), lowerNgram, upperNgram, true, true);
-            }
-
             Supplier <Automaton> deferredAutomatonSupplier = ()->{
                 return TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
             };
             AutomatonQueryOnBinaryDv slowQuery = new AutomatonQueryOnBinaryDv(name(), lower + "-" + upper, deferredAutomatonSupplier);
+
+            if (accelerationQuery == null) {
+                return slowQuery;
+            }
 
             BooleanQuery.Builder qBuilder = new BooleanQuery.Builder();
             qBuilder.add(accelerationQuery, Occur.MUST);
@@ -751,6 +836,8 @@ public class WildcardFieldMapper extends FieldMapper {
         ) {
             String searchTerm = BytesRefs.toString(value);
             String lowerSearchTerm = toLowerCase(searchTerm);
+            Analyzer analyzer = getCorrectAnalyzerForIndexVersion(context);
+            
             try {
                 BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
                 //The approximation query can have a prefix and any number of ngrams.
@@ -763,13 +850,13 @@ public class WildcardFieldMapper extends FieldMapper {
                     Set<String> prefixTokens = new LinkedHashSet<>();
                     postPrefixString = lowerSearchTerm.substring(prefixLength);
                     String prefixCandidate = TOKEN_START_OR_END_CHAR + lowerSearchTerm.substring(0,  prefixLength);
-                    getNgramTokens(prefixTokens, prefixCandidate);
+                    getNgramTokens(prefixTokens, prefixCandidate, analyzer);
                     for (String prefixToken : prefixTokens) {
                         addClause(prefixToken, approxBuilder, Occur.MUST);
                     }
                 }
                 // Tokenize all content after the prefix
-                TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), postPrefixString);
+                TokenStream tokenizer = analyzer.tokenStream(name(), postPrefixString);
                 CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
                 ArrayList<String> postPrefixTokens = new ArrayList<>();
                 String firstToken = null;

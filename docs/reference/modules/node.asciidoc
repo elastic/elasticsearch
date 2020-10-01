@@ -50,7 +50,7 @@ A node that has the `master` role (default), which makes it eligible to be
 A node that has the `data` role (default). Data nodes hold data and perform data
 related operations such as CRUD, search, and aggregations. The `data` role fulfils
 the role of any of the more specialised data nodes `data_content`,`data_hot`,
-`data_warm` or `data_cold`. Nodes could be configured to fulfil one or multiple
+`data_warm` or `data_cold`. Nodes can be configured to fulfill one or multiple
 specialised (concrete <<modules-tiers, data tiers>>) roles.
 
 <<node-ingest-node,Ingest node>>::

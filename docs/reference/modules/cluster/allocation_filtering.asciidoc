@@ -57,7 +57,9 @@ The cluster allocation settings support the following built-in attributes:
 `_id`::         Match nodes by node id
 `_tier`::       Match nodes by the node's <<modules-tiers, data tier>> role
 
-NOTE: `_tier` filtering is based on <<modules-node, node>> roles. There're only
+NOTE: `_tier` filtering is based on <<modules-node, node>> roles. Only
+a subset of roles are <<modules-tiers, data tier>> roles, and the generic
+<<data-node, data role>> will match any tier filtering.
 a subset of roles that are <<modules-tiers, data tier>> roles, but the generic
 <<data-node, data role>> will match any tier filtering.
 

@@ -8,7 +8,7 @@ is the index allocated to. The data tier allocator is a specialised
 node attributes, the `_tier` and `_tier_preference`.
 
 The accepted values for data tier allocation filtering are the valid <<modules-tiers, data tiers>>
-node roles:
+node roles, as set with the `node.roles` setting in elasticsearch.yml:
 
 * <<data-content-node, data_content>>
 * <<data-hot-node, data_hot>>

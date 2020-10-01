@@ -5,16 +5,17 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import com.tdunning.math.stats.Centroid;
-import com.tdunning.math.stats.TDigest;
-import org.apache.lucene.document.BinaryDocValuesField;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -25,7 +26,6 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -34,12 +34,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-
+import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
 
 public class TDigestPreAggregatedPercentileRanksAggregatorTests extends AggregatorTestCase {
 
@@ -64,28 +59,11 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
             AnalyticsValuesSourceType.HISTOGRAM);
     }
 
-    private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
-        TDigest histogram = new TDigestState(100.0); //default
-        for (double value : values) {
-            histogram.add(value);
-        }
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        histogram.compress();
-        Collection<Centroid> centroids = histogram.centroids();
-        Iterator<Centroid> iterator = centroids.iterator();
-        while ( iterator.hasNext()) {
-            Centroid centroid = iterator.next();
-            streamOutput.writeVInt(centroid.count());
-            streamOutput.writeDouble(centroid.mean());
-        }
-        return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
-    }
-
     public void testSimple() throws IOException {
         try (Directory dir = newDirectory();
                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            doc.add(getDocValue("field", new double[] {3, 0.2, 10}));
+            doc.add(histogramFieldDocValues("field", new double[] {3, 0.2, 10}));
             w.addDocument(doc);
 
             PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] {0.1, 0.5, 12})

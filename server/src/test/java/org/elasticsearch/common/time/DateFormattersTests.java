@@ -139,6 +139,15 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(first, is(second));
     }
 
+    public void testNanoOfSecondWidth() throws Exception {
+        ZonedDateTime first = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.1"));
+        assertThat(first.getNano(), is(100000000));
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.000000001"));
+        assertThat(second.getNano(), is(1));
+    }
+
     public void testLocales() {
         assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(Locale.ROOT));
         Locale locale = randomLocale(random());

@@ -17,21 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.util;
+subprojects {
+    apply plugin:'base'
 
-import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.info.JavaHome;
-import org.gradle.api.GradleException;
-
-import java.util.List;
-import java.util.Optional;
-
-public class JavaUtil {
-
-    /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
-    public static String getJavaHome(final int version) {
-        List<JavaHome> javaHomes = BuildParams.getJavaVersions();
-        Optional<JavaHome> java = javaHomes.stream().filter(j -> j.getVersion() == version).findFirst();
-        return java.orElseThrow(() -> new GradleException("JAVA" + version + "_HOME required")).getJavaHome().get().getAbsolutePath();
+    tasks.register('tar', Tar) {
+        from('.')
+        destinationDirectory.set(file('build/distributions'))
+        archiveBaseName.set("elasticsearch${project.name.startsWith('oss')?'-oss':''}")
+        archiveVersion.set("8.0.1-SNAPSHOT")
+        archiveClassifier.set("darwin-x86_64")
+        archiveExtension.set('tar.gz')
     }
+
+    assemble.dependsOn('tar')
 }

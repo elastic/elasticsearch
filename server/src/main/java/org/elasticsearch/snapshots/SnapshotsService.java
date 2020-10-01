@@ -2244,6 +2244,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return true;
     }
 
+    /**
+     * Executor that applies {@link ShardSnapshotUpdate}s to the current cluster state. The algorithm implemented below works as described
+     * below:
+     * Every shard snapshot or clone state update can result in multiple snapshots being updated. In order to determine whether or not a
+     * shard update has an effect we use an outer loop over all current executing snapshot operations that iterates over them in the order
+     * they were started in and an inner loop over the list of shard update tasks.
+     *
+     * If the inner loop finds that a shard update task applies to a given snapshot and either a shard-snapshot or shard-clone operation in
+     * it then it will update the state of the snapshot entry accordingly. If that update was a noop, then the task is removed from the
+     * iteration as it was already applied before and likely just arrived on the master node again due to retries upstream.
+     * If the update was not a noop, then it means that the shard it applied to is now available for another snapshot or clone operation
+     * to be re-assigned if there is another snapshot operation that is waiting for the shard to become available. We therefore record the
+     * fact that a task was executed by adding it to a collection of executed tasks. If a subsequent execution of the outer loop finds that
+     * a task in the executed tasks collection applied to a shard it was waiting for to become available, then the shard snapshot operation
+     * will be started for that snapshot entry and the task removed from the collection of tasks that need to be applied to snapshot
+     * entries since it can not have any further effects.
+     */
     private static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = (currentState, tasks) -> {
         int changedCount = 0;
         int startedCount = 0;
@@ -2253,23 +2270,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final List<ShardSnapshotUpdate> unconsumedTasks = new ArrayList<>(tasks);
         // Tasks that were used to complete an existing in-progress shard snapshot
         final Set<ShardSnapshotUpdate> executedTasks = new HashSet<>();
+        // Outer loop over all snapshot entries in the order they were created in
         for (SnapshotsInProgress.Entry entry : currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
             if (entry.state().completed()) {
+                // completed snapshots do not require any updates so we just add them to the new list and keep going
                 entries.add(entry);
                 continue;
             }
             ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = null;
             ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> clones = null;
             Map<String, IndexId> indicesLookup = null;
+            // inner loop over all the shard updates that are potentially applicable to the current snapshot entry
             for (Iterator<ShardSnapshotUpdate> iterator = unconsumedTasks.iterator(); iterator.hasNext(); ) {
                 final ShardSnapshotUpdate updateSnapshotState = iterator.next();
                 final Snapshot updatedSnapshot = updateSnapshotState.snapshot;
                 final String updatedRepository = updatedSnapshot.getRepository();
                 if (entry.repository().equals(updatedRepository) == false) {
+                    // the update applies to a different repository so it is irrelevant here
                     continue;
                 }
                 if (updateSnapshotState.isClone()) {
-                    // A clone operation for a shard has finished
+                    // The update applied to a shard clone operation
                     final RepositoryShardId finishedShardId = updateSnapshotState.repoShardId;
                     if (entry.snapshot().getSnapshotId().equals(updatedSnapshot.getSnapshotId())) {
                         final ShardSnapshotStatus existing = entry.clones().get(finishedShardId);
@@ -2293,8 +2314,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         clones.put(finishedShardId, updateSnapshotState.updatedState);
                         executedTasks.add(updateSnapshotState);
                     } else if (executedTasks.contains(updateSnapshotState)) {
+                        // the update was already executed on the clone operation it applied to, now we check if it may be possible to
+                        // start a shard snapshot or clone operation on the current entry
                         if (entry.source() == null) {
-                            // Clone was updated, checking if we can update a normal snapshot
+                            // current entry is a snapshot operation so we must translate the repository shard id to a routing shard id
                             final IndexMetadata indexMeta = currentState.metadata().index(finishedShardId.indexName());
                             if (indexMeta == null) {
                                 // The index name that finished cloning does not exist in the cluster state so it isn't relevant to a
@@ -2323,6 +2346,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 iterator.remove();
                             }
                         } else {
+                            // current entry is a clone operation
                             final ShardSnapshotStatus existingStatus = entry.clones().get(finishedShardId);
                             if (existingStatus == null || existingStatus.state() != ShardState.QUEUED) {
                                 continue;
@@ -2340,7 +2364,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     }
                 } else {
-                    // Standard (non-clone) shard snapshot was updated
+                    // a (non-clone) shard snapshot operation was updated
                     final ShardId finishedShardId = updateSnapshotState.shardId;
                     if (entry.snapshot().getSnapshotId().equals(updatedSnapshot.getSnapshotId())) {
                         final ShardSnapshotStatus existing = entry.shards().get(finishedShardId);
@@ -2366,11 +2390,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     } else if (executedTasks.contains(updateSnapshotState)) {
                         // We applied the update for a shard snapshot state to its snapshot entry, now check if we can update
                         // either a clone or a snapshot
-                        // Since we updated a normal snapshot we need to translate its shard ids to repository shard ids which requires
-                        // a lookup for the index ids
-                        if (indicesLookup == null) {
-                            indicesLookup = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
-                        }
                         if (entry.source() == null) {
                             // shard snapshot was completed, we check if we can start another snapshot
                             final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
@@ -2386,6 +2405,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(), finishedStatus.generation()));
                             iterator.remove();
                         } else {
+                            // Since we updated a normal snapshot we need to translate its shard ids to repository shard ids which requires
+                            // a lookup for the index ids
+                            if (indicesLookup == null) {
+                                indicesLookup = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
+                            }
                             // shard snapshot was completed, we check if we can start a clone operation for the same repo shard
                             final IndexId indexId = indicesLookup.get(finishedShardId.getIndexName());
                             // If the lookup finds the index id then at least the entry is concerned with the index id just updated
@@ -2413,6 +2437,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             final SnapshotsInProgress.Entry updatedEntry;
             if (shards != null) {
+                assert clones == null : "Should not have updated clones when updating shard snapshots but saw " + clones +
+                        " as well as " + shards;
                 updatedEntry = entry.withShardStates(shards.build());
             } else if (clones != null) {
                 updatedEntry = entry.withClones(clones.build());

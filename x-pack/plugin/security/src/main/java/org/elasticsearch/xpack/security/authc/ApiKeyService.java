@@ -973,7 +973,8 @@ public class ApiKeyService {
     public void getApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
                            ActionListener<GetApiKeyResponse> listener) {
         ensureEnabled();
-        findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, List.of(apiKeyId), false, false,
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName,
+            apiKeyId == null ? List.of() : List.of(apiKeyId), false, false,
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",

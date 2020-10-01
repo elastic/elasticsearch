@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -69,7 +70,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 super.writeTo(out);
                 out.writeOptionalString(realm);
                 out.writeOptionalString(user);
-                out.writeOptionalString(apiKeyId);
+                out.writeOptionalStringCollection(apiKeyId == null ? List.of() : List.of(apiKeyId));
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
             }

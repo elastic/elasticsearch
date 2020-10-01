@@ -264,8 +264,8 @@ teardown:
             "id": [ "${api_key_id_2}", "${api_key_id_3}" ]
           }
   - length: { "invalidated_api_keys" : 2 }
-  - match: { "invalidated_api_keys.0" : "${api_key_id_2}" }
-  - match: { "invalidated_api_keys.1" : "${api_key_id_3}" }
+  - match: { "invalidated_api_keys.0" : "/^(${api_key_id_2}|${api_key_id_3})$/" }
+  - match: { "invalidated_api_keys.1" : "/^(${api_key_id_2}|${api_key_id_3})$/" }
   - length: { "previously_invalidated_api_keys" : 0 }
   - match: { "error_count" : 0 }
 

@@ -749,12 +749,6 @@ public class TransportStartDataFrameAnalyticsAction
                     + "], because the data frame analytics requires a node of version ["
                     + TaskParams.VERSION_INTRODUCED + "] or higher";
             }
-            if (node.getVersion().onOrAfter(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)
-                && params.getVersion().before(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)) {
-                return "Not opening job [" + id + "] on node [" + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics created for version [" + params.getVersion() + "] requires a node of version "
-                    + "before [" + TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED + "]";
-            }
             if (node.getVersion().before(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)
                 && params.getVersion().onOrAfter(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)) {
                 return "Not opening job [" + id + "] on node [" + JobNodeSelector.nodeNameAndVersion(node)

@@ -193,8 +193,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                     + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher")));
     }
 
-    // Cannot assign the node because the only existing node is too new (version 7.10.0)
-    public void testGetAssignment_MlNodeIsTooNew() {
+    // The node can be assigned despite being newer than the job.
+    // In such a case destination index will be created from scratch so that its mappings are up-to-date.
+    public void testGetAssignment_MlNodeIsNewerThanTheMlJobButTheAssignmentSuceeds() {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, Version.V_7_9_0, Collections.emptyList(), false);
         ClusterState clusterState =
@@ -205,11 +206,8 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 .build();
 
         Assignment assignment = executor.getAssignment(params, clusterState);
-        assertThat(assignment.getExecutorNode(), is(nullValue()));
-        assertThat(
-            assignment.getExplanation(),
-            containsString("Not opening job [data_frame_id] on node [{_node_name0}{version=7.10.0}], "
-                + "because the data frame analytics created for version [7.9.0] requires a node of version before [7.10.0]"));
+        assertThat(assignment.getExecutorNode(), is(equalTo("_node_id0")));
+        assertThat(assignment.getExplanation(), is(emptyString()));
     }
 
     private static TaskExecutor createTaskExecutor() {

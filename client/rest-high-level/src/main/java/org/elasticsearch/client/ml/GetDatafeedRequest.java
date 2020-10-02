@@ -42,10 +42,12 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
 
     public static final ParseField DATAFEED_IDS = new ParseField("datafeed_ids");
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final String FOR_EXPORT = "for_export";
 
     private static final String ALL_DATAFEEDS = "_all";
     private final List<String> datafeedIds;
     private Boolean allowNoMatch;
+    private Boolean forExport;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -101,6 +103,22 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
         return allowNoMatch;
     }
 
+    /**
+     * Setting this flag to `true` removes certain fields from the configuration on retrieval.
+     *
+     * This is useful when getting the configuration and wanting to put it in another cluster.
+     *
+     * Default value is false.
+     * @param forExport Boolean value indicating if certain fields should be removed
+     */
+    public void setForExport(boolean forExport) {
+        this.forExport = forExport;
+    }
+
+    public Boolean getForExport() {
+        return forExport;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -108,7 +126,7 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
 
     @Override
     public int hashCode() {
-        return Objects.hash(datafeedIds, allowNoMatch);
+        return Objects.hash(datafeedIds, forExport, allowNoMatch);
     }
 
     @Override
@@ -123,7 +141,8 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
 
         GetDatafeedRequest that = (GetDatafeedRequest) other;
         return Objects.equals(datafeedIds, that.datafeedIds) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch);
+            Objects.equals(allowNoMatch, that.allowNoMatch) &&
+            Objects.equals(forExport, that.forExport);
     }
 
     @Override

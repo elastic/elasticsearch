@@ -1319,12 +1319,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return false;
     }
 
-    private static SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
-        final SnapshotInfo snapshotInfo = future.get().getSnapshotInfo();
-        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        return snapshotInfo;
-    }
-
     private void corruptIndexN(Path repoPath, long generation) throws IOException {
         logger.info("--> corrupting [index-{}] in [{}]", generation, repoPath);
         Path indexNBlob = repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + generation);

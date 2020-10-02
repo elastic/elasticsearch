@@ -120,16 +120,13 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         Map<String, List<ModelSnapshot>> snapshotResponses = new HashMap<>();
         snapshotResponses.put("job-1",
             Arrays.asList(
-                createModelSnapshot("job-1", "active", oneDayAgo),
-                createModelSnapshot("job-1", "fresh-snapshot", oneDayAgo),
+                // Keeping active as its expiration is not known. We can assume "worst case" and verify it is not removed
+                createModelSnapshot("job-1", "active", eightDaysAndOneMsAgo),
                 createModelSnapshot("job-1", "old-snapshot", eightDaysAndOneMsAgo)
                 ));
-        snapshotResponses.put("job-2",
-            Arrays.asList(
-                createModelSnapshot("job-2", "active", oneDayAgo),
-                createModelSnapshot("job-2", "snapshots-1_1", eightDaysAndOneMsAgo),
-                createModelSnapshot("job-2", "fresh-snapshot", oneDayAgo)
-            ));
+        // Retention days for job-2 is 17 days, consequently, its query should return anything as we don't ask for snapshots
+        // created AFTER 17 days ago
+        snapshotResponses.put("job-2", Collections.emptyList());
         givenClientRequestsSucceed(searchResponses, snapshotResponses);
         createExpiredModelSnapshotsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
@@ -167,15 +164,10 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots2JobSnapshots));
         HashMap<String, List<ModelSnapshot>> snapshots = new HashMap<>();
 
-        snapshots.put("snapshots-1", Arrays.asList(
-            createModelSnapshot("snapshots-1", "active", now),
-            createModelSnapshot("snapshots-1", "snapshots-1_1", now),
-            createModelSnapshot("snapshots-1", "snapshots-1_2", now)
-        ));
-        snapshots.put("snapshots-2", Arrays.asList(
-            createModelSnapshot("snapshots-2", "active", now),
-            createModelSnapshot("snapshots-2", "snapshots-2_1", now)
-        ));
+        // ALl snapshots are "now" and the retention days is much longer than that.
+        // So, getting the snapshots should return empty for both
+        snapshots.put("snapshots-1", Collections.emptyList());
+        snapshots.put("snapshots-2", Collections.emptyList());
         givenClientRequestsSucceed(searchResponses, snapshots);
 
         final int timeoutAfter = randomIntBetween(0, 1);
@@ -216,15 +208,12 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         SearchHit snapshot1_1 = createModelSnapshotQueryHit("snapshots-1", "snapshots-1_1", oneDayAgo);
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(Collections.singletonList(snapshot1_1)));
         Map<String, List<ModelSnapshot>> snapshots = new HashMap<>();
-        snapshots.put("snapshots-1", Arrays.asList(
-            createModelSnapshot("snapshots-1", "active", oneDayAgo),
-            createModelSnapshot("snapshots-1", "snapshots-1_1", oneDayAgo),
+        // Should only return the one from 8 days ago
+        snapshots.put("snapshots-1", Collections.singletonList(
             createModelSnapshot("snapshots-1", "snapshots-1_2", eightDaysAndOneMsAgo)
         ));
-        snapshots.put("snapshots-2", Arrays.asList(
-            createModelSnapshot("snapshots-2", "active", eightDaysAndOneMsAgo),
-            createModelSnapshot("snapshots-2", "snapshots-2_1", eightDaysAndOneMsAgo)
-        ));
+        // Shouldn't return anything as retention is 17 days
+        snapshots.put("snapshots-2", Collections.emptyList());
 
         SearchHit snapshot2_2 = createModelSnapshotQueryHit("snapshots-2", "snapshots-2_1", eightDaysAndOneMsAgo);
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(Collections.singletonList(snapshot2_2)));

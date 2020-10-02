@@ -182,7 +182,7 @@ setup:
           -
           - { query: { match: { _index: test }}, pit: { id: "$point_in_time_id" }}
           -
-          - { query: { match_all {}}, pit: { id: "$point_in_time_id" }}
+          - { query: { match_all: {}}, pit: { id: "$point_in_time_id" }}
 
   - match:  { responses.0.hits.total.value:     3   }
   - match:  { responses.0.hits.total.relation:  eq  }
@@ -196,7 +196,7 @@ setup:
           - index: index
           - { query: { match: { foo: bar }}, pit: { id: "$point_in_time_id" }}
           - index: index2
-          - { query: { match_all {}}, pit: { id: "$point_in_time_id" }}
+          - { query: { match_all: {}}, pit: { id: "$point_in_time_id" }}
 
   - do:
       close_point_in_time:

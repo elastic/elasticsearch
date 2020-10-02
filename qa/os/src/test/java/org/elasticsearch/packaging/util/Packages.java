@@ -247,16 +247,7 @@ public class Packages {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
     }
 
-    /**
-     * Starts Elasticsearch, without checking that startup is successful.
-     */
-    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh) throws IOException {
-        if (isSystemd()) {
-            sh.run("systemctl daemon-reload");
-            sh.run("systemctl enable elasticsearch.service");
-            sh.run("systemctl is-enabled elasticsearch.service");
-            return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
-        }
+    public static void writeEnvFile(Installation installation, Shell sh) throws IOException {
         // match systemctl JAVA_HOME to env, removing any existing JAVA_HOME
         List<String> envLines = Files.readAllLines(installation.envFile, StandardCharsets.UTF_8)
             .stream()
@@ -266,7 +257,19 @@ public class Packages {
             envLines.add("JAVA_HOME=" + sh.getEnv().get("JAVA_HOME"));
         }
         Files.write(installation.envFile, envLines);
+    }
+    /**
+     * Starts Elasticsearch, without checking that startup is successful.
+     */
+    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh) throws IOException {
+        writeEnvFile(installation, sh);
 
+        if (isSystemd()) {
+            sh.run("systemctl daemon-reload");
+            sh.run("systemctl enable elasticsearch.service");
+            sh.run("systemctl is-enabled elasticsearch.service");
+            return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+        }
         return sh.runIgnoreExitCode("service elasticsearch start");
     }
 

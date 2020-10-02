@@ -19,6 +19,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
@@ -42,6 +43,7 @@ public class SysVInitTests extends PackagingTestCase {
 
     @Override
     public void startElasticsearch() throws Exception {
+        Packages.writeEnvFile(installation, sh);
         sh.run("service elasticsearch start");
         ServerUtils.waitForElasticsearch(installation);
         sh.run("service elasticsearch status");

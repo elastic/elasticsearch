@@ -43,7 +43,7 @@ setup:
           {"index":{}}
           {"timestamp": "1998-04-30T14:31:22-05:00", "location" : {"lat": -63.24, "lon" : 31.0}}
           {"index":{}}
-          {"timestamp": "1998-04-30T14:31:27-05:00", "location" : {"lat": 0.0, "lon" : 0}}
+          {"timestamp": "1998-04-30T14:31:27-05:00", "location" : {"lat": 0.0, "lon" : 0.0}}
 
 
 ---
@@ -107,11 +107,11 @@ setup:
           aggs:
             bounds:
               geo_bounds:
-                field : "location"
+                field: "location"
                 wrap_longitude: false
             bounds_from_doc_value:
               geo_bounds:
-                 field : "location_from_doc_value"
+                 field: "location_from_doc_value"
                  wrap_longitude: false
             bounds_from_source:
               geo_bounds:
@@ -130,5 +130,26 @@ setup:
   - match: {aggregations.bounds_from_source.bounds.top_left.lon: -173.4500000718981 }
   - match: {aggregations.bounds_from_source.bounds.bottom_right.lat: -63.240000014193356 }
   - match: {aggregations.bounds_from_source.bounds.bottom_right.lon: 120.77999993227422 }
+
+---
+"geo_distance sort":
+  - do:
+      search:
+        index: locations
+        body:
+          sort:
+            _geo_distance:
+              location_from_source:
+                lat: 0.0
+                lon: 0.0
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0._source.location.lat: 0.0 }
+  - match: {hits.hits.0._source.location.lon: 0.0 }
+  - match: {hits.hits.1._source.location.lat: 13.5 }
+  - match: {hits.hits.1._source.location.lon: 34.89 }
+  - match: {hits.hits.2._source.location.lat: 32.45 }
+  - match: {hits.hits.2._source.location.lon: 45.6 }
+  - match: {hits.hits.3._source.location.lat: -63.24 }
+  - match: {hits.hits.3._source.location.lon: 31.0 }
 
 # TODO tests for using the ip in a script. there is almost certainly whitelist "fun" here.

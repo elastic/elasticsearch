@@ -6,7 +6,6 @@ In production, you should send monitoring data to a separate _monitoring cluster
 so that historical data is available even when the nodes you are monitoring are
 not. For example, you can use {metricbeat} to ship monitoring data about {kib},
 {es}, {ls}, and Beats to the monitoring cluster.
-If you are sending your data to the {esms-init}, see <<esms>>.
 
 [IMPORTANT]
 =========================

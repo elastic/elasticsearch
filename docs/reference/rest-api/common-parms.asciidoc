@@ -38,11 +38,9 @@ end::target-index-aliases[]
 
 tag::allow-no-indices[]
 `allow_no_indices`::
-(Optional, boolean) If `false`, the request returns an error if a wildcard
-expression or `_all` value retrieves only missing or closed indices.
-+
-This parameter also applies to <<indices-aliases,index aliases>> that point to a
-missing or closed index.
+(Optional, boolean) If `false`, the request returns an error if a target
+wildcard expression, <<indices-aliases,index aliases>>, or  `_all` value matches
+only missing or closed indices.
 end::allow-no-indices[]
 
 tag::allow-no-match-transforms1[]

@@ -195,7 +195,6 @@ Returns `true` if the value is contained in the provided list.
 
 `not in`::
 Returns `true` if the value is not contained in the provided list.
-====
 
 [discrete]
 [[eql-syntax-math-operators]]

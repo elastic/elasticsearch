@@ -39,7 +39,7 @@ end::target-index-aliases[]
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, boolean) If `false`, the request returns an error when a target
-wildcard expression, <<indices-aliases,index alias>>, or  `_all` value matches
+wildcard expression, <<indices-aliases,index alias>>, or `_all` value matches
 only missing or closed indices.
 end::allow-no-indices[]
 

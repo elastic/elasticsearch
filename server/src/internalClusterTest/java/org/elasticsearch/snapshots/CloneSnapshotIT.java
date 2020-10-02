@@ -466,7 +466,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final SnapshotException sne = expectThrows(SnapshotException.class, () -> startClone(masterClient, repoName, sourceSnapshot,
                 "target-snapshot", testIndex).actionGet(TimeValue.timeValueSeconds(30L)));
         assertThat(sne.getMessage(), containsString("Can't clone index [" + getRepositoryData(repoName).resolveIndexId(testIndex) +
-        "] because its snapshot is was not successful."));
+        "] because its snapshot was not successful."));
     }
 
     private ActionFuture<AcknowledgedResponse> startCloneFromDataNode(String repoName, String sourceSnapshot, String targetSnapshot,

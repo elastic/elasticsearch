@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 public abstract class ExpressionNode extends IRNode {
@@ -40,5 +41,9 @@ public abstract class ExpressionNode extends IRNode {
     }
 
     /* ---- end node data ---- */
+
+    public ExpressionNode(Location location) {
+        super(location);
+    }
 
 }

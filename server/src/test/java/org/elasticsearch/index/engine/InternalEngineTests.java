@@ -2840,7 +2840,6 @@ public class InternalEngineTests extends EngineTestCase {
 
         EngineConfig brokenConfig = new EngineConfig(
                 shardId,
-                allocationId.getId(),
                 threadPool,
                 config.getIndexSettings(),
                 null,
@@ -5898,7 +5897,7 @@ public class InternalEngineTests extends EngineTestCase {
             EngineConfig config = engine.config();
             final TranslogConfig translogConfig = new TranslogConfig(config.getTranslogConfig().getShardId(),
                 createTempDir(), config.getTranslogConfig().getIndexSettings(), config.getTranslogConfig().getBigArrays());
-            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, store, config.getMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),

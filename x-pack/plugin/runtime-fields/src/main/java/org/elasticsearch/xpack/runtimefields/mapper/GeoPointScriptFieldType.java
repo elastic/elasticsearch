@@ -39,11 +39,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public final class GeoPointScriptMappedFieldType extends AbstractScriptFieldType<GeoPointFieldScript.LeafFactory>
-    implements
-        GeoShapeQueryable {
+public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPointFieldScript.LeafFactory> implements GeoShapeQueryable {
 
-    GeoPointScriptMappedFieldType(String name, Script script, GeoPointFieldScript.Factory scriptFactory, Map<String, String> meta) {
+    GeoPointScriptFieldType(String name, Script script, GeoPointFieldScript.Factory scriptFactory, Map<String, String> meta) {
         super(name, script, scriptFactory::newFactory, meta);
     }
 

@@ -50,7 +50,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoPointScriptMappedFieldTypeTests extends AbstractScriptFieldTypeTestCase {
+public class GeoPointScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
     @Override
     public void testDocValues() throws IOException {
@@ -60,7 +60,7 @@ public class GeoPointScriptMappedFieldTypeTests extends AbstractScriptFieldTypeT
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                GeoPointScriptMappedFieldType ft = build("fromLatLon", Map.of());
+                GeoPointScriptFieldType ft = build("fromLatLon", Map.of());
                 GeoPointScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -232,7 +232,7 @@ public class GeoPointScriptMappedFieldTypeTests extends AbstractScriptFieldTypeT
     public void testSpanPrefixQueryIsError() {}
 
     @Override
-    protected GeoPointScriptMappedFieldType simpleMappedFieldType() throws IOException {
+    protected GeoPointScriptFieldType simpleMappedFieldType() throws IOException {
         return build("fromLatLon", Map.of());
     }
 
@@ -246,11 +246,11 @@ public class GeoPointScriptMappedFieldTypeTests extends AbstractScriptFieldTypeT
         return "geo_point";
     }
 
-    private static GeoPointScriptMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static GeoPointScriptFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static GeoPointScriptMappedFieldType build(Script script) throws IOException {
+    private static GeoPointScriptFieldType build(Script script) throws IOException {
         ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -303,7 +303,7 @@ public class GeoPointScriptMappedFieldTypeTests extends AbstractScriptFieldTypeT
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             GeoPointFieldScript.Factory factory = scriptService.compile(script, GeoPointFieldScript.CONTEXT);
-            return new GeoPointScriptMappedFieldType("test", script, factory, emptyMap());
+            return new GeoPointScriptFieldType("test", script, factory, emptyMap());
         }
     }
 }

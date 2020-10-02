@@ -150,7 +150,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
                     builder.script.getValue(),
                     GeoPointFieldScript.CONTEXT
                 );
-                return new GeoPointScriptMappedFieldType(
+                return new GeoPointScriptFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,

@@ -874,7 +874,8 @@ public final class Verifier {
                 EsField.Exact exactInfo = ((FieldAttribute) c.field()).getExactInfo();
                 if (exactInfo.hasExact() == false
                         || ((FieldAttribute) c.field()).exactAttribute().equals(c.field()) == false) {
-                    localFailures.add(fail(c.field(), "[{}] of data type [{}] cannot be used for [{}()] inside WHERE clause",
+                    localFailures.add(fail(c.field(),
+                            "[{}] of data type [{}] cannot be used for [{}()] inside the WHERE clause",
                             c.field().sourceText(), c.field().dataType().typeName(), c.functionName()));
                 }
 

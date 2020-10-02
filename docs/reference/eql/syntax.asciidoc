@@ -356,7 +356,7 @@ backslashes.
 ===== Wildcards
 
 When comparing strings using the `==` or `!=` operators, you can use the
-wildcard `*` operator within the string to match specific patterns:
+wildcard (`*`) operator within the string to match specific patterns:
 
 [source,eql]
 ----

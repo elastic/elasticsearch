@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-filter]]
-= Create filter API
+= Create filters API
 ++++
-<titleabbrev>Create filter</titleabbrev>
+<titleabbrev>Create filters</titleabbrev>
 ++++
 
 Instantiates a filter.

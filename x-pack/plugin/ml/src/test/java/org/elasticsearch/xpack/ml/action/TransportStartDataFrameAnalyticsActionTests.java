@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -234,11 +235,15 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion) {
+        Map<String, String> attributes = new HashMap<String, String>() {{
+            put("ml.max_open_jobs", isMlNode ? "10" : "0");
+            put("ml.machine_memory", "-1");
+        }};
         return new DiscoveryNode(
             "_node_name" + i,
             "_node_id" + i,
             new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
-            Map.of("ml.max_open_jobs", isMlNode ? "10" : "0", "ml.machine_memory", "-1"),
+            attributes,
             Collections.emptySet(),
             nodeVersion);
     }

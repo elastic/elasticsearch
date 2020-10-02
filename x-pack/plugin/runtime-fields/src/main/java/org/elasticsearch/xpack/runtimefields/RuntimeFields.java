@@ -14,6 +14,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.GeoPointFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.RuntimeFieldMapper;
@@ -38,7 +39,8 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
             DoubleFieldScript.CONTEXT,
             IpFieldScript.CONTEXT,
             LongFieldScript.CONTEXT,
-            StringFieldScript.CONTEXT
+            StringFieldScript.CONTEXT,
+            GeoPointFieldScript.CONTEXT
         );
     }
 }

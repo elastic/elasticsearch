@@ -171,7 +171,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     //  - _node_name2 is too old (version 7.9.2)
     public void testGetAssignment_MlNodesAreTooOld() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.V_7_10_0, Collections.emptyList(), false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
@@ -189,9 +189,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 containsString("Not opening job [data_frame_id] on node [{_node_name0}{version=7.2.0}], "
                     + "because the data frame analytics requires a node of version [7.3.0] or higher"),
                 containsString("Not opening job [data_frame_id] on node [{_node_name1}{version=7.9.1}], "
-                    + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"),
+                    + "because the data frame analytics created for version [7.10.0] requires a node of version [7.10.0] or higher"),
                 containsString("Not opening job [data_frame_id] on node [{_node_name2}{version=7.9.2}], "
-                    + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher")));
+                    + "because the data frame analytics created for version [7.10.0] requires a node of version [7.10.0] or higher")));
     }
 
     // The node can be assigned despite being newer than the job.

@@ -502,10 +502,10 @@ Captures the state of a cluster, index, or data stream at a particular point in 
 See <<glossary-backup-snapshot, backup snapshot>> and <<glossary-searchable-snapshot, searchable snapshot>>.
 // end::snapshot-def[]
 
-[[glossary-snapshot]] snapshot-backed index ::
-// tag::snapshot-def[]
+[[glossary-snapshot-backed-index]] snapshot-backed index ::
+// tag::snapshot-backed-index-def[]
 A read-only index that relies on a <<glossary-searchable-snapshot, searchable snapshot>> for redundancy.
-// end::snapshot-def[]
+// end::snapshot-backed-index-def[]
 
 [[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::
 // tag::snapshot-lifecycle-policy-def[]

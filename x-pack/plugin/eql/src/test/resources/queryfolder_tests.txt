@@ -10,6 +10,8 @@
 // ...
 // <expectation n>
 // ;
+// NOTE: do not use whitespaces in the relevant parts of the query itself, as they will be removed. For example 'process where process_name : "System Idle Process"'
+// The whitespaces between System Idle Process will be removed and the assertion will fail.
 
 
 basic
@@ -21,7 +23,7 @@ null
 singleNumericFilterEquals
 process where serial_event_id == 1
 ;
-"term":{"serial_event_id":{"value":1
+"term":{"serial_event_id":{"value":1,"boost":1.0}
 ;
 
 singleNumericFilterLess
@@ -48,10 +50,16 @@ process where serial_event_id >= 4
 "range":{"serial_event_id":{"from":4,"to":null,"include_lower":true,"include_upper":false
 ;
 
+caseInsensitiveEquals
+process where process_name : "test"
+;
+"term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
+;
+
 mixedTypeFilter
 process where process_name : "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
 ;
-"term":{"process_name":{"value":"notepad.exe"
+"term":{"process_name":{"value":"notepad.exe","case_insensitive":true,"boost":1.0}
 "range":{"serial_event_id":{"from":3.1,"to":4.5,"include_lower":true,"include_upper":false
 ;
 
@@ -70,35 +78,35 @@ process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
 equalsAndInFilter
 process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 ;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
-{"terms":{"opcode":[0,1,2,3]
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}},
+{"terms":{"opcode":[0,1,2,3],"boost":1.0}}
 ;
 
 functionEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") == true
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}
 {"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 functionEqualsFalse
 process where cidrMatch(source_address, "10.0.0.0/8") == false
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}
 {"bool":{"must_not":[{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 functionNotEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") != true
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}
 {"bool":{"must_not":[{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 functionNotEqualsFalse
 process where cidrMatch(source_address, "10.0.0.0/8") != false
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}
 {"terms":{"source_address":["10.0.0.0/8"]
 ;
 
@@ -112,13 +120,8 @@ process where endsWith(process_path, "x") == true and endsWith(process_path, "yx
 twoFunctionsEqualsBooleanLiterals-caseInsensitive
 process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") != true
 ;
-"bool":{"must":[{"term":{"event.category":{"value":"process"
-"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
-InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))","lang":"painless",
-"params":{"v0":"process_path","v1":"x","v2":false}}
-"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
-InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)))","lang":"painless",
-"params":{"v0":"process_path","v1":"yx","v2":false}}
+{"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","boost":1.0}}},
+{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
 endsWithKeywordFieldFunction-caseSensitive
@@ -138,9 +141,8 @@ process where endsWith(hostname, "c")
 endsWithFunction-caseInsensitive
 process where endsWith(user_name, "c")
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
-"params":{"v0":"user_name","v1":"c","v2":false}}
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"user_name":{"wildcard":"*c","boost":1.0}}}],"boost":1.0}}
 ;
 
 lengthFunctionWithExactSubField
@@ -170,9 +172,8 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 startsWithFunction-caseInsensitive
 process where startsWith(user_name, "A")
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
-"params":{"v0":"user_name","v1":"A","v2":false}}
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"prefix":{"user_name":{"value":"A","boost":1.0}}}],"boost":1.0}}
 ;
 
 startsWithFunctionSimple-caseSensitive
@@ -207,9 +208,8 @@ process where stringContains(hostname, "foo")
 stringContains-caseInsensitive
 process where stringContains(process_name, "foo")
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
-"params":{"v0":"process_name","v1":"foo","v2":false}
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"process_name":{"wildcard":"*foo*","boost":1.0}}}],"boost":1.0}}
 ;
 
 
@@ -234,7 +234,7 @@ process where indexOf(user_name, "A", 2) > 0
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
 InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
-"params":{"v0":"user_name","v1":"A","v2":2,"v3":false,"v4":0}
+"params":{"v0":"user_name","v1":"A","v2":2,"v3":true,"v4":0}
 ;
 
 substringFunction
@@ -250,7 +250,7 @@ process where between(process_name, "s", "e") : "yst"
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
 InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
-"params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
+"params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":true,"v5":"yst"}
 ;
 
 concatFunction
@@ -264,35 +264,35 @@ InternalEqlScriptUtils.concat([InternalQlScriptUtils.docValue(doc,params.v0),par
 cidrMatchFunctionOne
 process where cidrMatch(source_address, "10.0.0.0/8")
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}
 {"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 cidrMatchFunctionOneBool
 process where cidrMatch(source_address, "10.0.0.0/8") == true
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}
 {"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 cidrMatchFunctionTwo
 process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16")
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}
 {"terms":{"source_address":["10.0.0.0/8","192.168.0.0/16"]
 ;
 
 cidrMatchFunctionTwoWithOr
 process where cidrMatch(source_address, "10.0.0.0/8") or cidrMatch(source_address, "192.168.0.0/16")
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}
 {"bool":{"should":[{"terms":{"source_address":["10.0.0.0/8"],"boost":1.0}},{"terms":{"source_address":["192.168.0.0/16"],"boost":1.0}}
 ;
 
 cidrMatchFunctionThree
 process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32")
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}
 {"terms":{"source_address":["10.0.0.0/8","192.168.0.0/16","2001:db8::/32"]
 ;
 
@@ -351,34 +351,34 @@ InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),para
 
 numberFunctionFoldedComparison
 process where serial_event_id == number("-32.5");
-{"term":{"serial_event_id":{"value":-32.5,
+{"term":{"serial_event_id":{"value":-32.5,"boost":1.0}
 ;
 
 numberFunctionFoldedHexComparison
 process where serial_event_id == number("0x32", 16);
-{"term":{"serial_event_id":{"value":50,
+{"term":{"serial_event_id":{"value":50,"boost":1.0}
 ;
 
 
 wildcardFunctionSingleArgument
 process where wildcard(process_path, "*\\red_ttp\\wininit.*")
 ;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","boost":1.0}}
 ;
 
 wildcardFunctionTwoArguments
 process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
 ;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
-"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","boost":1.0}}
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","boost":1.0}}
 ;
 
 wildcardFunctionThreeArguments
 process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
 ;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
-"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
-"wildcard":{"process_path":{"wildcard":"*def*"
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","boost":1.0}}
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","boost":1.0}}
+"wildcard":{"process_path":{"wildcard":"*def*","boost":1.0}}
 ;
 
 

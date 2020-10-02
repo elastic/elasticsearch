@@ -119,7 +119,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .fetchSize(request.fetchSize());
 
         EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen,
-                request.isCaseSensitive(), request.fetchSize(), clientId, new TaskId(nodeId, task.getId()), task);
+                request.fetchSize(), clientId, new TaskId(nodeId, task.getId()), task);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())),
             listener::onFailure));
     }

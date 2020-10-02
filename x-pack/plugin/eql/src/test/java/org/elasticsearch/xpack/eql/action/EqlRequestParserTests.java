@@ -42,18 +42,13 @@ public class EqlRequestParserTests extends ESTestCase {
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"query\" : \"whatever\", \"size\":\"abc\"}", "failed to parse field [size]",
             EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"case_sensitive\" : \"whatever\"}", "failed to parse field [case_sensitive]",
-            EqlSearchRequest::fromXContent);
 
-        boolean setIsCaseSensitive = randomBoolean();
-        boolean isCaseSensitive = randomBoolean();
         EqlSearchRequest request = generateRequest("endgame-*", "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
             + "\"timestamp_field\" : \"tsf\", "
             + "\"event_category_field\" : \"etf\","
             + "\"size\" : \"101\","
-            + "\"query\" : \"file where user != 'SYSTEM' by file_path\""
-            + (setIsCaseSensitive ? (",\"case_sensitive\" : " + isCaseSensitive) : "")
-            + "}", EqlSearchRequest::fromXContent);
+            + "\"query\" : \"file where user != 'SYSTEM' by file_path\"}"
+            , EqlSearchRequest::fromXContent);
         assertArrayEquals(new String[]{"endgame-*"}, request.indices());
         assertNotNull(request.query());
         assertTrue(request.filter() instanceof MatchQueryBuilder);
@@ -65,7 +60,6 @@ public class EqlRequestParserTests extends ESTestCase {
         assertEquals(101, request.size());
         assertEquals(1000, request.fetchSize());
         assertEquals("file where user != 'SYSTEM' by file_path", request.query());
-        assertEquals(setIsCaseSensitive && isCaseSensitive, request.isCaseSensitive());
     }
 
     private EqlSearchRequest generateRequest(String index, String json, Function<XContentParser, EqlSearchRequest> fromXContent)

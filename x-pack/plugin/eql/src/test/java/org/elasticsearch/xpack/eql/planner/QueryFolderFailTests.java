@@ -33,13 +33,13 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 "process where between(process_name, \"s\") == \"yst\"",
                 "process where between(null) == \"yst\"",
                 "process where between(process_name, null) == \"yst\"",
-                "process where between(process_name, \"s\", \"e\", false, false, true) == \"yst\"",
+                "process where between(process_name, \"s\", \"e\", false, false) == \"yst\"",
         };
 
         for (String query : queries) {
             ParsingException e = expectThrows(ParsingException.class,
                     () -> plan(query));
-            assertEquals("line 1:16: error building [between]: expects between three and five arguments", e.getMessage());
+            assertEquals("line 1:16: error building [between]: expects three or four arguments", e.getMessage());
         }
     }
 
@@ -56,10 +56,6 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("1:15: fourth argument of [between(process_name, \"s\", \"e\", \"true\")] must be [boolean], " +
                         "found value [\"true\"] type [keyword]",
                 error("process where between(process_name, \"s\", \"e\", \"true\")"));
-
-        assertEquals("1:15: fifth argument of [between(process_name, \"s\", \"e\", false, 2)] must be [boolean], " +
-                        "found value [2] type [integer]",
-                error("process where between(process_name, \"s\", \"e\", false, 2)"));
     }
 
     public void testCIDRMatchAgainstField() {

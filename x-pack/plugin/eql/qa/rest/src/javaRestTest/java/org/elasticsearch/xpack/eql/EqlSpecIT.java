@@ -10,7 +10,7 @@ import org.elasticsearch.test.eql.EqlSpecTestCase;
 
 public class EqlSpecIT extends EqlSpecTestCase {
 
-    public EqlSpecIT(String query, String name, long[] eventIds, boolean caseSensitive) {
-        super(query, name, eventIds, caseSensitive);
+    public EqlSpecIT(String query, String name, long[] eventIds) {
+        super(query, name, eventIds);
     }
 }

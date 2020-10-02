@@ -92,9 +92,6 @@ You can specify and combine these criteria using the following operators:
 <   <=   ==   !=   >=   >
 ----
 
-.*Definitions*
-[%collapsible]
-====
 `<` (less than)::
 Returns `true` if the value to the left of the operator is less than the value
 to the right. Otherwise returns `false`.
@@ -106,6 +103,19 @@ the value to the right. Otherwise returns `false`.
 `==` (equal)::
 Returns `true` if the values to the left and right of the operator are equal.
 Otherwise returns `false`.
++
+[IMPORTANT]
+====
+Avoid using the `==` operator to perform exact matching on <<text,`text`>> field
+values.
+
+By default, {es} changes the values of `text` fields as part of <<analysis,
+analysis>>. This can make finding exact matches for `text` field values
+difficult.
+
+To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
+DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
+====
 
 `!=` (not equal)::
 Returns `true` if the values to the left and right of the operator are not
@@ -118,7 +128,6 @@ to the value to the right. Otherwise returns `false`.
 `>` (greater than)::
 Returns `true` if the value to the left of the operator is greater than the
 value to the right. Otherwise returns `false`.
-====
 
 NOTE: `=` is not supported as an equality operator. Use `==` instead. 
 
@@ -151,19 +160,6 @@ and `process.name` fields to static values.
 process where process.parent.name == "foo" and process.name == "foo"
 ----
 
-[IMPORTANT]
-====
-Avoid using the `==` operator to perform exact matching on <<text,`text`>> field
-values.
-
-By default, {es} changes the values of `text` fields as part of <<analysis,
-analysis>>. This can make finding exact matches for `text` field values
-difficult.
-
-To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
-DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
-====
-
 [discrete]
 [[eql-syntax-logical-operators]]
 ===== Logical operators
@@ -173,9 +169,6 @@ DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
 and  or  not
 ----
 
-.*Definitions*
-[%collapsible]
-====
 `and`::
 Returns `true` only if the condition to the left and right _both_ return `true`.
 Otherwise returns `false.
@@ -186,7 +179,6 @@ Otherwise returns `false.
 
 `not`::
 Returns `true` if the condition to the right is `false`.
-====
 
 [discrete]
 [[eql-syntax-lookup-operators]]
@@ -198,15 +190,11 @@ user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
 user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
 ----
 
-.*Definitions*
-[%collapsible]
-====
 `in`::
 Returns `true` if the value is contained in the provided list.
 
 `not in`::
 Returns `true` if the value is not contained in the provided list.
-====
 
 [discrete]
 [[eql-syntax-math-operators]]
@@ -217,9 +205,6 @@ Returns `true` if the value is not contained in the provided list.
 +  -  *  /  %
 ----
 
-.*Definitions*
-[%collapsible]
-====
 `+` (add)::
 Adds the values to the left and right of the operator.
 
@@ -231,11 +216,7 @@ Multiplies the values to the left and right of the operator.
 
 `/` (Divide)::
 Divides the value to the left of the operator by the value to the right.
-
-`%` (modulo)::
-Divides the value to the left of the operator by the value to the right. Returns only the remainder.
-====
-
++
 [[eql-divide-operator-float-rounding]]
 [WARNING]
 ====
@@ -274,35 +255,12 @@ process where ( 4.0 / process.args_count ) == 1
 ----
 ====
 
-[discrete]
-[[eql-syntax-strings]]
-==== Strings
-
-Strings are enclosed with double quotes (`"`).
-
-[source,eql]
-----
-"hello world"
-----
-
-Strings enclosed in single quotes (`'`) are not supported.
-
-[discrete]
-[[eql-syntax-wildcards]]
-===== Wildcards
-
-When comparing strings using the `==` or `!=` operators, you can use the `*`
-operator within the string to match specific patterns:
-
-[source,eql]
-----
-field == "example*wildcard"
-field != "example*wildcard"
-----
+`%` (modulo)::
+Divides the value to the left of the operator by the value to the right. Returns only the remainder.
 
 [discrete]
 [[eql-syntax-match-any-condition]]
-===== Match any condition
+==== Match any condition
 
 To match events solely on event category, use the `where true` condition.
 
@@ -322,6 +280,19 @@ any where true
 ----
 
 [discrete]
+[[eql-syntax-strings]]
+==== Strings
+
+Strings are enclosed with double quotes (`"`).
+
+[source,eql]
+----
+"hello world"
+----
+
+Strings enclosed in single quotes (`'`) are not supported.
+
+[discrete]
 [[eql-syntax-escape-characters]]
 ===== Escape characters in a string
 
@@ -330,12 +301,9 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 
 [source,eql]
 ----
-"example \t of \n escaped \r characters"
+"example \r of \" escaped \n characters"
 ----
 
-.*Escape sequences*
-[%collapsible]
-====
 [options="header"]
 |====
 | Escape sequence | Literal character
@@ -345,7 +313,6 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 |`\\`             | A backslash (`\`) character
 |`\"`             | A double quote (`"`) character
 |====
-====
 
 IMPORTANT: The single quote (`'`) character is reserved for future use. You
 cannot use an escaped single quote (`\'`) for literal strings. Use an escaped
@@ -376,6 +343,19 @@ in the resulting string.
 Raw strings cannot contain only a single backslash or end in an odd number of
 backslashes.
 ====
+
+[discrete]
+[[eql-syntax-wildcards]]
+===== Wildcards
+
+When comparing strings using the `==` or `!=` operators, you can use the `*`
+operator within the string to match specific patterns:
+
+[source,eql]
+----
+field == "example*wildcard"
+field != "example*wildcard"
+----
 
 [discrete]
 [[eql-sequences]]

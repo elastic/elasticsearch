@@ -340,6 +340,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-job-request
             GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*"); // <1>
             request.setAllowNoMatch(true); // <2>
+            request.setForExport(false); // <3>
             // end::get-job-request
 
             // tag::get-job-execute
@@ -836,6 +837,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-datafeed-request
             GetDatafeedRequest request = new GetDatafeedRequest(datafeedId); // <1>
             request.setAllowNoMatch(true); // <2>
+            request.setForExport(false); // <3>
             // end::get-datafeed-request
 
             // tag::get-datafeed-execute
@@ -2861,6 +2863,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-data-frame-analytics-request
             GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            request.setForExport(false); // <2>
             // end::get-data-frame-analytics-request
 
             // tag::get-data-frame-analytics-execute
@@ -3895,17 +3898,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             putTrainedModel("my-trained-model");
-            // tag::delete-trained-model-request
+            // tag::delete-trained-models-request
             DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model"); // <1>
-            // end::delete-trained-model-request
+            // end::delete-trained-models-request
 
-            // tag::delete-trained-model-execute
+            // tag::delete-trained-models-execute
             AcknowledgedResponse response = client.machineLearning().deleteTrainedModel(request, RequestOptions.DEFAULT);
-            // end::delete-trained-model-execute
+            // end::delete-trained-models-execute
 
-            // tag::delete-trained-model-response
+            // tag::delete-trained-models-response
             boolean deleted = response.isAcknowledged();
-            // end::delete-trained-model-response
+            // end::delete-trained-models-response
 
             assertThat(deleted, is(true));
         }
@@ -3913,7 +3916,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             putTrainedModel("my-trained-model");
             DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model");
 
-            // tag::delete-trained-model-execute-listener
+            // tag::delete-trained-models-execute-listener
             ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
@@ -3925,15 +3928,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::delete-trained-model-execute-listener
+            // end::delete-trained-models-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::delete-trained-model-execute-async
+            // tag::delete-trained-models-execute-async
             client.machineLearning().deleteTrainedModelAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::delete-trained-model-execute-async
+            // end::delete-trained-models-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

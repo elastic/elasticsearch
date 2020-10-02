@@ -540,6 +540,26 @@ See <<put-transform>>, <<preview-transform>>, <<update-transform>>,
 This page was deleted.
 See <<put-dfanalytics>>.
 
+[role="exclude",id="put-inference"]
+=== Create trained model API
+
+See <<put-trained-models>>.
+
+[role="exclude",id="get-inference-stats"]
+=== Get trained model statistics API
+
+See <<get-trained-models-stats>>.
+
+[role="exclude",id="get-inference"]
+=== Get trained model API
+
+See <<get-trained-models>>.
+
+[role="exclude",id="delete-inference"]
+=== Delete trained model API
+
+See <<delete-trained-models>>.
+
 [role="exclude",id="data-frames-settings"]
 === {transforms-cap}  settings in Elasticsearch
 

@@ -73,27 +73,27 @@ file where descendant of [registry where true];
 
 //sequence by unique_pid [process where true] [file where true] fork;
 
-sequence by unique_pid [process where true] [file where true] fork==true;
+//sequence by unique_pid [process where true] [file where true] fork==true;
 
 // no longer supported
 //sequence by unique_pid [process where true] [file where true] fork==1;
 
-sequence
-  [process where true] by unique_pid
-  [file where true] fork==true by unique_pid
-  [process where true] by unique_ppid
-| head 4;
+//sequence
+//  [process where true] by unique_pid
+//  [file where true] fork==true by unique_pid
+//  [process where true] by unique_ppid
+//| head 4;
 
-sequence by unique_pid [process where true] [file where true] fork==false;
+//sequence by unique_pid [process where true] [file where true] fork==false;
 
 // no longer supported
 // sequence by unique_pid [process where true] [file where true] fork==0 [network where true];
-sequence by unique_pid [process where true] [file where true] fork [network where true];
+//sequence by unique_pid [process where true] [file where true] fork [network where true];
 
 
 // no longer supported
 // sequence by unique_pid [process where true] [file where true] fork==0;
-sequence by unique_pid [process where true] [file where true] fork==true;
+//sequence by unique_pid [process where true] [file where true] fork==true;
 
 
 sequence with maxspan=2.5m 

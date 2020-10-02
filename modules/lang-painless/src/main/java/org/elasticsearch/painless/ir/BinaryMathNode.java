@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
@@ -95,9 +96,13 @@ public class BinaryMathNode extends BinaryNode {
 
     /* ---- end visitor ---- */
 
+    public BinaryMathNode(Location location) {
+        super(location);
+    }
+
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+        methodWriter.writeDebugInfo(getLocation());
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
             getRightNode().write(classWriter, methodWriter, writeScope);
@@ -117,10 +122,10 @@ public class BinaryMathNode extends BinaryNode {
             getRightNode().write(classWriter, methodWriter, writeScope);
 
             if (binaryType == def.class || (shiftType != null && shiftType == def.class)) {
-                methodWriter.writeDynamicBinaryInstruction(location,
+                methodWriter.writeDynamicBinaryInstruction(getLocation(),
                         getExpressionType(), getLeftNode().getExpressionType(), getRightNode().getExpressionType(), operation, flags);
             } else {
-                methodWriter.writeBinaryInstruction(location, getExpressionType(), operation);
+                methodWriter.writeBinaryInstruction(getLocation(), getExpressionType(), operation);
             }
         }
     }

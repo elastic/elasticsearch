@@ -2712,7 +2712,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
-        return new EngineConfig(shardId, shardRouting.allocationId().getId(),
+        return new EngineConfig(shardId,
                 threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
                 mapperService != null ? mapperService.indexAnalyzer() : null,
                 similarityService.similarity(mapperService), codecService, shardEventListener,

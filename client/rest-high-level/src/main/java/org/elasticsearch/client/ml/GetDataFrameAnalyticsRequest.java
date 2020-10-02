@@ -23,7 +23,6 @@ import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 
 import java.util.Arrays;
 import java.util.List;
@@ -32,11 +31,13 @@ import java.util.Optional;
 
 public class GetDataFrameAnalyticsRequest implements Validatable {
 
-    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final String ALLOW_NO_MATCH = "allow_no_match";
+    public static final String FOR_EXPORT = "for_export";
 
     private final List<String> ids;
     private Boolean allowNoMatch;
     private PageParams pageParams;
+    private Boolean forExport;
 
     /**
      * Helper method to create a request that will get ALL Data Frame Analytics
@@ -56,6 +57,22 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
 
     public Boolean getAllowNoMatch() {
         return allowNoMatch;
+    }
+
+    /**
+     * Setting this flag to `true` removes certain fields from the configuration on retrieval.
+     *
+     * This is useful when getting the configuration and wanting to put it in another cluster.
+     *
+     * Default value is false.
+     * @param forExport Boolean value indicating if certain fields should be removed
+     */
+    public void setForExport(boolean forExport) {
+        this.forExport = forExport;
+    }
+
+    public Boolean getForExport() {
+        return forExport;
     }
 
     /**
@@ -94,11 +111,12 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
         GetDataFrameAnalyticsRequest other = (GetDataFrameAnalyticsRequest) o;
         return Objects.equals(ids, other.ids)
             && Objects.equals(allowNoMatch, other.allowNoMatch)
+            && Objects.equals(forExport, other.forExport)
             && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, allowNoMatch, pageParams);
+        return Objects.hash(ids, allowNoMatch, forExport, pageParams);
     }
 }

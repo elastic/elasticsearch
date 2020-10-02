@@ -30,12 +30,12 @@ import java.util.function.Supplier;
 public class DistributionArchive implements Named {
 
     private TaskProvider<? extends AbstractArchiveTask> archiveTask;
-    private TaskProvider<Copy> explodedDistTask;
+    private TaskProvider<Copy> expandedDistTask;
     private final String name;
 
-    public DistributionArchive(TaskProvider<? extends AbstractArchiveTask> archiveTask, TaskProvider<Copy> explodedDistTask, String name) {
+    public DistributionArchive(TaskProvider<? extends AbstractArchiveTask> archiveTask, TaskProvider<Copy> expandedDistTask, String name) {
         this.archiveTask = archiveTask;
-        this.explodedDistTask = explodedDistTask;
+        this.expandedDistTask = expandedDistTask;
         this.name = name;
     }
 
@@ -45,7 +45,7 @@ public class DistributionArchive implements Named {
 
     public void content(Supplier<CopySpec> p) {
         this.archiveTask.configure(t -> t.with(p.get()));
-        this.explodedDistTask.configure(t -> t.with(p.get()));
+        this.expandedDistTask.configure(t -> t.with(p.get()));
     }
 
     @Override
@@ -57,7 +57,7 @@ public class DistributionArchive implements Named {
         return archiveTask;
     }
 
-    public TaskProvider<Copy> getExplodedArchiveTask() {
-        return explodedDistTask;
+    public TaskProvider<Copy> getExpandedDistTask() {
+        return expandedDistTask;
     }
 }

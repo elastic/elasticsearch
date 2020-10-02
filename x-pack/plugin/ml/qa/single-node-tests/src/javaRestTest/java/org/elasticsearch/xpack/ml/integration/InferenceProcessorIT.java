@@ -35,7 +35,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
 
     private void putRegressionModel() throws IOException {
 
-        Request model = new Request("PUT", "_ml/inference/" + MODEL_ID);
+        Request model = new Request("PUT", "_ml/trained_models/" + MODEL_ID);
         model.setJsonEntity(
             "  {\n" +
                 "    \"description\": \"empty model for tests\",\n" +

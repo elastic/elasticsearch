@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -67,9 +68,13 @@ public class ListInitializationNode extends ArgumentsNode {
 
     /* ---- end visitor ---- */
 
+    public ListInitializationNode(Location location) {
+        super(location);
+    }
+
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+        methodWriter.writeDebugInfo(getLocation());
 
         methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
         methodWriter.dup();

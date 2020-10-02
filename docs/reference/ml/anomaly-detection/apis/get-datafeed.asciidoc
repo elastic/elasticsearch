@@ -57,6 +57,10 @@ all {dfeeds}.
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
+`for_export`::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=for-export]
+
 [[ml-get-datafeed-results]]
 == {api-response-body-title}
 

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapperTestCase2;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
@@ -17,18 +17,17 @@ import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 
-public class HistogramFieldMapperTests extends FieldMapperTestCase2<HistogramFieldMapper.Builder> {
+public class HistogramFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "doc_values", "store", "index");
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.startObject().field("values", new double[] { 2, 3 }).field("counts", new int[] { 0, 4 }).endObject();
     }
 
     @Override
@@ -37,13 +36,14 @@ public class HistogramFieldMapperTests extends FieldMapperTestCase2<HistogramFie
     }
 
     @Override
-    protected HistogramFieldMapper.Builder newBuilder() {
-        return new HistogramFieldMapper.Builder("histo");
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "histogram");
     }
 
     @Override
-    protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "histogram");
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((HistogramFieldMapper)m).ignoreMalformed()));
     }
 
     public void testParseValue() throws Exception {

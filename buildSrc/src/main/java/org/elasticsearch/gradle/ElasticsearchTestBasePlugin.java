@@ -37,6 +37,7 @@ import org.gradle.api.tasks.testing.Test;
 import java.io.File;
 import java.util.Map;
 
+import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 
 /**
@@ -83,10 +84,10 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.doFirst(new Action<>() {
                 @Override
                 public void execute(Task t) {
-                    project.mkdir(testOutputDir);
-                    project.mkdir(heapdumpDir);
-                    project.mkdir(test.getWorkingDir());
-                    project.mkdir(test.getWorkingDir().toPath().resolve("temp"));
+                    mkdirs(testOutputDir);
+                    mkdirs(heapdumpDir);
+                    mkdirs(test.getWorkingDir());
+                    mkdirs(test.getWorkingDir().toPath().resolve("temp").toFile());
 
                     // TODO remove once jvm.options are added to test system properties
                     test.systemProperty("java.locale.providers", "SPI,COMPAT");

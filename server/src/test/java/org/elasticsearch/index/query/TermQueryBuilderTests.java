@@ -20,14 +20,15 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TypeFieldType;
 
 import java.io.IOException;
 
@@ -87,12 +88,14 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
      */
     @Override
     protected TermQueryBuilder createQueryBuilder(String fieldName, Object value) {
-        return new TermQueryBuilder(fieldName, value);
+        TermQueryBuilder result = new TermQueryBuilder(fieldName, value);
+        return result;
     }
 
     @Override
     protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
+            .or(instanceOf(AutomatonQuery.class)));
         MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
@@ -100,13 +103,20 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
 
-            Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
+            Term term = ((TermQuery) termQuery(mapper, queryBuilder.value(), queryBuilder.caseInsensitive())).getTerm();
             assertThat(termQuery.getTerm(), equalTo(term));
         } else if (mapper != null) {
-            assertEquals(query, mapper.termQuery(queryBuilder.value(), null));
+            assertEquals(query, termQuery(mapper, queryBuilder.value(), queryBuilder.caseInsensitive()));
         } else {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         }
+    }
+
+    private Query termQuery(MappedFieldType mapper, Object value, boolean caseInsensitive) {
+        if (caseInsensitive) {
+            return mapper.termQueryCaseInsensitive(value, null);
+        }
+        return mapper.termQuery(value, null);
     }
 
     public void testTermArray() throws IOException {
@@ -125,6 +135,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "  \"term\" : {\n" +
                 "    \"exact_value\" : {\n" +
                 "      \"value\" : \"Quick Foxes!\",\n" +
+                "      \"case_insensitive\" : true,\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
                 "  }\n" +
@@ -182,7 +193,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     public void testTypeField() throws IOException {
         TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
         builder.doToQuery(createShardContext());
-        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(TypeFieldType.TYPES_V7_DEPRECATION_MESSAGE);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

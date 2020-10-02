@@ -43,8 +43,8 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         String evaluationName = parser.currentName();
         parser.nextToken();
         Map<String, EvaluationMetric.Result> metrics = parser.map(LinkedHashMap::new, p -> parseMetric(evaluationName, p));
@@ -52,7 +52,7 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
             metrics.values().stream()
                 .filter(Objects::nonNull)  // Filter out null values returned by {@link EvaluateDataFrameResponse::parseMetric}.
                 .collect(Collectors.toList());
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return new EvaluateDataFrameResponse(evaluationName, knownMetrics);
     }
 

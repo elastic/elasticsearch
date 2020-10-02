@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -64,13 +63,13 @@ public class ReaderContext implements Releasable {
 
     private Map<String, Object> context;
 
-    public ReaderContext(long id,
+    public ReaderContext(ShardSearchContextId id,
                          IndexService indexService,
                          IndexShard indexShard,
                          Engine.SearcherSupplier searcherSupplier,
                          long keepAliveInMillis,
                          boolean singleSession) {
-        this.id = new ShardSearchContextId(UUIDs.base64UUID(), id);
+        this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;
@@ -124,17 +123,18 @@ public class ReaderContext implements Releasable {
         return searcherSupplier.acquireSearcher(source);
     }
 
-    public void keepAlive(long keepAlive) {
+    private void tryUpdateKeepAlive(long keepAlive) {
         this.keepAlive.updateAndGet(curr -> Math.max(curr, keepAlive));
     }
 
     /**
-     * Marks this reader as being used so its time to live should not be expired.
-     *
-     * @return a releasable to indicate the caller has stopped using this reader
+     * Returns a releasable to indicate that the caller has stopped using this reader.
+     * The time to live of the reader after usage can be extended using the provided
+     * <code>keepAliveInMillis</code>.
      */
-    public Releasable markAsUsed() {
+    public Releasable markAsUsed(long keepAliveInMillis) {
         refCounted.incRef();
+        tryUpdateKeepAlive(keepAliveInMillis);
         return Releasables.releaseOnce(() -> {
             this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
             refCounted.decRef();

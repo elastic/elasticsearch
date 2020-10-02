@@ -894,13 +894,13 @@ public class MLRequestConvertersTests extends ESTestCase {
         GetTrainedModelsRequest getRequest = new GetTrainedModelsRequest(modelId1, modelId2, modelId3)
             .setAllowNoMatch(false)
             .setDecompressDefinition(true)
-            .setIncludeDefinition(false)
+            .includeDefinition()
             .setTags("tag1", "tag2")
             .setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getTrainedModels(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/inference/" + modelId1 + "," + modelId2 + "," + modelId3, request.getEndpoint());
+        assertEquals("/_ml/trained_models/" + modelId1 + "," + modelId2 + "," + modelId3, request.getEndpoint());
         assertThat(request.getParameters(),
             allOf(
                 hasEntry("from", "100"),
@@ -908,7 +908,7 @@ public class MLRequestConvertersTests extends ESTestCase {
                 hasEntry("allow_no_match", "false"),
                 hasEntry("decompress_definition", "true"),
                 hasEntry("tags", "tag1,tag2"),
-                hasEntry("include_model_definition", "false")
+                hasEntry("include", "definition")
             ));
         assertNull(request.getEntity());
     }
@@ -923,7 +923,7 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         Request request = MLRequestConverters.getTrainedModelsStats(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/inference/" + modelId1 + "," + modelId2 + "," + modelId3 + "/_stats", request.getEndpoint());
+        assertEquals("/_ml/trained_models/" + modelId1 + "," + modelId2 + "," + modelId3 + "/_stats", request.getEndpoint());
         assertThat(request.getParameters(),
             allOf(
                 hasEntry("from", "100"),
@@ -937,7 +937,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         DeleteTrainedModelRequest deleteRequest = new DeleteTrainedModelRequest(randomAlphaOfLength(10));
         Request request = MLRequestConverters.deleteTrainedModel(deleteRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/inference/" + deleteRequest.getId(), request.getEndpoint());
+        assertEquals("/_ml/trained_models/" + deleteRequest.getId(), request.getEndpoint());
         assertNull(request.getEntity());
     }
 
@@ -948,7 +948,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.putTrainedModel(putTrainedModelRequest);
 
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_ml/inference/" + trainedModelConfig.getModelId()));
+        assertThat(request.getEndpoint(), equalTo("/_ml/trained_models/" + trainedModelConfig.getModelId()));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             TrainedModelConfig parsedTrainedModelConfig = TrainedModelConfig.PARSER.apply(parser, null).build();
             assertThat(parsedTrainedModelConfig, equalTo(trainedModelConfig));

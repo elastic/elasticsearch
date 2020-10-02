@@ -124,6 +124,7 @@ for use in {es} and {kib}. Each folder in the zip file contains a readme that
 explains how to use the files.
 
 [discrete]
+[[certutil-parameters]]
 === Parameters
 
 `ca`:: Specifies to generate a new local certificate authority (CA). This

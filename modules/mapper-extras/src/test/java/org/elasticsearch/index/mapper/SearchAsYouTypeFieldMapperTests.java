@@ -34,8 +34,6 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -55,9 +53,7 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.plugins.Plugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,36 +74,61 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<SearchAsYouTypeFieldMapper.Builder> {
-
-    @Before
-    public void addModifiers() {
-        addModifier("max_shingle_size", false, (a, b) -> {
-            a.maxShingleSize(3);
-            b.maxShingleSize(2);
-        });
-        addModifier("similarity", false, (a, b) -> {
-            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
-            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
-        });
-    }
+public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("doc_values");
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("max_shingle_size", b -> b.field("max_shingle_size", 4));
+        checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "keyword"));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
+        checker.registerConflictCheck("term_vector", b -> b.field("term_vector", "yes"));
+
+        // norms can be set from true to false, but not vice versa
+        checker.registerConflictCheck("norms",
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", false);
+            }),
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", true);
+            }));
+        checker.registerUpdateCheck(
+            b -> {
+                b.field("type", "search_as_you_type");
+                b.field("norms", true);
+            },
+            b -> {
+                b.field("type", "search_as_you_type");
+                b.field("norms", false);
+            },
+            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
+        );
+
+        checker.registerUpdateCheck(b -> {
+                b.field("analyzer", "default");
+                b.field("search_analyzer", "keyword");
+            },
+            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> {
+                b.field("analyzer", "default");
+                b.field("search_analyzer", "keyword");
+                b.field("search_quote_analyzer", "keyword");
+            },
+            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+
+    }
+
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("new york city");
     }
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new MapperExtrasPlugin());
-    }
-
-    @Override
-    protected SearchAsYouTypeFieldMapper.Builder newBuilder() {
-        return new SearchAsYouTypeFieldMapper.Builder("sayt")
-            .indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
-            .searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
-            .searchQuoteAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
     }
 
     @Override
@@ -162,7 +183,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
             getShingleFieldMapper(defaultMapper, "field._2gram").fieldType(), 2, "default", prefixFieldMapper.fieldType());
         assertShingleFieldType(
             getShingleFieldMapper(defaultMapper, "field._3gram").fieldType(), 3, "default", prefixFieldMapper.fieldType());
-    }
+   }
 
     public void testConfiguration() throws IOException {
         int maxShingleSize = 4;
@@ -171,7 +192,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
             fieldMapping(
                 b -> b.field("type", "search_as_you_type").field("analyzer", analyzerName).field("max_shingle_size", maxShingleSize)
             )
-        ); 
+        );
 
         SearchAsYouTypeFieldMapper rootMapper = getRootFieldMapper(defaultMapper, "field");
         assertRootFieldMapper(rootMapper, maxShingleSize, analyzerName);
@@ -205,7 +226,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
             b.endObject();
             b.startObject("b_field").field("type", "text").endObject();
         })));
-        assertThat(e.getMessage(), containsString("different [max_shingle_size]"));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [max_shingle_size]"));
     }
 
     public void testMultiFields() throws IOException {
@@ -237,7 +258,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
             assertThat(fieldType, instanceOf(ShingleFieldType.class));
             ShingleFieldType ft = (ShingleFieldType) fieldType;
             assertEquals(i, ft.shingleSize);
-            assertTrue(prefixFieldType == ft.prefixFieldType);
+            assertSame(prefixFieldType, ft.prefixFieldType);
         }
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "new york city")));
@@ -253,8 +274,10 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
             fieldMapping(b -> b.field("type", "search_as_you_type").field("index_options", "offsets"))
         );
 
+        assertThat(getRootFieldMapper(mapper, "field").fieldType().fieldType.indexOptions(),
+            equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS));
+
         Stream.of(
-            getRootFieldMapper(mapper, "field"),
             getPrefixFieldMapper(mapper, "field._index_prefix"),
             getShingleFieldMapper(mapper, "field._2gram"),
             getShingleFieldMapper(mapper, "field._3gram")
@@ -265,7 +288,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
     public void testStore() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("store", true)));
 
-        assertTrue(getRootFieldMapper(mapper, "field").fieldType.stored());
+        assertTrue(getRootFieldMapper(mapper, "field").fieldType().fieldType.stored());
         Stream.of(
             getPrefixFieldMapper(mapper, "field._index_prefix"),
             getShingleFieldMapper(mapper, "field._2gram"),
@@ -287,8 +310,9 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
     public void testTermVectors() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("term_vector", "yes")));
 
+        assertTrue(getRootFieldMapper(mapper, "field").fieldType().fieldType.storeTermVectors());
+
         Stream.of(
-            getRootFieldMapper(mapper, "field"),
             getShingleFieldMapper(mapper, "field._2gram"),
             getShingleFieldMapper(mapper, "field._3gram")
         ).forEach(m -> assertTrue("for " + m.name(), m.fieldType.storeTermVectors()));
@@ -316,15 +340,15 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
         {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("norms", false)));
 
+            assertTrue(getRootFieldMapper(mapper, "field").fieldType().fieldType.omitNorms());
+
             Stream.of(
-                getRootFieldMapper(mapper, "field"),
                 getPrefixFieldMapper(mapper, "field._index_prefix"),
                 getShingleFieldMapper(mapper, "field._2gram"),
                 getShingleFieldMapper(mapper, "field._3gram")
             ).forEach(m -> assertTrue("for " + m.name(), m.fieldType.omitNorms()));
         }
     }
-
 
     public void testDocumentParsingSingleValue() throws IOException {
         documentParsingTestCase(Collections.singleton(randomAlphaOfLengthBetween(5, 20)));
@@ -543,7 +567,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
         IndexableField[] prefixFields = parsedDocument.rootDoc().getFields("field._index_prefix");
         IndexableField[] shingle2Fields = parsedDocument.rootDoc().getFields("field._2gram");
         IndexableField[] shingle3Fields = parsedDocument.rootDoc().getFields("field._3gram");
-        for (IndexableField[] fields : new IndexableField[][]{ rootFields, prefixFields, shingle2Fields, shingle3Fields}) {
+        for (IndexableField[] fields : new IndexableField[][]{rootFields, prefixFields, shingle2Fields, shingle3Fields}) {
             Set<String> expectedValues = Arrays.stream(fields).map(IndexableField::stringValue).collect(Collectors.toSet());
             assertThat(values, equalTo(expectedValues));
         }
@@ -576,7 +600,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase2<Search
                                                        String analyzerName,
                                                        PrefixFieldType prefixFieldType) {
 
-        assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize-1));
+        assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize - 1));
         for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }

@@ -35,6 +35,8 @@ binary <<doc-values,doc values>> and not indexed. Its size in bytes is at most
 Because the data is not indexed, you only can use `histogram` fields for the
 following aggregations and queries:
 
+* <<search-aggregations-metrics-min-aggregation-histogram-fields,min>> aggregation
+* <<search-aggregations-metrics-max-aggregation-histogram-fields,max>> aggregation
 * <<search-aggregations-metrics-sum-aggregation-histogram-fields,sum>> aggregation
 * <<search-aggregations-metrics-valuecount-aggregation-histogram-fields,value_count>> aggregation
 * <<search-aggregations-metrics-avg-aggregation-histogram-fields,avg>> aggregation

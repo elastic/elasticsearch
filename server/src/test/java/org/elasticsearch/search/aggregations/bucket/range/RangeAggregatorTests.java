@@ -119,7 +119,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testDateFieldNanosecondResolution() throws IOException {
-        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, true,
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
@@ -143,7 +143,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void  testMissingDateWithDateField() throws IOException {
-        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, true,
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.

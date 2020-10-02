@@ -1,10 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-trained-models]]
-= Get trained model API
+= Get trained models API
 [subs="attributes"]
 ++++
-<titleabbrev>Get trained model</titleabbrev>
+<titleabbrev>Get trained models</titleabbrev>
 ++++
 
 Retrieves configuration information for a trained model.

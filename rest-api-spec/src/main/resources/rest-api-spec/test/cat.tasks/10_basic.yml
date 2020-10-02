@@ -21,8 +21,8 @@
 ---
 "Test cat tasks output with X-Opaque-Id":
   - skip:
-      version: " - 7.99.99"
-      reason: support for opaque_id was added in 8.0.0
+      version: " - 7.9.99"
+      reason: support for opaque_id was added in 7.10.0
       features: headers
 
   - do:

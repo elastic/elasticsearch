@@ -5,14 +5,14 @@
 name = "betweenAdditional1"
 expected_event_ids = [95]
 query = '''
-file where between(file_path, "dev", ".json", false) == "\\TestLogs\\something"
+file where between(file_path, "dev", ".json", false) : "\\TestLogs\\something"
 '''
 
 [[queries]]
 name = "betweenAdditional2"
 expected_event_ids = [95]
 query = '''
-file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
+file where between(file_path, "dev", ".json", true) : "\\TestLogs\\something"
 '''
 
 [[queries]]
@@ -26,7 +26,7 @@ network where cidrMatch(source_address, "10.6.48.157/8") == true
 name = "stringCidrMatch2"
 expected_event_ids = [75304, 75305]
 query = '''
-network where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
+network where string(cidrMatch(source_address, "10.6.48.157/8")) : "true"
 '''
 
 [[queries]]
@@ -62,14 +62,14 @@ network where cidrMatch(source_address, "0.0.0.0/0") == true
 name = "concatEquals1"
 description = "test string concatenation. update test to avoid case-sensitivity issues"
 query = '''
-process where concat(serial_event_id, "::", process_name, "::", opcode) == "5::wininit.exe::3"
+process where concat(serial_event_id, "::", process_name, "::", opcode) : "5::wininit.exe::3"
 '''
 expected_event_ids  = [5]
 
 
 [[queries]]
 name = "concatEquals2"
-query = 'process where concat(serial_event_id) == "1"'
+query = 'process where concat(serial_event_id) : "1"'
 expected_event_ids  = [1]
 
 [[queries]]
@@ -98,7 +98,7 @@ expected_event_ids  = [1, 2, 3, 4]
 
 [[queries]]
 name = "numberStringConversion1"
-query = 'process where string(serial_event_id) == "1"'
+query = 'process where string(serial_event_id) : "1"'
 expected_event_ids  = [1]
 
 

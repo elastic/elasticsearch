@@ -134,7 +134,7 @@ expected_event_ids  = [1, 2]
 name = "processWithStringEqualityCaseInsensitive1"
 case_insensitive = true
 query = '''
-process where process_name == "VMACTHLP.exe" and unique_pid == 12
+process where process_name : "VMACTHLP.exe" and unique_pid == 12
 | filter true
 '''
 expected_event_ids  = [12]
@@ -232,33 +232,33 @@ name = "lengthCaseInsensitive"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where length(bytes_written_string_list) == 2 and bytes_written_string_list[1] == "EN"
+registry where length(bytes_written_string_list) == 2 and bytes_written_string_list[1] : "EN"
 '''
 
 [[queries]]
 name = "descendant1"
 query = '''
-file where file_name == "csrss.exe" and opcode==0
-  and descendant of [process where opcode in (1,3) and process_name=="cmd.exe"]
+file where file_name : "csrss.exe" and opcode==0
+  and descendant of [process where opcode in (1,3) and process_name:"cmd.exe"]
 '''
 expected_event_ids  = [72]
 
 [[queries]]
 name = "descendant2"
 query = '''
-process where opcode==1 and process_name == "csrss.exe"
-  and descendant of [file where file_name == "csrss.exe" and opcode==0]
+process where opcode==1 and process_name : "csrss.exe"
+  and descendant of [file where file_name : "csrss.exe" and opcode==0]
 '''
 expected_event_ids  = [73]
 
 [[queries]]
 name = "descendant3"
 query = '''
-process where opcode==1 and process_name == "smss.exe"
+process where opcode==1 and process_name : "smss.exe"
   and descendant of [
-    file where file_name == "csrss.exe" and opcode==0
+    file where file_name : "csrss.exe" and opcode==0
       and descendant of [
-        process where opcode in(1,3) and process_name=="cmd.exe"
+        process where opcode in(1,3) and process_name:"cmd.exe"
       ]
   ]
 '''
@@ -359,8 +359,8 @@ expected_event_ids  = [87, 92]
 name = "doubleSameSequenceWithByUntilAndHead2"
 query = '''
 join
-  [file where opcode==0 and file_name=="*.exe"] by unique_pid
-  [file where opcode==2 and file_name=="*.exe"] by unique_pid
+  [file where opcode==0 and file_name:"*.exe"] by unique_pid
+  [file where opcode==2 and file_name:"*.exe"] by unique_pid
 until [process where opcode==1] by unique_ppid
 | head 1
 '''
@@ -370,8 +370,8 @@ expected_event_ids  = [61, 59]
 name = "twoJoins1"
 query = '''
 join by user_name
-  [process where opcode in (1,3) and process_name=="smss.exe"]
-  [process where opcode in (1,3) and process_name == "python.exe"]
+  [process where opcode in (1,3) and process_name:"smss.exe"]
+  [process where opcode in (1,3) and process_name : "python.exe"]
 '''
 expected_event_ids  = [78, 48]
 
@@ -380,8 +380,8 @@ name = "threeJoins1"
 query = '''
 join by unique_pid
   [process where opcode==1]
-  [file where opcode==0 and file_name=="svchost.exe"]
-  [file where opcode == 0 and file_name == "lsass.exe"]
+  [file where opcode==0 and file_name:"svchost.exe"]
+  [file where opcode == 0 and file_name : "lsass.exe"]
 '''
 expected_event_ids  = [54, 55, 61]
 
@@ -390,8 +390,8 @@ name = "threeJoins2"
 query = '''
 join by string(unique_pid)
   [process where opcode==1]
-  [file where opcode==0 and file_name=="svchost.exe"]
-  [file where opcode == 0 and file_name == "lsass.exe"]
+  [file where opcode==0 and file_name:"svchost.exe"]
+  [file where opcode == 0 and file_name : "lsass.exe"]
 '''
 expected_event_ids  = [54, 55, 61]
 
@@ -400,8 +400,8 @@ name = "threeJoinsWithUntil1"
 query = '''
 join by unique_pid
   [process where opcode==1]
-  [file where opcode==0 and file_name=="svchost.exe"]
-  [file where opcode == 0 and file_name == "lsass.exe"]
+  [file where opcode==0 and file_name:"svchost.exe"]
+  [file where opcode == 0 and file_name : "lsass.exe"]
 until [file where opcode == 2]
 '''
 expected_event_ids = []
@@ -411,8 +411,8 @@ name = "threeJoinsWithUntil1"
 query = '''
 join by string(unique_pid), unique_pid, unique_pid * 2
   [process where opcode==1]
-  [file where opcode==0 and file_name=="svchost.exe"]
-  [file where opcode == 0 and file_name == "lsass.exe"]
+  [file where opcode==0 and file_name:"svchost.exe"]
+  [file where opcode == 0 and file_name : "lsass.exe"]
 until [file where opcode == 2]
 '''
 expected_event_ids = []
@@ -421,7 +421,7 @@ expected_event_ids = []
 name = "twoJoins2"
 query = '''
 join
-  [file where opcode==0 and file_name=="svchost.exe"] by unique_pid
+  [file where opcode==0 and file_name:"svchost.exe"] by unique_pid
   [process where opcode == 1] by unique_ppid
 '''
 expected_event_ids  = [55, 56]
@@ -430,8 +430,8 @@ expected_event_ids  = [55, 56]
 name = "twoJoins3"
 query = '''
 join by unique_pid
-  [process where opcode in (1,3) and process_name=="python.exe"]
-  [file where file_name == "*.exe"]
+  [process where opcode in (1,3) and process_name:"python.exe"]
+  [file where file_name : "*.exe"]
 '''
 expected_event_ids  = [54, 55]
 
@@ -439,8 +439,8 @@ expected_event_ids  = [54, 55]
 name = "twoJoins4"
 query = '''
 join by user_name
-  [process where opcode in (1,3) and process_name=="python.exe"]
-  [process where opcode in (1,3) and process_name == "smss.exe"]
+  [process where opcode in (1,3) and process_name:"python.exe"]
+  [process where opcode in (1,3) and process_name : "smss.exe"]
 '''
 expected_event_ids  = [48, 78]
 
@@ -448,8 +448,8 @@ expected_event_ids  = [48, 78]
 name = "twoJoins5"
 query = '''
 join
-  [process where opcode in (1,3) and process_name=="python.exe"]
-  [process where opcode in (1,3) and process_name == "smss.exe"]
+  [process where opcode in (1,3) and process_name:"python.exe"]
+  [process where opcode in (1,3) and process_name : "smss.exe"]
 '''
 expected_event_ids  = [48, 3, 50, 78]
 
@@ -457,7 +457,7 @@ expected_event_ids  = [48, 3, 50, 78]
 name = "fakeField"
 expected_event_ids = []
 query = '''
-process where fake_field == "*"
+process where fake_field : "*"
 '''
 
 [[queries]]
@@ -476,7 +476,7 @@ name = "fakeFieldWithHead2"
 # expected_event_ids  = [1, 2, 3, 4]
 expected_event_ids = []
 query = '''
-process where not (fake_field == "*")
+process where not (fake_field : "*")
 | head 4
 '''
 
@@ -569,7 +569,7 @@ any where true
 name = "multipleConditionsWithDescendant1"
 query = '''
 process where opcode==1 and process_name in ("services.exe", "smss.exe", "lsass.exe")
-  and descendant of [process where process_name == "cmd.exe" ]
+  and descendant of [process where process_name : "cmd.exe" ]
 '''
 expected_event_ids  = [62, 68, 78]
 
@@ -577,7 +577,7 @@ expected_event_ids  = [62, 68, 78]
 name = "INWithDescendant"
 query = '''
 process where process_name in ("services.exe", "smss.exe", "lsass.exe")
-  and descendant of [process where process_name == "cmd.exe" ]
+  and descendant of [process where process_name : "cmd.exe" ]
   '''
 expected_event_ids  = [62, 64, 68, 69, 78, 80]
 
@@ -585,23 +585,23 @@ expected_event_ids  = [62, 64, 68, 69, 78, 80]
 name = "multipleConditionsWithDescendant2"
 query = '''
 process where opcode==2 and process_name in ("services.exe", "smss.exe", "lsass.exe")
-  and descendant of [process where process_name == "cmd.exe" ]
+  and descendant of [process where process_name : "cmd.exe" ]
 '''
 expected_event_ids  = [64, 69, 80]
 
 [[queries]]
 name = "childOf1"
 query = '''
-process where process_name=="svchost.exe"
-  and child of [file where file_name=="svchost.exe" and opcode==0]
+process where process_name:"svchost.exe"
+  and child of [file where file_name:"svchost.exe" and opcode==0]
 '''
 expected_event_ids  = [56, 58]
 
 [[queries]]
 name = "childOf2"
 query = '''
-process where process_name=="svchost.exe"
-  and not child of [file where file_name=="svchost.exe" and opcode==0]
+process where process_name:"svchost.exe"
+  and not child of [file where file_name:"svchost.exe" and opcode==0]
 | head 3
 '''
 expected_event_ids  = [11, 13, 15]
@@ -609,10 +609,10 @@ expected_event_ids  = [11, 13, 15]
 [[queries]]
 name = "nestedChildOf1"
 query = '''
-process where process_name=="lsass.exe"
+process where process_name:"lsass.exe"
   and child of [
-    process where process_name=="python.exe"
-    and child of [process where process_name=="cmd.exe"]
+    process where process_name:"python.exe"
+    and child of [process where process_name:"cmd.exe"]
   ]
 '''
 expected_event_ids  = [62, 64]
@@ -622,7 +622,7 @@ name = "nestedChildOf2"
 query = '''
 file where child of [
   process where child of [
-      process where child of [process where process_name=="*wsmprovhost.exe"]
+      process where child of [process where process_name:"*wsmprovhost.exe"]
   ]
 ]
 | tail 1
@@ -632,7 +632,7 @@ expected_event_ids  = [91]
 [[queries]]
 name = "fileByUniquePid1"
 query = '''
-file where process_name == "python.exe"
+file where process_name : "python.exe"
 | unique unique_pid
 '''
 expected_event_ids  = [55, 95]
@@ -640,7 +640,7 @@ expected_event_ids  = [55, 95]
 [[queries]]
 name = "fileByUniquePid2"
 query = '''
-file where event of [process where process_name == "python.exe" ]
+file where event of [process where process_name : "python.exe" ]
 | unique unique_pid
 '''
 expected_event_ids  = [55, 95]
@@ -648,13 +648,13 @@ expected_event_ids  = [55, 95]
 [[queries]]
 name = "simpleStringEquality"
 query = '''
-process where process_name == "python.exe"
+process where process_name : "python.exe"
 '''
 expected_event_ids  = [48, 50, 51, 54, 93]
 
 [[queries]]
 name = "eventOfProcess"
-query = 'process where event of [process where process_name == "python.exe" ]'
+query = 'process where event of [process where process_name : "python.exe" ]'
 expected_event_ids  = [48, 50, 51, 54, 93]
 
 [[queries]]
@@ -682,7 +682,7 @@ expected_event_ids  = [54, 55, 56, 54, 61, 62, 54, 67, 68, 54, 72, 73]
 name = "uniqueCount1"
 expected_event_ids  = [11, 60, 63]
 query = '''
-any where process_name == "svchost.exe"
+any where process_name : "svchost.exe"
 | unique_count event_type_full process_name
 '''
 
@@ -690,7 +690,7 @@ any where process_name == "svchost.exe"
 name = "uniqueCount2"
 expected_event_ids  = [63, 60, 11]
 query = '''
-any where process_name == "svchost.exe"
+any where process_name : "svchost.exe"
 | sort event_type_full serial_event_id
 | unique_count event_type_full process_name
 '''
@@ -699,7 +699,7 @@ any where process_name == "svchost.exe"
 name = "uniqueCount3"
 expected_event_ids  = [60]
 query = '''
-any where process_name == "svchost.exe"
+any where process_name : "svchost.exe"
 | unique_count event_type_full opcode
 | filter count == 7
 '''
@@ -708,7 +708,7 @@ any where process_name == "svchost.exe"
 name = "uniqueCountAndFilter"
 expected_event_ids  = [11]
 query = '''
-any where process_name == "svchost.exe"
+any where process_name : "svchost.exe"
 | unique_count event_type_full opcode
 | filter percent >= .5
 '''
@@ -735,7 +735,7 @@ name = "lengthCaseInsensitive"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == "EN-us"
+registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] : "EN-us"
 '''
 
 [[queries]]
@@ -743,7 +743,7 @@ name = "arrayCaseInsensitive1"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where bytes_written_string_list[0] == "EN-us"
+registry where bytes_written_string_list[0] : "EN-us"
 '''
 
 [[queries]]
@@ -751,7 +751,7 @@ name = "arrayCaseInsensitive2"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where bytes_written_string_list[1] == "EN"
+registry where bytes_written_string_list[1] : "EN"
 '''
 
 
@@ -776,21 +776,21 @@ name = "arrayCaseInsensitive3"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == "en-US"
+registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] : "en-US"
 '''
 
 [[queries]]
 name = "arrayEquality1"
 expected_event_ids  = [57]
 query = '''
-registry where bytes_written_string_list[0] == "en-US"
+registry where bytes_written_string_list[0] : "en-US"
 '''
 
 [[queries]]
 name = "arrayEquality2"
 expected_event_ids  = [57]
 query = '''
-registry where bytes_written_string_list[1] == "en"
+registry where bytes_written_string_list[1] : "en"
 '''
 
 # character classes aren't supported. custom tests made in test_queries_supported.toml
@@ -834,7 +834,7 @@ name = "stringEqualsCaseInsensitive1"
 case_insensitive = true
 query = '''
 process where "net.EXE" == original_file_name
-| filter process_name=="net*.exe"
+| filter process_name:"net*.exe"
 '''
 expected_event_ids  = [97]
 note = "check that case insensitive comparisons are performed even for lhs strings."
@@ -843,7 +843,7 @@ note = "check that case insensitive comparisons are performed even for lhs strin
 name = "stringEqualsCaseInsensitive2"
 case_insensitive = true
 query = '''
-process where process_name == original_file_name and process_name=="net*.exe"
+process where process_name == original_file_name and process_name:"net*.exe"
 '''
 expected_event_ids  = [97, 98]
 note = "check that case insensitive comparisons are performed for fields."
@@ -861,7 +861,7 @@ description = "check that case insensitive comparisons are performed for fields.
 name = "substring3"
 case_insensitive = true
 query = '''
-file where substring(file_name, 1, 3) == "xp"
+file where substring(file_name, 1, 3) : "xp"
 '''
 expected_event_ids  = [88, 91, 92]
 description = "check substring ranges"
@@ -878,7 +878,7 @@ description = "test built-in math functions"
 name = "concatCaseInsensitive"
 case_insensitive = true
 query = '''
-process where concat(serial_event_id, ":", process_name, opcode) == "5:winINIT.exe3"
+process where concat(serial_event_id, ":", process_name, opcode) : "5:winINIT.exe3"
 '''
 expected_event_ids  = [5]
 description = "test string concatenation"
@@ -898,7 +898,7 @@ name = "arraySearch1"
 expected_event_ids  = [57]
 description = "test arraySearch functionality for lists of strings, and lists of objects"
 query = '''
-registry where arraySearch(bytes_written_string_list, a, a == "en-US")
+registry where arraySearch(bytes_written_string_list, a, a : "en-US")
 '''
 
 [[queries]]
@@ -907,7 +907,7 @@ case_sensitive = true
 expected_event_ids  = []
 description = "test arraySearch functionality for lists of strings, and lists of objects"
 query = '''
-registry where arraySearch(bytes_written_string_list, a, a == "EN-US")
+registry where arraySearch(bytes_written_string_list, a, a : "EN-US")
 '''
 
 [[queries]]
@@ -916,7 +916,7 @@ case_insensitive = true
 expected_event_ids  = [57]
 description = "test arraySearch functionality for lists of strings, and lists of objects"
 query = '''
-registry where arraySearch(bytes_written_string_list, a, a == "en-us")
+registry where arraySearch(bytes_written_string_list, a, a : "en-us")
 '''
 
 [[queries]]
@@ -950,7 +950,7 @@ name = "arraySearchWithMysteriousField3"
 expected_event_ids  = [75305]
 description = "test arraySearch - conditional"
 query = '''
-network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a == "s0-*")
+network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a : "s0-*")
 '''
 
 [[queries]]
@@ -968,7 +968,7 @@ description = "test arraySearch - nested"
 query = '''
 network where mysterious_field
   and arraySearch(mysterious_field.subarray, sub1,
-    arraySearch(sub1.c, nested, nested.x.y == "*"))
+    arraySearch(sub1.c, nested, nested.x.y : "*"))
 '''
 
 [[queries]]
@@ -978,7 +978,7 @@ description = "test arraySearch - nested with cross-check pass"
 query = '''
 network where mysterious_field
   and arraySearch(mysterious_field.subarray, sub1,
-    sub1.a == "s0-a" and arraySearch(sub1.c, nested, nested.z == "s0-c1-x-z"))
+    sub1.a : "s0-a" and arraySearch(sub1.c, nested, nested.z : "s0-c1-x-z"))
 '''
 
 [[queries]]
@@ -988,7 +988,7 @@ description = "test arraySearch - nested with cross-check pass"
 query = '''
 network where mysterious_field
   and arraySearch(mysterious_field.subarray, sub1,
-    sub1.a == "s0-a" and arraySearch(sub1.c, nested, nested.z == sub1.cross_match))
+    sub1.a : "s0-a" and arraySearch(sub1.c, nested, nested.z == sub1.cross_match))
 '''
 
 [[queries]]
@@ -1023,7 +1023,7 @@ name = "arrayCount1"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where arrayCount(bytes_written_string_list, s, s == "*-us") == 1
+registry where arrayCount(bytes_written_string_list, s, s : "*-us") == 1
 '''
 
 [[queries]]
@@ -1031,7 +1031,7 @@ name = "arrayCount2"
 case_insensitive = true
 expected_event_ids  = [57]
 query = '''
-registry where arrayCount(bytes_written_string_list, s, s == "*en*") == 2
+registry where arrayCount(bytes_written_string_list, s, s : "*en*") == 2
 '''
 
 [[queries]]
@@ -1072,7 +1072,7 @@ name = "betweenCaseSensitive"
 case_sensitive = true
 expected_event_ids = [1, 2, 42]
 query = '''
-process where between(process_name, "s", "e", false) == "t"
+process where between(process_name, "s", "e", false) : "t"
 '''
 
 # TODO: add toggles to this function so it's not always insensitive

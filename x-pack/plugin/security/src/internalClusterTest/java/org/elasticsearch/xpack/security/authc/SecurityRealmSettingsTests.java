@@ -66,6 +66,7 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.ldap.ldap1.url", "ldap://127.0.0.1:389")
                 .put("xpack.security.authc.realms.ldap.ldap1.user_dn_templates", "cn={0},dc=example,dc=com")
                 .put("xpack.security.authc.realms.active_directory.ad1.order", 4)
+                .put("xpack.security.authc.realms.active_directory.ad1.domain_name", "domain_name")
                 .put("xpack.security.authc.realms.active_directory.ad1.url", "ldap://127.0.0.1:389")
                 .put("xpack.security.authc.realms.pki.pki1.order", 5)
                 .put("xpack.security.authc.realms.saml.saml1.order", 6)

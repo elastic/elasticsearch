@@ -21,6 +21,9 @@ IDs, or the special wildcard `_all` to get all {dfanalytics-jobs}.
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new GET request referencing an existing {dfanalytics-job}
+<2> Optional boolean value for requesting the {dfanalytics-job} in a format that can
+then be put into another cluster. Certain fields that can only be set when
+the {dfanalytics-job} is created are removed.
 
 include::../execution.asciidoc[]
 

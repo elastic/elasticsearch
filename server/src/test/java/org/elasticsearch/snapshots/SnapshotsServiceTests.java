@@ -183,6 +183,8 @@ public class SnapshotsServiceTests extends ESTestCase {
                 shardsMap(routingShardId1, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED));
 
         assertThat(cloneSingleShard.state(), is(SnapshotsInProgress.State.STARTED));
+
+        // 1. case: shard that just finished cloning is unassigned -> shard snapshot should go to MISSING state
         final ClusterState stateWithUnassignedRoutingShard = stateWithSnapshots(stateWithIndex, cloneSingleShard, snapshotSingleShard);
         final SnapshotsService.ShardSnapshotUpdate completeShard = successUpdate(targetSnapshot, shardId1, dataNodeId);
         {
@@ -196,6 +198,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             assertIsNoop(updatedClusterState, completeShard);
         }
 
+        // 2. case: shard that just finished cloning is assigned correctly -> shard snapshot should go to INIT state
         final ClusterState stateWithAssignedRoutingShard =
                 ClusterState.builder(stateWithUnassignedRoutingShard).routingTable(
                         RoutingTable.builder(stateWithUnassignedRoutingShard.routingTable()).add(
@@ -212,6 +215,27 @@ public class SnapshotsServiceTests extends ESTestCase {
             final SnapshotsInProgress.Entry startedSnapshot = snapshotsInProgress.entries().get(1);
             assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.STARTED));
             assertThat(startedSnapshot.shards().get(routingShardId1).state(), is(SnapshotsInProgress.ShardState.INIT));
+            assertIsNoop(updatedClusterState, completeShard);
+        }
+
+        // 3. case: shard that just finished cloning is currently initializing -> shard snapshot should go to WAITING state
+        final ClusterState stateWithInitializingRoutingShard =
+                ClusterState.builder(stateWithUnassignedRoutingShard).routingTable(
+                        RoutingTable.builder(stateWithUnassignedRoutingShard.routingTable()).add(
+                                IndexRoutingTable.builder(routingShardId1.getIndex()).addIndexShard(
+                                        new IndexShardRoutingTable.Builder(routingShardId1).addShard(
+                                                TestShardRouting.newShardRouting(
+                                                        routingShardId1, dataNodeId, true,
+                                                        randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING))
+                                        ).build())).build()).build();
+        {
+            final ClusterState updatedClusterState = applyUpdates(stateWithInitializingRoutingShard, completeShard);
+            final SnapshotsInProgress snapshotsInProgress = updatedClusterState.custom(SnapshotsInProgress.TYPE);
+            final SnapshotsInProgress.Entry completedClone = snapshotsInProgress.entries().get(0);
+            assertThat(completedClone.state(), is(SnapshotsInProgress.State.SUCCESS));
+            final SnapshotsInProgress.Entry startedSnapshot = snapshotsInProgress.entries().get(1);
+            assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.STARTED));
+            assertThat(startedSnapshot.shards().get(routingShardId1).state(), is(SnapshotsInProgress.ShardState.WAITING));
             assertIsNoop(updatedClusterState, completeShard);
         }
     }

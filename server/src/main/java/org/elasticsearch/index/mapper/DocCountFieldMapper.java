@@ -89,13 +89,12 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NUMBER) {
-            Number value = context.parser().numberValue().floatValue();
+            Long value = context.parser().longValue(false);
 
             if (value != null) {
-                if (value.longValue() <= 0 || value.floatValue() != value.longValue()) {
+                if (value.longValue() <= 0) {
                     throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer.");
                 }
-
                 final Field docCount = new NumericDocValuesField(NAME, value.longValue());
                 context.doc().add(docCount);
             }

@@ -31,7 +31,7 @@ import java.io.IOException;
  * in a doc value field in the document. If a document has no doc_count field
  * the implementation will return 1 as the default value.
  */
-public class FieldBasedDocCountProvider implements DocCountProvider {
+public class FieldBasedDocCountProvider {
 
     private final String docCountFieldName;
     private NumericDocValues docCountValues;
@@ -42,7 +42,6 @@ public class FieldBasedDocCountProvider implements DocCountProvider {
         this.docCountFieldName = DocCountFieldMapper.NAME;
     }
 
-    @Override
     public int getDocCount(int doc) throws IOException {
         if (docCountValues != null && docCountValues.advanceExact(doc)) {
             return (int) docCountValues.longValue();
@@ -51,7 +50,6 @@ public class FieldBasedDocCountProvider implements DocCountProvider {
         }
     }
 
-    @Override
     public void setLeafReaderContext(LeafReaderContext ctx) {
         try {
             docCountValues = DocValues.getNumeric(ctx.reader(), docCountFieldName);

@@ -54,7 +54,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private final BigArrays bigArrays;
     private final IntConsumer multiBucketConsumer;
     private IntArray docCounts;
-    protected final DocCountProvider docCountProvider;
+    protected final FieldBasedDocCountProvider docCountProvider;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             CardinalityUpperBound bucketCardinality, Map<String, Object> metadata) throws IOException {

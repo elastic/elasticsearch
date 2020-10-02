@@ -59,6 +59,6 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
     public void testInvalidDocument_FractionalDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 100.23))));
-        assertThat(e.getCause().getMessage(), containsString("Field [_doc_count] must be a positive integer"));
+        assertThat(e.getCause().getMessage(), containsString("100.23 cannot be converted to Long without data loss"));
     }
 }

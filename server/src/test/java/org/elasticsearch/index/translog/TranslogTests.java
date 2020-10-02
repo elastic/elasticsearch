@@ -129,6 +129,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
@@ -239,12 +240,10 @@ public class TranslogTests extends ESTestCase {
     }
 
     private TranslogConfig getTranslogConfig(final Path path, final Settings settings) {
-        final ByteSizeValue bufferSize;
-        if (randomBoolean()) {
-            bufferSize = TranslogConfig.DEFAULT_BUFFER_SIZE;
-        } else {
-            bufferSize = new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
-        }
+        final ByteSizeValue bufferSize = randomFrom(
+            TranslogConfig.DEFAULT_BUFFER_SIZE,
+            new ByteSizeValue(8, ByteSizeUnit.KB),
+            new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES));
 
         final IndexSettings indexSettings =
             IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
@@ -1314,6 +1313,100 @@ public class TranslogTests extends ESTestCase {
             assertEquals(2048, value);
         }
         IOUtils.close(writer);
+    }
+
+    public void testTranslogWriterDoesNotBlockAddsOnWrite() throws IOException, InterruptedException {
+        Path tempDir = createTempDir();
+        System.err.println(tempDir);
+        final TranslogConfig config = getTranslogConfig(tempDir);
+        final AtomicBoolean startBlocking = new AtomicBoolean(false);
+        final CountDownLatch blocker = new CountDownLatch(1);
+        final Set<Long> persistedSeqNos = new HashSet<>();
+
+        final ChannelFactory channelFactory = (file, openOption) -> {
+            FileChannel delegate = FileChannel.open(file, openOption);
+            boolean success = false;
+            try {
+                // don't do partial writes for checkpoints we rely on the fact that the bytes are written as an atomic operation
+                final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp");
+
+                final FileChannel channel;
+                if (isCkpFile) {
+                    channel = delegate;
+                } else {
+                    channel = new FilterFileChannel(delegate) {
+
+                        @Override
+                        public int write(ByteBuffer src) throws IOException {
+                            if (startBlocking.get()) {
+                                try {
+                                    blocker.await();
+                                } catch (InterruptedException e) {
+                                    // Ignore
+                                }
+                            }
+                            return super.write(src);
+                        }
+
+                        @Override
+                        public void force(boolean metaData) throws IOException {
+                            if (startBlocking.get()) {
+                                try {
+                                    blocker.await();
+                                } catch (InterruptedException e) {
+                                    // Ignore
+                                }
+                            }
+                            super.force(metaData);
+                        }
+                    };
+                }
+                success = true;
+                return channel;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(delegate);
+                }
+            }
+        };
+        String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, channelFactory, primaryTerm.get());
+
+        try (Translog translog = new Translog(config, translogUUID, new TranslogDeletionPolicy(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, persistedSeqNos::add) {
+            @Override
+            ChannelFactory getChannelFactory() {
+                return channelFactory;
+            }
+        }) {
+            try (TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1)) {
+                byte[] bytes = new byte[4];
+                ByteArrayDataOutput out = new ByteArrayDataOutput(new byte[4]);
+                out.writeInt(1);
+                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
+                assertThat(persistedSeqNos, empty());
+                startBlocking.set(true);
+                Thread thread = new Thread(() -> {
+                    try {
+                        writer.sync();
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                });
+                thread.start();
+
+                // Add will not block even though we are currently writing/syncing
+                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
+
+                blocker.countDown();
+                // Sync against so that both operations are written
+                writer.sync();
+
+                assertThat(persistedSeqNos, contains(1L, 2L));
+                thread.join();
+                writer.close();
+            }
+        }
     }
 
     public void testCloseIntoReader() throws IOException {

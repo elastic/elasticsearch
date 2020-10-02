@@ -333,7 +333,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     }
                     // If we reached this point, all of the buffered ops should have been flushed successfully.
                     assert bufferedOps.size() == 0;
-                    assert totalOffset == lastSyncedCheckpoint.offset && operationCounter == lastSyncedCheckpoint.numOps;
+                    assert checkChannelPositionWhileHandlingException(totalOffset);
+                    assert totalOffset == lastSyncedCheckpoint.offset;
                     if (closed.compareAndSet(false, true)) {
                         try {
                             checkpointChannel.close();
@@ -369,7 +370,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     }
                     // If we reached this point, all of the buffered ops should have been flushed successfully.
                     assert bufferedOps.size() == 0;
-                    assert totalOffset == lastSyncedCheckpoint.offset && operationCounter == lastSyncedCheckpoint.numOps;
+                    assert checkChannelPositionWhileHandlingException(totalOffset);
+                    assert totalOffset == lastSyncedCheckpoint.offset;
                     return super.newSnapshot();
                 }
             }
@@ -532,6 +534,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     protected final void ensureOpen() {
         if (isClosed()) {
             throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragedy.get());
+        }
+    }
+
+    private boolean checkChannelPositionWhileHandlingException(long expectedOffset) {
+        try {
+            return expectedOffset == channel.position();
+        } catch (IOException e) {
+            return true;
         }
     }
 

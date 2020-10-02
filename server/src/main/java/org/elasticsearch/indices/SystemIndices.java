@@ -24,7 +24,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
@@ -35,7 +34,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -49,23 +47,6 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
  * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
  */
 public class SystemIndices {
-    public static final AccessBehavior SYSTEM_INDEX_ACCESS_BEHAVIOR;
-
-    static {
-        final String property = System.getProperty("es.system_index_access_behavior");
-        if (property == null) {
-            SYSTEM_INDEX_ACCESS_BEHAVIOR = Build.CURRENT.isSnapshot() ? AccessBehavior.DEPRECATED : AccessBehavior.ALLOWED;
-        } else {
-            try {
-                SYSTEM_INDEX_ACCESS_BEHAVIOR = AccessBehavior.fromString(property);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                    "expected es.system_index_access_behavior to be unset or [allowed|deprecated|restricted] but was [" + property + "]", e
-                );
-            }
-        }
-    }
-
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
         TaskResultsService.class.getName(), List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
     );
@@ -189,21 +170,5 @@ public class SystemIndices {
             }
         });
         return Map.copyOf(map);
-    }
-
-    public enum AccessBehavior {
-        ALLOWED,
-        DEPRECATED,
-        RESTRICTED;
-
-        public static AccessBehavior fromString(String value) {
-            return AccessBehavior.valueOf(value.toUpperCase(Locale.ROOT));
-        }
-
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
     }
 }

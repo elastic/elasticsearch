@@ -40,7 +40,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -58,7 +57,6 @@ import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampFiel
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.indices.SystemIndices.AccessBehavior.DEPRECATED;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -1863,8 +1861,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testFullWildcardSystemIndexResolutionDeprecated() {
-        assumeTrue("This test assumes access to system indices is deprecated, which is currently only true by default in snapshot builds",
-            SystemIndices.SYSTEM_INDEX_ACCESS_BEHAVIOR == DEPRECATED);
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
@@ -1877,8 +1873,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testSingleSystemIndexResolutionDeprecated() {
-        assumeTrue("This test assumes access to system indices is deprecated, which is currently only true by default in snapshot builds",
-            SystemIndices.SYSTEM_INDEX_ACCESS_BEHAVIOR == DEPRECATED);
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(".ml-meta");
@@ -1891,8 +1885,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testWildcardSystemIndexReslutionSingleMatchDeprecated() {
-        assumeTrue("This test assumes access to system indices is deprecated, which is currently only true by default in snapshot builds",
-            SystemIndices.SYSTEM_INDEX_ACCESS_BEHAVIOR == DEPRECATED);
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(".w*");
@@ -1905,8 +1897,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testWildcardSystemIndexResolutionMultipleMatchesDeprecated() {
-        assumeTrue("This test assumes access to system indices is deprecated, which is currently only true by default in snapshot builds",
-            SystemIndices.SYSTEM_INDEX_ACCESS_BEHAVIOR == DEPRECATED);
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(".ml-*");

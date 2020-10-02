@@ -116,7 +116,6 @@ public class WildcardFieldMapper extends FieldMapper {
         public TokenStreamComponents createComponents(String fieldName) {
             Tokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
             TokenStream tok = new LowerCaseFilter(tokenizer);
-//                return new TokenStreamComponents(tokenizer);
             return new TokenStreamComponents(r -> {
                 tokenizer.setReader(r);
             }, tok);            

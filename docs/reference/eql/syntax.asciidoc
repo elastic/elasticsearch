@@ -283,7 +283,7 @@ any where true
 [[eql-syntax-strings]]
 ==== Strings
 
-Strings are enclosed with double quotes (`"`).
+Strings are enclosed in double quotes (`"`).
 
 [source,eql]
 ----
@@ -322,27 +322,21 @@ double quote (`\"`) instead.
 [[eql-syntax-raw-strings]]
 ===== Raw strings
 
-Raw strings are preceded by a question mark (`?`) and treat backslashes (`\`) as
-literal characters.
+Raw strings treat special characters, such as backslashes (`\`), as literal
+characters. Raw strings are enclosed in three double quotes (`"""`).
 
 [source,eql]
 ----
-?"String with a literal blackslash \ character included"
+"""Raw string with a literal double quote " and blackslash \ included"""
 ----
 
-You can escape double quotes (`"`) with a backslash, but the backslash remains
-in the resulting string.
+A raw string cannot contain three consecutive double quotes (`"""`). Instead,
+use a regular string with the `\"` escape sequence.
 
 [source,eql]
 ----
-?"\""
+"String containing \"\"\" three double quotes"
 ----
-
-[NOTE]
-====
-Raw strings cannot contain only a single backslash or end in an odd number of
-backslashes.
-====
 
 [discrete]
 [[eql-syntax-wildcards]]

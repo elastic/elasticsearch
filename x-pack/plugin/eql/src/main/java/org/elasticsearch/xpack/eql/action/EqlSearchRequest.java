@@ -40,7 +40,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false,
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true,
         false, true, false);
 
     private QueryBuilder filter = null;
@@ -123,7 +123,12 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is null", validationException);
+        } else {
+            if (indicesOptions.allowNoIndices()) {
+                validationException = addValidationError("allowNoIndices must be false", validationException);
+            }
         }
+
 
         if (query == null || query.isEmpty()) {
             validationException = addValidationError("query is null or empty", validationException);

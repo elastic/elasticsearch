@@ -332,4 +332,11 @@ public class VerifierTests extends ESTestCase {
                 "define one or use MATCH/QUERY instead",
             error(idxr, "process where string(multi_field.english) == \"foo\""));
     }
+
+    public void testIncorrectUsageOfStringEquals() {
+        final IndexResolution idxr = loadIndexResolution("mapping-default.json");
+        assertEquals("1:11: first argument of [:] must be [string], found value [pid] type [long]; consider using [==] instead",
+            error(idxr, "foo where pid : 123"));
+    }
+
 }

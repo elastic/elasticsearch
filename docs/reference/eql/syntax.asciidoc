@@ -179,7 +179,6 @@ Otherwise returns `false.
 
 `not`::
 Returns `true` if the condition to the right is `false`.
-====
 
 [discrete]
 [[eql-syntax-lookup-operators]]

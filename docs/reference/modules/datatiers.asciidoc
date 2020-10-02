@@ -36,12 +36,11 @@ roles assigned.
 The content tier is made of one or more nodes that have the <<data-content-node, data_content>>
 role. A content tier is designed to store and search user created content. Non-timeseries data
 doesn't necessarily follow the hot-warm-cold path. The hardware profiles are quite different to
-the <<hot-tier, hot tier>>. User created content will prioritise high CPU to support complex
+the <<hot-tier, hot tier>>. User created content prioritises high CPU to support complex
 queries and aggregations in a timely manner, as opposed to the <<hot-tier, hot tier>> which
-will prioritise high IO.
-The content tier is a fast, higher cost, tier. The content data has very long data retention
-characteristics and from a resiliency perspective the indices in this tier use one or more
-replicas.
+prioritises high IO.
+The content data has very long data retention characteristics and from a resiliency perspective
+the indices in this tier should be configured to use one or more replicas.
 
 NOTE: new indices that are not part of <<data-streams, data streams>> will be allocated to the
 <<content-tier>>
@@ -50,10 +49,10 @@ NOTE: new indices that are not part of <<data-streams, data streams>> will be al
 ==== Hot tier
 
 The hot tier is made of one or more nodes that have the <<data-hot-node, data_hot>> role.
-It is the {es} entry point for timeseries data. This tier is fast both for reads and writes,
-higher cost as it requires more hardware resources such as SSD drives. Data within this tier
-has retention characteristics that span between days and weeks. From a resiliency perspective
-the indices in this tier use one or more replicas.
+It is the {es} entry point for timeseries data. This tier needs to be fast both for reads
+and writes, requiring more hardware resources such as SSD drives. The hot tier is usually
+hosting the data from recent days. From a resiliency perspective the indices in this
+tier should be configured to use one or more replicas.
 
 NOTE: new indices that are part of a <<data-streams, data stream>> will be allocated to the
 <<hot-tier>>
@@ -63,19 +62,19 @@ NOTE: new indices that are part of a <<data-streams, data stream>> will be alloc
 
 The warm tier is made of one or more nodes that have the <<data-warm-node, data_warm>> role.
 This tier is where data goes once it is not queried very frequently in the <<hot-tier, hot tier>>
-anymore. It is a medium-fast, lower cost tier, that still allows data updates. Data within this
-tier is retained for weeks and the indices still have one or more replicas.
+anymore. It is a medium-fast tier that still allows data updates. The warm tier is usually
+hosting the data from recent weeks. From a resiliency perspective the indices in this
+tier should be configured to use one or more replicas.
 
 [[cold-tier]]
 ==== Cold tier
 
 The cold tier is made of one or more nodes that have the <<data-cold-node, data_cold>> role.
 Once the data in the <<warm-tier, warm tier>> is not updated anymore it can transition to the
-cold tier. The cold tier is still a reponsive query tier but as the data transitions into this
-tier it can be compressed, shrunken, with zero replicas and backed by a <<ilm-searchable-snapshot, snapshot>>.
-These tier features offer a huge opportunity to make major cost savings. Data within this tier
-is retained for months and the indices have zero replicas as they are backed by a searchable
-snapshot.
+cold tier. The cold tier is still a responsive query tier but as the data transitions into this
+tier it can be compressed, shrunken, configured to have zero replicas and be backed by
+a <<ilm-searchable-snapshot, snapshot>>. The cold tier is usually hosting the data from recent
+months.
 
 [[data-tier-allocation]]
 === Data tier index allocation

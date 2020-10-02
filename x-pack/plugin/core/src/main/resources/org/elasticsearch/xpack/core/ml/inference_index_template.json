@@ -78,8 +78,8 @@
             },
             "classes": {
               "properties": {
-                "class_name": "keyword",
-                "baseline": "double"
+                "class_name": { "type": "keyword"},
+                "baseline": {"type" : "double"}
               }
             }
           }

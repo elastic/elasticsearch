@@ -455,7 +455,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             for (IndexId indexId : indices) {
                 if (RestoreService.failed(snapshotInfo, indexId.getName())) {
                     throw new SnapshotException(targetSnapshot, "Can't clone index [" + indexId +
-                            "] because its snapshot is was not successful.");
+                            "] because its snapshot was not successful.");
                 }
             }
             // 2. step, load the number of shards we have in each index to be cloned from the index metadata.

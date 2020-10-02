@@ -42,7 +42,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final AbstractAuditMessageFactory<T> messageFactory;
     private final AtomicBoolean hasLatestTemplate;
 
-    private Queue<ToXContent> backlog;
+    private final Queue<ToXContent> backlog;
     private final ClusterService clusterService;
     private final AtomicBoolean putTemplateInProgress;
 
@@ -107,6 +107,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
         if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateName)) {
             synchronized (this) {
+                // synchronized so nothing can be added to backlog while this value changes
                 hasLatestTemplate.set(true);
             }
             writeDoc(toXContent);
@@ -116,6 +117,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         ActionListener<Boolean> putTemplateListener = ActionListener.wrap(
             r -> {
                 synchronized (this) {
+                    // synchronized so nothing can be added to backlog while this value changes
                     hasLatestTemplate.set(true);
                 }
                 logger.info("Auditor template [{}] successfully installed", templateName);
@@ -135,8 +137,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 backlog.add(toXContent);
 
                 // stop multiple invocations
-                if (putTemplateInProgress.get() == false) {
-                    putTemplateInProgress.set(true);
+                if (putTemplateInProgress.compareAndSet(false, true)) {
                     MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateSupplier.get(),
                         putTemplateListener);
                 }
@@ -179,8 +180,11 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
         client.bulk(bulkRequest, ActionListener.wrap(
             bulkItemResponses -> {
-                backlog = null;
-                logger.trace("Successfully wrote audit message backlog after upgrading template");
+                if (bulkItemResponses.hasFailures()) {
+                    logger.warn("Failures bulk indexing the message back log: {}", bulkItemResponses.buildFailureMessage());
+                } else {
+                    logger.trace("Successfully wrote audit message backlog after upgrading template");
+                }
             },
             this::onIndexFailure
         ));

@@ -2,6 +2,8 @@
 [[java-rest-high-x-pack-rollup-put-job]]
 === Put Rollup Job API
 
+experimental::[]
+
 The Put Rollup Job API can be used to create a new Rollup job
 in the cluster. The API accepts a `PutRollupJobRequest` object
 as a request and returns a `PutRollupJobResponse`.

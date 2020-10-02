@@ -12,7 +12,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -59,8 +58,6 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         this.backlog = new ConcurrentLinkedQueue<>();
         this.hasLatestTemplate = new AtomicBoolean();
         this.putTemplateInProgress = new AtomicBoolean();
-
-        clusterService.addListener(this::clusterChanged);
     }
 
     public void info(String resourceId, String message) {
@@ -99,12 +96,16 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
         ActionListener<Boolean> putTemplateListener = ActionListener.wrap(
             r -> {
+                synchronized (this) {
+                    hasLatestTemplate.set(true);
+                }
                 logger.info("Auditor template [{}] successfully installed", templateConfig.getTemplateName());
+                writeBacklog();
                 putTemplateInProgress.set(false);
             },
             e -> {
-                logger.warn("Error putting latest template [{}]", templateConfig.getTemplateName());
                 putTemplateInProgress.set(false);
+                logger.warn("Error putting latest template [{}]", templateConfig.getTemplateName());
             }
         );
 
@@ -164,16 +165,5 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             },
             this::onIndexFailure
         ));
-    }
-
-    // package private for testing
-    void clusterChanged(ClusterChangedEvent event) {
-        if (MlIndexAndAlias.hasIndexTemplate(event.state(), templateConfig.getTemplateName())) {
-            synchronized (this) {
-                hasLatestTemplate.set(true);
-            }
-            writeBacklog();
-            clusterService.removeListener(this::clusterChanged);
-        }
     }
 }

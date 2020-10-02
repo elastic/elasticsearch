@@ -259,34 +259,8 @@ process where ( 4.0 / process.args_count ) == 1
 Divides the value to the left of the operator by the value to the right. Returns only the remainder.
 
 [discrete]
-[[eql-syntax-strings]]
-==== Strings
-
-Strings are enclosed with double quotes (`"`).
-
-[source,eql]
-----
-"hello world"
-----
-
-Strings enclosed in single quotes (`'`) are not supported.
-
-[discrete]
-[[eql-syntax-wildcards]]
-===== Wildcards
-
-When comparing strings using the `==` or `!=` operators, you can use the `*`
-operator within the string to match specific patterns:
-
-[source,eql]
-----
-field == "example*wildcard"
-field != "example*wildcard"
-----
-
-[discrete]
 [[eql-syntax-match-any-condition]]
-===== Match any condition
+==== Match any condition
 
 To match events solely on event category, use the `where true` condition.
 
@@ -304,6 +278,19 @@ condition:
 ----
 any where true
 ----
+
+[discrete]
+[[eql-syntax-strings]]
+==== Strings
+
+Strings are enclosed with double quotes (`"`).
+
+[source,eql]
+----
+"hello world"
+----
+
+Strings enclosed in single quotes (`'`) are not supported.
 
 [discrete]
 [[eql-syntax-escape-characters]]
@@ -356,6 +343,19 @@ in the resulting string.
 Raw strings cannot contain only a single backslash or end in an odd number of
 backslashes.
 ====
+
+[discrete]
+[[eql-syntax-wildcards]]
+===== Wildcards
+
+When comparing strings using the `==` or `!=` operators, you can use the `*`
+operator within the string to match specific patterns:
+
+[source,eql]
+----
+field == "example*wildcard"
+field != "example*wildcard"
+----
 
 [discrete]
 [[eql-sequences]]

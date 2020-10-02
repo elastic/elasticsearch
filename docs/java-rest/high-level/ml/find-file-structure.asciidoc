@@ -5,7 +5,9 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Find File Structure API
+=== Find file structure API
+
+experimental::[]
 
 The Find File Structure API can be used to find the structure of a text file
 and other information that will be useful to import its contents to an {es}

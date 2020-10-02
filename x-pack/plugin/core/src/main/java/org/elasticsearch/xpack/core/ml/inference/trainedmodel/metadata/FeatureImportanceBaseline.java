@@ -104,7 +104,6 @@ public class FeatureImportanceBaseline implements ToXContentObject, Writeable {
         private static final String NAME = "feature_importance_class_baseline";
 
         public static final ParseField CLASS_NAME = new ParseField("class_name");
-        public static final ParseField BASELINE = new ParseField("baseline");
 
         public static final ConstructingObjectParser<ClassBaseline, Void> LENIENT_PARSER = createParser(true);
         public static final ConstructingObjectParser<ClassBaseline, Void> STRICT_PARSER = createParser(false);

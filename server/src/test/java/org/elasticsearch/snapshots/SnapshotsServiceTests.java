@@ -22,8 +22,16 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -36,6 +44,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.is;
 
 public class SnapshotsServiceTests extends ESTestCase {
@@ -119,13 +128,13 @@ public class SnapshotsServiceTests extends ESTestCase {
         final String dataNodeId = uuid();
         final IndexId indexId1 = indexId(indexName1);
         final RepositoryShardId shardId1 = new RepositoryShardId(indexId1, 0);
-        final SnapshotsInProgress.Entry snapshotSingleShard =
+        final SnapshotsInProgress.Entry cloneSingleShard =
                 cloneEntry(targetSnapshot, sourceSnapshot.getSnapshotId(), clonesMap(shardId1, initShardStatus(dataNodeId)));
 
-        assertThat(snapshotSingleShard.state(), is(SnapshotsInProgress.State.STARTED));
+        assertThat(cloneSingleShard.state(), is(SnapshotsInProgress.State.STARTED));
 
         final SnapshotsService.ShardSnapshotUpdate completeShard = successUpdate(targetSnapshot, shardId1, dataNodeId);
-        final ClusterState updatedClusterState = applyUpdates(stateWithSnapshots(snapshotSingleShard), completeShard);
+        final ClusterState updatedClusterState = applyUpdates(stateWithSnapshots(cloneSingleShard), completeShard);
         final SnapshotsInProgress snapshotsInProgress = updatedClusterState.custom(SnapshotsInProgress.TYPE);
         final SnapshotsInProgress.Entry updatedSnapshot1 = snapshotsInProgress.entries().get(0);
         assertThat(updatedSnapshot1.state(), is(SnapshotsInProgress.State.SUCCESS));
@@ -142,17 +151,69 @@ public class SnapshotsServiceTests extends ESTestCase {
         final RepositoryShardId shardId1 = new RepositoryShardId(indexId1, 0);
         final RepositoryShardId shardId2 = new RepositoryShardId(indexId1, 1);
         final SnapshotsInProgress.ShardSnapshotStatus shardInitStatus = initShardStatus(dataNodeId);
-        final SnapshotsInProgress.Entry snapshotSingleShard = cloneEntry(targetSnapshot, sourceSnapshot.getSnapshotId(),
+        final SnapshotsInProgress.Entry cloneMultipleShards = cloneEntry(targetSnapshot, sourceSnapshot.getSnapshotId(),
                 ImmutableOpenMap.builder(clonesMap(shardId1, shardInitStatus)).fPut(shardId2, shardInitStatus).build());
 
-        assertThat(snapshotSingleShard.state(), is(SnapshotsInProgress.State.STARTED));
+        assertThat(cloneMultipleShards.state(), is(SnapshotsInProgress.State.STARTED));
 
         final SnapshotsService.ShardSnapshotUpdate completeShard = successUpdate(targetSnapshot, shardId1, dataNodeId);
-        final ClusterState updatedClusterState = applyUpdates(stateWithSnapshots(snapshotSingleShard), completeShard);
+        final ClusterState updatedClusterState = applyUpdates(stateWithSnapshots(cloneMultipleShards), completeShard);
         final SnapshotsInProgress snapshotsInProgress = updatedClusterState.custom(SnapshotsInProgress.TYPE);
         final SnapshotsInProgress.Entry updatedSnapshot1 = snapshotsInProgress.entries().get(0);
         assertThat(updatedSnapshot1.state(), is(SnapshotsInProgress.State.STARTED));
         assertIsNoop(updatedClusterState, completeShard);
+    }
+
+    public void testCompletedCloneStartsSnapshot() throws Exception {
+        final String repoName = "test-repo";
+        final Snapshot sourceSnapshot = snapshot(repoName, "source-snapshot");
+        final Snapshot targetSnapshot = snapshot(repoName, "target-snapshot");
+        final String indexName1 = "index-1";
+        final String dataNodeId = uuid();
+        final IndexId indexId1 = indexId(indexName1);
+        final RepositoryShardId shardId1 = new RepositoryShardId(indexId1, 0);
+        final SnapshotsInProgress.ShardSnapshotStatus shardInitStatus = initShardStatus(dataNodeId);
+        final SnapshotsInProgress.Entry cloneSingleShard = cloneEntry(targetSnapshot, sourceSnapshot.getSnapshotId(),
+                clonesMap(shardId1, shardInitStatus));
+
+        final ClusterState stateWithIndex = stateWithUnassignedIndices(indexName1);
+        final Snapshot plainSnapshot = snapshot(repoName, "test-snapshot");
+        final ShardId routingShardId1 = new ShardId(stateWithIndex.metadata().index(indexName1).getIndex(), 0);
+        final SnapshotsInProgress.Entry snapshotSingleShard = snapshotEntry(plainSnapshot, Collections.singletonList(indexId1),
+                shardsMap(routingShardId1, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED));
+
+        assertThat(cloneSingleShard.state(), is(SnapshotsInProgress.State.STARTED));
+        final ClusterState stateWithUnassignedRoutingShard = stateWithSnapshots(stateWithIndex, cloneSingleShard, snapshotSingleShard);
+        final SnapshotsService.ShardSnapshotUpdate completeShard = successUpdate(targetSnapshot, shardId1, dataNodeId);
+        {
+            final ClusterState updatedClusterState = applyUpdates(stateWithUnassignedRoutingShard, completeShard);
+            final SnapshotsInProgress snapshotsInProgress = updatedClusterState.custom(SnapshotsInProgress.TYPE);
+            final SnapshotsInProgress.Entry completedClone = snapshotsInProgress.entries().get(0);
+            assertThat(completedClone.state(), is(SnapshotsInProgress.State.SUCCESS));
+            final SnapshotsInProgress.Entry startedSnapshot = snapshotsInProgress.entries().get(1);
+            assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.SUCCESS));
+            assertThat(startedSnapshot.shards().get(routingShardId1).state(), is(SnapshotsInProgress.ShardState.MISSING));
+            assertIsNoop(updatedClusterState, completeShard);
+        }
+
+        final ClusterState stateWithAssignedRoutingShard =
+                ClusterState.builder(stateWithUnassignedRoutingShard).routingTable(
+                        RoutingTable.builder(stateWithUnassignedRoutingShard.routingTable()).add(
+                                IndexRoutingTable.builder(routingShardId1.getIndex()).addIndexShard(
+                                        new IndexShardRoutingTable.Builder(routingShardId1).addShard(
+                                                TestShardRouting.newShardRouting(
+                                                        routingShardId1, dataNodeId, true, ShardRoutingState.STARTED)
+                                        ).build())).build()).build();
+        {
+            final ClusterState updatedClusterState = applyUpdates(stateWithAssignedRoutingShard, completeShard);
+            final SnapshotsInProgress snapshotsInProgress = updatedClusterState.custom(SnapshotsInProgress.TYPE);
+            final SnapshotsInProgress.Entry completedClone = snapshotsInProgress.entries().get(0);
+            assertThat(completedClone.state(), is(SnapshotsInProgress.State.SUCCESS));
+            final SnapshotsInProgress.Entry startedSnapshot = snapshotsInProgress.entries().get(1);
+            assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.STARTED));
+            assertThat(startedSnapshot.shards().get(routingShardId1).state(), is(SnapshotsInProgress.ShardState.INIT));
+            assertIsNoop(updatedClusterState, completeShard);
+        }
     }
 
     private static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsMap(
@@ -173,9 +234,30 @@ public class SnapshotsServiceTests extends ESTestCase {
         return new SnapshotsService.ShardSnapshotUpdate(snapshot, shardId, successfulShardStatus(nodeId));
     }
 
-    private static ClusterState stateWithSnapshots(SnapshotsInProgress.Entry... entries) {
-        return ClusterState.builder(ClusterState.EMPTY_STATE).version(randomNonNegativeLong())
+    private static ClusterState stateWithUnassignedIndices(String... indexNames) {
+        final Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
+        for (String index : indexNames) {
+            metaBuilder.put(IndexMetadata.builder(index)
+                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+                    .numberOfShards(1).numberOfReplicas(0)
+                    .build(), false);
+        }
+        final RoutingTable.Builder routingTable = RoutingTable.builder();
+        for (String index : indexNames) {
+            final Index idx = metaBuilder.get(index).getIndex();
+            routingTable.add(IndexRoutingTable.builder(idx).addIndexShard(
+                    new IndexShardRoutingTable.Builder(new ShardId(idx, 0)).build()));
+        }
+        return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metaBuilder).routingTable(routingTable.build()).build();
+    }
+
+    private static ClusterState stateWithSnapshots(ClusterState state, SnapshotsInProgress.Entry... entries) {
+        return ClusterState.builder(state).version(state.version() + 1L)
                 .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(Arrays.asList(entries))).build();
+    }
+
+    private static ClusterState stateWithSnapshots(SnapshotsInProgress.Entry... entries) {
+        return stateWithSnapshots(ClusterState.EMPTY_STATE, entries);
     }
 
     private static void assertIsNoop(ClusterState state, SnapshotsService.ShardSnapshotUpdate shardCompletion) throws Exception {

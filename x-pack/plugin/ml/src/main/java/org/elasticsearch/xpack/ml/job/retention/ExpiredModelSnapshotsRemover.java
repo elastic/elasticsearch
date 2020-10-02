@@ -193,7 +193,8 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                 try {
                     List<ModelSnapshot> snapshots = new ArrayList<>();
                     for (ModelSnapshot snapshot: searchResponse.results()) {
-                        if (snapshot.getSnapshotId().equals(job.getModelSnapshotId())) {
+                        // We don't want to delete the currently used snapshot or a snapshot marked to be retained
+                        if (snapshot.getSnapshotId().equals(job.getModelSnapshotId()) || snapshot.isRetain()) {
                             continue;
                         }
                         if (snapshot.getTimestamp() == null) {

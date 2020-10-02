@@ -445,6 +445,30 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(startDeleteSnapshot(repoName, sourceSnapshot).get());
     }
 
+    public void testDoesNotStartOnBrokenSourceSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "index-test";
+        createIndexWithContent(testIndex);
+
+        final String sourceSnapshot = "source-snapshot";
+        blockDataNode(repoName, dataNode);
+        final Client masterClient = internalCluster().masterClient();
+        final ActionFuture<CreateSnapshotResponse> sourceSnapshotFuture = masterClient.admin().cluster()
+                .prepareCreateSnapshot(repoName, sourceSnapshot).setWaitForCompletion(true).execute();
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        internalCluster().restartNode(dataNode);
+        assertThat(sourceSnapshotFuture.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+
+        final SnapshotException sne = expectThrows(SnapshotException.class, () -> startClone(masterClient, repoName, sourceSnapshot,
+                "target-snapshot", testIndex).actionGet(TimeValue.timeValueSeconds(30L)));
+        assertThat(sne.getMessage(), containsString("Can't clone index [" + getRepositoryData(repoName).resolveIndexId(testIndex) +
+        "] because its snapshot is was not successful."));
+    }
+
     private ActionFuture<AcknowledgedResponse> startCloneFromDataNode(String repoName, String sourceSnapshot, String targetSnapshot,
                                                                       String... indices) {
         return startClone(dataNodeClient(), repoName, sourceSnapshot, targetSnapshot, indices);

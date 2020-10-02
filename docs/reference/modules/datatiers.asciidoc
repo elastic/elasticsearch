@@ -66,7 +66,7 @@ This tier is where data goes once it is not queried very frequently in the <<hot
 anymore. It is a medium-fast, lower cost tier, that still allows data updates. Data within this
 tier is retained for weeks and the indices still have one or more replicas.
 
-[[Cold-tier]]
+[[cold-tier]]
 ==== Cold tier
 
 The cold tier is made of one or more nodes that have the <<data-cold-node, data_cold>> role.
@@ -83,8 +83,8 @@ snapshot.
 When an index is created {es} will automatically allocate the index to the <<content-tier, Content tier>>
 if the index is not part of a <<data-streams, data stream>> or to the <<hot-tier, Hot tier>> if the index
 is part of a <<data-streams, data stream>>.
-{es} will configure the `index.routing.allocation.include._tier_preference` to `data_content` or `data_hot`
-respectively.
+{es} will configure the <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
+to `data_content` or `data_hot` respectively.
 
 These heuristics can be overridden by specifying any <<shard-allocation-filtering, shard allocation filtering>>
 settings in the create index request or index template that matches the new index.

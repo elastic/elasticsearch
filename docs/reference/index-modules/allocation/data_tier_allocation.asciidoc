@@ -39,6 +39,7 @@ To enable data tier allocation the following index settings can be used:
     Assign the index to a node whose `_tier` has _none_ of the
     comma-separated values.
 
+[[tier-preference-allocation-filter]]
 `index.routing.allocation.include._tier_preference`::
 
     Assign a preference-based list of tiers for an index to be assigned to. This

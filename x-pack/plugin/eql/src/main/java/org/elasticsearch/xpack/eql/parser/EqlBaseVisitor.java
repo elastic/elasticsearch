@@ -204,6 +204,12 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFunctionExpression(EqlBaseParser.FunctionExpressionContext ctx);
   /**
+   * Visit a parse tree produced by {@link EqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFunctionName(EqlBaseParser.FunctionNameContext ctx);
+  /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EqlBaseParser#constant}.
    * @param ctx the parse tree

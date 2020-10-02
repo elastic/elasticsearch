@@ -334,6 +334,16 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitFunctionExpression(EqlBaseParser.FunctionExpressionContext ctx);
   /**
+   * Enter a parse tree produced by {@link EqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionName(EqlBaseParser.FunctionNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionName(EqlBaseParser.FunctionNameContext ctx);
+  /**
    * Enter a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EqlBaseParser#constant}.
    * @param ctx the parse tree

@@ -62,16 +62,8 @@ By default, {es} uses the <<mapping-date-format,date `format`>> provided in the
 
 For valid syntax, see <<mapping-date-format,`format`>>.
 
-[WARNING]
-====
-If a `format` and `date` value are incomplete, {es} replaces any missing year,
-month, or day component with the 
-{wikipedia}/Unix_time[Unix epoch], which is January 1st, 1970.
-
-For example, if the `format` value is `dd`, {es} converts a `gte` value of `22`
-to `1970-01-22T00:00:00.000Z`. This date uses `22` as the day of the month but
-uses the Unix epoch's year (`1970`) and month (`01`).
-====
+WARNING: If a format or date value is incomplete, the range query replaces any
+missing components with default values. See <<missing-date-components>>.
 
 --
 
@@ -169,6 +161,27 @@ GET /_search
 }
 ----
 
+[[missing-date-components]]
+====== Missing date components
+
+For range queries and <<search-aggregations-bucket-daterange-aggregation,date
+range>> aggregations, {es} replaces missing date components with the following
+values. Missing year components are not replaced.
+
+[source,text]
+----
+MONTH_OF_YEAR:    01
+DAY_OF_MONTH:     01
+HOUR_OF_DAY:      23
+MINUTE_OF_HOUR:   59
+SECOND_OF_MINUTE: 59
+NANO_OF_SECOND:   999_999_999
+----
+
+For example, if the format is `yyyy-MM`, {es} converts a `gt` value of `2099-12`
+to `2099-12-01T23:59:59.999_999_999Z`. This date uses the provided year (`2099`)
+and month (`12`) but uses the default day (`01`), hour (`23`), minute (`59`),
+second (`59`), and nanosecond (`999_999_999`).
 
 [[range-query-date-math-rounding]]
 ====== Date math and rounding

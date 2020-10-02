@@ -54,7 +54,6 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private final int numberOfFields;
     private final List<Path> filesToDelete;
     private final Consumer<String> onProcessCrash;
-    private final Duration processConnectTimeout;
     private volatile Future<?> logTailFuture;
     private volatile Future<?> stateProcessorFuture;
     private volatile boolean processCloseInitiated;
@@ -62,8 +61,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean isReady;
 
     protected AbstractNativeProcess(String jobId, NativeController nativeController, ProcessPipes processPipes,
-                                    int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash,
-                                    Duration processConnectTimeout) {
+                                    int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash) {
         this.jobId = jobId;
         this.nativeController = nativeController;
         this.processPipes = processPipes;
@@ -71,7 +69,6 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         this.numberOfFields = numberOfFields;
         this.filesToDelete = filesToDelete;
         this.onProcessCrash = Objects.requireNonNull(onProcessCrash);
-        this.processConnectTimeout = Objects.requireNonNull(processConnectTimeout);
     }
 
     public abstract String getName();
@@ -84,7 +81,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
      */
     public void start(ExecutorService executorService) throws IOException {
 
-        processPipes.connectLogStream(processConnectTimeout);
+        processPipes.connectLogStream();
         cppLogHandler.set(processPipes.getLogStreamHandler());
 
         logTailFuture = executorService.submit(() -> {
@@ -99,7 +96,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             }
         });
 
-        processPipes.connectOtherStreams(processConnectTimeout);
+        processPipes.connectOtherStreams();
         if (processPipes.getProcessInStream().isPresent()) {
             processInStream.set(new BufferedOutputStream(processPipes.getProcessInStream().get()));
             this.recordWriter.set(new LengthEncodedWriter(processInStream.get()));
@@ -215,7 +212,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         try {
             // The PID comes via the processes log stream. We do wait here to give the process the time to start up and report its PID.
             // Without the PID we cannot kill the process.
-            nativeController.killProcess(cppLogHandler().getPid(processConnectTimeout));
+            nativeController.killProcess(cppLogHandler().getPid(processPipes.getTimeout()));
 
             // Wait for the process to die before closing processInStream as if the process
             // is still alive when processInStream is closed it may start persisting state

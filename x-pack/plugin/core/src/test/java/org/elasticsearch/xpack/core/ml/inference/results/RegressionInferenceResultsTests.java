@@ -29,8 +29,8 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
     public static RegressionInferenceResults createRandomResults() {
         return new RegressionInferenceResults(randomDouble(),
             RegressionConfigTests.randomRegressionConfig(),
-            randomBoolean() ? null :
-                Stream.generate(FeatureImportanceTests::randomRegression)
+            randomBoolean() ? Collections.emptyList() :
+                Stream.generate(RegressionFeatureImportanceTests::createRandomInstance)
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList()));
     }
@@ -50,7 +50,7 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
     }
 
     public void testWriteResultsWithImportance() {
-        List<FeatureImportance> importanceList = Stream.generate(FeatureImportanceTests::randomRegression)
+        List<RegressionFeatureImportance> importanceList = Stream.generate(RegressionFeatureImportanceTests::createRandomInstance)
             .limit(5)
             .collect(Collectors.toList());
         RegressionInferenceResults result = new RegressionInferenceResults(0.3,
@@ -68,7 +68,7 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
         importanceList.sort((l, r)-> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())));
         for (int i = 0; i < 3; i++) {
             Map<String, Object> objectMap = writtenImportance.get(i);
-            FeatureImportance importance = importanceList.get(i);
+            RegressionFeatureImportance importance = importanceList.get(i);
             assertThat(objectMap.get("feature_name"), equalTo(importance.getFeatureName()));
             assertThat(objectMap.get("importance"), equalTo(importance.getImportance()));
             assertThat(objectMap.size(), equalTo(2));
@@ -92,7 +92,7 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
         String expected = "{\"" + resultsField + "\":1.0}";
         assertEquals(expected, stringRep);
 
-        FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyList());
+        RegressionFeatureImportance fi = new RegressionFeatureImportance("foo", 1.0);
         result = new RegressionInferenceResults(1.0, resultsField, Collections.singletonList(fi));
         stringRep = Strings.toString(result);
         expected = "{\"" + resultsField + "\":1.0,\"feature_importance\":[{\"feature_name\":\"foo\",\"importance\":1.0}]}";

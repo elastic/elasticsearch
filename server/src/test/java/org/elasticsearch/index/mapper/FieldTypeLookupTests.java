@@ -104,9 +104,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             .build(context);
 
         MockFieldMapper otherField = new MockFieldMapper.Builder("other_field")
-            .copyTo(new FieldMapper.CopyTo.Builder()
-                .add("field")
-                .build())
+            .copyTo("field")
             .build(context);
 
         FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList());

@@ -13,6 +13,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -197,6 +198,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             }
         ).when(executor).execute(any());
 
-        return new ExpiredResultsRemover(originSettingClient, jobIterator, mock(AnomalyDetectionAuditor.class), threadPool);
+        return new ExpiredResultsRemover(originSettingClient, jobIterator, new TaskId("test", 0L),
+            mock(AnomalyDetectionAuditor.class), threadPool);
     }
 }

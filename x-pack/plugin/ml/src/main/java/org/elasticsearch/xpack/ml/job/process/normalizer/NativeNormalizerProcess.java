@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
-import java.time.Duration;
 import java.util.Collections;
 
 /**
@@ -20,8 +19,8 @@ class NativeNormalizerProcess extends AbstractNativeProcess implements Normalize
 
     private static final String NAME = "normalizer";
 
-    NativeNormalizerProcess(String jobId, NativeController nativeController, ProcessPipes processPipes, Duration processConnectTimeout) {
-        super(jobId, nativeController, processPipes, 0, Collections.emptyList(), (ignore) -> {}, processConnectTimeout);
+    NativeNormalizerProcess(String jobId, NativeController nativeController, ProcessPipes processPipes) {
+        super(jobId, nativeController, processPipes, 0, Collections.emptyList(), (ignore) -> {});
     }
 
     @Override

@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -231,7 +231,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             mock(DataFrameAnalyticsManager.class),
             mock(DataFrameAnalyticsAuditor.class),
             mock(MlMemoryTracker.class),
-            new IndexNameExpressionResolver(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
             mock(IndexTemplateConfig.class));
     }
 

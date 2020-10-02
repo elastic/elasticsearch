@@ -17,8 +17,6 @@
  * under the License.
  */
 
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.MavenFilteringHack
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -186,45 +184,4 @@ subprojects {
   apply plugin: 'elasticsearch.internal-distribution-archive-check'
 
   group = "org.elasticsearch.distribution.${name.startsWith("oss-") ? "oss" : "default"}"
-}
-
-/*****************************************************************************
- *                            Rest test config                               *
- *****************************************************************************/
-project('integ-test-zip') {
-  apply plugin: 'elasticsearch.standalone-rest-test'
-  apply plugin: 'elasticsearch.rest-test'
-
-  group = "org.elasticsearch.distribution.integ-test-zip"
-
-  integTest {
-    dependsOn assemble
-    if (Os.isFamily(Os.FAMILY_WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
-      // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-      systemProperty 'tests.timeoutSuite', '1800000!'
-    }
-  }
-
-  processTestResources {
-    inputs.properties(project(':distribution').restTestExpansions)
-    MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
-  }
-
-  // The integ-test-distribution is published to maven
-  apply plugin: 'elasticsearch.publish'
-
-  // make the pom file name use elasticsearch instead of the project name
-  archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"
-
-  String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.named(buildTask)
-
-  publishing {
-    publications {
-      nebula {
-        pom.packaging = 'zip'
-        artifact(buildDist.flatMap { it.archiveFile })
-      }
-    }
-  }
 }

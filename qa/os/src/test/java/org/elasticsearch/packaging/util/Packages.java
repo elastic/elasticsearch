@@ -260,7 +260,7 @@ public class Packages {
         // match systemctl JAVA_HOME to env, removing any existing JAVA_HOME
         List<String> envLines = Files.readAllLines(installation.envFile, StandardCharsets.UTF_8)
             .stream()
-            .filter(v -> v.startsWith("JAVA_HOME="))
+            .filter(v -> v.startsWith("JAVA_HOME=") == false)
             .collect(Collectors.toList());
         if (sh.getEnv().containsKey("JAVA_HOME")) {
             envLines.add("JAVA_HOME=" + sh.getEnv().get("JAVA_HOME"));

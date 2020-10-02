@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -80,7 +81,8 @@ public final class DestinationIndex {
      * If the results mappings change in a way existing destination indices will fail to index
      * the results, this should be bumped accordingly.
      */
-    public static final Version MIN_COMPATIBLE_VERSION = Version.V_7_10_0;
+    public static final Version MIN_COMPATIBLE_VERSION =
+        StartDataFrameAnalyticsAction.TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED;
 
     private DestinationIndex() {}
 

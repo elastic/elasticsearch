@@ -758,7 +758,7 @@ final class MLRequestConverters {
 
     static Request getTrainedModels(GetTrainedModelsRequest getTrainedModelsRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+            .addPathPartAsIs("_ml", "trained_models")
             .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIds()))
             .build();
         RequestConverters.Params params = new RequestConverters.Params();
@@ -796,7 +796,7 @@ final class MLRequestConverters {
 
     static Request getTrainedModelsStats(GetTrainedModelsStatsRequest getTrainedModelsStatsRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+            .addPathPartAsIs("_ml", "trained_models")
             .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsStatsRequest.getIds()))
             .addPathPart("_stats")
             .build();
@@ -821,7 +821,7 @@ final class MLRequestConverters {
 
     static Request deleteTrainedModel(DeleteTrainedModelRequest deleteRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+            .addPathPartAsIs("_ml", "trained_models")
             .addPathPart(deleteRequest.getId())
             .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -829,7 +829,7 @@ final class MLRequestConverters {
 
     static Request putTrainedModel(PutTrainedModelRequest putTrainedModelRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+            .addPathPartAsIs("_ml", "trained_models")
             .addPathPart(putTrainedModelRequest.getTrainedModelConfig().getModelId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);

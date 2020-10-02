@@ -49,9 +49,8 @@ Defaults to `open`.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `verbose`::
-experimental:[]
 (Optional, boolean)
-If `true`, the response includes detailed information
+experimental:[] If `true`, the response includes detailed information
 about Lucene's memory usage.
 Defaults to `false`.
 

@@ -696,6 +696,10 @@ process where not (fake_field : "*")
 
 """""!#$%^&!""#$\"123*""&^%$()""""" where process_name == "svchost.exe";
 
+"\".  ..\"   .. \"" where process_name == "svchost.exe";
+
+""""".  ..   .. """"" where process_name == "svchost.exe";
+
 sequence
   ["!#$134" where serial_event_id<3] by unique_pid1
   ["""!#@$%12345)(*&%^%#$@""" where true] by unique_ppid2

@@ -119,7 +119,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
             RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
-            RestSearchAction.preparePointInTime(searchRequest, restRequest, namedWriteableRegistry);
+            if (searchRequest.pointInTimeBuilder() != null) {
+                RestSearchAction.preparePointInTime(searchRequest, restRequest, namedWriteableRegistry);
+            } else {
+                searchRequest.setCcsMinimizeRoundtrips(
+                    restRequest.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
+                );
+            }
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();

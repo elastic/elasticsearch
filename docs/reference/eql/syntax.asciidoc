@@ -136,7 +136,7 @@ Returns `true` if the value to the left of the operator is greater than the
 value to the right. Otherwise returns `false`. When comparing strings,
 the operator uses a case-sensitive lexicographic order.
 
-NOTE: `=` is not supported as an equality operator. Use `==` or `:` instead.
+NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
 You cannot chain comparison operators. Instead, use a
 <<eql-syntax-logical-operators,logical operator>> between comparisons. For

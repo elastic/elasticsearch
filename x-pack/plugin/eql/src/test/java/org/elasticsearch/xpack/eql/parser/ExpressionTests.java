@@ -68,19 +68,19 @@ public class ExpressionTests extends ESTestCase {
 
         // test for unescaped strings: """...."""
         assertEquals("hello\"world", unquoteString(source("\"\"\"hello\"world\"\"\"")));
-        assertEquals("hello\"world", unquoteString(source("\"\"\"hello\\\"world\"\"\"")));
-        assertEquals("\"\"hello\"\"world\"\"\"", unquoteString(source("\"\"\"\"\"hello\"\\\"world\"\"\"\"\"\"")));
+        assertEquals("hello\\\"world", unquoteString(source("\"\"\"hello\\\"world\"\"\"")));
+        assertEquals("\"\"hello\"\\\"world\"\"\"", unquoteString(source("\"\"\"\"\"hello\"\\\"world\"\"\"\"\"\"")));
         assertEquals("hello'world", unquoteString(source("\"\"\"hello'world\"\"\"")));
         assertEquals("hello'world", unquoteString(source("\"\"\"hello\'world\"\"\"")));
         assertEquals("hello\\'world", unquoteString(source("\"\"\"hello\\\'world\"\"\"")));
         assertEquals("hello\\nworld", unquoteString(source("\"\"\"hello\\nworld\"\"\"")));
         assertEquals("hello\\\\nworld", unquoteString(source("\"\"\"hello\\\\nworld\"\"\"")));
         assertEquals("hello\\\\\\nworld", unquoteString(source("\"\"\"hello\\\\\\nworld\"\"\"")));
-        assertEquals("hello\\\\\"world", unquoteString(source("\"\"\"hello\\\\\\\"world\"\"\"")));
-        assertEquals("\"\"", unquoteString(source("\"\"\"\"\\\"\"\"\"")));
-        assertEquals("\"\"\"", unquoteString(source("\"\"\"\\\"\"\"\"\"\"")));
-        assertEquals("\"\"\"", unquoteString(source("\"\"\"\"\\\"\"\"\"\"")));
-        assertEquals("\"\"\"", unquoteString(source("\"\"\"\"\"\\\"\"\"\"")));
+        assertEquals("hello\\\\\\\"world", unquoteString(source("\"\"\"hello\\\\\\\"world\"\"\"")));
+        assertEquals("\"\\\"", unquoteString(source("\"\"\"\"\\\"\"\"\"")));
+        assertEquals("\\\"\"\"", unquoteString(source("\"\"\"\\\"\"\"\"\"\"")));
+        assertEquals("\"\\\"\"", unquoteString(source("\"\"\"\"\\\"\"\"\"\"")));
+        assertEquals("\"\"\\\"", unquoteString(source("\"\"\"\"\"\\\"\"\"\"")));
         assertEquals("\"\"", unquoteString(source("\"\"\"\"\"\"\"\"")));
         assertEquals("\"\" \"\"", unquoteString(source("\"\"\"\"\" \"\"\"\"\"")));
         assertEquals("", unquoteString(source("\"\"\"\"\"\"")));
@@ -139,10 +139,10 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, eq.right().getClass());
         assertEquals(expectedStrRight, ((Literal) eq.right()).value());
 
-        // """""hello\"""world!\"""" == """"foo"\""bar""\"""" => ""hello"""world!" = "foo"""bar"""
-        str = " \"\"\"\"\"hello\\\"\"\"world!\\\"\"\"\" == \"\"\"\"foo\"\\\"\"bar\"\"\\\"\"\"\" ";
-        expectedStrLeft = "\"\"hello\"\"\"world!\"";
-        expectedStrRight = "\"foo\"\"\"bar\"\"\"";
+        // """""hello""world!"""" == """"foo"bar""""" => ""hello""world!" = "foo""bar""
+        str = " \"\"\"\"\"hello\"\"world!\"\"\"\" == \"\"\"\"foo\"bar\"\"\"\"\" ";
+        expectedStrLeft = "\"\"hello\"\"world!\"";
+        expectedStrRight = "\"foo\"bar\"\"";
         parsed = expr(str);
         assertEquals(Equals.class, parsed.getClass());
         eq = (Equals) parsed;
@@ -151,12 +151,12 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Literal.class, eq.right().getClass());
         assertEquals(expectedStrRight, ((Literal) eq.right()).value());
 
-        // """""\"""hello\\"""\"""world!\\"""\"""" == """\\"""\"""foo\\"""\"\"""\\"bar""\\"""\"""" =>
-        // """""hello\""""""world!\"""" == \""""""foo\"""""""\"bar""\""""
-        str = "\"\"\"\"\"\\\"\"\"hello\\\\\"\"\"\\\"\"\"world!\\\\\"\"\"\\\"\"\"\" == " +
-                "\"\"\"\\\\\"\"\"\\\"\"\"foo\\\\\"\"\"\\\"\\\"\"\"\\\\\"bar\"\"\\\\\"\"\"\\\"\"\"\"";
-        expectedStrLeft = "\"\"\"\"\"hello\\\"\"\"\"\"\"world!\\\"\"\"\"";
-        expectedStrRight = "\\\"\"\"\"\"\"foo\\\"\"\"\"\"\"\"\\\"bar\"\"\\\"\"\"\"";
+        // """""\""hello\\""\""world!\\""""" == """\\""\""foo""\\""\"bar""\\""\"""" =>
+        // ""\""hello\\""\""world!\\"" == \\""\""foo""\\""\"bar""\\""\"
+        str = " \"\"\"\"\"\\\"\"hello\\\\\"\"\\\"\"world!\\\\\"\"\"\"\"  ==  " +
+                " \"\"\"\\\\\"\"\\\"\"foo\"\"\\\\\"\"\\\"bar\"\"\\\\\"\"\\\"\"\"\"  ";
+        expectedStrLeft = "\"\"\\\"\"hello\\\\\"\"\\\"\"world!\\\\\"\"";
+        expectedStrRight = "\\\\\"\"\\\"\"foo\"\"\\\\\"\"\\\"bar\"\"\\\\\"\"\\\"";
         parsed = expr(str);
         assertEquals(Equals.class, parsed.getClass());
         eq = (Equals) parsed;
@@ -170,10 +170,10 @@ public class ExpressionTests extends ESTestCase {
                 () -> expr("\"\"\"\"\"\"hello world!\"\"\" == \"\"\"foobar\"\"\""));
         assertThat(e.getMessage(), startsWith("line 1:7: mismatched input 'hello' expecting {<EOF>,"));
 
-        // """""\"hello world!"""" == """foobar"""
+        // """""\"hello world!"""""" == """foobar"""
         e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\"\"\"\"\\\"hello world!\"\"\"\" == \"\"\"foobar\"\"\""));
-        assertThat(e.getMessage(), startsWith("line 1:23: mismatched input '\" == \"' expecting {<EOF>,"));
+                () -> expr("\"\"\"\"\"\\\"hello world!\"\"\"\"\"\" == \"\"\"foobar\"\"\""));
+        assertThat(e.getMessage(), startsWith("line 1:25: mismatched input '\" == \"' expecting {<EOF>,"));
 
         // """""\"hello world!""\"""" == """"""foobar"""
         e = expectThrows(ParsingException.class, "Expected syntax error",
@@ -183,7 +183,7 @@ public class ExpressionTests extends ESTestCase {
         // """""\"hello world!""\"""" == """""\"foobar\"\""""""
         e = expectThrows(ParsingException.class, "Expected syntax error",
                 () -> expr("\"\"\"\"\"\\\"hello world!\"\"\\\"\"\"\" == \"\"\"\"\"\\\"foobar\\\"\\\"\"\"\"\"\""));
-        assertThat(e.getMessage(), startsWith("line 1:51: extraneous input '\"\"' expecting {<EOF>,"));
+        assertEquals("line 1:52: token recognition error at: '\"'", e.getMessage());
     }
 
     public void testNumbers() {

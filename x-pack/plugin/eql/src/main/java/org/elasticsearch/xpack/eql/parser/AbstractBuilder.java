@@ -130,7 +130,7 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
 
         // unescaped strings can be interpreted directly
         if (text.startsWith("\"\"\"")) {
-            return text.substring(3, text.length() - 3).replace("\\\"", "\"");
+            return text.substring(3, text.length() - 3);
         }
 
         checkForSingleQuotedString(source, text, 0);

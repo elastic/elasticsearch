@@ -95,7 +95,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON).build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, true));
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true));
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
 
@@ -104,7 +104,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
@@ -118,7 +118,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             .withContent(new BytesArray(requestContent), XContentType.JSON)
             .withParams(Collections.singletonMap("ignore_unavailable", "true"))
             .build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
@@ -209,13 +209,13 @@ public class MultiSearchRequestTests extends ESTestCase {
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
                 .withContent(new BytesArray(mserchAction.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
         IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class,
-                () -> RestMultiSearchAction.parseRequest(restRequest, true));
+                () -> RestMultiSearchAction.parseRequest(restRequest, null, true));
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
         String mserchActionWithNewLine = mserchAction + "\n";
         RestRequest restRequestWithNewLine = new FakeRestRequest.Builder(xContentRegistry())
                 .withContent(new BytesArray(mserchActionWithNewLine.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
-        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, true);
+        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, null, true);
         assertEquals(3, msearchRequest.requests().size());
     }
 

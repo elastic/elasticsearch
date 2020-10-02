@@ -5,7 +5,7 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Delete trained model API
+=== Delete trained models API
 
 experimental::[]
 
@@ -13,7 +13,7 @@ Deletes a previously saved trained model.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Delete trained model request
+==== Delete trained models request
 
 A +{request}+ requires a valid trained model ID.
 

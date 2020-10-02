@@ -11,7 +11,7 @@ Retrieves statistics for any number of {anomaly-jobs} in the cluster.
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get job stats request
+==== Get {anomaly-job} stats request
 
 A `GetJobsStatsRequest` object can have any number of `jobId`
 entries. However, they all must be non-null. An empty list is the same as
@@ -29,7 +29,7 @@ wildcards.
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get job stats response
+==== Get {anomaly-job} stats response
 The returned +{response}+ contains the requested job statistics:
 
 ["source","java",subs="attributes,callouts,macros"]

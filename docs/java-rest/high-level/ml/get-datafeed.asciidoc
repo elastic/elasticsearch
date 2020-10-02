@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Get datafeed API
+=== Get datafeeds API
 
 Retrieves configuration information about {ml} datafeeds in the cluster.
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get datafeed request
+==== Get datafeeds request
 
 A +{request}+ object gets can have any number of `datafeedId` entries. However,
 they all must be non-null. An empty list is the same as requesting for all
@@ -30,7 +30,7 @@ then be put into another cluster. Certain fields that can only be set when
 the datafeed is created are removed.
 
 [id="{upid}-{api}-response"]
-==== Get datafeed response
+==== Get datafeeds response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-forecast]]
-= Delete forecast API
+= Delete forecasts API
 ++++
-<titleabbrev>Delete forecast</titleabbrev>
+<titleabbrev>Delete forecasts</titleabbrev>
 ++++
 
 Deletes forecasts from a {ml} job.

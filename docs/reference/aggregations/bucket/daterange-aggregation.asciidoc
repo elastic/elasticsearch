@@ -67,6 +67,10 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
+WARNING: If a format or date value is incomplete, the date range aggregation
+replaces any missing components with default values. See
+<<missing-date-components>>.
+
 ==== Missing Values
 
 The `missing` parameter defines how documents that are missing a value should

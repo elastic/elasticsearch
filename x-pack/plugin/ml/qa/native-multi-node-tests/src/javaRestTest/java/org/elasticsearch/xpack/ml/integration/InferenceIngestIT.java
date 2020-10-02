@@ -118,11 +118,11 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
-                    "_ml/inference/" + classificationModelId + "/_stats"));
+                    "_ml/trained_models/" + classificationModelId + "/_stats"));
                 String response = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(response, containsString("\"inference_count\":10"));
                 assertThat(response, containsString("\"cache_miss_count\":30"));
-                statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
                 response = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(response, containsString("\"inference_count\":10"));
                 assertThat(response, containsString("\"cache_miss_count\":30"));
@@ -174,16 +174,16 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
-                    "_ml/inference/" + classificationModelId + "/_stats"));
+                    "_ml/trained_models/" + classificationModelId + "/_stats"));
                 String response = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(response, containsString("\"inference_count\":10"));
                 assertThat(response, containsString("\"cache_miss_count\":3"));
-                statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
                 response = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(response, containsString("\"inference_count\":15"));
                 assertThat(response, containsString("\"cache_miss_count\":3"));
                 // can get both
-                statsResponse = client().performRequest(new Request("GET", "_ml/inference/_stats"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/_stats"));
                 String entityString = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(entityString, containsString("\"inference_count\":15"));
                 assertThat(entityString, containsString("\"inference_count\":10"));
@@ -604,7 +604,7 @@ public class InferenceIngestIT extends ESRestTestCase {
     }
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {
-        Request request = new Request("PUT", "_ml/inference/" + modelId);
+        Request request = new Request("PUT", "_ml/trained_models/" + modelId);
         request.setJsonEntity(modelConfiguration);
         client().performRequest(request);
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -21,6 +22,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.ACTUAL_FIELD;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields.PREDICTED_FIELD;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -30,8 +33,6 @@ public class Regression implements Evaluation {
 
     public static final ParseField NAME = new ParseField("regression");
 
-    private static final ParseField ACTUAL_FIELD = new ParseField("actual_field");
-    private static final ParseField PREDICTED_FIELD = new ParseField("predicted_field");
     private static final ParseField METRICS = new ParseField("metrics");
 
     @SuppressWarnings("unchecked")
@@ -50,16 +51,12 @@ public class Regression implements Evaluation {
     }
 
     /**
-     * The field containing the actual value
-     * The value of this field is assumed to be numeric
+     * The collection of fields in the index being evaluated.
+     *   fields.getActualField() is assumed to be numeric.
+     *   fields.getPredictedField() is assumed to be numeric.
+     * Other fields are not needed by this evaluation.
      */
-    private final String actualField;
-
-    /**
-     * The field containing the predicted value
-     * The value of this field is assumed to be numeric
-     */
-    private final String predictedField;
+    private final EvaluationFields fields;
 
     /**
      * The list of metrics to calculate
@@ -67,8 +64,14 @@ public class Regression implements Evaluation {
     private final List<EvaluationMetric> metrics;
 
     public Regression(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
-        this.actualField = ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD);
-        this.predictedField = ExceptionsHelper.requireNonNull(predictedField, PREDICTED_FIELD);
+        this.fields =
+            new EvaluationFields(
+                ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
+                ExceptionsHelper.requireNonNull(predictedField, PREDICTED_FIELD),
+                null,
+                null,
+                null,
+                false);
         this.metrics = initMetrics(metrics, Regression::defaultMetrics);
     }
 
@@ -77,8 +80,7 @@ public class Regression implements Evaluation {
     }
 
     public Regression(StreamInput in) throws IOException {
-        this.actualField = in.readString();
-        this.predictedField = in.readString();
+        this.fields = new EvaluationFields(in.readString(), in.readString(), null, null, null, false);
         this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
     }
 
@@ -88,13 +90,8 @@ public class Regression implements Evaluation {
     }
 
     @Override
-    public String getActualField() {
-        return actualField;
-    }
-
-    @Override
-    public String getPredictedField() {
-        return predictedField;
+    public EvaluationFields getFields() {
+        return fields;
     }
 
     @Override
@@ -109,16 +106,16 @@ public class Regression implements Evaluation {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(actualField);
-        out.writeString(predictedField);
+        out.writeString(fields.getActualField());
+        out.writeString(fields.getPredictedField());
         out.writeNamedWriteableList(metrics);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ACTUAL_FIELD.getPreferredName(), actualField);
-        builder.field(PREDICTED_FIELD.getPreferredName(), predictedField);
+        builder.field(ACTUAL_FIELD.getPreferredName(), fields.getActualField());
+        builder.field(PREDICTED_FIELD.getPreferredName(), fields.getPredictedField());
 
         builder.startObject(METRICS.getPreferredName());
         for (EvaluationMetric metric : metrics) {
@@ -135,13 +132,12 @@ public class Regression implements Evaluation {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Regression that = (Regression) o;
-        return Objects.equals(that.actualField, this.actualField)
-            && Objects.equals(that.predictedField, this.predictedField)
+        return Objects.equals(that.fields, this.fields)
             && Objects.equals(that.metrics, this.metrics);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(actualField, predictedField, metrics);
+        return Objects.hash(fields, metrics);
     }
 }

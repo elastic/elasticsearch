@@ -204,7 +204,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class InternalEngineTests extends EngineTestCase {
@@ -2840,7 +2843,6 @@ public class InternalEngineTests extends EngineTestCase {
 
         EngineConfig brokenConfig = new EngineConfig(
                 shardId,
-                allocationId.getId(),
                 threadPool,
                 config.getIndexSettings(),
                 null,
@@ -5795,6 +5797,33 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testIndexThrottling() throws Exception {
+        final Engine.Index indexWithThrottlingCheck = spy(indexForDoc(createParsedDoc("1", null)));
+        final Engine.Index indexWithoutThrottlingCheck = spy(indexForDoc(createParsedDoc("2", null)));
+        doAnswer(invocation -> {
+            try {
+                assertTrue(engine.throttleLockIsHeldByCurrentThread());
+                return invocation.callRealMethod();
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).when(indexWithThrottlingCheck).startTime();
+        doAnswer(invocation -> {
+            try {
+                assertFalse(engine.throttleLockIsHeldByCurrentThread());
+                return invocation.callRealMethod();
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).when(indexWithoutThrottlingCheck).startTime();
+        engine.activateThrottling();
+        engine.index(indexWithThrottlingCheck);
+        engine.deactivateThrottling();
+        engine.index(indexWithoutThrottlingCheck);
+        verify(indexWithThrottlingCheck, atLeastOnce()).startTime();
+        verify(indexWithoutThrottlingCheck, atLeastOnce()).startTime();
+    }
+
     public void testRealtimeGetOnlyRefreshIfNeeded() throws Exception {
         final AtomicInteger refreshCount = new AtomicInteger();
         final ReferenceManager.RefreshListener refreshListener = new ReferenceManager.RefreshListener() {
@@ -5898,7 +5927,7 @@ public class InternalEngineTests extends EngineTestCase {
             EngineConfig config = engine.config();
             final TranslogConfig translogConfig = new TranslogConfig(config.getTranslogConfig().getShardId(),
                 createTempDir(), config.getTranslogConfig().getIndexSettings(), config.getTranslogConfig().getBigArrays());
-            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, store, config.getMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),

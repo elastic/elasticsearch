@@ -28,7 +28,7 @@ from the replica (which still have plenty of deleted documents) so that scores
 are different too.
 
 The recommended way to work around this issue is to use a string that identifies
-the user that is logged is (a user id or session id for instance) as a
+the user that is logged in (a user id or session id for instance) as a
 <<search-preference,preference>>. This ensures that all queries of a
 given user are always going to hit the same shards, so scores remain more
 consistent across queries.

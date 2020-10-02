@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
@@ -60,11 +61,15 @@ public class StoreBraceDefNode extends StoreNode {
 
     /* ---- end visitor ---- */
 
+    public StoreBraceDefNode(Location location) {
+        super(location);
+    }
+
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         getChildNode().write(classWriter, methodWriter, writeScope);
 
-        methodWriter.writeDebugInfo(location);
+        methodWriter.writeDebugInfo(getLocation());
         Type methodType = Type.getMethodType(
                 MethodWriter.getType(void.class),
                 MethodWriter.getType(def.class),

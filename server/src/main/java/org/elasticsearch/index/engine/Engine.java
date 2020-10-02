@@ -279,6 +279,13 @@ public abstract class Engine implements Closeable {
         boolean isThrottled() {
             return lock != NOOP_LOCK;
         }
+
+        boolean throtteLockIsHeldByCurrentThread() {
+            if(isThrottled()) {
+                return lock.isHeldByCurrentThread();
+            }
+            return false;
+        }
     }
 
     /**

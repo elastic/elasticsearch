@@ -204,7 +204,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class InternalEngineTests extends EngineTestCase {
@@ -5789,66 +5792,30 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testIndexThrottling() throws Exception {
-        engine = spy(engine);
-
-        long sleepInMillis = 1000;
+        final Engine.Index indexWithThrottlingCheck = spy(indexForDoc(createParsedDoc("1", null)));
+        final Engine.Index indexWithoutThrottlingCheck = spy(indexForDoc(createParsedDoc("2", null)));
+        doAnswer((Answer<Long>) invocation -> {
+            try {
+                assertTrue(engine.throttleLockIsHeldByCurrentThread());
+                return (Long) invocation.callRealMethod();
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).when(indexWithThrottlingCheck).startTime();
+        doAnswer((Answer<Long>) invocation -> {
+            try {
+                assertFalse(engine.throttleLockIsHeldByCurrentThread());
+                return (Long) invocation.callRealMethod();
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).when(indexWithoutThrottlingCheck).startTime();
         engine.activateThrottling();
-        Long timeTaken = concurrentIndexingWithSleep(sleepInMillis);
-        assertTrue(timeTaken > (2 * sleepInMillis));
-
+        engine.index(indexWithThrottlingCheck);
         engine.deactivateThrottling();
-        timeTaken = concurrentIndexingWithSleep(sleepInMillis);
-        assertTrue(timeTaken < (2 * sleepInMillis));
-    }
-
-    private long concurrentIndexingWithSleep(long sleepInMillis) throws Exception {
-        CountDownLatch countDownLatch = new CountDownLatch(3);
-        Mockito.doAnswer((Answer<InternalEngine.IndexingStrategy>) invocation -> {
-            try {
-                Thread.sleep(sleepInMillis);
-                return (InternalEngine.IndexingStrategy) invocation.callRealMethod();
-            } catch (InterruptedException ex) {
-                throw new RuntimeException(ex);
-            }
-        }).when(engine).indexingStrategyForOperation(Mockito.any(Engine.Index.class));
-
-        Thread indexer1 = new Thread(() -> {
-            try {
-                countDownLatch.countDown();
-                countDownLatch.await();
-                Engine.Index index = indexForDoc(createParsedDoc("1", null));
-                engine.index(index);
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            } catch (AlreadyClosedException e) {
-                return;
-            } catch (InterruptedException ex) {
-                throw new RuntimeException(ex);
-            }
-        });
-
-        Thread indexer2 = new Thread(() -> {
-            try {
-                countDownLatch.countDown();
-                countDownLatch.await();
-                Engine.Index index = indexForDoc(createParsedDoc("2", null));
-                engine.index(index);
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            } catch (AlreadyClosedException e) {
-                return;
-            } catch (InterruptedException ex) {
-                throw new RuntimeException(ex);
-            }
-        });
-        indexer1.start();
-        indexer2.start();
-        long start = System.nanoTime();
-        countDownLatch.countDown();
-        countDownLatch.await();
-        indexer1.join();
-        indexer2.join();
-        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        engine.index(indexWithoutThrottlingCheck);
+        verify(indexWithThrottlingCheck, atLeastOnce()).startTime();
+        verify(indexWithoutThrottlingCheck, atLeastOnce()).startTime();
     }
 
     public void testRealtimeGetOnlyRefreshIfNeeded() throws Exception {

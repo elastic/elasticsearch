@@ -2178,6 +2178,10 @@ public class InternalEngine extends Engine {
         return throttle.isThrottled();
     }
 
+    boolean throttleLockIsHeldByCurrentThread() {
+        return throttle.throtteLockIsHeldByCurrentThread();
+    }
+
     @Override
     public long getIndexThrottleTimeInMillis() {
         return throttle.getThrottleTimeInMillis();

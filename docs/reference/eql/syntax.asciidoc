@@ -319,7 +319,6 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 "example \r of \" escaped \n characters"
 ----
 
-*Escape sequences* +
 [options="header"]
 |====
 | Escape sequence | Literal character

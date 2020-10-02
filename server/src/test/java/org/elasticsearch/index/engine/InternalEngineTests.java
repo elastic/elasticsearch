@@ -135,8 +135,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
-import org.mockito.Mockito;
-import org.mockito.stubbing.Answer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -5794,18 +5792,18 @@ public class InternalEngineTests extends EngineTestCase {
     public void testIndexThrottling() throws Exception {
         final Engine.Index indexWithThrottlingCheck = spy(indexForDoc(createParsedDoc("1", null)));
         final Engine.Index indexWithoutThrottlingCheck = spy(indexForDoc(createParsedDoc("2", null)));
-        doAnswer((Answer<Long>) invocation -> {
+        doAnswer(invocation -> {
             try {
                 assertTrue(engine.throttleLockIsHeldByCurrentThread());
-                return (Long) invocation.callRealMethod();
+                return invocation.callRealMethod();
             } catch (InterruptedException ex) {
                 throw new RuntimeException(ex);
             }
         }).when(indexWithThrottlingCheck).startTime();
-        doAnswer((Answer<Long>) invocation -> {
+        doAnswer(invocation -> {
             try {
                 assertFalse(engine.throttleLockIsHeldByCurrentThread());
-                return (Long) invocation.callRealMethod();
+                return invocation.callRealMethod();
             } catch (InterruptedException ex) {
                 throw new RuntimeException(ex);
             }

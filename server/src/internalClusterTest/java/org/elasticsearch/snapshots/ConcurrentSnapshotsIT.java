@@ -1293,11 +1293,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(true).execute();
     }
 
-    // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
-    // threads so that blocking some threads on one repository doesn't block other repositories from doing work
-    private static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-        .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
-
     private void createIndexWithContent(String indexName, String nodeInclude, String nodeExclude) {
         createIndexWithContent(indexName, indexSettingsNoReplicas(1)
                 .put("index.routing.allocation.include._name", nodeInclude)

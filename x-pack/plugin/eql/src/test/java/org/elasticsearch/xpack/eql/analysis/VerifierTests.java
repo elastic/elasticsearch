@@ -73,7 +73,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testQueryStartsWithNumber() {
         assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
-        assertEquals("1:1: no viable alternative at input '\"42\"'", errorParsing("\"42\" where true"));
     }
 
     public void testMissingColumn() {
@@ -332,4 +331,11 @@ public class VerifierTests extends ESTestCase {
                 "define one or use MATCH/QUERY instead",
             error(idxr, "process where string(multi_field.english) == \"foo\""));
     }
+
+    public void testIncorrectUsageOfStringEquals() {
+        final IndexResolution idxr = loadIndexResolution("mapping-default.json");
+        assertEquals("1:11: first argument of [:] must be [string], found value [pid] type [long]; consider using [==] instead",
+            error(idxr, "foo where pid : 123"));
+    }
+
 }

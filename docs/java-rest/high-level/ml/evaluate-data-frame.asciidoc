@@ -7,7 +7,9 @@
 [id="{upid}-{api}"]
 === Evaluate {dfanalytics} API
 
-Evaluates the {ml} algorithm that ran on a {dataframe}.
+experimental::[]
+
+Evaluates the {dfanalytics} for an annotated index.
 The API accepts an +{request}+ object and returns an +{response}+.
 
 [id="{upid}-{api}-request"]

@@ -86,3 +86,19 @@ setup:
   - match: { jobs.0.description: "Job 1"}
   - match: { jobs.1.job_id: "jobs-get-2"}
   - match: { jobs.1.description: "Job 2"}
+---
+"Test get job for export":
+
+  - do:
+      ml.get_jobs:
+        job_id: jobs-get-1
+        for_export: true
+  - match: { jobs.0.description: "Job 1"}
+  - is_false: job_id
+  - is_false: job_type
+  - is_false: job_version
+  - is_false: create_time
+  - is_false: finished_time
+  - is_false: model_snapshot_id
+  - is_false: model_snapshot_min_version
+  - is_false: deleting

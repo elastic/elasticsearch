@@ -1135,4 +1135,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:17: [SKEWNESS()] cannot be used on top of operators or scalars",
                 error("SELECT SKEWNESS(ABS(int * 10.123)) FROM test"));
     }
+
+    public void testCastOnInexact() {
+        // inexact with underlying keyword
+        assertEquals("1:36: [some.string] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
+                error("SELECT * FROM test WHERE NOT (CAST(some.string AS string) = 'foo') OR true"));
+        // inexact without underlying keyword (text only)
+        assertEquals("1:36: [text] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
+                error("SELECT * FROM test WHERE NOT (CAST(text AS string) = 'foo') OR true"));
+    }
 }

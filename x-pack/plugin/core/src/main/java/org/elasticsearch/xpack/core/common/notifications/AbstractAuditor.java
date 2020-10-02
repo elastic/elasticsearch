@@ -42,7 +42,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final AbstractAuditMessageFactory<T> messageFactory;
     private final AtomicBoolean hasLatestTemplate;
 
-    private final Queue<ToXContent> backlog;
+    private Queue<ToXContent> backlog;
     private final ClusterService clusterService;
     private final AtomicBoolean putTemplateInProgress;
 
@@ -134,7 +134,12 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             if (hasLatestTemplate.get() == false) {
                 // synchronized so that hasLatestTemplate does not change value
                 // between the read and adding to the backlog
-                backlog.add(toXContent);
+                assert backlog != null;
+                if (backlog != null) {
+                    backlog.add(toXContent);
+                } else {
+                    logger.error("Latest audit template missing but the back log has been written");
+                }
 
                 // stop multiple invocations
                 if (putTemplateInProgress.compareAndSet(false, true)) {
@@ -171,6 +176,12 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     private void writeBacklog() {
+        assert backlog != null;
+        if (backlog == null) {
+            logger.error("Message back log has already been written");
+            return;
+        }
+
         BulkRequest bulkRequest = new BulkRequest();
         ToXContent doc = backlog.poll();
         while (doc != null) {
@@ -185,6 +196,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 } else {
                     logger.trace("Successfully wrote audit message backlog after upgrading template");
                 }
+                backlog = null;
             },
             this::onIndexFailure
         ));

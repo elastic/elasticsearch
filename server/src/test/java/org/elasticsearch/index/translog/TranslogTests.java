@@ -1319,6 +1319,7 @@ public class TranslogTests extends ESTestCase {
         Path tempDir = createTempDir();
         final TranslogConfig config = getTranslogConfig(tempDir);
         final AtomicBoolean startBlocking = new AtomicBoolean(false);
+        final CountDownLatch writeStarted = new CountDownLatch(1);
         final CountDownLatch blocker = new CountDownLatch(1);
         final Set<Long> persistedSeqNos = new HashSet<>();
 
@@ -1338,6 +1339,9 @@ public class TranslogTests extends ESTestCase {
                         @Override
                         public int write(ByteBuffer src) throws IOException {
                             if (startBlocking.get()) {
+                                if (writeStarted.getCount() > 0) {
+                                    writeStarted.countDown();
+                                }
                                 try {
                                     blocker.await();
                                 } catch (InterruptedException e) {
@@ -1350,6 +1354,9 @@ public class TranslogTests extends ESTestCase {
                         @Override
                         public void force(boolean metaData) throws IOException {
                             if (startBlocking.get()) {
+                                if (writeStarted.getCount() > 0) {
+                                    writeStarted.countDown();
+                                }
                                 try {
                                     blocker.await();
                                 } catch (InterruptedException e) {
@@ -1393,6 +1400,7 @@ public class TranslogTests extends ESTestCase {
                     }
                 });
                 thread.start();
+                writeStarted.await();
 
                 // Add will not block even though we are currently writing/syncing
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
@@ -1403,7 +1411,6 @@ public class TranslogTests extends ESTestCase {
 
                 assertThat(persistedSeqNos, contains(1L, 2L));
                 thread.join();
-                writer.close();
             }
         }
     }

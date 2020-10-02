@@ -8,8 +8,8 @@ experimental::[]
 A parent pipeline aggregation which loads a pre-trained model and performs 
 {infer} on the collated result fields from the parent bucket aggregation.
 
-To use the {infer} bucket aggregation, you need to have the same security 
-privileges that are required for using the <<get-inference>>.
+To use the {infer} bucket aggregation, you need to have the same security
+privileges that are required for using the <<get-trained-models>>.
 
 [[inference-bucket-agg-syntax]]
 ==== Syntax
@@ -53,8 +53,8 @@ See <<buckets-path-syntax>> for more details | Required       | -
 
 ==== Configuration options for {infer} models
 
-The `inference_config` setting is optional and usually isn't required as the 
-pre-trained models come equipped with sensible defaults. In the context of 
+The `inference_config` setting is optional and usually isn't required as the
+pre-trained models come equipped with sensible defaults. In the context of
 aggregations some options can overridden for each of the 2 types of model.
 
 [discrete]
@@ -83,10 +83,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 
 
 [[inference-bucket-agg-example]]
-==== Example 
+==== Example
 
-The following snippet aggregates a web log by `client_ip` and extracts a number 
-of features via metric and bucket sub-aggregations as input to the {infer} 
+The following snippet aggregates a web log by `client_ip` and extracts a number
+of features via metric and bucket sub-aggregations as input to the {infer}
 aggregation configured with a model trained to identify suspicious client IPs:
 
 [source,console]
@@ -178,5 +178,5 @@ GET kibana_sample_data_logs/_search
 
 <1> A composite bucket aggregation that aggregates the data by `client_ip`.
 <2> A series of metrics and bucket sub-aggregations.
-<3> {infer-cap} bucket aggregation that contains the model ID and maps the 
+<3> {infer-cap} bucket aggregation that contains the model ID and maps the
 aggregation names to the model's input fields.

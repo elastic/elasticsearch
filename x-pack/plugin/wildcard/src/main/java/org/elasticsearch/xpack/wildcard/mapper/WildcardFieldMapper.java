@@ -100,7 +100,7 @@ public class WildcardFieldMapper extends FieldMapper {
             Tokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
             
             TokenStream tok = new LowerCaseFilter(tokenizer);
-            tok = new NormaliseThinningFilter(tok);
+            tok = new PunctuationFoldingFilter(tok);
             
             return new TokenStreamComponents(r -> {
                 tokenizer.setReader(r);
@@ -123,16 +123,16 @@ public class WildcardFieldMapper extends FieldMapper {
         }
     });
     
-    public static class NormaliseThinningFilter extends TokenFilter {
+    public static class PunctuationFoldingFilter extends TokenFilter {
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
         
         /**
-         * Create a new NormaliseThinningFilter, that normalizes token text such that even-numbered ascii values
+         * Create a new PunctuationFoldingFilter, that normalizes token text such that even-numbered ascii values
          * are made odd and punctuation is replaced with /
          * 
          * @param in TokenStream to filter
          */
-        public NormaliseThinningFilter(TokenStream in) {
+        public PunctuationFoldingFilter(TokenStream in) {
           super(in);
         }
         
@@ -718,7 +718,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 // fragment must have been less than NGRAM_SIZE - add a placeholder which may be used in a prefix query e.g. ab*
                 fragment = toLowerCase(fragment);
                 if (indexAnalyzer() == WILDCARD_ANALYZER_7_10) {
-                    fragment = NormaliseThinningFilter.normalize(fragment);
+                    fragment = PunctuationFoldingFilter.normalize(fragment);
                 }
                 tokens.add(fragment);
             }

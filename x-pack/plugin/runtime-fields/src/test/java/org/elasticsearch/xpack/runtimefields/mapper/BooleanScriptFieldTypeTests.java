@@ -76,7 +76,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldType ft = simpleMappedFieldType();
-                BooleanScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                BooleanScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -114,7 +114,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup)
-                    .build(null, null, null);
+                    .build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [false]}"));

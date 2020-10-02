@@ -15,7 +15,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -97,7 +96,7 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
         }
 
         @Override
-        public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+        public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // ignore breaker
             return new LatLonShapeIndexFieldData(name, valuesSourceType);
         }

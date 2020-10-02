@@ -301,7 +301,7 @@ public class QueryShardContextTests extends ESTestCase {
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
             0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null, null),
+                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
     }
@@ -341,7 +341,7 @@ public class QueryShardContextTests extends ESTestCase {
                 return leafFieldData;
             });
             IndexFieldData.Builder builder = mock(IndexFieldData.Builder.class);
-            when(builder.build(any(), any(), any())).thenAnswer(buildInv -> indexFieldData);
+            when(builder.build(any(), any())).thenAnswer(buildInv -> indexFieldData);
             return builder;
         });
         return fieldType;

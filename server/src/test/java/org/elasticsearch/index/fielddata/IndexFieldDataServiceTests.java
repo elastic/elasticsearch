@@ -126,7 +126,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             @SuppressWarnings("unchecked")
             Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>)invocationOnMock.getArguments()[1];
             searchLookupSetOnce.set(searchLookup);
-            return (IndexFieldData.Builder) (cache, breakerService, mapperService) -> null;
+            return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
         SearchLookup searchLookup = new SearchLookup(null, null);
         ifdService.getForField(ft, "qualified", () -> searchLookup);

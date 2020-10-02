@@ -37,7 +37,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-//import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -179,8 +178,8 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();
     }
-    
-    
+
+
     public void testTermAndPrefixQueryIgnoreWildcardSyntax() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
@@ -196,7 +195,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         DirectoryReader reader = iw.getReader();
         IndexSearcher searcher = newSearcher(reader);
         iw.close();
-        
+
         expectTermMatch(searcher, "f*oo*", 0);
         expectTermMatch(searcher, "f*oo?", 1);
         expectTermMatch(searcher, "*oo?", 0);
@@ -204,22 +203,22 @@ public class WildcardFieldMapperTests extends ESTestCase {
         expectPrefixMatch(searcher, "f*o", 1);
         expectPrefixMatch(searcher, "f*oo?", 1);
         expectPrefixMatch(searcher, "f??o", 0);
-        
+
         reader.close();
         dir.close();
     }
-    
+
     private void expectTermMatch(IndexSearcher searcher, String term,long count) throws IOException {
         Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_QSC);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));        
+        assertThat(td.totalHits.value, equalTo(count));
     }
-    
+
     private void expectPrefixMatch(IndexSearcher searcher, String term,long count) throws IOException {
         Query q = wildcardFieldType.fieldType().prefixQuery(term, null, MOCK_QSC);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));        
-    }    
+        assertThat(td.totalHits.value, equalTo(count));
+    }
 
 
     public void testSearchResultsVersusKeywordField() throws IOException {
@@ -861,7 +860,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup =
             (fieldType, fieldIndexName, searchLookup) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
-            return builder.build(new IndexFieldDataCache.None(), null, null);
+            return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, xContentRegistry(), null, null, null,

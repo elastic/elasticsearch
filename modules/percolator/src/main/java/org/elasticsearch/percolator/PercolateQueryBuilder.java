@@ -621,7 +621,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     shardContext::lookup);
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
-                return (IFD) builder.build(cache, circuitBreaker, shardContext.getMapperService());
+                return (IFD) builder.build(cache, circuitBreaker);
             }
         };
     }

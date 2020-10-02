@@ -127,7 +127,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(mapperService -> value, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

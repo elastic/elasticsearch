@@ -5,7 +5,9 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put trained model API
+=== Put trained models API
+
+experimental:[]
 
 experimental::[]
 
@@ -13,7 +15,7 @@ Creates a new trained model for inference.
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put trained model request
+==== Put trained models request
 
 A +{request}+ requires the following argument:
 

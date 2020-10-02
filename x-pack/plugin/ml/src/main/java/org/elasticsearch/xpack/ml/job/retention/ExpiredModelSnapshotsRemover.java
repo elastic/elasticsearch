@@ -177,7 +177,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             null,
             String.valueOf(cutoffEpochMs),
             ModelSnapshot.TIMESTAMP.getPreferredName(),
-            true,
+            false,
             null,
             snapshotsListener::onResponse,
             snapshotsListener::onFailure);

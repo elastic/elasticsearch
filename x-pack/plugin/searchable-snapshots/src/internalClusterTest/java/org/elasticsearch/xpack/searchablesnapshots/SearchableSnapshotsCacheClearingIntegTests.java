@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -103,19 +102,14 @@ public class SearchableSnapshotsCacheClearingIntegTests extends BaseSearchableSn
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        createRepo(fsRepoName);
+        createRepository(fsRepoName, "fs");
 
         final Settings.Builder originalIndexSettings = Settings.builder()
             .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
         createAndPopulateIndex(indexName, originalIndexSettings);
 
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(fsRepoName, snapshotName)
-            .setWaitForCompletion(true)
-            .get();
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertAcked(client().admin().indices().prepareDelete(indexName));

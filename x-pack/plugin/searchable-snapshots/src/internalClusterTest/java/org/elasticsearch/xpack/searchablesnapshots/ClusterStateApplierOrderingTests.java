@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -42,7 +41,7 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
         final String indexName = "test-index";
         final String restoredIndexName = "restored-index";
 
-        createRepo(fsRepoName);
+        createRepository(fsRepoName, "fs");
 
         // Peer recovery always copies .liv files but we do not permit writing to searchable snapshot directories so this doesn't work, but
         // we can bypass this by forcing soft deletes to be used. TODO this restriction can be lifted when #55142 is resolved.
@@ -55,12 +54,7 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
         indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);
 
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(fsRepoName, "snapshot")
-            .setWaitForCompletion(true)
-            .get();
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, "snapshot");
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
 

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -16,12 +15,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -51,19 +52,13 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
         createAndPopulateIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, isHidden));
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createRepo(repositoryName);
+        createRepository(repositoryName, "fs");
 
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final CreateSnapshotResponse snapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, snapshotName)
-            .setIndices(indexName)
-            .setWaitForCompletion(true)
-            .get();
-
         final int numPrimaries = getNumShards(indexName).numPrimaries;
-        assertThat(snapshotResponse.getSnapshotInfo().successfulShards(), equalTo(numPrimaries));
-        assertThat(snapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
+        final SnapshotInfo snapshotInfo = createSnapshot(repositoryName, snapshotName, Collections.singletonList(indexName));
+        assertThat(snapshotInfo.successfulShards(), equalTo(numPrimaries));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
 
         if (randomBoolean()) {
             assertAcked(client.admin().indices().prepareClose(indexName));

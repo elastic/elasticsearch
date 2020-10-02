@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import com.carrotsearch.hppc.ObjectContainer;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -41,7 +40,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
 public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -60,7 +58,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        createRepo(fsRepoName);
+        createRepository(fsRepoName, "fs");
 
         final Settings.Builder originalIndexSettings = Settings.builder();
         originalIndexSettings.put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
@@ -68,15 +66,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
         createAndPopulateIndex(indexName, originalIndexSettings);
 
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(fsRepoName, snapshotName)
-            .setWaitForCompletion(true)
-            .get();
-
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 

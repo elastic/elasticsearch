@@ -88,7 +88,7 @@ signing requests (CSR) for the nodes in your cluster. For more information, see
 your security certificates. For example, create a `certs` folder in the
 `/home/es/config/certs` directory.
 +
-NOTE: The {ref}/settings.html#config-files-location[{es} configuration
+NOTE: The <<config-files-location,{es} configuration directory>>
 directory] varies depending on your {es} installation.
 
 .. Copy the node certificates into the `certs` directory that you created in the

@@ -284,8 +284,9 @@ include::licensing/get-basic-status.asciidoc[]
 :upid: {mainid}-x-pack-ml
 :doc-tests-file: {doc-tests}/MlClientDocumentationIT.java
 
-The Java High Level REST Client supports the following Machine Learning APIs:
+The Java High Level REST Client supports the following {ml} APIs:
 
+* <<{upid}-find-file-structure>>
 * <<{upid}-put-job>>
 * <<{upid}-get-job>>
 * <<{upid}-delete-job>>
@@ -344,6 +345,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-delete-expired-data>>
 * <<{upid}-set-upgrade-mode>>
 
+include::ml/find-file-structure.asciidoc[]
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
 include::ml/delete-job.asciidoc[]

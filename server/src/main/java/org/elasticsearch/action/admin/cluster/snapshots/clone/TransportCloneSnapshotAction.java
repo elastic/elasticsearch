@@ -64,7 +64,7 @@ public final class TransportCloneSnapshotAction extends TransportMasterNodeActio
 
     @Override
     protected void masterOperation(CloneSnapshotRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        throw new UnsupportedOperationException("not implemented yet");
+        snapshotsService.cloneSnapshot(request, ActionListener.map(listener, v -> new AcknowledgedResponse(true)));
     }
 
     @Override

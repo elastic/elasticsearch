@@ -101,9 +101,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler {
                         builder.field("access_token", response.getTokenString());
                         builder.field("refresh_token", response.getRefreshToken());
                         builder.field("expires_in", response.getExpiresIn().seconds());
-                        if (response.getAuthentication() != null){
-                            builder.field("authentication", response.getAuthentication());
-                        }
+                        builder.field("authentication", response.getAuthentication());
                         builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }

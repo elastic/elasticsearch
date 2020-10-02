@@ -36,7 +36,9 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         tokenString = in.readString();
         refreshToken = in.readString();
         expiresIn = in.readTimeValue();
-        authentication = null;
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            authentication = new Authentication(in);
+        }
     }
 
     public SamlAuthenticateResponse(Authentication authentication, String tokenString, String refreshToken, TimeValue expiresIn) {

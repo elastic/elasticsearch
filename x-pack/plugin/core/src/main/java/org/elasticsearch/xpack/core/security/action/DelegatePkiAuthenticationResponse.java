@@ -6,12 +6,12 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -28,25 +28,6 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField EXPIRES_IN_FIELD = new ParseField("expires_in");
     private static final ParseField AUTHENTICATION = new ParseField("authentication");
-
-    public static final ConstructingObjectParser<DelegatePkiAuthenticationResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "delegate_pki_response", true, a -> {
-                final String accessToken = (String) a[0];
-                final String type = (String) a[1];
-                if (false == "Bearer".equals(type)) {
-                    throw new IllegalArgumentException("Unknown token type [" + type + "], only [Bearer] type permitted");
-                }
-                final Long expiresIn = (Long) a[2];
-                final Authentication authentication = (Authentication) a[3];
-                return new DelegatePkiAuthenticationResponse(accessToken, TimeValue.timeValueSeconds(expiresIn), authentication);
-            });
-
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ACCESS_TOKEN_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXPIRES_IN_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), AUTHENTICATION);
-    }
 
     private String accessToken;
     private TimeValue expiresIn;
@@ -65,7 +46,9 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         super(input);
         accessToken = input.readString();
         expiresIn = input.readTimeValue();
-        authentication = null;
+        if (input.getVersion().onOrAfter(Version.V_7_10_0)) {
+            authentication = new Authentication(input);
+        }
     }
 
     public String getAccessToken() {
@@ -76,10 +59,15 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         return expiresIn;
     }
 
+    public Authentication getAuthentication() {
+        return authentication;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(accessToken);
         out.writeTimeValue(expiresIn);
+        authentication.writeTo(out);
     }
 
     @Override
@@ -88,12 +76,13 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         if (o == null || getClass() != o.getClass()) return false;
         DelegatePkiAuthenticationResponse that = (DelegatePkiAuthenticationResponse) o;
         return Objects.equals(accessToken, that.accessToken) &&
-            Objects.equals(expiresIn, that.expiresIn);
+            Objects.equals(expiresIn, that.expiresIn) &&
+            Objects.equals(authentication, that.authentication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(accessToken, expiresIn);
+        return Objects.hash(accessToken, expiresIn, authentication);
     }
 
     @Override
@@ -102,9 +91,7 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         builder.field(ACCESS_TOKEN_FIELD.getPreferredName(), accessToken);
         builder.field(TYPE_FIELD.getPreferredName(), "Bearer");
         builder.field(EXPIRES_IN_FIELD.getPreferredName(), expiresIn.getSeconds());
-        if (authentication != null) {
-            builder.field(AUTHENTICATION.getPreferredName(), authentication);
-        }
+        builder.field(AUTHENTICATION.getPreferredName(), authentication);
         return builder.endObject();
     }
 }

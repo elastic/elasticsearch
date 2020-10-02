@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +23,7 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
 
     public OpenIdConnectAuthenticateResponse(Authentication authentication, String accessTokenString, String refreshTokenString,
                                              TimeValue expiresIn) {
-        this.principal = principal;
+        this.principal = authentication.getUser().principal();;
         this.accessTokenString = accessTokenString;
         this.refreshTokenString = refreshTokenString;
         this.expiresIn = expiresIn;
@@ -35,7 +36,9 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         accessTokenString = in.readString();
         refreshTokenString = in.readString();
         expiresIn = in.readTimeValue();
-        authentication = null;
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            authentication = new Authentication(in);
+        }
     }
 
     public String getPrincipal() {
@@ -62,5 +65,6 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         out.writeString(accessTokenString);
         out.writeString(refreshTokenString);
         out.writeTimeValue(expiresIn);
+        authentication.writeTo(out);
     }
 }

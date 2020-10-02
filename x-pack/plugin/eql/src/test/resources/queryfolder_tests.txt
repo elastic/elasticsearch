@@ -49,7 +49,7 @@ process where serial_event_id >= 4
 ;
 
 mixedTypeFilter
-process where process_name == "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
+process where process_name : "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
 ;
 "term":{"process_name":{"value":"notepad.exe"
 "range":{"serial_event_id":{"from":3.1,"to":4.5,"include_lower":true,"include_upper":false
@@ -68,7 +68,7 @@ process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
 ;
 
 equalsAndInFilter
-process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
+process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 ;
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
 {"terms":{"opcode":[0,1,2,3]
@@ -103,14 +103,14 @@ process where cidrMatch(source_address, "10.0.0.0/8") != false
 ;
 
 twoFunctionsEqualsBooleanLiterals-caseSensitive
-process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") == false
+process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") != true
 ;
 {"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","boost":1.0}}},
 {"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
 twoFunctionsEqualsBooleanLiterals-caseInsensitive
-process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") == false
+process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") != true
 ;
 "bool":{"must":[{"term":{"event.category":{"value":"process"
 "must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
@@ -214,9 +214,9 @@ InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
 
 
 stringFunction
-process where string(pid) == "123"
+process where string(pid) : "123"
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
 InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
 "params":{"v0":"pid","v1":"123"}
 ;
@@ -238,25 +238,25 @@ InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),par
 ;
 
 substringFunction
-process where substring(file_name, -4) == ".exe"
+process where substring(file_name, -4) : ".exe"
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
 InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
 "params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
 ;
 
 betweenFunction
-process where between(process_name, "s", "e") == "yst"
+process where between(process_name, "s", "e") : "yst"
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
 InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
 "params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
 ;
 
 concatFunction
-process where concat(process_name, "::foo::", null, 1) == "net.exe::foo::1"
+process where concat(process_name, "::foo::", null, 1) : "net.exe::foo::1"
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
 InternalEqlScriptUtils.concat([InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3]),params.v4))",
 "params":{"v0":"process_name","v1":"::foo::","v2":null,"v3":1,"v4":"net.exe::foo::1"}
 ;
@@ -297,9 +297,9 @@ process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db
 ;
 
 cidrMatchFunctionWrapped
-process where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
+process where string(cidrMatch(source_address, "10.6.48.157/8")) : "true"
 ;
-{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.string(
+{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(InternalEqlScriptUtils.string(
 InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)),params.v2))"
 "params":{"v0":"source_address","v1":["10.6.48.157/8"],"v2":"true"}
 ;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 public abstract class StoreNode extends UnaryNode {
@@ -40,5 +41,9 @@ public abstract class StoreNode extends UnaryNode {
     }
 
     /* ---- end node data ---- */
+
+    public StoreNode(Location location) {
+        super(location);
+    }
 
 }

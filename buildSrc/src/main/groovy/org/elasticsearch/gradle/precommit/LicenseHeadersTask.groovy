@@ -35,7 +35,7 @@ import java.nio.file.Files
  * <p>
  * This is a port of the apache lucene check
  */
-public class LicenseHeadersTask extends AntTask {
+class LicenseHeadersTask extends AntTask {
 
     @OutputFile
     File reportFile = new File(project.buildDir, 'reports/licenseHeaders/rat.log')

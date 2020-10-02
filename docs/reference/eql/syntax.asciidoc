@@ -355,8 +355,8 @@ backslashes.
 [[eql-syntax-wildcards]]
 ===== Wildcards
 
-When comparing strings using the `==` or `!=` operators, you can use `*`
-operator within the string to match specific patterns:
+When comparing strings using the `==` or `!=` operators, you can use the
+wildcard `*` operator within the string to match specific patterns:
 
 [source,eql]
 ----

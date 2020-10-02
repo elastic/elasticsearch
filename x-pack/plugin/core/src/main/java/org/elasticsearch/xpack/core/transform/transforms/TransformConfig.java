@@ -342,10 +342,15 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        final boolean forExport = params.paramAsBoolean(TransformField.FOR_EXPORT, false);
+        final boolean forInternalStorage = params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false);
+        if (forInternalStorage) {
+            assert forExport == false: "unsupported behavior, for_export is true and for_internal_storage is true";
+        }
         builder.startObject();
-        if (params.paramAsBoolean(TransformField.FOR_EXPORT, false) == false) {
+        if (forExport == false) {
             builder.field(TransformField.ID.getPreferredName(), id);
-            if (headers.isEmpty() == false && params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
+            if (headers.isEmpty() == false && forInternalStorage) {
                 builder.field(HEADERS.getPreferredName(), headers);
             }
             if (transformVersion != null) {
@@ -358,11 +363,11 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     createTime.toEpochMilli()
                 );
             }
-            if (params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
+            if (forInternalStorage) {
                 builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
             }
         }
-        builder.field(TransformField.SOURCE.getPreferredName(), source);
+        builder.field(TransformField.SOURCE.getPreferredName(), source, params);
         builder.field(TransformField.DESTINATION.getPreferredName(), dest);
         if (frequency != null) {
             builder.field(TransformField.FREQUENCY.getPreferredName(), frequency.getStringRep());

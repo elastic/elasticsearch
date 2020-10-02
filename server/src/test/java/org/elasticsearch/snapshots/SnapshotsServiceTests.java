@@ -52,11 +52,8 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     public void testNoopShardStateUpdates() throws Exception {
         final String repoName = "test-repo";
-        final long repoStateId = randomNonNegativeLong();
         final Snapshot snapshot = snapshot(repoName, "snapshot-1");
-        final SnapshotsInProgress.Entry snapshotNoShards = SnapshotsInProgress.startedEntry(snapshot, randomBoolean(), randomBoolean(),
-                Collections.emptyList(), Collections.emptyList(), 1L, repoStateId,
-                ImmutableOpenMap.of(), Collections.emptyMap(), Version.CURRENT);
+        final SnapshotsInProgress.Entry snapshotNoShards = snapshotEntry(snapshot, Collections.emptyList(), ImmutableOpenMap.of());
 
         final String indexName1 = "index-1";
         final ShardId shardId1 = new ShardId(index(indexName1), 0);
@@ -66,12 +63,10 @@ public class SnapshotsServiceTests extends ESTestCase {
                     new SnapshotsService.ShardSnapshotUpdate(snapshot, shardId1, successfulShardStatus(uuid()));
             assertIsNoop(state, shardCompletion);
         }
-
-        final SnapshotsInProgress.Entry snapshotInProgress =
-                snapshotEntry(snapshot, Collections.singletonList(indexId(indexName1)), shardsMap(shardId1, initShardStatus(uuid())));
-
         {
-            final ClusterState state = stateWithSnapshots(snapshotInProgress);
+            final ClusterState state = stateWithSnapshots(
+                    snapshotEntry(
+                            snapshot, Collections.singletonList(indexId(indexName1)), shardsMap(shardId1, initShardStatus(uuid()))));
             final SnapshotsService.ShardSnapshotUpdate shardCompletion = new SnapshotsService.ShardSnapshotUpdate(
                     snapshot("other-repo", snapshot.getSnapshotId().getName()), shardId1, successfulShardStatus(uuid()));
             assertIsNoop(state, shardCompletion);
@@ -228,8 +223,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                 IndexRoutingTable.builder(routingShardId1.getIndex()).addIndexShard(
                                         new IndexShardRoutingTable.Builder(routingShardId1).addShard(
                                                 TestShardRouting.newShardRouting(
-                                                        routingShardId1, dataNodeId, true,
-                                                        randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING))
+                                                        routingShardId1, dataNodeId, true, ShardRoutingState.INITIALIZING)
                                         ).build())).build()).build();
         {
             final ClusterState updatedClusterState = applyUpdates(stateWithInitializingRoutingShard, completeShardClone);

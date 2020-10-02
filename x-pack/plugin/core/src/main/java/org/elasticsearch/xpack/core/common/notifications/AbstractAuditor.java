@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.common.notifications;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
@@ -25,6 +27,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -34,7 +37,8 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final OriginSettingClient client;
     private final String nodeName;
     private final String auditIndex;
-    private final IndexTemplateConfig templateConfig;
+    private final String templateName;
+    private final Supplier<PutIndexTemplateRequest> templateSupplier;
     private final AbstractAuditMessageFactory<T> messageFactory;
     private final AtomicBoolean hasLatestTemplate;
 
@@ -49,9 +53,24 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                               String nodeName,
                               AbstractAuditMessageFactory<T> messageFactory,
                               ClusterService clusterService) {
+
+        this(client, auditIndex, templateConfig.getTemplateName(),
+            () -> new PutIndexTemplateRequest(templateConfig.getTemplateName()).source(templateConfig.loadBytes(), XContentType.JSON),
+            nodeName, messageFactory, clusterService);
+    }
+
+
+    protected AbstractAuditor(OriginSettingClient client,
+                              String auditIndex,
+                              String templateName,
+                              Supplier<PutIndexTemplateRequest> templateSupplier,
+                              String nodeName,
+                              AbstractAuditMessageFactory<T> messageFactory,
+                              ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
         this.auditIndex = auditIndex;
-        this.templateConfig = Objects.requireNonNull(templateConfig);
+        this.templateName = Objects.requireNonNull(templateName);
+        this.templateSupplier = Objects.requireNonNull(templateSupplier);
         this.messageFactory = Objects.requireNonNull(messageFactory);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.nodeName = nodeName;
@@ -86,7 +105,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             return;
         }
 
-        if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateConfig.getTemplateName())) {
+        if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateName)) {
             synchronized (this) {
                 hasLatestTemplate.set(true);
             }
@@ -99,13 +118,13 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 synchronized (this) {
                     hasLatestTemplate.set(true);
                 }
-                logger.info("Auditor template [{}] successfully installed", templateConfig.getTemplateName());
+                logger.info("Auditor template [{}] successfully installed", templateName);
                 writeBacklog();
                 putTemplateInProgress.set(false);
             },
             e -> {
                 putTemplateInProgress.set(false);
-                logger.warn("Error putting latest template [{}]", templateConfig.getTemplateName());
+                logger.warn("Error putting latest template [{}]", templateName);
             }
         );
 
@@ -118,7 +137,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 // stop multiple invocations
                 if (putTemplateInProgress.get() == false) {
                     putTemplateInProgress.set(true);
-                    MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateConfig,
+                    MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateSupplier.get(),
                         putTemplateListener);
                 }
                 return;

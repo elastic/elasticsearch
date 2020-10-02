@@ -178,19 +178,19 @@ process where command_line : "*%*%*" ;
 process where command_line : "%*%*" ;
 
 
-process where match(?".*?net1\s+localgroup\s+.*?", command_line)
+process where match(""".*?net1\s+localgroup\s+.*?""", command_line)
 ;
 
-process where match(?".*?net1\s+\w+\s+.*?", command_line)
+process where match(""".*?net1\s+\w+\s+.*?""", command_line)
 ;
 
-process where match(?".*?net1\s+\w{4,15}\s+.*?", command_line)
+process where match(""".*?net1\s+\w{4,15}\s+.*?""", command_line)
 ;
 
-process where match(?".*?net1\s+\w{4,15}\s+.*?", command_line)
+process where match(""".*?net1\s+\w{4,15}\s+.*?""", command_line)
 ;
 
-process where match(?".*?net1\s+[localgrup]{4,15}\s+.*?", command_line)
+process where match(""".*?net1\s+[localgrup]{4,15}\s+.*?""", command_line)
 ;
 
 file where opcode:0 and startsWith(file_name, "exploRER.")

@@ -5,15 +5,15 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Get Trained Models Stats API
+=== Get trained models stats API
 
-experimental[]
+experimental::[]
 
 Retrieves one or more Trained Model statistics.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Get Trained Models Stats request
+==== Get trained models stats request
 
 A +{request}+ requires either a Trained Model ID, a comma-separated list of
 IDs, or the special wildcard `_all` to get stats for all Trained Models.

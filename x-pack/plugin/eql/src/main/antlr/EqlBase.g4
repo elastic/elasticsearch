@@ -67,7 +67,7 @@ eventQuery
     ;
     
 eventFilter
-    : (ANY | event=identifier) WHERE expression
+    : (ANY | event=eventValue) WHERE expression
     ;
 
 expression
@@ -76,7 +76,7 @@ expression
 
 booleanExpression
     : NOT booleanExpression                                               #logicalNot
-    | relationship=IDENTIFIER OF subquery                                 #processCheck
+    | relationship= OF subquery                                 #processCheck
     | valueExpression                                                     #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression         #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression          #logicalBinary
@@ -190,11 +190,6 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 
-
-ESCAPED_IDENTIFIER
-    : '`' (~'`')* '`'
-    ;
-
 STRING
     : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
     | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
@@ -216,6 +211,15 @@ DECIMAL_VALUE
 // make @timestamp not require escaping, since @ has no other meaning
 IDENTIFIER
     : (LETTER | '_' | '@') (LETTER | DIGIT | '_')*
+    ;
+
+ESCAPED_IDENTIFIER
+    : '`' (~'`')* '`'
+    ;
+
+eventValue
+    : STRINGIDENTIFIER
+    | IDENTIFIER
     ;
 
 fragment EXPONENT

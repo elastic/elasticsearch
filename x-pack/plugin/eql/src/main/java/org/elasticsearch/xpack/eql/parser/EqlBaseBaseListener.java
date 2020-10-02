@@ -515,6 +515,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitString(EqlBaseParser.StringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterEventValue(EqlBaseParser.EventValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEventValue(EqlBaseParser.EventValueContext ctx) { }
 
   /**
    * {@inheritDoc}

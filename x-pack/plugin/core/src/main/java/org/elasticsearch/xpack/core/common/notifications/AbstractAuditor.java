@@ -68,12 +68,12 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                               AbstractAuditMessageFactory<T> messageFactory,
                               ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
-        this.auditIndex = auditIndex;
+        this.auditIndex = Objects.requireNonNull(auditIndex);
         this.templateName = Objects.requireNonNull(templateName);
         this.templateSupplier = Objects.requireNonNull(templateSupplier);
         this.messageFactory = Objects.requireNonNull(messageFactory);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.nodeName = nodeName;
+        this.nodeName = Objects.requireNonNull(nodeName);
         this.backlog = new ConcurrentLinkedQueue<>();
         this.hasLatestTemplate = new AtomicBoolean();
         this.putTemplateInProgress = new AtomicBoolean();
@@ -123,8 +123,8 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 putTemplateInProgress.set(false);
             },
             e -> {
-                putTemplateInProgress.set(false);
                 logger.warn("Error putting latest template [{}]", templateName);
+                putTemplateInProgress.set(false);
             }
         );
 

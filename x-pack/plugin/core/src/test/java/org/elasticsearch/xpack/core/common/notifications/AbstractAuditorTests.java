@@ -134,7 +134,6 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor =
             createTestAuditorWithoutTemplate(client, writeSomeDocsBeforeTemplateLatch);
 
-        // TODO audit a bunch of messages
         auditor.error("foobar", "Here is my error to queue");
         auditor.warning("foobar", "Here is my warning to queue");
         auditor.info("foobar", "Here is my info to queue");
@@ -143,7 +142,7 @@ public class AbstractAuditorTests extends ESTestCase {
         // fire the put template response
         writeSomeDocsBeforeTemplateLatch.countDown();
 
-        // and the back log will be written some point later
+        // the back log will be written some point later
         ArgumentCaptor<BulkRequest> bulkCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         assertBusy(() -> {
             verify(client, times(1)).execute(eq(BulkAction.INSTANCE), bulkCaptor.capture(), any());
@@ -181,7 +180,6 @@ public class AbstractAuditorTests extends ESTestCase {
             throw new AssertionError("client should be a mock");
         }
 
-        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         doAnswer(invocationOnMock -> {
             ActionListener<AcknowledgedResponse> listener =
                 (ActionListener<AcknowledgedResponse>)invocationOnMock.getArguments()[2];
@@ -190,6 +188,9 @@ public class AbstractAuditorTests extends ESTestCase {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    listener.onFailure(e);
+                    return;
                 }
                 listener.onResponse(new AcknowledgedResponse(true));
             };
@@ -199,6 +200,7 @@ public class AbstractAuditorTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(PutIndexTemplateAction.INSTANCE), any(), any());
 
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         AdminClient adminClient = mock(AdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);

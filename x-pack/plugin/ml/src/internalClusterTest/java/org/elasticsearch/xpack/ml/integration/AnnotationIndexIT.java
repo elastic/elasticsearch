@@ -48,8 +48,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     }
 
     public void testCreatedWhenAfterOtherMlIndex() throws Exception {
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(),
-            getInstanceFromNode(ClusterService.class));
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
         auditor.info("whatever", "blah");
 
         // Creating a document in the .ml-notifications-000001 index should cause .ml-annotations

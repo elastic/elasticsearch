@@ -252,7 +252,15 @@ public final class MlIndexAndAlias {
         IndexTemplateConfig templateConfig,
         ActionListener<Boolean> listener
     ) {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateConfig.getTemplateName())
+        String templateName = templateConfig.getTemplateName();
+
+        // The check for existence of the template is against the cluster state, so very cheap
+        if (hasIndexTemplate(clusterState, templateName)) {
+            listener.onResponse(true);
+            return;
+        }
+
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName)
             .source(templateConfig.loadBytes(), XContentType.JSON);
 
         installIndexTemplateIfRequired(clusterState, client, request, listener);

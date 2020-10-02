@@ -823,8 +823,13 @@ public class MetadataIndexTemplateService {
         }
 
         for (Alias alias : request.aliases) {
-            AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name()).filter(alias.filter())
-                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+            AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name())
+                .filter(alias.filter())
+                .indexRouting(alias.indexRouting())
+                .searchRouting(alias.searchRouting())
+                .writeIndex(alias.writeIndex())
+                .isHidden(alias.isHidden())
+                .build();
             templateBuilder.putAlias(aliasMetadata);
         }
         IndexTemplateMetadata template = templateBuilder.build();

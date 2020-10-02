@@ -648,7 +648,6 @@
 
   - do:
       search:
-        rest_total_hits_as_int: true
         body:
           size: 1
           query:
@@ -659,7 +658,7 @@
             id: "$point_in_time_id"
             keep_alive: 1m
 
-  - match: {hits.total: 3 }
+  - match: {hits.total.value: 3 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
   - match: {hits.hits.0._id: "123" }
@@ -667,7 +666,6 @@
 
   - do:
       search:
-        rest_total_hits_as_int: true
         body:
           size: 1
           query:
@@ -678,7 +676,7 @@
           pit:
             id: "$point_in_time_id"
 
-  - match: {hits.total: 3}
+  - match: {hits.total.value: 3}
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
   - match: {hits.hits.0._id: "5" }
@@ -686,7 +684,6 @@
 
   - do:
       search:
-        rest_total_hits_as_int: true
         body:
           size: 1
           query:
@@ -698,7 +695,7 @@
             id: "$point_in_time_id"
             keep_alive: 1m
 
-  - match: {hits.total: 3}
+  - match: {hits.total.value: 3}
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
   - match: {hits.hits.0._id: "1" }
@@ -706,7 +703,6 @@
 
   - do:
       search:
-        rest_total_hits_as_int: true
         body:
           size: 1
           query:
@@ -718,7 +714,7 @@
             id: "$point_in_time_id"
             keep_alive: 1m
 
-  - match: {hits.total: 3}
+  - match: {hits.total.value: 3}
   - length: {hits.hits: 0 }
 
   - do:

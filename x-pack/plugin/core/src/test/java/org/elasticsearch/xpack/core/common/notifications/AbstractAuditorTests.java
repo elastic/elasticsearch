@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -143,9 +144,13 @@ public class AbstractAuditorTests extends ESTestCase {
         writeSomeDocsBeforeTemplateLatch.countDown();
 
         // and the back log will be written some point later
+        ArgumentCaptor<BulkRequest> bulkCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         assertBusy(() -> {
-            verify(client, times(1)).execute(eq(BulkAction.INSTANCE), any(), any());
+            verify(client, times(1)).execute(eq(BulkAction.INSTANCE), bulkCaptor.capture(), any());
         });
+
+        BulkRequest bulkRequest = bulkCaptor.getValue();
+        assertThat(bulkRequest.numberOfActions(), equalTo(3));
 
         auditor.info("foobar", "Here is another message");
         verify(client, times(1)).execute(eq(IndexAction.INSTANCE), any(), any());
@@ -157,7 +162,6 @@ public class AbstractAuditorTests extends ESTestCase {
         return AbstractAuditMessageTests.TestAuditMessage.PARSER.apply(parser, null);
     }
 
-//    @SuppressWarnings("unchecked")
     private TestAuditor createTestAuditorWithTemplateInstalled(Client client) {
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
         templates.put(TEST_INDEX, mock(IndexTemplateMetadata.class));

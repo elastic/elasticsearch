@@ -352,7 +352,8 @@ If using a field as the argument, this parameter supports only
 [[eql-fn-endswith]]
 === `endsWith`
 
-Returns `true` if a source string ends with a provided substring.
+Returns `true` if a source string ends with a provided substring. Matching is
+case-insensitive.
 
 *Example*
 [source,eql]
@@ -416,7 +417,8 @@ field data types:
 [[eql-fn-indexof]]
 === `indexOf`
 
-Returns the first position of a provided substring in a source string.
+Returns the first position of a provided substring in a source string. Matching
+is case-insensitive.
 
 If an optional start position is provided, this function returns the first
 occurrence of the substring at or after the start position.
@@ -561,7 +563,7 @@ field data types:
 === `match`
 
 Returns `true` if a source string matches one or more provided regular
-expressions.
+expressions. Matching is case-insensitive.
 
 *Example*
 [source,eql]
@@ -818,7 +820,8 @@ Fields are not supported as arguments.
 [[eql-fn-startswith]]
 === `startsWith`
 
-Returns `true` if a source string begins with a provided substring.
+Returns `true` if a source string begins with a provided substring. Matching is
+case-insensitive.
 
 *Example*
 [source,eql]
@@ -917,7 +920,8 @@ If using a field as the argument, this parameter does not support the
 [[eql-fn-stringcontains]]
 === `stringContains`
 
-Returns `true` if a source string contains a provided substring.
+Returns `true` if a source string contains a provided substring. Matching is
+case-insensitive.
 
 *Example*
 [source,eql]
@@ -1077,7 +1081,7 @@ If using a field as the argument, this parameter supports only
 === `wildcard`
 
 Returns `true` if a source string matches one or more provided wildcard
-expressions.
+expressions. Matching is case-insensitive.
 
 *Example*
 [source,eql]

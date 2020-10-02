@@ -487,34 +487,6 @@ GET /my-index-000001/_eql/search
 // TEST[setup:sec_logs]
 
 [discrete]
-[[eql-search-case-sensitive]]
-=== Run a case-sensitive EQL search
-
-By default, matching for EQL queries is case-insensitive. You can use the
-`case_sensitive` parameter to toggle case sensitivity on or off.
-
-The following search request contains a query that matches `process` events
-with a `process.executable` containing `System32`.
-
-Because `case_sensitive` is `true`, this query only matches `process.executable`
-values containing `System32` with the exact same capitalization. A
-`process.executable` value containing `system32` or `SYSTEM32` would not match
-this query.
-
-[source,console]
-----
-GET /my-index-000001/_eql/search
-{
-  "keep_on_completion": true,
-  "case_sensitive": true,
-  "query": """
-    process where stringContains(process.executable, "System32")
-  """
-}
-----
-// TEST[setup:sec_logs]
-
-[discrete]
 [[eql-search-async]]
 === Run an async EQL search
 

@@ -63,6 +63,8 @@ final class JvmErgonomics {
         final boolean tuneG1GCForLargeHeap = tuneG1GCForLargeHeap(finalJvmOptions, heapSize);
         if (tuneG1GCForSmallHeap) {
             ergonomicChoices.add("-XX:G1HeapRegionSize=4m");
+            ergonomicChoices.add("-XX:G1ReservePercent=15");
+            ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=45");
         } else if (tuneG1GCForLargeHeap) {
             ergonomicChoices.add("-XX:G1ReservePercent=25");
             ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=30");
@@ -154,19 +156,25 @@ final class JvmErgonomics {
         return Long.parseLong(finalJvmOptions.get("MaxDirectMemorySize").getMandatoryValue());
     }
 
-    // Tune G1GC options for heaps <= 4GB unless the user has explicitly set G1HeapRegionSize
+    // Tune G1GC options for heaps < 8GB unless the user has explicitly set G1HeapRegionSize
     static boolean tuneG1GCForSmallHeap(final Map<String, JvmOption> finalJvmOptions, final long heapSize) {
         JvmOption g1GC = finalJvmOptions.get("UseG1GC");
         JvmOption g1GCHeapRegion = finalJvmOptions.get("G1HeapRegionSize");
-        return (heapSize <= 4L << 30 && g1GC.getMandatoryValue().equals("true") && g1GCHeapRegion.isCommandLineOrigin() == false);
+        JvmOption g1GCReservePercent = finalJvmOptions.get("G1ReservePercent");
+        JvmOption g1GCInitiatingHeapOccupancyPercent = finalJvmOptions.get("InitiatingHeapOccupancyPercent");
+        return (heapSize < 8L << 30
+            && g1GC.getMandatoryValue().equals("true")
+            && g1GCHeapRegion.isCommandLineOrigin() == false
+            && g1GCReservePercent.isCommandLineOrigin() == false
+            && g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false);
     }
 
-    // Tune G1GC options for heaps > 4GB unless the user has explicitly set -XX:G1ReservePercent or -XX:InitiatingHeapOccupancyPercent
+    // Tune G1GC options for heaps >= 8GB unless the user has explicitly set -XX:G1ReservePercent or -XX:InitiatingHeapOccupancyPercent
     static boolean tuneG1GCForLargeHeap(final Map<String, JvmOption> finalJvmOptions, final long heapSize) {
         JvmOption g1GC = finalJvmOptions.get("UseG1GC");
         JvmOption g1GCReservePercent = finalJvmOptions.get("G1ReservePercent");
         JvmOption g1GCInitiatingHeapOccupancyPercent = finalJvmOptions.get("InitiatingHeapOccupancyPercent");
-        return (heapSize > 4L << 30
+        return (heapSize >= 8L << 30
             && g1GC.getMandatoryValue().equals("true")
             && g1GCReservePercent.isCommandLineOrigin() == false
             && g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false);

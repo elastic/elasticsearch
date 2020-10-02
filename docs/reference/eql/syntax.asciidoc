@@ -55,11 +55,38 @@ any where network.protocol == "http"
 ----
 
 [discrete]
-[[eql-syntax-escape-identifiers]]
-===== Escape an event category or field name
+[[eql-syntax-escape-an-event-category]]
+===== Escape an event category
 
-Event categories or field names that contain a hyphen (`-`), contain a space, or
-start with a numeral must be escaped with enclosing backticks (+++`+++).
+Use enclosing double quotes (`"`) or three enclosing double quotes (`"""`) to
+escape event categories that:
+
+* Contain a special character, such as a hyphen (`-`) or dot (`.`)
+* Contain a space
+* Start with a numeral
+
+[source,eql]
+----
+".my.event.category"
+"my-event-category"
+"my event category"
+"6eventcategory"
+
+""".my.event.category"""
+"""my-event-category"""
+"""my event category"""
+"""6eventcategory"""
+----
+
+[discrete]
+[[eql-syntax-escape-a-field-name]]
+===== Escape a field name
+
+Use enclosing enclosing backticks (+++`+++) to escape field names that:
+
+* Contain a hyphen (`-`)
+* Contain a space
+* Start with a numeral
 
 [source,eql]
 ----
@@ -68,8 +95,8 @@ start with a numeral must be escaped with enclosing backticks (+++`+++).
 `6myfield`
 ----
 
-Any backticks (+++`+++) in an event category or field name must be escaped using
-double backticks (+++``+++).
+Use double backticks (+++``+++) to escape any backticks (+++`+++) in the field
+name.
 
 [source,eql]
 ----

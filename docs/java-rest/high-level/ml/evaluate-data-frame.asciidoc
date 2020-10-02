@@ -9,7 +9,7 @@
 
 experimental::[]
 
-Evaluates the {ml} algorithm that ran on a {dataframe}.
+Evaluates the {dfanalytics} for an annotated index.
 The API accepts an +{request}+ object and returns an +{response}+.
 
 [id="{upid}-{api}-request"]

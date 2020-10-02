@@ -280,7 +280,7 @@ public abstract class Engine implements Closeable {
             return lock != NOOP_LOCK;
         }
 
-        boolean throtteLockIsHeldByCurrentThread() {
+        boolean throttleLockIsHeldByCurrentThread() { // to be used in assertions and tests only
             if(isThrottled()) {
                 return lock.isHeldByCurrentThread();
             }

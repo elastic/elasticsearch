@@ -2178,8 +2178,8 @@ public class InternalEngine extends Engine {
         return throttle.isThrottled();
     }
 
-    boolean throttleLockIsHeldByCurrentThread() {
-        return throttle.throtteLockIsHeldByCurrentThread();
+    boolean throttleLockIsHeldByCurrentThread() {  // to be used in assertions and tests only
+        return throttle.throttleLockIsHeldByCurrentThread();
     }
 
     @Override

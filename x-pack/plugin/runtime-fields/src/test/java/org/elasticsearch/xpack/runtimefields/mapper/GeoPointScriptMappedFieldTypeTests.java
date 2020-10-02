@@ -189,10 +189,6 @@ public class GeoPointScriptMappedFieldTypeTests extends AbstractScriptFieldTypeT
 
     @Override
     @AwaitsFix(bugUrl = "Not supported")
-    public void testExistsQueryIsExpensive() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
     public void testRangeQueryWithShapeRelationIsError() {}
 
     @Override

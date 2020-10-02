@@ -1317,7 +1317,6 @@ public class TranslogTests extends ESTestCase {
 
     public void testTranslogWriterDoesNotBlockAddsOnWrite() throws IOException, InterruptedException {
         Path tempDir = createTempDir();
-        System.err.println(tempDir);
         final TranslogConfig config = getTranslogConfig(tempDir);
         final AtomicBoolean startBlocking = new AtomicBoolean(false);
         final CountDownLatch blocker = new CountDownLatch(1);

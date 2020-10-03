@@ -152,7 +152,10 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         if (ctx.event != null) {
             Source eventSource = source(ctx.event);
-            String eventName = visitIdentifier(ctx.event);
+            String eventName = ctx.event.getText();
+            if (eventName.startsWith("\"") || eventName.startsWith("'") || eventName.startsWith("?")) {
+                eventName = unquoteString(source(ctx.event));
+            }
             Literal eventValue = new Literal(eventSource, eventName, DataTypes.KEYWORD);
 
             UnresolvedAttribute eventField = new UnresolvedAttribute(eventSource, params.fieldEventCategory());
@@ -261,10 +264,6 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
-        if (ctx.FORK() != null) {
-            throw new ParsingException(source(ctx.FORK()), "sequence fork is unsupported");
-        }
-
         return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery());
     }
 

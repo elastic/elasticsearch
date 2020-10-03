@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.PerClassResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.Result;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
+    private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);
 
     @Override
     protected Accuracy doParseInstance(XContentParser parser) throws IOException {
@@ -85,7 +87,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
         Accuracy accuracy = new Accuracy();
         accuracy.process(aggs);
 
-        assertThat(accuracy.aggs(EVALUATION_PARAMETERS, "act", "pred"), isTuple(empty(), empty()));
+        assertThat(accuracy.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS), isTuple(empty(), empty()));
 
         Result result = accuracy.getResult().get();
         assertThat(result.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
@@ -125,7 +127,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
             mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.5)));
 
         Accuracy accuracy = new Accuracy();
-        accuracy.aggs(EVALUATION_PARAMETERS, "foo", "bar");
+        accuracy.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> accuracy.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }

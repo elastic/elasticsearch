@@ -35,6 +35,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
@@ -227,34 +228,34 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
+        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
+            builder.field(ID.getPreferredName(), id);
+            if (createTime != null) {
+                builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+            }
+            if (version != null) {
+                builder.field(VERSION.getPreferredName(), version);
+            }
+            if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(HEADERS.getPreferredName(), headers);
+            }
+            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
+            }
+        }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.field(SOURCE.getPreferredName(), source);
         builder.field(DEST.getPreferredName(), dest);
-
         builder.startObject(ANALYSIS.getPreferredName());
         builder.field(analysis.getWriteableName(), analysis,
             new MapParams(Collections.singletonMap(VERSION.getPreferredName(), version == null ? null : version.toString())));
         builder.endObject();
-
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
-        }
         if (analyzedFields != null) {
             builder.field(ANALYZED_FIELDS.getPreferredName(), analyzedFields);
         }
         builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), getModelMemoryLimit().getStringRep());
-        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(HEADERS.getPreferredName(), headers);
-        }
-        if (createTime != null) {
-            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
-        }
-        if (version != null) {
-            builder.field(VERSION.getPreferredName(), version);
-        }
         builder.field(ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
         builder.field(MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
         builder.endObject();

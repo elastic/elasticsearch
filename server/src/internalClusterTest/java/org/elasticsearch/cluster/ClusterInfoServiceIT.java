@@ -41,8 +41,10 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -52,6 +54,7 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -70,7 +73,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterInfoServiceIT extends ESIntegTestCase {
 
-    public static class TestPlugin extends Plugin implements ActionPlugin {
+    private static final String TEST_SYSTEM_INDEX_NAME = ".test-cluster-info-system-index";
+
+    public static class TestPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
 
         private final BlockingActionFilter blockingActionFilter;
 
@@ -81,6 +86,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         @Override
         public List<ActionFilter> getActionFilters() {
             return singletonList(blockingActionFilter);
+        }
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
         }
     }
 
@@ -117,13 +127,18 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     public void testClusterInfoServiceCollectsInformation() {
         internalCluster().startNodes(2);
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
-            .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
+
+        final String indexName = randomBoolean() ? randomAlphaOfLength(5).toLowerCase(Locale.ROOT) : TEST_SYSTEM_INDEX_NAME;
+        assertAcked(prepareCreate(indexName)
+            .setSettings(Settings.builder()
+                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean())
+                .build()));
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(client().admin().indices().prepareClose(indexName));
         }
-        ensureGreen("test");
+        ensureGreen(indexName);
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster

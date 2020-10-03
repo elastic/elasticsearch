@@ -17,10 +17,9 @@ public interface Payload {
 
     enum Type {
         EVENT,
-        SEQUENCE,
-        COUNT;
+        SEQUENCE;
     }
-    
+
     Type resultType();
 
     boolean timedOut();

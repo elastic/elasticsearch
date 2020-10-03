@@ -43,6 +43,12 @@
         "type":"int",
         "description":"specifies a max number of analytics to get",
         "default":100
+      },
+      "for_export": {
+        "required": false,
+        "type": "boolean",
+        "default": false,
+        "description": "Omits fields that are illegal to set on data frame analytics PUT"
       }
     }
   }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -66,7 +67,10 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
             try {
                 client.admin().indices().create(createIndexRequest).actionGet();
             } catch (ResourceAlreadyExistsException e) {
-                // and that is okay
+                // and that is okay, but update the mapping so that there is always a mapping for match field:
+                PutMappingRequest putMappingRequest = new PutMappingRequest(sourceIndex);
+                putMappingRequest.source(policy.getMatchField(), "type=keyword");
+                client.admin().indices().putMapping(putMappingRequest).actionGet();
             }
         }
     }

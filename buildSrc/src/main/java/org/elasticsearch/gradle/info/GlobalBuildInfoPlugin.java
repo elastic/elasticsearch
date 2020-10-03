@@ -443,7 +443,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return firstLine;
     }
 
-    private static class GitInfo {
+    public static class GitInfo {
         private final String revision;
         private final String origin;
 

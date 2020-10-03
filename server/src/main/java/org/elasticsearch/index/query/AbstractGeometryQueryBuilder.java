@@ -46,8 +46,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -59,9 +57,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
     public static final ShapeRelation DEFAULT_SHAPE_RELATION = ShapeRelation.INTERSECTS;
-
-    /** registry of content types this query can be used with */
-    protected final List<String> validContentTypes = new ArrayList<>(validContentTypes());
 
     /** The default value for ignore_unmapped. */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
@@ -336,8 +331,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         return ignoreUnmapped;
     }
 
-    /** list of content types this shape query is compatible with */
-    protected abstract List<String> validContentTypes();
     /** builds the appropriate lucene shape query */
     protected abstract Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType);
     /** writes the xcontent specific to this shape query */
@@ -348,10 +341,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     protected abstract AbstractGeometryQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier,
                                                                              String indexedShapeId);
 
-    /** returns true if the provided field type is valid for this query */
-    protected boolean isValidContentType(String typeName) {
-        return validContentTypes.contains(typeName);
-    }
 
     @Override
     protected Query doToQuery(QueryShardContext context) {
@@ -363,12 +352,9 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "failed to find "
-                    + String.join(" or ", validContentTypes())
-                    + " field [" + fieldName + "]");
+                throw new QueryShardException(context, "failed to find type for field [" + fieldName + "]");
             }
         }
-
         return buildShapeQuery(context, fieldType);
     }
 

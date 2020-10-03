@@ -34,6 +34,8 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotAllocator;
@@ -184,6 +186,11 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                             Settings.builder()
                                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
                                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
+                                // prefer to allocate to the cold tier, then the warm tier, then the hot tier
+                                .put(
+                                    DataTierAllocationDecider.INDEX_ROUTING_PREFER,
+                                    String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT)
+                                )
                                 .put(request.indexSettings())
                                 .put(buildIndexSettings(request.repositoryName(), snapshotId, indexId))
                                 .build()

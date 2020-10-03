@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.SearchAfterJobsIterator;
 import org.elasticsearch.xpack.ml.job.retention.EmptyStateIndexRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredForecastsRemover;
@@ -60,18 +61,19 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     private final ClusterService clusterService;
     private final Clock clock;
     private final JobConfigProvider jobConfigProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportDeleteExpiredDataAction(ThreadPool threadPool, TransportService transportService,
                                             ActionFilters actionFilters, Client client, ClusterService clusterService,
-                                            JobConfigProvider jobConfigProvider) {
+                                            JobConfigProvider jobConfigProvider, JobResultsProvider jobResultsProvider) {
         this(threadPool, MachineLearning.UTILITY_THREAD_POOL_NAME, transportService, actionFilters, client, clusterService,
-            jobConfigProvider, Clock.systemUTC());
+            jobConfigProvider, jobResultsProvider, Clock.systemUTC());
     }
 
     TransportDeleteExpiredDataAction(ThreadPool threadPool, String executor, TransportService transportService,
                                      ActionFilters actionFilters, Client client, ClusterService clusterService,
-                                     JobConfigProvider jobConfigProvider, Clock clock) {
+                                     JobConfigProvider jobConfigProvider, JobResultsProvider jobResultsProvider, Clock clock) {
         super(DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new, executor);
         this.threadPool = threadPool;
         this.executor = executor;
@@ -79,6 +81,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         this.clusterService = clusterService;
         this.clock = clock;
         this.jobConfigProvider = jobConfigProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     @Override
@@ -175,7 +178,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), parentTaskId, auditor, threadPool),
             new ExpiredForecastsRemover(client, threadPool, parentTaskId),
             new ExpiredModelSnapshotsRemover(client,
-                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), threadPool, parentTaskId),
+                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), threadPool, parentTaskId, jobResultsProvider, auditor),
             new UnusedStateRemover(client, clusterService, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
             new UnusedStatsRemover(client, parentTaskId));
@@ -185,7 +188,11 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         return Arrays.asList(
             new ExpiredResultsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, auditor, threadPool),
             new ExpiredForecastsRemover(client, threadPool, parentTaskId),
-            new ExpiredModelSnapshotsRemover(client, new VolatileCursorIterator<>(jobs), threadPool, parentTaskId),
+            new ExpiredModelSnapshotsRemover(client,
+                new VolatileCursorIterator<>(jobs),
+                threadPool, parentTaskId,
+                jobResultsProvider,
+                auditor),
             new UnusedStateRemover(client, clusterService, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
             new UnusedStatsRemover(client, parentTaskId));

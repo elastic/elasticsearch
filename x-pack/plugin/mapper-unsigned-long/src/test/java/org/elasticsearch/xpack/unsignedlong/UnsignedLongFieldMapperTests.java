@@ -9,16 +9,12 @@ package org.elasticsearch.xpack.unsignedlong;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 
@@ -27,7 +23,6 @@ import java.math.BigInteger;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
@@ -66,14 +61,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
         // test indexing of values as string
         {
-            ParsedDocument doc = mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "18446744073709551615").endObject()),
-                    XContentType.JSON
-                )
-            );
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(2, fields.length);
             IndexableField pointField = fields[0];
@@ -88,14 +76,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
         // test indexing values as integer numbers
         {
-            ParsedDocument doc = mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "2",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 9223372036854775807L).endObject()),
-                    XContentType.JSON
-                )
-            );
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", 9223372036854775807L)));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(2, fields.length);
             IndexableField pointField = fields[0];
@@ -106,14 +87,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
         // test that indexing values as number with decimal is not allowed
         {
-            ThrowingRunnable runnable = () -> mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "3",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 10.5).endObject()),
-                    XContentType.JSON
-                )
-            );
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", 10.5)));
             MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("For input string: [10.5]"));
         }
@@ -121,15 +95,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
     public void testNotIndexed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("index", false)));
-
-        ParsedDocument doc = mapper.parse(
-            new SourceToParse(
-                "test",
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "18446744073709551615").endObject()),
-                XContentType.JSON
-            )
-        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField dvField = fields[0];
@@ -139,15 +105,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
     public void testNoDocValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("doc_values", false)));
-
-        ParsedDocument doc = mapper.parse(
-            new SourceToParse(
-                "test",
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "18446744073709551615").endObject()),
-                XContentType.JSON
-            )
-        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField pointField = fields[0];
@@ -157,15 +115,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
     public void testStore() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("store", true)));
-
-        ParsedDocument doc = mapper.parse(
-            new SourceToParse(
-                "test",
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "18446744073709551615").endObject()),
-                XContentType.JSON
-            )
-        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
         IndexableField pointField = fields[0];
@@ -194,14 +144,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         // test that if null value is not defined, field is not indexed
         {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-            ParsedDocument doc = mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
-                    XContentType.JSON
-                )
-            );
+            ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
             assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
         }
 
@@ -210,14 +153,8 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             DocumentMapper mapper = createDocumentMapper(
                 fieldMapping(b -> b.field("type", "unsigned_long").field("null_value", "18446744073709551615"))
             );
-            ParsedDocument doc = mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
-                    XContentType.JSON
-                )
-            );
+            ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+            ;
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(2, fields.length);
             IndexableField pointField = fields[0];
@@ -232,26 +169,12 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
             Object malformedValue1 = "a";
-            ThrowingRunnable runnable = () -> mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "_doc",
-                    BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue1).endObject()),
-                    XContentType.JSON
-                )
-            );
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", malformedValue1)));
             MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
 
             Object malformedValue2 = Boolean.FALSE;
-            runnable = () -> mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "_doc",
-                    BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue2).endObject()),
-                    XContentType.JSON
-                )
-            );
+            runnable = () -> mapper.parse(source(b -> b.field("field", malformedValue2)));
             e = expectThrows(MapperParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("For input string: \"false\""));
         }
@@ -262,27 +185,13 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
                 fieldMapping(b -> b.field("type", "unsigned_long").field("ignore_malformed", true))
             );
             Object malformedValue1 = "a";
-            ParsedDocument doc = mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue1).endObject()),
-                    XContentType.JSON
-                )
-            );
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", malformedValue1)));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(0, fields.length);
             assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
 
             Object malformedValue2 = Boolean.FALSE;
-            ParsedDocument doc2 = mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue2).endObject()),
-                    XContentType.JSON
-                )
-            );
+            ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", malformedValue2)));
             IndexableField[] fields2 = doc2.rootDoc().getFields("field");
             assertEquals(0, fields2.length);
             assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc2.rootDoc().getFields("_ignored")));
@@ -292,14 +201,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testIndexingOutOfRangeValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         for (Object outOfRangeValue : new Object[] { "-1", -1L, "18446744073709551616", new BigInteger("18446744073709551616") }) {
-            ThrowingRunnable runnable = () -> mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "_doc",
-                    BytesReference.bytes(jsonBuilder().startObject().field("field", outOfRangeValue).endObject()),
-                    XContentType.JSON
-                )
-            );
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", outOfRangeValue)));
             expectThrows(MapperParsingException.class, runnable);
         }
     }

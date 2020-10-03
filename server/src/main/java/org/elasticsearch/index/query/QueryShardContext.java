@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;

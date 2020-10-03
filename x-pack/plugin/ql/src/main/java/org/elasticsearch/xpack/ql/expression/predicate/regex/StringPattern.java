@@ -5,16 +5,29 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
-interface StringPattern {
+public interface StringPattern {
     /**
      * Returns the pattern in (Java) regex format.
      */
     String asJavaRegex();
 
     /**
+     * Returns the pattern as a string. Should handle escaping.
+     */
+    String asString();
+
+    /**
      * Hint method on whether this pattern matches everything or not.
      */
     default boolean matchesAll() {
+        return false;
+    }
+
+    /**
+     * Hint method on whether this pattern is exact, that is has no wildcard
+     * or other patterns inside.
+     */
+    default boolean isExactMatch() {
         return false;
     }
 }

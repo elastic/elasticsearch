@@ -10,34 +10,77 @@ import org.elasticsearch.test.ESTestCase;
 
 public class StringPatternTests extends ESTestCase {
 
-    private boolean isTotalWildcard(String pattern, char escape) {
-        return new LikePattern(pattern, escape).matchesAll();
+    private LikePattern like(String pattern, char escape) {
+        return new LikePattern(pattern, escape);
     }
 
-    private boolean isTotalRegex(String pattern) {
-        return new RLikePattern(pattern).matchesAll();
+    private RLikePattern rlike(String pattern) {
+        return new RLikePattern(pattern);
+    }
+
+    private boolean matchesAll(String pattern, char escape) {
+        return like(pattern, escape).matchesAll();
+    }
+
+    private boolean exactMatch(String pattern, char escape) {
+        return like(pattern, escape).isExactMatch();
+    }
+
+    private boolean matchesAll(String pattern) {
+        return rlike(pattern).matchesAll();
+    }
+
+    private boolean exactMatch(String pattern) {
+        return rlike(pattern).isExactMatch();
     }
 
     public void testWildcardMatchAll() throws Exception {
-        assertTrue(isTotalWildcard("%", '0'));
-        assertTrue(isTotalWildcard("%%", '0'));
+        assertTrue(matchesAll("%", '0'));
+        assertTrue(matchesAll("%%", '0'));
 
-        assertFalse(isTotalWildcard("a%", '0'));
-        assertFalse(isTotalWildcard("%_", '0'));
-        assertFalse(isTotalWildcard("%_%_%", '0'));
-        assertFalse(isTotalWildcard("_%", '0'));
-        assertFalse(isTotalWildcard("0%", '0'));
+        assertFalse(matchesAll("a%", '0'));
+        assertFalse(matchesAll("%_", '0'));
+        assertFalse(matchesAll("%_%_%", '0'));
+        assertFalse(matchesAll("_%", '0'));
+        assertFalse(matchesAll("0%", '0'));
     }
 
     public void testRegexMatchAll() throws Exception {
-        assertTrue(isTotalRegex(".*"));
-        assertTrue(isTotalRegex(".*.*"));
-        assertTrue(isTotalRegex(".*.?"));
-        assertTrue(isTotalRegex(".?.*"));
-        assertTrue(isTotalRegex(".*.?.*"));
+        assertTrue(matchesAll(".*"));
+        assertTrue(matchesAll(".*.*"));
+        assertTrue(matchesAll(".*.?"));
+        assertTrue(matchesAll(".?.*"));
+        assertTrue(matchesAll(".*.?.*"));
 
-        assertFalse(isTotalRegex("..*"));
-        assertFalse(isTotalRegex("ab."));
-        assertFalse(isTotalRegex("..?"));
+        assertFalse(matchesAll("..*"));
+        assertFalse(matchesAll("ab."));
+        assertFalse(matchesAll("..?"));
+    }
+
+    public void testWildcardExactMatch() throws Exception {
+        assertTrue(exactMatch("0%", '0'));
+        assertTrue(exactMatch("0_", '0'));
+        assertTrue(exactMatch("123", '0'));
+        assertTrue(exactMatch("1230_", '0'));
+        assertTrue(exactMatch("1230_321", '0'));
+
+        assertFalse(exactMatch("%", '0'));
+        assertFalse(exactMatch("%%", '0'));
+        assertFalse(exactMatch("a%", '0'));
+        assertFalse(exactMatch("a_", '0'));
+    }
+
+    public void testRegexExactMatch() throws Exception {
+        assertFalse(exactMatch(".*"));
+        assertFalse(exactMatch(".*.*"));
+        assertFalse(exactMatch(".*.?"));
+        assertFalse(exactMatch(".?.*"));
+        assertFalse(exactMatch(".*.?.*"));
+        assertFalse(exactMatch("..*"));
+        assertFalse(exactMatch("ab."));
+        assertFalse(exactMatch("..?"));
+
+        assertTrue(exactMatch("abc"));
+        assertTrue(exactMatch("12345"));
     }
 }

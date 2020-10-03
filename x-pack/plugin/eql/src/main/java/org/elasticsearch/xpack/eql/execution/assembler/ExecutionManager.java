@@ -72,7 +72,7 @@ public class ExecutionManager {
             if (query instanceof EsQueryExec) {
                 SearchSourceBuilder source = ((EsQueryExec) query).source(session);
                 QueryRequest original = () -> source;
-                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, tiebreakerName);
+                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName);
                 Criterion<BoxedQueryRequest> criterion =
                         new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i == 0 && descending);
                 criteria.add(criterion);

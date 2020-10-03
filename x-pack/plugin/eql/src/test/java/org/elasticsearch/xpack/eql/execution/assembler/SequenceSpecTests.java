@@ -95,7 +95,7 @@ public class SequenceSpecTests extends ESTestCase {
 
         TestCriterion(final int ordinal) {
             super(ordinal,
-                  new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()).size(ordinal), "timestamp", null),
+                  new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()).size(ordinal), "timestamp"),
                   keyExtractors,
                   tsExtractor, tbExtractor, false);
             this.ordinal = ordinal;

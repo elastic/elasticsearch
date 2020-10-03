@@ -313,11 +313,11 @@ final class DefaultSearchContext extends SearchContext {
 
     private Query createTypeFilter(String[] types) {
         if (types != null && types.length >= 1) {
-            MappedFieldType ft = mapperService().fieldType(TypeFieldMapper.NAME);
-            if (ft != null) {
-                // ft might be null if no documents have been indexed yet
-                return ft.termsQuery(Arrays.asList(types), queryShardContext);
+            if (mapperService().documentMapper() == null) {
+                return null;
             }
+            MappedFieldType ft = new TypeFieldMapper.TypeFieldType(mapperService().documentMapper().type());
+            return ft.termsQuery(Arrays.asList(types), queryShardContext);
         }
         return null;
     }

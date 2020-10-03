@@ -23,6 +23,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -140,7 +141,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     public void testTypeField() throws IOException {
         WildcardQueryBuilder builder = QueryBuilders.wildcardQuery("_type", "doc*");
         builder.doToQuery(createShardContext());
-        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

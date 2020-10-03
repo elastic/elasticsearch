@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -135,7 +136,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             // no type means no documents
             return new MatchNoDocsQuery();
         } else {
-            return documentMapper.typeFilter(context);
+            return new MatchAllDocsQuery();
         }
     }
 

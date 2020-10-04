@@ -201,17 +201,19 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-            .field("username", username)
-            .array("roles", roles())
-            .field("full_name", fullName())
-            .field("email", email())
-            .field("metadata", metadata())
-            .field("enabled", enabled());
+                .startObject("put_user")
+                .field("username", username)
+                .array("roles", roles())
+                .field("full_name", fullName())
+                .field("email", email())
+                .field("metadata", metadata())
+                .field("enabled", enabled());
         if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, false)) {
             builder.field("password_hash", passwordHash != null ? String.valueOf(passwordHash) : null);
         } else {
             builder.field("password_hash", passwordHash != null ? "<redacted>" : null);
         }
+        builder.endObject(); // put_user
         if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }

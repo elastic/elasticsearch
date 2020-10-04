@@ -229,6 +229,7 @@ public final class CreateTokenRequest extends ActionRequest implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
+                .startObject("create_token")
                 .field("username", username)
                 .field("scope", scope)
                 .field("grant_type", grantType);
@@ -241,6 +242,7 @@ public final class CreateTokenRequest extends ActionRequest implements ToXConten
                     .field("kerberos_ticket", kerberosTicket != null ? "<redacted>" : null)
                     .field("refresh_token", "<redacted>");
         }
+        builder.endObject(); // create_token
         return builder.endObject();
     }
 }

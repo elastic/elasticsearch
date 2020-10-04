@@ -132,9 +132,11 @@ public final class CreateApiKeyRequest extends ActionRequest implements ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
+                .startObject("create_api_key")
                 .field("name", name)
                 .field("expiration", expiration != null ? expiration.toString() : null)
-                .field("role_descriptors", roleDescriptors);
+                .field("role_descriptors", roleDescriptors)
+                .endObject(); // create_api_key
         if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }

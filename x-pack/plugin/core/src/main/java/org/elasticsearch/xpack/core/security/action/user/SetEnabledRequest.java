@@ -111,8 +111,10 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
+                .startObject("set_enabled")
                 .field("username", username)
-                .field("enabled", enabled());
+                .field("enabled", enabled)
+                .endObject(); // set_enabled
         if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }

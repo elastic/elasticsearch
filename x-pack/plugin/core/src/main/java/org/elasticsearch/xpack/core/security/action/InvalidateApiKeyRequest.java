@@ -204,6 +204,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest implements ToXC
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
+                .startObject("invalidate_api_key")
                 .field("username", userName)
                 .startObject("realm")
                     .field("name", realmName)
@@ -211,6 +212,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest implements ToXC
                 .field("id", id)
                 .field("name", name)
                 .field("owned_by_authenticated_user", ownedByAuthenticatedUser)
+                .endObject() // invalidate_api_key
                 .endObject();
     }
 }

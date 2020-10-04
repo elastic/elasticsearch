@@ -103,8 +103,10 @@ public final class DeletePrivilegesRequest extends ActionRequest
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
+                .startObject("delete_privileges")
                 .field("application", application)
-                .array("privileges", privileges);
+                .array("privileges", privileges)
+                .endObject();
         if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }

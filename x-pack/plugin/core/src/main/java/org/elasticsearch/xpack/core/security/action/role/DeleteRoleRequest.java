@@ -73,7 +73,9 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-                .field("name", name());
+               .startObject("delete_role")
+               .field("name", name())
+               .endObject();
         if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }

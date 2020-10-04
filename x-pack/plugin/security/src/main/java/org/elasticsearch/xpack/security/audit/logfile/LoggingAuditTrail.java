@@ -516,14 +516,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     msg instanceof GrantApiKeyRequest ||
                     msg instanceof CreateTokenRequest ||
                     msg instanceof PutPrivilegesRequest) {
-                eventAction = "set";
+                eventAction = "put";
             } else if (msg instanceof DeleteUserRequest ||
                     msg instanceof DeleteRoleMappingRequest ||
                     msg instanceof DeleteRoleRequest ||
                     msg instanceof InvalidateTokenRequest ||
                     msg instanceof InvalidateApiKeyRequest ||
                     msg instanceof DeletePrivilegesRequest) {
-                eventAction = "clear";
+                eventAction = "delete";
             }
             if (eventAction != null) {
                 assert msg instanceof ToXContentObject;

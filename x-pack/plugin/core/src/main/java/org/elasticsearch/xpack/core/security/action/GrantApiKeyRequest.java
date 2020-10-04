@@ -185,8 +185,10 @@ public final class GrantApiKeyRequest extends ActionRequest implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
+                .startObject("grant_api_key")
                 .field("grant", grant, params)
                 .field("api_key", apiKey, params)
+                .endObject() // grant_api_key
                 .endObject();
     }
 }

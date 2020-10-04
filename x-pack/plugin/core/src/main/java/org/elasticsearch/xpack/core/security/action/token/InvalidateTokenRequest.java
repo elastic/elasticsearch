@@ -157,10 +157,11 @@ public final class InvalidateTokenRequest extends ActionRequest implements ToXCo
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
+                .startObject("invalidate_token")
                 .field("username", userName)
                 .startObject("realm")
                     .field("name", realmName)
-                .endObject()
+                .endObject() //realm
                 .startObject("token")
                     .field("type", tokenType != null ? tokenType.toString() : null);
         if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, false)) {
@@ -168,7 +169,8 @@ public final class InvalidateTokenRequest extends ActionRequest implements ToXCo
         } else {
             builder.field("value", tokenString != null ? "<redacted>" : null);
         }
-            builder.endObject();
+        builder.endObject(); // token
+        builder.endObject(); // invalidate_token
         return builder.endObject();
     }
 }

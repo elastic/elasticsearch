@@ -126,7 +126,6 @@ teardown:
 
   - do:
       security.clear_api_key_cache:
-        cache_name: api_key
         keys: "${api_key_id}"
 
   - match: { _nodes.failed: 0 }
@@ -196,7 +195,6 @@ teardown:
 
   - do:
       security.clear_api_key_cache:
-        cache_name: api_key
         keys: ""
 
   - match: { _nodes.failed: 0 }

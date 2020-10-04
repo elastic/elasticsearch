@@ -42,7 +42,7 @@ public abstract class ClearSecurityCacheRequest implements Validatable {
     /**
      * @return The name of the target cache to be invalidated
      */
-    abstract public String cacheName();
+    public abstract String cacheName();
 
     /**
      * @return an array of key names that will be evicted

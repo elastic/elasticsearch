@@ -272,7 +272,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                           Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
                           DateFieldMapper.Resolution resolution) throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
         DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("test_range_agg");
         aggregationBuilder.field(DATE_FIELD_NAME);
         aggregationBuilder.addRange("2015-01-01", "2015-12-31");

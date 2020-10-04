@@ -98,7 +98,8 @@ public class AggregatorBaseTests extends ESSingleNodeTestCase {
         boolean indexed,
         QueryShardContext context
     ) {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(fieldName, numType, indexed, false, true, Collections.emptyMap());
+        MappedFieldType ft
+            = new NumberFieldMapper.NumberFieldType(fieldName, numType, indexed, false, true, false, null, Collections.emptyMap());
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }
 
@@ -109,7 +110,7 @@ public class AggregatorBaseTests extends ESSingleNodeTestCase {
         QueryShardContext context
     ) {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(fieldName, indexed, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }
 

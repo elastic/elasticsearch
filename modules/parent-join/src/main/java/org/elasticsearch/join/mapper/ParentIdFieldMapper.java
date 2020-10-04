@@ -114,6 +114,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
+        }
+
+        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
@@ -180,11 +185,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
         Field field = new Field(fieldType().name(), binaryValue, fieldType);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
     }
 
     @Override

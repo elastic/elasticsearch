@@ -71,6 +71,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName, name(), CoreValuesSourceType.BYTES);
         }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
     }
 
     public IndexFieldMapper() {

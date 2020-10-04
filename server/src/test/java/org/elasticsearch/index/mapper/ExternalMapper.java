@@ -104,6 +104,16 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         public String typeName() {
             return "faketype";
         }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
+        }
     }
 
     private final String generatedValue;
@@ -163,16 +173,6 @@ public class ExternalMapper extends ParametrizedFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
     }
 
     @Override

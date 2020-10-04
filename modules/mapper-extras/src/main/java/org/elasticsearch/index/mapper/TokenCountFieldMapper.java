@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -79,6 +78,8 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
+                false,
+                nullValue.getValue(),
                 meta.getValue());
             return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
@@ -127,20 +128,6 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
         context.doc().addAll(
             NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, store)
         );
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                return value.toString();
-            }
-        };
     }
 
     /**

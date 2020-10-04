@@ -114,6 +114,19 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Float parseSourceValue(Object value) {
+                    return objectToFloat(value);
+                }
+            };
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new IllegalArgumentException("Queries on [rank_feature] fields are not supported");
         }
@@ -162,25 +175,12 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         context.doc().addWithKey(name(), new FeatureField("_feature", name(), value));
     }
 
-    private Float objectToFloat(Object value) {
+    private static Float objectToFloat(Object value) {
         if (value instanceof Number) {
             return ((Number) value).floatValue();
         } else {
             return Float.parseFloat(value.toString());
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Float parseSourceValue(Object value) {
-                return objectToFloat(value);
-            }
-        };
     }
 
     @Override

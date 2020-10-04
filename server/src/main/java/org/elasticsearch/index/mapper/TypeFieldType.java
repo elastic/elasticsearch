@@ -71,6 +71,11 @@ public final class TypeFieldType extends ConstantFieldType {
     }
 
     @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+    }
+
+    @Override
     protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
         deprecationLogger.deprecate("typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
         if (caseInsensitive) {

@@ -217,6 +217,19 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
         }
 
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
+        }
+
         Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
                              IndexSearcher searcher, boolean excludeNestedDocuments, Version indexVersion) throws IOException {
             IndexReader indexReader = searcher.getIndexReader();
@@ -364,19 +377,6 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext));
         Query query = queryBuilderForProcessing.toQuery(queryShardContext);
         processQuery(query, context);
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
     }
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,

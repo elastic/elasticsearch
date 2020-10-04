@@ -21,11 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -227,21 +224,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertFalse(dvField.fieldType().stored());
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true).build(context);
-        assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
-        assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
-
-        NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
-            .nullValue(2.71f)
-            .build(context);
-        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
-        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     public void testOutOfRangeValues() throws IOException {

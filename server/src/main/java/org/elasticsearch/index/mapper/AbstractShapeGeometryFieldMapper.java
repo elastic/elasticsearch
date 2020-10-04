@@ -157,8 +157,8 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         protected Orientation orientation = Defaults.ORIENTATION.value();
 
         protected AbstractShapeGeometryFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                                 Map<String, String> meta) {
-            super(name, isSearchable, isStored, hasDocValues, meta);
+                                                 boolean parsesArrayValue, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, parsesArrayValue, meta);
         }
 
         public Orientation orientation() { return this.orientation; }

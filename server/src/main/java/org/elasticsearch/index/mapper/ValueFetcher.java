@@ -27,8 +27,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * A helper class for fetching field values during the {@link FetchFieldsPhase}. Each {@link FieldMapper}
- * is in charge of defining a value fetcher through {@link FieldMapper#valueFetcher}.
+ * A helper class for fetching field values during the {@link FetchFieldsPhase}. Each {@link MappedFieldType}
+ * is in charge of defining a value fetcher through {@link MappedFieldType#valueFetcher}.
  */
 public interface ValueFetcher {
     /**

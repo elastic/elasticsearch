@@ -133,6 +133,20 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), mapperService, false, null) {
+                @Override
+                protected String parseSourceValue(Object value) {
+                    return value.toString();
+                }
+            };
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             return new DocValuesFieldExistsQuery(name());
         }
@@ -313,20 +327,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
     @Override
     public VersionStringFieldType fieldType() {
         return (VersionStringFieldType) super.fieldType();
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), null) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                return value.toString();
-            }
-        };
     }
 
     @Override

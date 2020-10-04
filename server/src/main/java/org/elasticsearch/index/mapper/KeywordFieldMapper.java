@@ -157,9 +157,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            return new KeywordFieldType(buildFullName(context), hasDocValues.getValue(), fieldType,
-                eagerGlobalOrdinals.getValue(), normalizer, searchAnalyzer,
-                similarity.getValue(), meta.getValue());
+            return new KeywordFieldType(buildFullName(context), fieldType, normalizer, searchAnalyzer, this);
         }
 
         @Override
@@ -178,27 +176,47 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final class KeywordFieldType extends StringFieldType {
 
-        public KeywordFieldType(String name, boolean hasDocValues, FieldType fieldType,
-                                boolean eagerGlobalOrdinals, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer,
-                                SimilarityProvider similarity, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE, fieldType.stored(),
-                hasDocValues, new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchAnalyzer), meta);
-            setEagerGlobalOrdinals(eagerGlobalOrdinals);
+        private final int ignoreAbove;
+        private final String nullValue;
+
+        public KeywordFieldType(String name, FieldType fieldType,
+                                NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
+            super(name,
+                fieldType.indexOptions() != IndexOptions.NONE,
+                fieldType.stored(),
+                builder.hasDocValues.getValue(),
+                new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, searchAnalyzer),
+                builder.meta.getValue());
+            setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
             setIndexAnalyzer(normalizer);
+            this.ignoreAbove = builder.ignoreAbove.getValue();
+            this.nullValue = builder.nullValue.getValue();
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
             super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.ignoreAbove = Integer.MAX_VALUE;
+            this.nullValue = null;
         }
 
         public KeywordFieldType(String name) {
-            this(name, true, Defaults.FIELD_TYPE, false,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, Collections.emptyMap());
+            this(name, true, true, Collections.emptyMap());
+        }
+
+        public KeywordFieldType(String name, FieldType fieldType) {
+            super(name, fieldType.indexOptions() != IndexOptions.NONE,
+                false, false,
+                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                Collections.emptyMap());
+            this.ignoreAbove = Integer.MAX_VALUE;
+            this.nullValue = null;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+            this.ignoreAbove = Integer.MAX_VALUE;
+            this.nullValue = null;
         }
 
         @Override
@@ -214,6 +232,34 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+                @Override
+                protected String parseSourceValue(Object value) {
+                    String keywordValue = value.toString();
+                    if (keywordValue.length() > ignoreAbove) {
+                        return null;
+                    }
+
+                    NamedAnalyzer normalizer = normalizer();
+                    if (normalizer == null) {
+                        return keywordValue;
+                    }
+
+                    try {
+                        return normalizeValue(normalizer, name(), keywordValue);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            };
         }
 
         @Override
@@ -314,7 +360,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         NamedAnalyzer normalizer = fieldType().normalizer();
         if (normalizer != null) {
-            value = normalizeValue(normalizer, value);
+            value = normalizeValue(normalizer, name(), value);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
@@ -333,8 +379,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    private String normalizeValue(NamedAnalyzer normalizer, String value) throws IOException {
-        try (TokenStream ts = normalizer.tokenStream(name(), value)) {
+    private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
+        try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
@@ -351,34 +397,6 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             ts.end();
             return newValue;
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                String keywordValue = value.toString();
-                if (keywordValue.length() > ignoreAbove) {
-                    return null;
-                }
-
-                NamedAnalyzer normalizer = fieldType().normalizer();
-                if (normalizer == null) {
-                    return keywordValue;
-                }
-
-                try {
-                    return normalizeValue(normalizer, keywordValue);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        };
     }
 
     @Override

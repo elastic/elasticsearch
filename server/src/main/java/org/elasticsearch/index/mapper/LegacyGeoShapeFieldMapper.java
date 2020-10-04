@@ -328,7 +328,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         private final LegacyGeoShapeQueryProcessor queryProcessor;
 
         private GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexed, stored, hasDocValues, false, meta);
             this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 

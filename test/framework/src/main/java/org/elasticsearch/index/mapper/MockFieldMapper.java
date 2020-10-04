@@ -68,6 +68,11 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
         public String typeName() {
             return "faketype";
         }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override
@@ -77,11 +82,6 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) {
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException();
     }
 
     public static class Builder extends ParametrizedFieldMapper.Builder {

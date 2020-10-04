@@ -21,7 +21,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
@@ -45,9 +47,22 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", "T")), ft.termQuery("true", null));
         assertEquals(new TermQuery(new Term("field", "F")), ft.termQuery("false", null));
 
-        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("true", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+
+        MappedFieldType fieldType = new BooleanFieldMapper.BooleanFieldType("field");
+        assertEquals(List.of(true), fetchSourceValue(fieldType, true));
+        assertEquals(List.of(false), fetchSourceValue(fieldType, "false"));
+        assertEquals(List.of(false), fetchSourceValue(fieldType, ""));
+
+        MappedFieldType nullFieldType = new BooleanFieldMapper.BooleanFieldType(
+            "field", true, false, true, true, Collections.emptyMap()
+        );
+        assertEquals(List.of(true), fetchSourceValue(nullFieldType, null));
     }
 }

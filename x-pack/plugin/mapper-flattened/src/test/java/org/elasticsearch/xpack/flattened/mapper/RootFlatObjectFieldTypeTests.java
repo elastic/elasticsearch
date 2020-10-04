@@ -27,7 +27,7 @@ import java.util.Collections;
 public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
     private static RootFlatObjectFieldType createDefaultFieldType() {
-        return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
+        return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false, null);
     }
 
     public void testValueForDisplay() {
@@ -46,22 +46,22 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "Value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("Value", null));
-        
-        
+
+
         RootFlatObjectFieldType unsearchable = new RootFlatObjectFieldType("field", false, true,
-            Collections.emptyMap(), false);
+            Collections.emptyMap(), false, null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlatObjectFieldType ft = new RootFlatObjectFieldType("field", true, false, Collections.emptyMap(), false);
+        RootFlatObjectFieldType ft = new RootFlatObjectFieldType("field", true, false, Collections.emptyMap(), false, null);
         assertEquals(
             new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))),
             ft.existsQuery(null));
 
-        RootFlatObjectFieldType withDv = new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
+        RootFlatObjectFieldType withDv = new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false, null);
         assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
     }
 

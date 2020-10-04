@@ -175,6 +175,16 @@ public class InternalEngine extends Engine {
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
     private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
 
+    /**
+     * If multiple writes passed {@link InternalEngine#testReserveDocs(Operation, int)} (int)} but haven't adjusted
+     * {@link IndexWriter#getPendingNumDocs()} yet, then IndexWriter can fail with too many documents. In this case,
+     * we have to fail the engine because we already generated sequence numbers for write operations; otherwise we
+     * will have gaps in sequence numbers. To avoid this (best-effort), we use a lower limit when trying to reserve
+     * documents in InternalEngine.
+     */
+    static final int DEFAULT_MAX_DOCS = IndexWriter.MAX_DOCS - 1000;
+    private final int maxDocs;
+
     @Nullable
     private final String historyUUID;
 
@@ -185,13 +195,12 @@ public class InternalEngine extends Engine {
     private volatile String forceMergeUUID;
 
     public InternalEngine(EngineConfig engineConfig) {
-        this(engineConfig, LocalCheckpointTracker::new);
+        this(engineConfig, DEFAULT_MAX_DOCS, LocalCheckpointTracker::new);
     }
 
-    InternalEngine(
-            final EngineConfig engineConfig,
-            final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
+    InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
+        this.maxDocs = maxDocs;
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -984,9 +993,12 @@ public class InternalEngine extends Engine {
     private IndexingStrategy planIndexingAsPrimary(Index index) throws IOException {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
         final IndexingStrategy plan;
+        final Exception reserveError = testReserveDocs(index, index.parsedDoc().docs().size());
         // resolve an external operation into an internal one which is safe to replay
         final boolean canOptimizeAddDocument = canOptimizeAddDocument(index);
-        if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
+        if (reserveError != null) {
+            plan = IndexingStrategy.failAsTooManyDocs(reserveError);
+        }else if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
             plan = IndexingStrategy.optimizedAppendOnly(1L);
         } else {
             versionMap.enforceSafeAccess();
@@ -1179,6 +1191,11 @@ public class InternalEngine extends Engine {
         static IndexingStrategy processAsStaleOp(long versionForIndexing) {
             return new IndexingStrategy(false, false, false, true, versionForIndexing, null);
         }
+
+        static IndexingStrategy failAsTooManyDocs(Exception e) {
+            final IndexResult result = new IndexResult(e, Versions.NOT_FOUND);
+            return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, result);
+        }
     }
 
     /**
@@ -1279,6 +1296,18 @@ public class InternalEngine extends Engine {
         return deleteResult;
     }
 
+    private Exception testReserveDocs(Operation operation, int numDocs) {
+        assert operation.origin() == Operation.Origin.PRIMARY : operation;
+        assert operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : operation;
+        final long pendingNumDocs = indexWriter.getPendingNumDocs();
+        if (pendingNumDocs + numDocs > maxDocs) {
+            return new IllegalArgumentException("Number of documents in the index can't exceed [" + maxDocs + "], "
+                + "current [" + pendingNumDocs + "], adding documents [" + numDocs + "]");
+        } else {
+            return null;
+        }
+    }
+
     protected DeletionStrategy deletionStrategyForOperation(final Delete delete) throws IOException {
         if (delete.origin() == Operation.Origin.PRIMARY) {
             return planDeletionAsPrimary(delete);
@@ -1331,7 +1360,10 @@ public class InternalEngine extends Engine {
             currentlyDeleted = versionValue.isDelete();
         }
         final DeletionStrategy plan;
-        if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && currentlyDeleted) {
+        final Exception reserveError = testReserveDocs(delete, 1);
+        if (reserveError != null) {
+            plan = DeletionStrategy.failAsTooManyDocs(reserveError);
+        }else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && currentlyDeleted) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.id(),
                 delete.getIfSeqNo(), delete.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true);
@@ -1426,6 +1458,12 @@ public class InternalEngine extends Engine {
 
         static DeletionStrategy processAsStaleOp(long versionOfDeletion) {
             return new DeletionStrategy(false, true, false, versionOfDeletion, null);
+        }
+
+        static DeletionStrategy failAsTooManyDocs(Exception e) {
+            final DeleteResult deleteResult = new DeleteResult(e, Versions.NOT_FOUND,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+            return new DeletionStrategy(false, false, false, Versions.NOT_FOUND, deleteResult);
         }
     }
 

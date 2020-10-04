@@ -528,6 +528,10 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine;
     }
 
+    public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
+        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
+    }
+
     @FunctionalInterface
     public interface IndexWriterFactory {
 
@@ -565,7 +569,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         } else {
-            return new InternalTestEngine(config, localCheckpointTrackerSupplier) {
+            return new InternalTestEngine(config, InternalEngine.DEFAULT_MAX_DOCS, localCheckpointTrackerSupplier) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?

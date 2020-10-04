@@ -73,10 +73,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -966,13 +970,32 @@ public class ApiKeyService {
                         }
                         InvalidateApiKeyResponse result = new InvalidateApiKeyResponse(invalidated, previouslyInvalidated,
                             failedRequestResponses);
-                        listener.onResponse(result);
+                        clearCache(result, listener);
                     }, e -> {
                         Throwable cause = ExceptionsHelper.unwrapCause(e);
                         traceLog("invalidate api keys", cause);
                         listener.onFailure(e);
                     }), client::bulk));
         }
+    }
+
+    private void clearCache(InvalidateApiKeyResponse result, ActionListener<InvalidateApiKeyResponse> listener) {
+        final ClearSecurityCacheRequest clearApiKeyCacheRequest =
+            new ClearSecurityCacheRequest().cacheName("api_key").keys(result.getInvalidatedApiKeys().toArray(String[]::new));
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearSecurityCacheAction.INSTANCE, clearApiKeyCacheRequest,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ClearSecurityCacheResponse nodes) {
+                    listener.onResponse(result);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("unable to clear API key cache", e);
+                    listener.onFailure(new ElasticsearchException(
+                        "clearing the API key cache failed. " + "please clear the caches manually", e));
+                }
+            });
     }
 
     /**

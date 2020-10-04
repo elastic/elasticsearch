@@ -19,15 +19,15 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
  * A failure during a reduce phase (when receiving results from several shards, and reducing them
  * into one or more results and possible actions).
- *
- *
  */
 public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
 
@@ -37,5 +37,16 @@ public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
 
     public ReduceSearchPhaseException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public RestStatus status() {
+        ShardSearchFailure[] shardFailures = super.shardFailures();
+        if (shardFailures.length == 0) {
+            // if no successful shards, the failure can be due to EsRejectedExecutionException during reduce phase
+            // on coordinator node. so get the status from cause instead of returning INTERNAL_SERVER_ERROR blindly
+            return getCause() == null ? RestStatus.INTERNAL_SERVER_ERROR : ExceptionsHelper.status(getCause());
+        }
+        return super.status();
     }
 }

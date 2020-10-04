@@ -209,17 +209,22 @@ public class ApiKeyService {
                 .setExpireAfterWrite(ttl)
                 .setMaximumWeight(maximumWeight)
                 .build();
-            this.apiKeyDocCache = new ApiKeyDocCache(DOC_CACHE_TTL_SETTING.get(settings), maximumWeight);
+            final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
+            this.apiKeyDocCache = doc_ttl.getNanos() == 0 ? null : new ApiKeyDocCache(doc_ttl, maximumWeight);
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
                 @Override
                 public void invalidate(Collection<String> keys) {
-                    apiKeyDocCache.invalidate(keys);
+                    if (apiKeyDocCache != null) {
+                        apiKeyDocCache.invalidate(keys);
+                    }
                     keys.forEach(apiKeyAuthCache::invalidate);
                 }
 
                 @Override
                 public void invalidateAll() {
-                    apiKeyDocCache.invalidateAll();
+                    if (apiKeyDocCache != null) {
+                        apiKeyDocCache.invalidateAll();
+                    }
                     apiKeyAuthCache.invalidateAll();
                 }
             });
@@ -1233,26 +1238,21 @@ public class ApiKeyService {
         }
     }
 
-    public static final class ApiKeyDocCache {
+    private static final class ApiKeyDocCache {
         private final InvalidationCountingCacheWrapper<String, ApiKeyService.CachedApiKeyDoc> docCache;
         private final Cache<String, BytesReference> roleDescriptorsBytesCache;
 
         public ApiKeyDocCache(TimeValue ttl, int maximumWeight) {
-            if (ttl.getNanos() > 0) {
-                this.docCache = new InvalidationCountingCacheWrapper<>(
-                    CacheBuilder.<String, ApiKeyService.CachedApiKeyDoc>builder()
-                        .setMaximumWeight(maximumWeight)
-                        .setExpireAfterWrite(ttl)
-                        .build()
-                );
-                this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
-                    .setExpireAfterAccess(TimeValue.timeValueHours(1))
-                    .setMaximumWeight(maximumWeight * 2)
-                    .build();
-            } else {
-                this.docCache = null;
-                this.roleDescriptorsBytesCache = null;
-            }
+            this.docCache = new InvalidationCountingCacheWrapper<>(
+                CacheBuilder.<String, ApiKeyService.CachedApiKeyDoc>builder()
+                    .setMaximumWeight(maximumWeight)
+                    .setExpireAfterWrite(ttl)
+                    .build()
+            );
+            this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
+                .setExpireAfterAccess(TimeValue.timeValueHours(1))
+                .setMaximumWeight(maximumWeight * 2)
+                .build();
         }
 
         public ApiKeyDoc get(String docId) {
@@ -1268,32 +1268,26 @@ public class ApiKeyService {
         }
 
         public long getInvalidationCount() {
-            return docCache == null ? -1 : docCache.getInvalidationCount();
+            return docCache.getInvalidationCount();
         }
 
         public void putIfNoInvalidationSince(String docId, ApiKeyDoc apiKeyDoc, long invalidationCount) throws ExecutionException {
-            if (docCache != null) {
-                final CachedApiKeyDoc cachedApiKeyDoc = apiKeyDoc.toCachedApiKeyDoc();
-                if (docCache.putIfNoInvalidationSince(docId, cachedApiKeyDoc, invalidationCount)) {
-                    roleDescriptorsBytesCache.computeIfAbsent(
-                        cachedApiKeyDoc.roleDescriptorsHash, k -> apiKeyDoc.roleDescriptorsBytes);
-                    roleDescriptorsBytesCache.computeIfAbsent(
-                        cachedApiKeyDoc.limitedByRoleDescriptorsHash, k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
-                }
+            final CachedApiKeyDoc cachedApiKeyDoc = apiKeyDoc.toCachedApiKeyDoc();
+            if (docCache.putIfNoInvalidationSince(docId, cachedApiKeyDoc, invalidationCount)) {
+                roleDescriptorsBytesCache.computeIfAbsent(
+                    cachedApiKeyDoc.roleDescriptorsHash, k -> apiKeyDoc.roleDescriptorsBytes);
+                roleDescriptorsBytesCache.computeIfAbsent(
+                    cachedApiKeyDoc.limitedByRoleDescriptorsHash, k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
             }
         }
 
         public void invalidate(Collection<String> docIds) {
-            if (docCache != null) {
-                docCache.invalidate(docIds);
-            }
+            docCache.invalidate(docIds);
         }
 
         public void invalidateAll() {
-            if (docCache != null) {
-                docCache.invalidateAll();
-                roleDescriptorsBytesCache.invalidateAll();
-            }
+            docCache.invalidateAll();
+            roleDescriptorsBytesCache.invalidateAll();
         }
     }
 }

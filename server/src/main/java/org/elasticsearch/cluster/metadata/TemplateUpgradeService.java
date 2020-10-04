@@ -32,6 +32,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -89,12 +90,17 @@ public class TemplateUpgradeService implements ClusterStateListener {
             }
             return upgradedTemplates;
         };
-        clusterService.addListener(this);
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+            clusterService.addListener(this);
+        }
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState state = event.state();
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we think may not have the index templates,
             // while they actually do exist
@@ -112,10 +118,6 @@ public class TemplateUpgradeService implements ClusterStateListener {
             // we already checked these sets of templates - no reason to check it again
             // we can do identity check here because due to cluster state diffs the actual map will not change
             // if there were no changes
-            return;
-        }
-
-        if (state.nodes().isLocalNodeElectedMaster() == false) {
             return;
         }
 

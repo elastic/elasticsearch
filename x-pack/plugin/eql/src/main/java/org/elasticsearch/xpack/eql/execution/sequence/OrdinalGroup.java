@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -26,7 +25,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     // NB: since the size varies significantly, use a LinkedList
     // Considering the order it might make sense to use a B-Tree+ for faster lookups which should work well with
     // timestamp compression (whose range is known for the current frame).
-    private final List<E> elements = new LinkedList<>();
+    private final LinkedList<E> elements = new LinkedList<>();
 
     /**
      * index in the list used for resetting the insertion point
@@ -56,15 +55,13 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         Ordinal ordinal = extractor.apply(element);
         if (start == null) {
             start = ordinal;
-        } else if (stop == null) {
+        } else if (start.compareTo(ordinal) > 0) {
+            start = ordinal;
+        }
+        if (stop == null) {
             stop = ordinal;
-        } else {
-            if (start.compareTo(ordinal) > 0) {
-                start = ordinal;
-            }
-            if (stop.compareTo(ordinal) < 0) {
-                stop = ordinal;
-            }
+        } else if (stop.compareTo(ordinal) < 0) {
+            stop = ordinal;
         }
         // add element at the current position
         elements.add(insertPosition++, element);
@@ -95,7 +92,8 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
             // update min time
             if (elements.isEmpty() == false) {
-                start = extractor.apply(elements.get(0));
+                start = extractor.apply(elements.peekFirst());
+                stop = extractor.apply(elements.peekLast());
             } else {
                 start = null;
                 stop = null;
@@ -107,6 +105,18 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     E before(Ordinal ordinal) {
         Tuple<E, Integer> match = findBefore(ordinal);
         return match != null ? match.v1() : null;
+    }
+
+    void trimToLast() {
+        keepOnly(elements.peekLast());
+    }
+
+    private void keepOnly(E element) {
+        elements.clear();
+        insertPosition = 0;
+        if (element != null) {
+            add(element);
+        }
     }
 
     private Tuple<E, Integer> findBefore(Ordinal ordinal) {
@@ -151,7 +161,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     public int hashCode() {
         return key.hashCode();
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {

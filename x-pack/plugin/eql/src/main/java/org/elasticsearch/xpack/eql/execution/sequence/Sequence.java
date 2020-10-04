@@ -24,7 +24,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  * Defined by its key and stage.
  * This class is NOT immutable (to optimize memory) which means its associations need to be managed.
  */
-public class Sequence {
+public class Sequence implements Comparable<Sequence> {
 
     private final SequenceKey key;
     private final int stages;
@@ -71,25 +71,30 @@ public class Sequence {
     }
 
     @Override
+    public int compareTo(Sequence o) {
+        return startOrdinal().compareTo(o.startOrdinal());
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(currentStage, key);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         Sequence other = (Sequence) obj;
         return Objects.equals(currentStage, other.currentStage)
                 && Objects.equals(key, other.key);
     }
-    
+
     @Override
     public String toString() {
         int numberOfDigits = stages > 100 ? 3 : stages > 10 ? 2 : 1;
@@ -105,7 +110,7 @@ public class Sequence {
         for (int i = 0; i < matches.length; i++) {
             sb.append(format(null, "\n [{}]={{}}", nf.format(i), matches[i]));
         }
-        
+
         return sb.toString();
     }
 }

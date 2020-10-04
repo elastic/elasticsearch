@@ -109,7 +109,7 @@ public class ActionModuleTests extends ESTestCase {
         UsageService usageService = new UsageService();
         ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
                 settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
-                null, usageService);
+                null, usageService, null);
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(IllegalArgumentException.class, () ->
@@ -148,7 +148,7 @@ public class ActionModuleTests extends ESTestCase {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(dupsMainAction), null, null, usageService);
+                    singletonList(dupsMainAction), null, null, usageService, null);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
         } finally {
@@ -182,7 +182,7 @@ public class ActionModuleTests extends ESTestCase {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(registersFakeHandler), null, null, usageService);
+                    singletonList(registersFakeHandler), null, null, usageService, null);
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(IllegalArgumentException.class, () ->

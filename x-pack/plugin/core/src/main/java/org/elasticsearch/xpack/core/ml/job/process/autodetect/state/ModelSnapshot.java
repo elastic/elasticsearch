@@ -238,6 +238,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return latestResultTimeStamp;
     }
 
+    public boolean isRetain() {
+        return retain;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(jobId, minVersion, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats,

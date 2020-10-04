@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -48,7 +49,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         private int getRetentionDaysCallCount = 0;
 
         ConcreteExpiredJobDataRemover(OriginSettingClient client, Iterator<Job> jobIterator) {
-            super(client, jobIterator);
+            super(client, jobIterator, new TaskId("test", 0L));
         }
 
         @Override

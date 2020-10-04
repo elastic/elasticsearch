@@ -24,6 +24,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.TypeFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -77,7 +78,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
             } else {
                 assertThat(query, instanceOf(WildcardQuery.class));
                 WildcardQuery wildcardQuery = (WildcardQuery) query;
-    
+
                 assertThat(wildcardQuery.getField(), equalTo(expectedFieldName));
                 assertThat(wildcardQuery.getTerm().field(), equalTo(expectedFieldName));
                 // wildcard queries get normalized
@@ -109,7 +110,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     public void testFromJson() throws IOException {
         String json = "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\","
-            + " \"case_insensitive\" : true,\n"             
+            + " \"case_insensitive\" : true,\n"
             + " \"boost\" : 2.0"
             + " } }}";
         WildcardQueryBuilder parsed = (WildcardQueryBuilder) parseQuery(json);
@@ -147,7 +148,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     public void testTypeField() throws IOException {
         WildcardQueryBuilder builder = QueryBuilders.wildcardQuery("_type", "doc*");
         builder.doToQuery(createShardContext());
-        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(TypeFieldType.TYPES_V7_DEPRECATION_MESSAGE);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

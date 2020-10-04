@@ -26,7 +26,7 @@ uncompressed. The `ingest-geoip` config directory is located at `$ES_CONFIG/inge
 | `field`                | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
 | `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the Maxmind database.
 | `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest-geoip module ships with the GeoLite2-City.mmdb, GeoLite2-Country.mmdb and GeoLite2-ASN.mmdb files.
-| `properties`           | no        | [`continent_name`, `country_iso_code`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
+| `properties`           | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
 | `ignore_missing`       | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 | `first_only`           | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array
 |======
@@ -81,6 +81,7 @@ Which returns:
     "ip": "8.8.8.8",
     "geoip": {
       "continent_name": "North America",
+      "country_name": "United States",
       "country_iso_code": "US",
       "location": { "lat": 37.751, "lon": -97.822 }
     }
@@ -90,7 +91,7 @@ Which returns:
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
 
 Here is an example that uses the default country database and adds the
-geographical information to the `geo` field based on the `ip` field`. Note that
+geographical information to the `geo` field based on the `ip` field. Note that
 this database is included in the module. So this:
 
 [source,console]
@@ -130,6 +131,7 @@ returns this:
     "ip": "8.8.8.8",
     "geo": {
       "continent_name": "North America",
+      "country_name": "United States",
       "country_iso_code": "US",
     }
   }
@@ -276,6 +278,7 @@ GET /my_ip_locations/_search
         "_source" : {
           "geoip" : {
             "continent_name" : "North America",
+            "country_name" : "United States",
             "country_iso_code" : "US",
             "location" : {
               "lon" : -97.822,

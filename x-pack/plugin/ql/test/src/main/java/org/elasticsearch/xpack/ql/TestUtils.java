@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.ql;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -24,11 +28,28 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullE
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.jar.JarInputStream;
+import java.util.zip.ZipEntry;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomZone;
@@ -130,5 +151,97 @@ public final class TestUtils {
         stats = (Map<String, Object>) stats.get("total");
         stats = (Map<String, Object>) stats.get("search");
         return (Integer) stats.get("open_contexts");
+    }
+
+    //
+    // Classpath
+    //
+    /**
+     * Returns the classpath resources matching a simple pattern ("*.csv").
+     * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
+     *
+     * Currently able to resolve resources inside the classpath either from:
+     * folders in the file-system (typically IDEs) or
+     * inside jars (gradle).
+     */
+    @SuppressForbidden(reason = "classpath discovery")
+    public static List<URL> classpathResources(String pattern) throws IOException {
+        while (pattern.startsWith("/")) {
+            pattern = pattern.substring(1);
+        }
+
+        Tuple<String, String> split = pathAndName(pattern);
+
+        // the root folder searched inside the classpath - default is the root classpath
+        // default file match
+        final String root = split.v1();
+        final String filePattern = split.v2();
+
+        String[] resources = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
+
+        List<URL> matches = new ArrayList<>();
+
+        for (String resource : resources) {
+            Path path = PathUtils.get(resource);
+
+            // check whether we're dealing with a jar
+            // Java 7 java.nio.fileFileSystem can be used on top of ZIPs/JARs but consumes more memory
+            // hence the use of the JAR API
+            if (path.toString().endsWith(".jar")) {
+                try (JarInputStream jar = jarInputStream(path.toUri().toURL())) {
+                    ZipEntry entry = null;
+                    while ((entry = jar.getNextEntry()) != null) {
+                        String name = entry.getName();
+                        Tuple<String, String> entrySplit = pathAndName(name);
+                        if (root.equals(entrySplit.v1()) && Regex.simpleMatch(filePattern, entrySplit.v2())) {
+                            matches.add(new URL("jar:" + path.toUri() + "!/" + name));
+                        }
+                    }
+                }
+            }
+            // normal file access
+            else if (Files.isDirectory(path)) {
+                Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        if (Regex.simpleMatch(filePattern, file.toString())) {
+                            matches.add(file.toUri().toURL());
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            }
+        }
+        return matches;
+    }
+
+    @SuppressForbidden(reason = "need to open stream")
+    public static InputStream inputStream(URL resource) throws IOException {
+        URLConnection con = resource.openConnection();
+        // do not to cache files (to avoid keeping file handles around)
+        con.setUseCaches(false);
+        return con.getInputStream();
+    }
+
+    @SuppressForbidden(reason = "need to open jar")
+    public static JarInputStream jarInputStream(URL resource) throws IOException {
+        return new JarInputStream(inputStream(resource));
+    }
+
+    public static BufferedReader reader(URL resource) throws IOException {
+        return new BufferedReader(new InputStreamReader(inputStream(resource), StandardCharsets.UTF_8));
+    }
+
+    public static Tuple<String, String> pathAndName(String string) {
+        String folder = StringUtils.EMPTY;
+        String file = string;
+        int lastIndexOf = string.lastIndexOf("/");
+        if (lastIndexOf > 0) {
+            folder = string.substring(0, lastIndexOf - 1);
+            if (lastIndexOf + 1 < string.length()) {
+                file = string.substring(lastIndexOf + 1);
+            }
+        }
+        return new Tuple<>(folder, file);
     }
 }

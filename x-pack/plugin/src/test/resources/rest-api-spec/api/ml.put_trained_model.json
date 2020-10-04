@@ -1,14 +1,14 @@
 {
   "ml.put_trained_model":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-inference.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-models.html",
       "description":"Creates an inference trained model."
     },
     "stability":"experimental",
     "url":{
       "paths":[
         {
-          "path":"/_ml/inference/{model_id}",
+          "path":"/_ml/trained_models/{model_id}",
           "methods":[
             "PUT"
           ],

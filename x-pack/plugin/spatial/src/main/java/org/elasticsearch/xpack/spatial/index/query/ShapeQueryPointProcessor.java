@@ -26,7 +26,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType.QueryProcessor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -34,10 +33,9 @@ import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 
 
-public class ShapeQueryPointProcessor implements QueryProcessor {
+public class ShapeQueryPointProcessor {
 
-    @Override
-    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         validateIsPointFieldType(fieldName, context);
         // only the intersects relation is supported for indexed cartesian point types
         if (relation != ShapeRelation.INTERSECTS) {

@@ -120,7 +120,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testDateFieldNanosecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -144,7 +144,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void  testMissingDateWithDateField() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();

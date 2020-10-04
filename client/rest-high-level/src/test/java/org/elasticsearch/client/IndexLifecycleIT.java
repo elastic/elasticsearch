@@ -50,6 +50,7 @@ import org.elasticsearch.client.ilm.ShrinkAction;
 import org.elasticsearch.client.ilm.StartILMRequest;
 import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.ilm.UnfollowAction;
+import org.elasticsearch.client.ilm.WaitForSnapshotAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.hamcrest.Matchers;
@@ -164,7 +165,9 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo"));
         lifecyclePhases.put("cold", new Phase("cold", TimeValue.timeValueSeconds(2000), coldActions));
 
-        Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
+        Map<String, LifecycleAction> deleteActions = new HashMap<>();
+        deleteActions.put(WaitForSnapshotAction.NAME, new WaitForSnapshotAction("policy"));
+        deleteActions.put(DeleteAction.NAME, new DeleteAction());
         lifecyclePhases.put("delete", new Phase("delete", TimeValue.timeValueSeconds(3000), deleteActions));
 
         LifecyclePolicy policy = new LifecyclePolicy(randomAlphaOfLength(10), lifecyclePhases);

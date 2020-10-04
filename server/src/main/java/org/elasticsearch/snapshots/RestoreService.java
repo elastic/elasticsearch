@@ -915,7 +915,7 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
-    private static boolean failed(SnapshotInfo snapshot, String index) {
+    public static boolean failed(SnapshotInfo snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {
             if (index.equals(failure.index())) {
                 return true;

@@ -47,8 +47,10 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -66,9 +68,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     private RangeFieldType createDefaultFieldType() {
         if (type == RangeType.DATE) {
-            return new RangeFieldType("field", true, false, true, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
+            return new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
         }
-        return new RangeFieldType("field", type, true, false, true, Collections.emptyMap());
+        return new RangeFieldType("field", type);
     }
 
     public void testRangeQuery() throws Exception {
@@ -216,8 +218,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
-        RangeFieldType strict
-            = new RangeFieldType("field", true, false, false, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
+        RangeFieldType strict = new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
         // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
         ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT,() -> randomFrom(ShapeRelation.values()));
 
@@ -236,13 +237,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(1465975790000L, formatter.parseMillis(from));
         assertEquals(1466062190000L, formatter.parseMillis(to));
 
-        RangeFieldType fieldType = new RangeFieldType("field", true, false, true, formatter, Collections.emptyMap());
+        RangeFieldType fieldType = new RangeFieldType("field", formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType
-            = new DateFieldType("field", true, false, true, formatter, DateFieldMapper.Resolution.MILLISECONDS, Collections.emptyMap());
+            = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
@@ -259,7 +260,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2010-01-01T00:00"));
         long upper = randomLongBetween(formatter.parseMillis("2011-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
 
-        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, Collections.emptyMap());
+        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, false, null);
         String lowerAsString = formatter.formatMillis(lower);
         String upperAsString = formatter.formatMillis(upper);
         // also add date math rounding to days occasionally
@@ -490,5 +491,43 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         QueryShardException ex = expectThrows(QueryShardException.class,
             () ->   ft.termQueryCaseInsensitive(value, context));
         assertTrue(ex.getMessage().contains("does not support case insensitive term queries"));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true)
+            .build(context)
+            .fieldType();
+        Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
+
+        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
+            .format("yyyy/MM/dd||epoch_millis")
+            .build(context)
+            .fieldType();
+        Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
+        assertEquals(List.of(Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
+            fetchSourceValue(dateMapper, dateRange));
+    }
+
+    public void testParseSourceValueWithFormat() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true)
+            .build(context)
+            .fieldType();
+        Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
+
+        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
+            .format("strict_date_time")
+            .build(context)
+            .fieldType();
+        Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
+        assertEquals(List.of(Map.of("lt", "1990/12/29")), fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
+        assertEquals(List.of(Map.of("lt", "662428800000")), fetchSourceValue(dateMapper, dateRange,"epoch_millis"));
     }
 }

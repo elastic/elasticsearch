@@ -10,13 +10,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.ConfusionMatrix;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Precision;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Recall;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.ScoreByThresholdResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Huber;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
@@ -63,19 +63,28 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
 
             // Outlier detection metrics
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
-                new ParseField(registeredMetricName(OutlierDetection.NAME, AucRoc.NAME)),
-                AucRoc::fromXContent),
+                new ParseField(
+                    registeredMetricName(
+                        OutlierDetection.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.AucRoc.NAME)),
+                org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.AucRoc::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
-                new ParseField(registeredMetricName(OutlierDetection.NAME, Precision.NAME)),
-                Precision::fromXContent),
+                new ParseField(
+                    registeredMetricName(
+                        OutlierDetection.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Precision.NAME)),
+                org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Precision::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
-                new ParseField(registeredMetricName(OutlierDetection.NAME, Recall.NAME)),
-                Recall::fromXContent),
+                new ParseField(
+                    registeredMetricName(
+                        OutlierDetection.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Recall.NAME)),
+                org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Recall::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
                 new ParseField(registeredMetricName(OutlierDetection.NAME, ConfusionMatrix.NAME)),
                 ConfusionMatrix::fromXContent),
 
             // Classification metrics
+            new NamedXContentRegistry.Entry(EvaluationMetric.class,
+                new ParseField(registeredMetricName(Classification.NAME, AucRoc.NAME)),
+                AucRoc::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
                 new ParseField(registeredMetricName(Classification.NAME, MulticlassConfusionMatrix.NAME)),
                 MulticlassConfusionMatrix::fromXContent),
@@ -83,15 +92,11 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 new ParseField(registeredMetricName(Classification.NAME, Accuracy.NAME)),
                 Accuracy::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
-                new ParseField(
-                    registeredMetricName(
-                        Classification.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.NAME)),
-                org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision::fromXContent),
+                new ParseField(registeredMetricName(Classification.NAME, Precision.NAME)),
+                Precision::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
-                new ParseField(
-                    registeredMetricName(
-                        Classification.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.NAME)),
-                org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall::fromXContent),
+                new ParseField(registeredMetricName(Classification.NAME, Recall.NAME)),
+                Recall::fromXContent),
 
             // Regression metrics
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
@@ -124,17 +129,23 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
 
             // Evaluation metrics
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
-                registeredMetricName(OutlierDetection.NAME, AucRoc.NAME),
-                AucRoc::new),
+                registeredMetricName(
+                    OutlierDetection.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.AucRoc.NAME),
+                org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.AucRoc::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
-                registeredMetricName(OutlierDetection.NAME, Precision.NAME),
-                Precision::new),
+                registeredMetricName(
+                    OutlierDetection.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Precision.NAME),
+                org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Precision::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
-                registeredMetricName(OutlierDetection.NAME, Recall.NAME),
-                Recall::new),
+                registeredMetricName(
+                    OutlierDetection.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Recall.NAME),
+                org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Recall::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
                 registeredMetricName(OutlierDetection.NAME, ConfusionMatrix.NAME),
                 ConfusionMatrix::new),
+            new NamedWriteableRegistry.Entry(EvaluationMetric.class,
+                registeredMetricName(Classification.NAME, AucRoc.NAME),
+                AucRoc::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrix.NAME),
                 MulticlassConfusionMatrix::new),
@@ -142,13 +153,11 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 registeredMetricName(Classification.NAME, Accuracy.NAME),
                 Accuracy::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
-                registeredMetricName(
-                    Classification.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.NAME),
-                org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision::new),
+                registeredMetricName(Classification.NAME, Precision.NAME),
+                Precision::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
-                registeredMetricName(
-                    Classification.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.NAME),
-                org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall::new),
+                registeredMetricName(Classification.NAME, Recall.NAME),
+                Recall::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
                 registeredMetricName(Regression.NAME, MeanSquaredError.NAME),
                 MeanSquaredError::new),
@@ -164,14 +173,14 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
 
             // Evaluation metrics results
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-                registeredMetricName(OutlierDetection.NAME, AucRoc.NAME),
-                AucRoc.Result::new),
-            new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
                 registeredMetricName(OutlierDetection.NAME, ScoreByThresholdResult.NAME),
                 ScoreByThresholdResult::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
                 registeredMetricName(OutlierDetection.NAME, ConfusionMatrix.NAME),
                 ConfusionMatrix.Result::new),
+            new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
+                registeredMetricName(Classification.NAME, AucRoc.NAME),
+                AucRoc.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrix.NAME),
                 MulticlassConfusionMatrix.Result::new),
@@ -179,13 +188,11 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 registeredMetricName(Classification.NAME, Accuracy.NAME),
                 Accuracy.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-                registeredMetricName(
-                    Classification.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.NAME),
-                org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.Result::new),
+                registeredMetricName(Classification.NAME, Precision.NAME),
+                Precision.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-                registeredMetricName(
-                    Classification.NAME, org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.NAME),
-                org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.Result::new),
+                registeredMetricName(Classification.NAME, Recall.NAME),
+                Recall.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
                 registeredMetricName(Regression.NAME, MeanSquaredError.NAME),
                 MeanSquaredError.Result::new),

@@ -24,10 +24,10 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearApiKeyCacheRequest;
 import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
-import org.elasticsearch.client.security.ClearSecurityCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
@@ -194,11 +194,11 @@ final class SecurityRequestConverters {
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
-    static Request clearSecurityCache(ClearSecurityCacheRequest clearSecurityCacheRequest) {
+    static Request clearApiKeyCache(ClearApiKeyCacheRequest clearApiKeyCacheRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_security")
-            .addPathPart(clearSecurityCacheRequest.cacheName())
-            .addCommaSeparatedPathParts(clearSecurityCacheRequest.keys())
+            .addPathPart(clearApiKeyCacheRequest.cacheName())
+            .addCommaSeparatedPathParts(clearApiKeyCacheRequest.keys())
             .addPathPart("_clear_cache")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);

@@ -125,7 +125,7 @@ teardown:
   - match: { authentication_realm.type: "_es_api_key" }
 
   - do:
-      security.clear_security_cache:
+      security.clear_api_key_cache:
         cache_name: api_key
         keys: "${api_key_id}"
 
@@ -195,7 +195,7 @@ teardown:
   - is_true: "api_keys.0.creation"
 
   - do:
-      security.clear_security_cache:
+      security.clear_api_key_cache:
         cache_name: api_key
         keys: ""
 

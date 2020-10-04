@@ -155,7 +155,7 @@ public final class InvalidateTokenRequest extends ActionRequest implements ToXCo
     }
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
                 .field("username", userName)
                 .startObject("realm")

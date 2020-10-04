@@ -133,7 +133,7 @@ public final class CreateApiKeyRequest extends ActionRequest implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
                 .field("name", name)
-                .timeField("expiration", expiration)
+                .field("expiration", expiration != null ? expiration.toString() : null)
                 .field("role_descriptors", roleDescriptors);
         if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
             builder.field("refresh_policy", refreshPolicy.toString());

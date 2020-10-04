@@ -227,7 +227,7 @@ public final class CreateTokenRequest extends ActionRequest implements ToXConten
     }
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
                 .field("username", username)
                 .field("scope", scope)

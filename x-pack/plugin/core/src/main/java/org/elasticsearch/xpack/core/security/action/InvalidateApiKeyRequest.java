@@ -202,7 +202,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest implements ToXC
     }
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
                 .field("username", userName)
                 .startObject("realm")

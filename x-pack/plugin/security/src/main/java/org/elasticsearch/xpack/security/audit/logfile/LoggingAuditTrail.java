@@ -501,6 +501,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 logger.info(AUDIT_MARKER, logEntry);
             }
         }
+        // "config change" records are not filtered out by ignore policies (i.e. they are always printed).
+        // The security changes here are the consequences of *user* requests,
+        // so in a strict interpretation we should filter them out if there are ignore policies in place for the causing user,
+        // but we don't because filtering out security changes by the causing user is trappy.
         if (events.contains(SECURITY_CONFIG_CHANGED)) {
             String eventAction = null;
             if (msg instanceof PutUserRequest ||
@@ -526,7 +530,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 final StringMapMessage logEntry = new LogEntryBuilder(false)
                         .with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, eventAction)
-                        .with(ACTION_FIELD_NAME, action)
                         .withRequestId(requestId)
                         .with(CONFIG_CHANGE_FIELD_NAME, Strings.toString((ToXContentObject)msg))
                         .build();

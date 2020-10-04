@@ -17,11 +17,12 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * A wrapper of {@link Cache} that minimizes the possibility of caching stale results.
+ * A wrapper of {@link Cache} that keeps a counter for invalidation calls in order to
+ * minimizes the possibility of caching stale results.
  */
-public class ConsistentCache<K, V> {
+public class InvalidationCountingCacheWrapper<K, V> {
 
-    private static final Logger logger = LogManager.getLogger(ConsistentCache.class);
+    private static final Logger logger = LogManager.getLogger(InvalidationCountingCacheWrapper.class);
 
     private final Cache<K, V> delegate;
     private final AtomicLong numInvalidation = new AtomicLong();
@@ -29,30 +30,30 @@ public class ConsistentCache<K, V> {
     private final ReleasableLock invalidationReadLock = new ReleasableLock(invalidationLock.readLock());
     private final ReleasableLock invalidationWriteLock = new ReleasableLock(invalidationLock.writeLock());
 
-    public ConsistentCache(Cache<K, V> delegate) {
+    public InvalidationCountingCacheWrapper(Cache<K, V> delegate) {
         this.delegate = delegate;
     }
 
-    public Checkpoint<K, V> checkpoint() {
-        final long invalidationCounter = numInvalidation.get();
-        return (key, value) -> {
-            try (ReleasableLock ignored = invalidationReadLock.acquire()) {
-                if (invalidationCounter == numInvalidation.get()) {
-                    logger.debug("Caching for key [{}], value [{}]", key, value);
-                    delegate.put(key, value);
-                    return true;
-                }
+    public long getInvalidationCount() {
+        return numInvalidation.get();
+    }
+
+    public boolean putIfNoInvalidationSince(K key, V value, long invalidationCount) {
+        assert invalidationCount >= 0 : "Invalidation count must be non-negative";
+        try (ReleasableLock ignored = invalidationReadLock.acquire()) {
+            if (invalidationCount == numInvalidation.get()) {
+                logger.debug("Caching for key [{}], value [{}]", key, value);
+                delegate.put(key, value);
+                return true;
             }
-            return false;
-        };
+        }
+        return false;
     }
 
     public V get(K key) {
         return delegate.get(key);
     }
 
-    // If there are secondary caches that must be invalidated when the main
-    // entry is invalidated, they can be registered via the removalListener
     public void invalidate(Collection<K> keys) {
         try (ReleasableLock ignored = invalidationWriteLock.acquire()) {
             numInvalidation.incrementAndGet();
@@ -72,9 +73,4 @@ public class ConsistentCache<K, V> {
     public int count() {
         return delegate.count();
     }
-
-    public interface Checkpoint<K, V> {
-        boolean put(K key, V value);
-    }
-
 }

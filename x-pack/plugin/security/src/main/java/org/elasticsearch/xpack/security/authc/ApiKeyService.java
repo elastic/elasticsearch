@@ -83,7 +83,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.support.ConsistentCache;
+import org.elasticsearch.xpack.security.support.InvalidationCountingCacheWrapper;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
@@ -179,7 +179,7 @@ public class ApiKeyService {
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
-    private final ConsistentCache<String, CachedApiKeyDoc> apiKeyDocCache;
+    private final InvalidationCountingCacheWrapper<String, CachedApiKeyDoc> apiKeyDocCache;
     private final Cache<String, BytesReference> roleDescriptorsBytesCache;
 
     private volatile long lastExpirationRunMs;
@@ -209,7 +209,7 @@ public class ApiKeyService {
                 .setExpireAfterAccess(TimeValue.timeValueHours(1))
                 .setMaximumWeight(maximumWeight * 2)
                 .build();
-            this.apiKeyDocCache = new ConsistentCache<>(
+            this.apiKeyDocCache = new InvalidationCountingCacheWrapper<>(
                 CacheBuilder.<String, CachedApiKeyDoc>builder()
                     .setMaximumWeight(maximumWeight)
                     .setExpireAfterWrite(TimeValue.timeValueMinutes(5))
@@ -396,7 +396,8 @@ public class ApiKeyService {
                 }
             }));
 
-        final ConsistentCache.Checkpoint<String, CachedApiKeyDoc> checkpoint;
+        final long invalidationCount;
+
         if (apiKeyDocCache != null) {
             CachedApiKeyDoc existing = apiKeyDocCache.get(docId);
             if (existing != null) {
@@ -408,9 +409,9 @@ public class ApiKeyService {
                 }
             }
             // API key doc not found in cache
-            checkpoint = apiKeyDocCache.checkpoint();
+            invalidationCount = apiKeyDocCache.getInvalidationCount();
         } else {
-            checkpoint = null;
+            invalidationCount = -1;
         }
 
         final GetRequest getRequest = client
@@ -425,9 +426,9 @@ public class ApiKeyService {
                         response.getSourceAsBytesRef(), XContentType.JSON)) {
                         apiKeyDoc = ApiKeyDoc.fromXContent(parser);
                     }
-                    if (checkpoint != null) {
+                    if (invalidationCount != -1) {
                         final CachedApiKeyDoc cachedApiKeyDoc = apiKeyDoc.toCachedApiKeyDoc();
-                        if (checkpoint.put(docId, cachedApiKeyDoc)) {
+                        if (apiKeyDocCache.putIfNoInvalidationSince(docId, cachedApiKeyDoc, invalidationCount)) {
                             roleDescriptorsBytesCache.computeIfAbsent(
                                 cachedApiKeyDoc.roleDescriptorsHash, k -> apiKeyDoc.roleDescriptorsBytes);
                             roleDescriptorsBytesCache.computeIfAbsent(
@@ -652,7 +653,7 @@ public class ApiKeyService {
     }
 
     // pkg private for testing
-    ConsistentCache<String, CachedApiKeyDoc> getApiKeyDocCache() {
+    InvalidationCountingCacheWrapper<String, CachedApiKeyDoc> getApiKeyDocCache() {
         return apiKeyDocCache;
     }
 

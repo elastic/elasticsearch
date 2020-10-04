@@ -301,6 +301,24 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), mapperService, true) {
+                @Override
+                protected List<?> parseSourceValue(Object value) {
+                    if (value instanceof List) {
+                        return (List<?>) value;
+                    } else {
+                        return Collections.singletonList(value);
+                    }
+                }
+            };
+        }
+
     }
 
     private final int maxInputLength;
@@ -513,24 +531,6 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             throw new ParsingException(parser.getTokenLocation(), "failed to parse [" + parser.currentName()
                 + "]: expected text or object, but got " + token.name());
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected List<?> parseSourceValue(Object value) {
-                if (value instanceof List) {
-                    return (List<?>) value;
-                } else {
-                    return org.elasticsearch.common.collect.List.of(value);
-                }
-            }
-        };
     }
 
     static class CompletionInputMetadata {

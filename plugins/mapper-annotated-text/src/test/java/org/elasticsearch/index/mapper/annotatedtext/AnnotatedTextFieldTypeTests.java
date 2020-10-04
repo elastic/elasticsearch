@@ -22,10 +22,16 @@ package org.elasticsearch.index.mapper.annotatedtext;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,5 +43,21 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
         NamedAnalyzer a = new NamedAnalyzer("name", AnalyzerScope.INDEX, new StandardAnalyzer());
         IntervalsSource source = ft.intervals("Donald Trump", 0, true, a, false);
         assertEquals(Intervals.phrase(Intervals.term("donald"), Intervals.term("trump")), source);
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field")
+            .indexAnalyzer(Lucene.STANDARD_ANALYZER)
+            .searchAnalyzer(Lucene.STANDARD_ANALYZER)
+            .searchQuoteAnalyzer(Lucene.STANDARD_ANALYZER)
+            .build(context)
+            .fieldType();
+
+        assertEquals(Collections.singletonList("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(Collections.singletonList("42"), fetchSourceValue(fieldType, 42L));
+        assertEquals(Collections.singletonList("true"), fetchSourceValue(fieldType, true));
     }
 }

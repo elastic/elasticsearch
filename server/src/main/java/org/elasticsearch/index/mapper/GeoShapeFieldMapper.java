@@ -93,7 +93,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         private final VectorGeoShapeQueryProcessor queryProcessor;
 
         public GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexed, stored, hasDocValues, false, meta);
             this.queryProcessor = new VectorGeoShapeQueryProcessor();
         }
 

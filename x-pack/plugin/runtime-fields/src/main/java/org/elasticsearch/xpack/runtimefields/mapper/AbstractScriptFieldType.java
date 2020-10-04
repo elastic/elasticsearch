@@ -16,13 +16,15 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
@@ -151,17 +153,17 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) {
         throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
     @Override
-    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) {
         throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
     @Override
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) {
         throw new IllegalArgumentException(unsupported("phrase prefix", "text"));
     }
 
@@ -209,5 +211,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
      */
     protected Locale formatLocale() {
         return null;
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        return new DocValueFetcher(docValueFormat(format, null), lookup.doc().getForField(this));
     }
 }

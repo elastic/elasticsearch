@@ -305,17 +305,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Find out which nodes handled the above authentication requests
         final ApiKeyService serviceForDoc1 =
-            services.stream().filter(s -> s.getApiKeyDocCache().get(apiKey1.v1()) != null).findFirst().orElseThrow();
+            services.stream().filter(s -> s.getDocCache().get(apiKey1.v1()) != null).findFirst().orElseThrow();
         final ApiKeyService serviceForDoc2 =
-            services.stream().filter(s -> s.getApiKeyDocCache().get(apiKey2.v1()) != null).findFirst().orElseThrow();
+            services.stream().filter(s -> s.getDocCache().get(apiKey2.v1()) != null).findFirst().orElseThrow();
         assertNotNull(serviceForDoc1.getFromCache(apiKey1.v1()));
         assertNotNull(serviceForDoc2.getFromCache(apiKey2.v1()));
         final boolean sameServiceNode = serviceForDoc1 == serviceForDoc2;
         if (sameServiceNode) {
-            assertEquals(2, serviceForDoc1.getApiKeyDocCache().count());
+            assertEquals(2, serviceForDoc1.getDocCache().count());
         } else {
-            assertEquals(1, serviceForDoc1.getApiKeyDocCache().count());
-            assertEquals(1, serviceForDoc2.getApiKeyDocCache().count());
+            assertEquals(1, serviceForDoc1.getDocCache().count());
+            assertEquals(1, serviceForDoc2.getDocCache().count());
         }
 
         // Invalidate the first key
@@ -327,12 +327,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
         // The cache entry should be gone for the first key
         if (sameServiceNode) {
-            assertEquals(1, serviceForDoc1.getApiKeyDocCache().count());
-            assertNull(serviceForDoc1.getApiKeyDocCache().get(apiKey1.v1()));
-            assertNotNull(serviceForDoc1.getApiKeyDocCache().get(apiKey2.v1()));
+            assertEquals(1, serviceForDoc1.getDocCache().count());
+            assertNull(serviceForDoc1.getDocCache().get(apiKey1.v1()));
+            assertNotNull(serviceForDoc1.getDocCache().get(apiKey2.v1()));
         } else {
-            assertEquals(0, serviceForDoc1.getApiKeyDocCache().count());
-            assertEquals(1, serviceForDoc2.getApiKeyDocCache().count());
+            assertEquals(0, serviceForDoc1.getDocCache().count());
+            assertEquals(1, serviceForDoc2.getDocCache().count());
         }
 
         // Authentication with the first key should fail
@@ -1017,19 +1017,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Find out which nodes handled the above authentication requests
         final ApiKeyService serviceForDoc1 =
-            services.stream().filter(s -> s.getApiKeyDocCache().get(docId1) != null).findFirst().orElseThrow();
+            services.stream().filter(s -> s.getDocCache().get(docId1) != null).findFirst().orElseThrow();
         final ApiKeyService serviceForDoc2 =
-            services.stream().filter(s -> s.getApiKeyDocCache().get(docId2) != null).findFirst().orElseThrow();
+            services.stream().filter(s -> s.getDocCache().get(docId2) != null).findFirst().orElseThrow();
         assertNotNull(serviceForDoc1.getFromCache(docId1));
         assertNotNull(serviceForDoc2.getFromCache(docId2));
         final boolean sameServiceNode = serviceForDoc1 == serviceForDoc2;
         if (sameServiceNode) {
-            assertEquals(2, serviceForDoc1.getApiKeyDocCache().count());
+            assertEquals(2, serviceForDoc1.getDocCache().count());
             assertEquals(2, serviceForDoc1.getRoleDescriptorsBytesCache().count());
         } else {
-            assertEquals(1, serviceForDoc1.getApiKeyDocCache().count());
+            assertEquals(1, serviceForDoc1.getDocCache().count());
             assertEquals(2, serviceForDoc1.getRoleDescriptorsBytesCache().count());
-            assertEquals(1, serviceForDoc2.getApiKeyDocCache().count());
+            assertEquals(1, serviceForDoc2.getDocCache().count());
             assertEquals(2, serviceForDoc2.getRoleDescriptorsBytesCache().count());
         }
 
@@ -1044,11 +1044,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             expectThrows(NullPointerException.class, () -> serviceForDoc1.getFromCache(docId1));
             if (sameServiceNode) {
-                assertEquals(1, serviceForDoc1.getApiKeyDocCache().count());
+                assertEquals(1, serviceForDoc1.getDocCache().count());
                 assertNotNull(serviceForDoc1.getFromCache(docId2));
             } else {
-                assertEquals(0, serviceForDoc1.getApiKeyDocCache().count());
-                assertEquals(1, serviceForDoc2.getApiKeyDocCache().count());
+                assertEquals(0, serviceForDoc1.getDocCache().count());
+                assertEquals(1, serviceForDoc2.getDocCache().count());
                 assertNotNull(serviceForDoc2.getFromCache(docId2));
             }
             // Role descriptors are not invalidated when invalidation is for specific API keys
@@ -1062,13 +1062,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest).get();
         assertFalse(clearSecurityCacheResponse.hasFailures());
         assertBusy(() -> {
-            assertEquals(0, serviceForDoc1.getApiKeyDocCache().count());
+            assertEquals(0, serviceForDoc1.getDocCache().count());
             assertEquals(0, serviceForDoc1.getRoleDescriptorsBytesCache().count());
             if (sameServiceNode) {
                 expectThrows(NullPointerException.class, () -> serviceForDoc1.getFromCache(docId2));
             } else {
                 expectThrows(NullPointerException.class, () -> serviceForDoc2.getFromCache(docId2));
-                assertEquals(0, serviceForDoc2.getApiKeyDocCache().count());
+                assertEquals(0, serviceForDoc2.getDocCache().count());
                 assertEquals(0, serviceForDoc2.getRoleDescriptorsBytesCache().count());
             }
         });
@@ -1083,9 +1083,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // The API key is cached by one of the node that the above request hits, find out which one
         final ApiKeyService apiKeyService =
-            services.stream().filter(s -> s.getApiKeyDocCache().count() > 0).findFirst().orElseThrow();
+            services.stream().filter(s -> s.getDocCache().count() > 0).findFirst().orElseThrow();
         assertNotNull(apiKeyService.getFromCache(docId));
-        assertEquals(1, apiKeyService.getApiKeyDocCache().count());
+        assertEquals(1, apiKeyService.getDocCache().count());
         assertEquals(2, apiKeyService.getRoleDescriptorsBytesCache().count());
 
         // Close security index to trigger invalidation
@@ -1094,7 +1094,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertTrue(closeIndexResponse.isAcknowledged());
         assertBusy(() -> {
             expectThrows(NullPointerException.class, () -> apiKeyService.getFromCache(docId));
-            assertEquals(0, apiKeyService.getApiKeyDocCache().count());
+            assertEquals(0, apiKeyService.getDocCache().count());
             assertEquals(0, apiKeyService.getRoleDescriptorsBytesCache().count());
         });
     }

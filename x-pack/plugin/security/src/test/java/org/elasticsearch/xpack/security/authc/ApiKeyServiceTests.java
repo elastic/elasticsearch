@@ -714,13 +714,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.isAuthenticated(), is(true));
         CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(creds.getId());
         assertNull(cachedApiKeyHashResult);
-        assertNull(service.getApiKeyDocCache());
+        assertNull(service.getDocCache());
         assertNull(service.getRoleDescriptorsBytesCache());
     }
 
     public void testApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
-        assertNotNull(service.getApiKeyDocCache());
+        assertNotNull(service.getDocCache());
         assertNotNull(service.getRoleDescriptorsBytesCache());
         final ThreadContext threadContext = threadPool.getThreadContext();
 
@@ -731,7 +731,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         mockKeyDocument(service, docId, apiKey, new User("hulk", "superuser"), false, Duration.ofSeconds(3600));
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future);
-        final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc = service.getApiKeyDocCache().get(docId);
+        final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc = service.getDocCache().get(docId);
         assertNotNull(cachedApiKeyDoc);
         assertEquals("hulk", cachedApiKeyDoc.creator.get("principal"));
         final BytesReference roleDescriptorsBytes =
@@ -752,7 +752,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         mockKeyDocument(service, docId2, apiKey2, new User("thor", "superuser"), false, Duration.ofSeconds(3600));
         PlainActionFuture<AuthenticationResult> future2 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials2, future2);
-        final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc2 = service.getApiKeyDocCache().get(docId2);
+        final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc2 = service.getDocCache().get(docId2);
         assertNotNull(cachedApiKeyDoc2);
         assertEquals("thor", cachedApiKeyDoc2.creator.get("principal"));
         final BytesReference roleDescriptorsBytes2 =
@@ -772,7 +772,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                         false, Duration.ofSeconds(3600), keyRoles);
         PlainActionFuture<AuthenticationResult> future3 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials3, future3);
-        final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc3 = service.getApiKeyDocCache().get(docId3);
+        final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc3 = service.getDocCache().get(docId3);
         assertNotNull(cachedApiKeyDoc3);
         assertEquals("banner", cachedApiKeyDoc3.creator.get("principal"));
         // Shared bytes for limitedBy role since it is the same

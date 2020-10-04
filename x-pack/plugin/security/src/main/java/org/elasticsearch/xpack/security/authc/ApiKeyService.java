@@ -640,14 +640,12 @@ public class ApiKeyService {
 
     // pkg private for testing
     InvalidationCountingCacheWrapper<String, CachedApiKeyDoc> getDocCache() {
-        assert apiKeyDocCache != null;
-        return apiKeyDocCache.docCache;
+        return apiKeyDocCache == null ? null : apiKeyDocCache.docCache;
     }
 
     // pkg private for testing
     Cache<String, BytesReference> getRoleDescriptorsBytesCache() {
-        assert apiKeyDocCache != null;
-        return apiKeyDocCache.roleDescriptorsBytesCache;
+        return apiKeyDocCache == null ? null : apiKeyDocCache.roleDescriptorsBytesCache;
     }
 
     // package-private for testing

@@ -718,6 +718,29 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNull(service.getRoleDescriptorsBytesCache());
     }
 
+    public void testApiKeyDocCacheCanBeDisabledSeparately() {
+        final String apiKey = randomAlphaOfLength(16);
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+        final Settings settings = Settings.builder()
+            .put(ApiKeyService.DOC_CACHE_TTL_SETTING.getKey(), "0s")
+            .build();
+
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
+
+        ApiKeyService service = createApiKeyService(settings);
+
+        ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
+        AuthenticationResult result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(true));
+        CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(creds.getId());
+        assertNotNull(cachedApiKeyHashResult);
+        assertNull(service.getDocCache());
+        assertNull(service.getRoleDescriptorsBytesCache());
+    }
+
     public void testApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         assertNotNull(service.getDocCache());

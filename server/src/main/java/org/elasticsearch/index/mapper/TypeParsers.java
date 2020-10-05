@@ -149,25 +149,6 @@ public class TypeParsers {
         builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms") == false);
     }
 
-    /**
-     * Parse text field attributes. In addition to {@link #parseField common attributes}
-     * this will parse analysis and term-vectors related settings.
-     */
-    public static void parseTextField(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode,
-                                      Mapper.TypeParser.ParserContext parserContext) {
-        parseField(builder, name, fieldNode, parserContext);
-        parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
-        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext(); ) {
-            Map.Entry<String, Object> entry = iterator.next();
-            final String propName = entry.getKey();
-            final Object propNode = entry.getValue();
-            if ("norms".equals(propName)) {
-                parseNorms(builder, name, propNode);
-                iterator.remove();
-            }
-        }
-    }
-
     public static void checkNull(String propName, Object propNode) {
         if (false == propName.equals("null_value") && propNode == null) {
             /*

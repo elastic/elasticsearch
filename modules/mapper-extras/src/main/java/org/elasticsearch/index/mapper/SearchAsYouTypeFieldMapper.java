@@ -117,7 +117,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
                     throw new MapperParsingException("Cannot set [doc_values] on field of type [search_as_you_type]");
                 }
             })
-            .alwaysSerialize();
+            .setSerializerCheck((id, ic, v) -> true);
 
         private final Parameter<Integer> maxShingleSize = Parameter.intParam("max_shingle_size", false,
             m -> toType(m).maxShingleSize, Defaults.MAX_SHINGLE_SIZE)
@@ -127,7 +127,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
                         + "] and at most " + "[" + MAX_SHINGLE_SIZE_UPPER_BOUND + "], got [" + v + "]");
                 }
             })
-            .alwaysSerialize();
+            .setSerializerCheck((id, ic, v) -> true);
 
         final TextParams.Analyzers analyzers;
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ft(m).getTextSearchInfo().getSimilarity());

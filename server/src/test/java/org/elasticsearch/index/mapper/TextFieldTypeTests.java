@@ -38,6 +38,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -136,7 +137,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
     public void testIndexPrefixes() {
         TextFieldType ft = createFieldType();
-        ft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft, "field._index_prefix", 2, 10, true));
+        ft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft, "field._index_prefix", 2, 10));
 
         Query q = ft.prefixQuery("goin", CONSTANT_SCORE_REWRITE, false, randomMockShardContext());
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);
@@ -169,7 +170,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        MappedFieldType mapper = new TextFieldMapper.Builder("field").build(context).fieldType();
+        MappedFieldType mapper = new TextFieldMapper.Builder("field", () -> Lucene.STANDARD_ANALYZER).build(context).fieldType();
 
         assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));

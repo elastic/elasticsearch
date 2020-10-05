@@ -118,10 +118,10 @@
  *     enqueued in the cluster state.</li>
  *     <li>Once a placeholder task for the clone operation is put into the cluster state, we must determine the number of shards in each
  *     index that is to be cloned as well as ensure the health of the index snapshots in the source snapshot. In order to determine the
- *     shard count for each index that is clone, we load the index metadata for each index using the repository's
+ *     shard count for each index that is to be cloned, we load the index metadata for each such index using the repository's
  *     {@link org.elasticsearch.repositories.Repository#getSnapshotIndexMetaData} method. In order to ensure the health of the source index
  *     snapshots, we load the {@link org.elasticsearch.snapshots.SnapshotInfo} for the source snapshot and check for shard snapshot
- *     failures in the relevant indices.</li>
+ *     failures of the relevant indices.</li>
  *     <li>Once all shard counts are known and the health of all source indices data has been verified, we populate the
  *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the the relevant shard clone tasks.</li>
  *     <li>After the clone tasks have been added to the {@code SnapshotsInProgress.Entry}, master executes them on its snapshot thread-pool

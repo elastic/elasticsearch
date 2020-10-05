@@ -220,8 +220,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler,
-                                 ThreadContext threadContext) throws Exception {
+    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
         final int contentLength = request.content().length();
         if (contentLength > 0) {
             final XContentType xContentType = request.getXContentType();
@@ -249,7 +248,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 request.ensureSafeBuffers();
             }
             if (handler.allowSystemIndexAccessByDefault() == false) {
-                threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+                client.threadPool().getThreadContext().putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
             }
 
             handler.handleRequest(request, responseChannel, client);
@@ -334,7 +333,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                       return;
                   }
                 } else {
-                    dispatchRequest(request, channel, handler, threadContext);
+                    dispatchRequest(request, channel, handler);
                     return;
                 }
             }

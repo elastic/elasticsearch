@@ -8,61 +8,37 @@ Updates the <<tier-preference-allocation-filter, `index.routing.allocation.inclu
 index setting in order to migrate the index to the <<modules-tiers, data tier>> corresponding
 to the current phase.
 
-If the `migrate` action is executed in the Warm phase, the
-<<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
-index setting will be configured to `data_warm, data_hot`, targeting the
-<<warm-tier, warm tier>> if it is available or otherwise falling back to the
+In the warm phase, the `migrate` action sets <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
+to `data_warm, data_hot`. This moves the index to nodes in the
+<<warm-tier, warm tier>>. If there are no nodes in the warm tier,  it falls back to the
 <<hot-tier, hot tier>>.
 
-If the `migrate` action is executed in the Cold phase, the
+In the cold phase, the `migrate` action sets
 <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
-index setting will be configured to `data_cold, data_warm, data_hot`, targeting the
-<<cold-tier, cold tier>> if it is available or otherwise falling back to the
-<<warm-tier, warm>> or <<hot-tier, hot>> tier, depending on which is available.
+to `data_cold, data_warm, data_hot`. This moves the index to nodes in the
+<<cold-tier, cold tier>>. If there are no nodes in the cold tier, it falls back to the
+<<warm-tier, warm>> tier, or the <<hot-tier, hot>> tier if there are no warm nodes available.
 
 The migrate action is not allowed in the hot phase.
-The initial index to tier allocation is performed <<data-tier-allocation, automatically>>,
-unless it's configured manually or via <<indices-templates, index templates>>
+The initial index allocation is performed <<data-tier-allocation, automatically>>,
+and can be configured manually or via <<indices-templates, index templates>>.
 
 [[ilm-migrate-options]]
 ==== Options
 
-You can optionally disable the `migrate` action using the
-`enabled` option.
-An empty migrate action is enabled.
 
 `enabled`::
 (Optional, boolean)
-Controls whether the index migration to data tiers is enabled or not.
+Controls whether {ilm-init} automatically migrates the index during this phase.
 Defaults to `true`.
 
-[[ilm-automatic-index-migration]]
-==== Automatic index migration
-
-ILM will automatically inject the migrate action in the warm and cold
-phases unless the phase contains an <<ilm-allocate, allocate action>> with
-allocation rules defined or the migrate action is defined explicitly.
-
-Defining an <<ilm-allocate, allocate action>> that only modifies the number of index
-replicas will not prevent the migrate action from automatically being
-injected into the allowed phases. In this case the <<ilm-allocate, allocate action>>
-executes before the migate action providing the ability to reduce the number
-of replicas before migrating the index to a different data tier.
-
-Manually specifying an enabled migrate action and an allocate action
-that defines allocation rules is prohibited. If modifying the allocation
-rules via the <<ilm-allocate, allocate action>> is desired define the
-migrate action with the `enabled` flag set to `false`.
 
 [[ilm-enabled-migrate-ex]]
 ==== Example
 
-The migrate action in the following policy is enabled and
-the number of replicas for the index is manipulated using
-the allocate action.
+In the following policy, the allocate action is specified to reduce the number of replicas before {ilm-init} migrates the index to warm nodes.  
 
-NOTE: ILM would've injected the migrate action automatically
-in the following policy even if it wasn't manually defined.
+NOTE: Explicitly specifying the migrate action is not required--{ilm-init} automatically performs the migrate action unless you specify allocation options or disable migration.
 
 [source,console]
 --------------------------------------------------
@@ -84,13 +60,13 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-[[ilm-disabled-migrate-ex]]
-==== Disabled migrate action example
+[[ilm-disable-migrate-ex]]
+==== Disable automatic migration
 
 The migrate action in the following policy is disabled and
 the allocate action assigns the index to nodes that have a
 `rack_id` of _one_ or _two_.
-
+NOTE: Explicitly disabling the migrate action is not required--{ilm-init} does not inject the migrate action if you specify allocation options.
 [source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy

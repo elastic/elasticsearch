@@ -165,7 +165,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     private static Query newFieldExistsQuery(QueryShardContext context, String field) {
-        MappedFieldType fieldType = context.getMapperService().fieldType(field);
+        MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
             // The field does not exist as a leaf but could be an object so
             // check for an object mapper
@@ -182,7 +182,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
         Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
         for (String field : fields) {
-            Query existsQuery = context.getMapperService().fieldType(field).existsQuery(context);
+            Query existsQuery = context.fieldMapper(field).existsQuery(context);
             booleanQuery.add(existsQuery, Occur.SHOULD);
         }
         return new ConstantScoreQuery(booleanQuery.build());
@@ -194,7 +194,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
      */
     private static Collection<String> getMappedField(QueryShardContext context, String fieldPattern) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-            .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
+            .fieldMapper(FieldNamesFieldMapper.NAME);
 
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
@@ -212,7 +212,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
         if (fields.size() == 1) {
             String field = fields.iterator().next();
-            MappedFieldType fieldType = context.getMapperService().fieldType(field);
+            MappedFieldType fieldType = context.fieldMapper(field);
             if (fieldType == null) {
                 // The field does not exist as a leaf but could be an object so
                 // check for an object mapper

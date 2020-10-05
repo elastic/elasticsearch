@@ -21,6 +21,7 @@ package org.elasticsearch.index.search;
 
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -31,18 +32,21 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
+
+import java.util.function.Function;
 
 /** Utility class to filter parent and children clauses when building nested
  * queries. */
 public final class NestedHelper {
 
-    private final MapperService mapperService;
+    private final Function<String, ObjectMapper> objectMapperLookup;
+    private final Function<String, MappedFieldType> fieldTypeLookup;
 
-    public NestedHelper(MapperService mapperService) {
-        this.mapperService = mapperService;
+    public NestedHelper(Function<String, ObjectMapper> objectMapperLookup, Function<String, MappedFieldType> fieldTypeLookup) {
+        this.objectMapperLookup = objectMapperLookup;
+        this.fieldTypeLookup = fieldTypeLookup;
     }
 
     /** Returns true if the given query might match nested documents. */
@@ -103,12 +107,12 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (mapperService.fieldType(field) == null) {
+        if (fieldTypeLookup.apply(field) == null) {
             // field does not exist
             return false;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper mapper = mapperService.getObjectMapper(parent);
+            ObjectMapper mapper = objectMapperLookup.apply(parent);
             if (mapper != null && mapper.nested().isNested()) {
                 return true;
             }
@@ -172,11 +176,11 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (mapperService.fieldType(field) == null) {
+        if (fieldTypeLookup.apply(field) == null) {
             return false;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper mapper = mapperService.getObjectMapper(parent);
+            ObjectMapper mapper = objectMapperLookup.apply(parent);
             if (mapper!= null && mapper.nested().isNested()) {
                 if (mapper.fullPath().equals(nestedPath)) {
                     // If the mapper does not include in its parent or in the root object then

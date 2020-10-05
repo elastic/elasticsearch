@@ -1,5 +1,5 @@
 [role="xpack"]
-[[modules-tiers]]
+[[data-tiers]]
 === Data tiers
 
 Common data lifecycle management patterns revolve around transitioning the indices

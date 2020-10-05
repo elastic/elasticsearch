@@ -33,11 +33,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -53,7 +50,6 @@ import org.hamcrest.Matchers;
 import org.hamcrest.core.CombinableMatcher;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -763,21 +759,6 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertTrue(e.getMessage(),
             e.getMessage().contains("Limit of completion field contexts [" +
                 CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"));
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
-        CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("completion", defaultAnalyzer, Version.CURRENT).build(context);
-
-        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
-
-        List<String> list = List.of("first", "second");
-        assertEquals(list, fetchSourceValue(mapper, list));
-
-        Map<String, Object> object = Map.of("input", List.of("first", "second"), "weight", "2.718");
-        assertEquals(List.of(object), fetchSourceValue(mapper, object));
     }
 
     private Matcher<IndexableField> suggestField(String value) {

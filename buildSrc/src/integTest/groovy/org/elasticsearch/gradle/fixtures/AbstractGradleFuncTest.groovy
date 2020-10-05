@@ -43,9 +43,13 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(String... arguments) {
+        return gradleRunner(testProjectDir.root, arguments)
+    }
+
+    GradleRunner gradleRunner(File projectDir, String... arguments) {
         GradleRunner.create()
                 .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-                .withProjectDir(testProjectDir.root)
+                .withProjectDir(projectDir)
                 .withArguments(arguments)
                 .withPluginClasspath()
                 .forwardOutput()
@@ -84,5 +88,32 @@ abstract class AbstractGradleFuncTest extends Specification {
         }
 
         return jarFile;
+    }
+
+    File internalBuild(File buildScript = buildFile) {
+        buildScript << """plugins {
+          id 'elasticsearch.global-build-info'
+        }
+        import org.elasticsearch.gradle.Architecture
+        import org.elasticsearch.gradle.info.BuildParams
+
+        BuildParams.init { it.setIsInternal(true) }
+
+        import org.elasticsearch.gradle.BwcVersions
+        import org.elasticsearch.gradle.Version
+
+        Version currentVersion = Version.fromString("9.0.0")
+        BwcVersions versions = new BwcVersions(new TreeSet<>(
+        Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
+            currentVersion)
+
+        BuildParams.init { it.setBwcVersions(versions) }
+        """
+    }
+
+    void setupLocalGitRepo() {
+        "git init".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        "git add .".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        'git commit -m "Initial"'.execute(Collections.emptyList(), testProjectDir.root).waitFor()
     }
 }

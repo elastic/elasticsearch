@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -96,6 +97,11 @@ public abstract class MappedFieldType {
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
+
+    /**
+     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
+     */
+    public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();

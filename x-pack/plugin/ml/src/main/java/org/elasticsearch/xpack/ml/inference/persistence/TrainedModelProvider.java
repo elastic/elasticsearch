@@ -67,6 +67,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
@@ -438,13 +439,12 @@ public class TrainedModelProvider {
     }
 
     public void getTrainedModel(final String modelId,
-                                final boolean includeDefinition,
-                                final boolean includeTotalFeatureImportance,
+                                final GetTrainedModelsAction.Includes includes,
                                 final ActionListener<TrainedModelConfig> finalListener) {
 
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             try {
-                finalListener.onResponse(loadModelFromResource(modelId, includeDefinition == false).build());
+                finalListener.onResponse(loadModelFromResource(modelId, includes.isIncludeModelDefinition() == false).build());
                 return;
             } catch (ElasticsearchException ex) {
                 finalListener.onFailure(ex);
@@ -454,7 +454,7 @@ public class TrainedModelProvider {
 
         ActionListener<TrainedModelConfig.Builder> getTrainedModelListener = ActionListener.wrap(
             modelBuilder -> {
-                if (includeTotalFeatureImportance == false) {
+                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()) == false) {
                     finalListener.onResponse(modelBuilder.build());
                     return;
                 }
@@ -462,7 +462,12 @@ public class TrainedModelProvider {
                     metadata -> {
                         TrainedModelMetadata modelMetadata = metadata.get(modelId);
                         if (modelMetadata != null) {
-                            modelBuilder.setFeatureImportance(modelMetadata.getTotalFeatureImportances());
+                            if (includes.isIncludeTotalFeatureImportance()) {
+                                modelBuilder.setFeatureImportance(modelMetadata.getTotalFeatureImportances());
+                            }
+                            if (includes.isIncludeFeatureImportanceBaseline()) {
+                                modelBuilder.setBaselineFeatureImportance(modelMetadata.getFeatureImportanceBaselines());
+                            }
                         }
                         finalListener.onResponse(modelBuilder.build());
                     },
@@ -492,7 +497,7 @@ public class TrainedModelProvider {
                 .setSize(1)
                 .request());
 
-        if (includeDefinition) {
+        if (includes.isIncludeModelDefinition()) {
             multiSearchRequestBuilder.add(client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
                 .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
                     .boolQuery()
@@ -526,7 +531,7 @@ public class TrainedModelProvider {
                     return;
                 }
 
-                if (includeDefinition) {
+                if (includes.isIncludeModelDefinition()) {
                     try {
                         List<TrainedModelDefinitionDoc> docs = handleSearchItems(multiSearchResponse.getResponses()[1],
                             modelId,
@@ -568,8 +573,8 @@ public class TrainedModelProvider {
      * It assumes that there are fewer than 10k.
      */
     public void getTrainedModels(Set<String> modelIds,
+                                 GetTrainedModelsAction.Includes includes,
                                  boolean allowNoResources,
-                                 boolean includeTotalFeatureImportance,
                                  final ActionListener<List<TrainedModelConfig>> finalListener) {
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(modelIds.toArray(new String[0])));
 
@@ -600,7 +605,7 @@ public class TrainedModelProvider {
 
         ActionListener<List<TrainedModelConfig.Builder>> getTrainedModelListener = ActionListener.wrap(
             modelBuilders -> {
-                if (includeTotalFeatureImportance == false) {
+                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()) == false) {
                     finalListener.onResponse(modelBuilders.stream()
                         .map(TrainedModelConfig.Builder::build)
                         .sorted(Comparator.comparing(TrainedModelConfig::getModelId))
@@ -613,7 +618,12 @@ public class TrainedModelProvider {
                             .map(builder -> {
                                 TrainedModelMetadata modelMetadata = metadata.get(builder.getModelId());
                                 if (modelMetadata != null) {
-                                    builder.setFeatureImportance(modelMetadata.getTotalFeatureImportances());
+                                    if (includes.isIncludeTotalFeatureImportance()) {
+                                        builder.setFeatureImportance(modelMetadata.getTotalFeatureImportances());
+                                    }
+                                    if (includes.isIncludeFeatureImportanceBaseline()) {
+                                        builder.setBaselineFeatureImportance(modelMetadata.getFeatureImportanceBaselines());
+                                    }
                                 }
                                 return builder.build();
                             })

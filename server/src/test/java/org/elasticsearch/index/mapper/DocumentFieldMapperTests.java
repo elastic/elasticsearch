@@ -71,6 +71,11 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public String typeName() {
             return "fake";
         }
@@ -84,11 +89,6 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
         @Override
         protected void parseCreateField(ParseContext context) {
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

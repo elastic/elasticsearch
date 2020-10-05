@@ -404,7 +404,7 @@ documents use a different timestamp or event category field, you must specify it
 in the search request using the `timestamp_field` or `event_category_field`
 parameters.
 
-The event category field is typically mapped as a field type in the
+The event category field must be mapped as a field type in the
 <<keyword,`keyword`>> family. The timestamp field should be mapped as a
 <<date,`date`>> field type. <<date_nanos,`date_nanos`>> timestamp fields are not
 supported.

@@ -74,6 +74,11 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/shards\n");
         sb.append("/_cat/shards/{index}\n");

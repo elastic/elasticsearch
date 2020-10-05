@@ -81,7 +81,7 @@ public interface IndexAbstraction {
     boolean isHidden();
 
     /**
-     * @return whether this index abstraction is hidden or not
+     * @return whether this index abstraction should be treated as a system index or not
      */
     boolean isSystem();
 

@@ -43,6 +43,8 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             Request req = new Request("PUT",
                     TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName));
+            req.setOptions(expectWarnings("this request accesses system indices: [" + TransformInternalIndexConstants.LATEST_INDEX_NAME +
+                "], but in a future major version, direct access to system indices will be prevented by default"));
             req.setEntity(entity);
             client().performRequest(req);
         }

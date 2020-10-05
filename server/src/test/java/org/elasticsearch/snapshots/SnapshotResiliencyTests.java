@@ -65,6 +65,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAct
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -1478,7 +1479,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     },
                     a -> node, null, emptySet()
                 );
-                final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+                final IndexNameExpressionResolver indexNameExpressionResolver =
+                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
                 repositoriesService = new RepositoriesService(
                     settings, clusterService, transportService,
                     Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), threadPool

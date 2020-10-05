@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -62,6 +63,11 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(InternalSnapshotsInfoService.class);
+
+    private static final ActionListener<ClusterState> REROUTE_LISTENER = ActionListener.wrap(
+        r -> logger.trace("reroute after snapshot shard size update completed"),
+        e -> logger.debug("reroute after snapshot shard size update failed", e)
+    );
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -214,10 +220,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                             }
                         }
                         if (updated) {
-                            rerouteService.get().reroute("snapshot shard size updated", Priority.HIGH,
-                                ActionListener.wrap(
-                                    r -> logger.trace("reroute after snapshot shard size update completed"),
-                                    e -> logger.debug("reroute after snapshot shard size update failed", e)));
+                            rerouteService.get().reroute("snapshot shard size updated", Priority.HIGH, REROUTE_LISTENER);
                         }
                     }
 

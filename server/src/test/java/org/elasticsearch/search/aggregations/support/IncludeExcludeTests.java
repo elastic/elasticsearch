@@ -250,6 +250,52 @@ public class IncludeExcludeTests extends ESTestCase {
         assertTrue(serialized.hashCode() != different.hashCode());
     }
 
+    public void testRegexIncludeAndSetExclude() throws IOException {
+        String incRegex = "foo.*";
+        String[] excValues = { "a", "b" };
+        String differentIncRegex = "foosball";
+        String[] differentExcValues = { "a", "c" };
+
+        IncludeExclude serialized = serializeMixedRegex(new IncludeExclude(incRegex, null, null, excValues));
+        assertFalse(serialized.isPartitionBased());
+        assertTrue(serialized.isRegexBased());
+
+        IncludeExclude same = new IncludeExclude(incRegex, null, null, excValues);
+        assertEquals(serialized, same);
+        assertEquals(serialized.hashCode(), same.hashCode());
+
+        IncludeExclude differentInc = new IncludeExclude(differentIncRegex, null, null, excValues);
+        assertFalse(serialized.equals(differentInc));
+        assertTrue(serialized.hashCode() != differentInc.hashCode());
+
+        IncludeExclude differentExc = new IncludeExclude(incRegex, null, null, differentExcValues);
+        assertFalse(serialized.equals(differentExc));
+        assertTrue(serialized.hashCode() != differentExc.hashCode());
+    }
+
+    public void testSetIncludeAndRegexExclude() throws IOException {
+        String[] incValues = { "a", "b" };
+        String excRegex = "foo.*";
+        String[] differentIncValues = { "a", "c" };
+        String differentExcRegex = "foosball";
+
+        IncludeExclude serialized = serializeMixedRegex(new IncludeExclude(null, excRegex, incValues, null));
+        assertFalse(serialized.isPartitionBased());
+        assertTrue(serialized.isRegexBased());
+
+        IncludeExclude same = new IncludeExclude(null, excRegex, incValues, null);
+        assertEquals(serialized, same);
+        assertEquals(serialized.hashCode(), same.hashCode());
+
+        IncludeExclude differentInc = new IncludeExclude(null, excRegex, differentIncValues, null);
+        assertFalse(serialized.equals(differentInc));
+        assertTrue(serialized.hashCode() != differentInc.hashCode());
+
+        IncludeExclude differentExc = new IncludeExclude(null, differentExcRegex, incValues, null);
+        assertFalse(serialized.equals(differentExc));
+        assertTrue(serialized.hashCode() != differentExc.hashCode());
+    }
+
     // Serializes/deserializes the IncludeExclude statement with include AND
     // exclude clauses
     private IncludeExclude serializeMixedRegex(IncludeExclude incExc) throws IOException {

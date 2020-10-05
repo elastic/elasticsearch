@@ -69,7 +69,7 @@ final class JvmErgonomics {
             ergonomicChoices.add("-XX:G1HeapRegionSize=4m");
         }
         if (tuneG1GCInitiatingHeapOccupancyPercent) {
-            ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=45");
+            ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=30");
         }
         if (tuneG1GCReservePercent != 0) {
             ergonomicChoices.add("-XX:G1ReservePercent=" + tuneG1GCReservePercent);
@@ -174,7 +174,7 @@ final class JvmErgonomics {
 
     static int tuneG1GCReservePercent(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
         JvmOption g1GCReservePercent = finalJvmOptions.get("G1ReservePercent");
-        if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap == true) {
+        if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap) {
             return 15;
         } else if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap == false) {
             return 25;

@@ -34,6 +34,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private static final Logger logger = LogManager.getLogger(AbstractAuditor.class);
+    static final int MAX_BUFFER_SIZE = 1000;
+
     private final OriginSettingClient client;
     private final String nodeName;
     private final String auditIndex;
@@ -136,6 +138,9 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 // between the read and adding to the backlog
                 assert backlog != null;
                 if (backlog != null) {
+                    if (backlog.size() >= MAX_BUFFER_SIZE) {
+                        backlog.remove();
+                    }
                     backlog.add(toXContent);
                 } else {
                     logger.error("Latest audit template missing but the back log has been written");
@@ -200,5 +205,10 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             },
             this::onIndexFailure
         ));
+    }
+
+    // for testing
+    int backLogSize() {
+        return backlog.size();
     }
 }

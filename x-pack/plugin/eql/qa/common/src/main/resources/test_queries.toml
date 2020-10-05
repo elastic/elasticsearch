@@ -342,19 +342,19 @@ query = '''
 registry where length(bytes_written_string_list) == 2 and bytes_written_string_list[1] : "EN"
 '''
 
-[[queries]]
-name = "keyPathWildcard"
-query = '''
-registry where key_path : "*\\MACHINE\\SAM\\SAM\\*\\Account\\Us*ers\\00*03E9\\F"
-'''
-expected_event_ids  = [79]
-
-[[queries]]
-name = "processPathWildcardAndIN"
-query = '''
-process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3,4)
-'''
-expected_event_ids  = [84, 85]
+# [[queries]]
+# name = "keyPathWildcard"
+# query = '''
+# registry where key_path : "*\\MACHINE\\SAM\\SAM\\*\\Account\\Us*ers\\00*03E9\\F"
+# '''
+# expected_event_ids  = [79]
+#
+# [[queries]]
+# name = "processPathWildcardAndIN"
+# query = '''
+# process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3,4)
+# '''
+# expected_event_ids  = [84, 85]
 
 [[queries]]
 name = "descendant1"
@@ -385,13 +385,13 @@ process where opcode==1 and process_name : "smss.exe"
 '''
 expected_event_ids  = [78]
 
-[[queries]]
-name = "wildcardAndMultipleConditions1"
-query = '''
-file where file_path:"*\\red_ttp\\winin*.*"
-  and opcode in (0,1,2) and user_name:"vagrant"
-'''
-expected_event_ids  = [83, 86]
+# [[queries]]
+# name = "wildcardAndMultipleConditions1"
+# query = '''
+# file where file_path:"*\\red_ttp\\winin*.*"
+#   and opcode in (0,1,2) and user_name:"vagrant"
+# '''
+# expected_event_ids  = [83, 86]
 
 [[queries]]
 name = "wildcardAndMultipleConditions2"
@@ -401,13 +401,13 @@ file where file_path:"*\\red_ttp\\winin*.*"
 '''
 expected_event_ids  = []
 
-[[queries]]
-name = "wildcardAndMultipleConditions3"
-query = '''
-file where file_path:"*\\red_ttp\\winin*.*"
-  and opcode not in (3, 4, 5, 6 ,7) and user_name:"vagrant"
-'''
-expected_event_ids  = [83, 86]
+# [[queries]]
+# name = "wildcardAndMultipleConditions3"
+# query = '''
+# file where file_path:"*\\red_ttp\\winin*.*"
+#   and opcode not in (3, 4, 5, 6 ,7) and user_name:"vagrant"
+# '''
+# expected_event_ids  = [83, 86]
 
 
 [[queries]]
@@ -878,16 +878,16 @@ sequence
 '''
 expected_event_ids  = [87, 92]
 
-[[queries]]
-name = "doubleSameSequenceWithByUntilAndHead1"
-query = '''
-sequence
-  [file where opcode==0 and file_name:"*.exe"] by unique_pid
-  [file where opcode==0 and file_name:"*.exe"] by unique_pid
-until [process where opcode==5000] by unique_ppid
-| head 1
-'''
-expected_event_ids  = [55, 61]
+# [[queries]]
+# name = "doubleSameSequenceWithByUntilAndHead1"
+# query = '''
+# sequence
+#   [file where opcode==0 and file_name:"*.exe"] by unique_pid
+#   [file where opcode==0 and file_name:"*.exe"] by unique_pid
+# until [process where opcode==5000] by unique_ppid
+# | head 1
+# '''
+# expected_event_ids  = [55, 61]
 
 [[queries]]
 name = "doubleSameSequenceWithByUntilAndHead2"
@@ -1040,16 +1040,16 @@ query = '''
 registry where length(bad_field) > 0
 '''
 
-[[queries]]
-name = "multipleConditions2"
-query = '''
-process where opcode == 1
-  and process_name in ("net.exe", "net1.exe")
-  and not (parent_process_name : "net.exe"
-  and process_name : "net1.exe")
-  and command_line : "*group *admin*" and command_line != "* /add*"
-  '''
-expected_event_ids  = [97]
+# [[queries]]
+# name = "multipleConditions2"
+# query = '''
+# process where opcode == 1
+#   and process_name in ("net.exe", "net1.exe")
+#   and not (parent_process_name : "net.exe"
+#   and process_name : "net1.exe")
+#   and command_line : "*group *admin*" and command_line != "* /add*"
+#   '''
+# expected_event_ids  = [97]
 
 [[queries]]
 name = "anyWithUnique"
@@ -1246,26 +1246,26 @@ sequence
 '''
 expected_event_ids  = [54, 55, 56, 54, 61, 62, 54, 67, 68, 54, 72, 73]
 
-[[queries]]
-name = "wildcard1"
-query = '''
-process where command_line : "*%*"
-'''
-expected_event_ids  = [4, 6, 28]
-
-[[queries]]
-name = "wildcard2"
-query = '''
-process where command_line : "*%*%*"
-'''
-expected_event_ids  = [4, 6, 28]
-
-[[queries]]
-name = "wildcard3"
-query = '''
-process where command_line : "%*%*"
-'''
-expected_event_ids  = [4, 6, 28]
+# [[queries]]
+# name = "wildcard1"
+# query = '''
+# process where command_line : "*%*"
+# '''
+# expected_event_ids  = [4, 6, 28]
+#
+# [[queries]]
+# name = "wildcard2"
+# query = '''
+# process where command_line : "*%*%*"
+# '''
+# expected_event_ids  = [4, 6, 28]
+#
+# [[queries]]
+# name = "wildcard3"
+# query = '''
+# process where command_line : "%*%*"
+# '''
+# expected_event_ids  = [4, 6, 28]
 
 [[queries]]
 name = "uniqueCount1"

@@ -75,12 +75,12 @@ process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
 "terms":{"process_name":["python.exe","SMSS.exe","explorer.exe"],
 ;
 
-equalsAndInFilter
-process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
-;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}},
-{"terms":{"opcode":[0,1,2,3],"boost":1.0}}
-;
+// equalsAndInFilter
+// process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
+// ;
+// "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}},
+// {"terms":{"opcode":[0,1,2,3],"boost":1.0}}
+// ;
 
 functionEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") == true

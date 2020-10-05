@@ -47,8 +47,8 @@ public class SqlMediaTypeParser {
             && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             return XContentType.CBOR;
-        } else if (request.hasParam(URL_PARAM_FORMAT)){
-            return validateColumnarRequest(sqlRequest.columnar(), parser.fromFormat( request.param(URL_PARAM_FORMAT)));
+        } else if (request.hasParam(URL_PARAM_FORMAT)) {
+            return validateColumnarRequest(sqlRequest.columnar(), parser.fromFormat(request.param(URL_PARAM_FORMAT)));
         }
         if (request.getHeaders().containsKey("Accept")) {
             String accept = request.header("Accept");

@@ -75,6 +75,9 @@ releases 2.0 and later do not support rivers.
 * https://github.com/senacor/elasticsearch-evolution[Elasticsearch Evolution]:
   A library to migrate elasticsearch mappings.
 
+* https://pgsync.com[PGSync]:
+  A tool for syncing data from Postgres to Elasticsearch.
+
 [discrete]
 [[deployment]]
 === Deployment

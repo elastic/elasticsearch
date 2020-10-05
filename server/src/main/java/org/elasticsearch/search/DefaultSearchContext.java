@@ -280,7 +280,6 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (mapperService().hasNested()
-                && typeFilter == null // when a _type filter is set, it will automatically exclude nested docs
                 && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
                 && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
             filters.add(Queries.newNonNestedFilter(mapperService().getIndexSettings().getIndexVersionCreated()));

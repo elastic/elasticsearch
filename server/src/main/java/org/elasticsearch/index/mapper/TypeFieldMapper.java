@@ -24,16 +24,20 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.function.Supplier;
 
@@ -100,6 +104,33 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 return false;
             }
             return Regex.simpleMatch(pattern, type, caseInsensitive);
+        }
+
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
+            emitTypesDeprecationWarning();
+            BytesRef lower = (BytesRef) lowerTerm;
+            BytesRef upper = (BytesRef) upperTerm;
+            if (includeLower) {
+                if (lower.utf8ToString().compareTo(type) > 0) {
+                    return new MatchNoDocsQuery();
+                }
+            } else {
+                if (lower.utf8ToString().compareTo(type) >= 0) {
+                    return new MatchNoDocsQuery();
+                }
+            }
+            if (includeUpper) {
+                if (upper.utf8ToString().compareTo(type) < 0) {
+                    return new MatchNoDocsQuery();
+                }
+            } else {
+                if (upper.utf8ToString().compareTo(type) <= 0) {
+                    return new MatchNoDocsQuery();
+                }
+            }
+            return new MatchAllDocsQuery();
         }
     }
 

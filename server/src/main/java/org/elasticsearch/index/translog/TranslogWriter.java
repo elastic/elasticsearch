@@ -86,7 +86,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final Object syncLock = new Object();
 
     private final int forceWriteThreshold;
-    private final ArrayList<Operation> bufferedOps = new ArrayList<>();
+    private final ArrayList<ReleasableBytesReference> bufferedOps = new ArrayList<>();
+    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
     private long bufferedBytes = 0L;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
@@ -189,13 +190,15 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             final long offset = totalOffset;
             totalOffset += data.length();
             bufferedBytes += data.length();
-            bufferedOps.add(new Operation(seqNo, data.retain()));
+            bufferedOps.add(data.retain());
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
 
             minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
             maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+
+            nonFsyncedSequenceNumbers.add(seqNo);
 
             operationCounter++;
 
@@ -395,16 +398,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
                     final LongArrayList flushedSequenceNumbers;
-                    final ArrayDeque<Operation> toWrite;
+                    final ArrayDeque<ReleasableBytesReference> toWrite;
                     try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
                             ensureOpen();
                             checkpointToSync = getCheckpoint();
                             toWrite = pollOpsToWrite();
-                        }
-                        flushedSequenceNumbers = new LongArrayList(toWrite.size());
-                        for (Operation operation : toWrite) {
-                            flushedSequenceNumbers.add(operation.seqNo);
+                            flushedSequenceNumbers = nonFsyncedSequenceNumbers;
+                            nonFsyncedSequenceNumbers = new LongArrayList(64);
                         }
 
                         try {
@@ -441,31 +442,31 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 if (locked != null && offset > getWrittenOffset()) {
                     writeAndReleaseOps(pollOpsToWrite());
                 }
-            } catch (IOException e){
+            } catch (Exception e){
                 closeWithTragicEvent(e);
                 throw e;
             }
         }
     }
 
-    private synchronized ArrayDeque<Operation> pollOpsToWrite() {
+    private synchronized ArrayDeque<ReleasableBytesReference> pollOpsToWrite() {
         ensureOpen();
-        final ArrayDeque<Operation> operationsToWrite = new ArrayDeque<>(bufferedOps.size());
+        final ArrayDeque<ReleasableBytesReference> operationsToWrite = new ArrayDeque<>(bufferedOps.size());
         operationsToWrite.addAll(bufferedOps);
         bufferedOps.clear();
         bufferedBytes = 0;
         return operationsToWrite;
     }
 
-    private void writeAndReleaseOps(final ArrayDeque<Operation> operationsToWrite) throws IOException {
+    private void writeAndReleaseOps(final ArrayDeque<ReleasableBytesReference> operationsToWrite) throws IOException {
         try {
             assert writeLock.isHeldByCurrentThread();
             ByteBuffer ioBuffer = DiskIoBufferPool.getIoBuffer();
 
-            Operation operation;
+            ReleasableBytesReference operation;
             while ((operation = operationsToWrite.pollFirst()) != null) {
                 try (Releasable toClose = operation) {
-                    BytesRefIterator iterator = operation.bytesReference.iterator();
+                    BytesRefIterator iterator = operation.iterator();
                     BytesRef current;
                     while ((current = iterator.next()) != null) {
                         int currentBytesConsumed = 0;
@@ -558,21 +559,5 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     protected final boolean isClosed() {
         return closed.get();
-    }
-
-    private static class Operation implements Releasable {
-
-        private final long seqNo;
-        private final ReleasableBytesReference bytesReference;
-
-        private Operation(long seqNo, ReleasableBytesReference bytesReference) {
-            this.seqNo = seqNo;
-            this.bytesReference = bytesReference;
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeWhileHandlingException(bytesReference);
-        }
     }
 }

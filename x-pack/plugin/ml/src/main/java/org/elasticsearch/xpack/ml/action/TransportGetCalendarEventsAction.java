@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
@@ -41,17 +42,15 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetCalendarEventsAction.Request request,
                              ActionListener<GetCalendarEventsAction.Response> listener) {
+        final String[] calendarId = Strings.splitStringByCommaToArray(request.getCalendarId());
         ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
                 r -> {
                     ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()
-                            .start(request.getStart())
-                            .end(request.getEnd())
-                            .from(request.getPageParams().getFrom())
-                            .size(request.getPageParams().getSize());
-
-                    if (Strings.isAllOrWildcard(request.getCalendarId()) == false) {
-                        query.calendarIds(Collections.singletonList(request.getCalendarId()));
-                    }
+                        .start(request.getStart())
+                        .end(request.getEnd())
+                        .from(request.getPageParams().getFrom())
+                        .size(request.getPageParams().getSize())
+                        .calendarIds(calendarId);
 
                     ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
                             events -> {
@@ -63,8 +62,8 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                     if (request.getJobId() != null) {
 
                         jobConfigProvider.getJob(request.getJobId(), ActionListener.wrap(
-                                jobBuiler -> {
-                                    Job job = jobBuiler.build();
+                                jobBuilder -> {
+                                    Job job = jobBuilder.build();
                                     jobResultsProvider.scheduledEventsForJob(request.getJobId(), job.getGroups(), query, eventsListener);
 
                                 },
@@ -74,7 +73,10 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                                             groupExists -> {
                                                 if (groupExists) {
                                                     jobResultsProvider.scheduledEventsForJob(
-                                                            null, Collections.singletonList(request.getJobId()), query, eventsListener);
+                                                        null,
+                                                        Collections.singletonList(request.getJobId()),
+                                                        query,
+                                                        eventsListener);
                                                 } else {
                                                     listener.onFailure(ExceptionsHelper.missingJobException(request.getJobId()));
                                                 }
@@ -89,16 +91,16 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                 },
                 listener::onFailure);
 
-        checkCalendarExists(request.getCalendarId(), calendarExistsListener);
+        checkCalendarExists(calendarId, calendarExistsListener);
     }
 
-    private void checkCalendarExists(String calendarId, ActionListener<Boolean> listener) {
+    private void checkCalendarExists(String[] calendarId, ActionListener<Boolean> listener) {
         if (Strings.isAllOrWildcard(calendarId)) {
             listener.onResponse(true);
             return;
         }
 
-        jobResultsProvider.calendar(calendarId, ActionListener.wrap(
+        jobResultsProvider.calendars(CalendarQueryBuilder.builder().calendarIdTokens(calendarId), ActionListener.wrap(
                 c -> listener.onResponse(true),
                 listener::onFailure
         ));

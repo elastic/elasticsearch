@@ -11,6 +11,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -39,6 +40,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -658,6 +660,52 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
             assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
         }
+    }
+
+    public void testSnapshotMountedIndexLeavesBlobsUntouched() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int numShards = between(1, 3);
+        createAndPopulateIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+        );
+        ensureGreen(indexName);
+        forceMerge();
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final Path repositoryLocation = randomRepoPath();
+        createFsRepository(repositoryName, repositoryLocation);
+
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, List.of(indexName));
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final SnapshotStatus snapshotOneStatus = client().admin()
+            .cluster()
+            .prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshotOne.getName())
+            .get()
+            .getSnapshots()
+            .get(0);
+        final int snapshotOneTotalFileCount = snapshotOneStatus.getStats().getTotalFileCount();
+        assertThat(snapshotOneTotalFileCount, greaterThan(0));
+
+        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
+        ensureGreen(indexName);
+
+        final SnapshotId snapshotTwo = createSnapshot(repositoryName, List.of(indexName));
+        final SnapshotStatus snapshotTwoStatus = client().admin()
+            .cluster()
+            .prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshotTwo.getName())
+            .get()
+            .getSnapshots()
+            .get(0);
+        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(snapshotOneTotalFileCount));
+        assertThat(snapshotTwoStatus.getStats().getIncrementalFileCount(), equalTo(numShards)); // one segment_N per shard
+        assertThat(snapshotTwoStatus.getStats().getProcessedFileCount(), equalTo(numShards)); // one segment_N per shard
     }
 
     private void assertTotalHits(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {

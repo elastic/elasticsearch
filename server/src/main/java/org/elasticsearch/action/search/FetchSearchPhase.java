@@ -206,11 +206,11 @@ final class FetchSearchPhase extends SearchPhase {
      * Releases shard targets that are not used in the docsIdsToLoad.
      */
     private void releaseIrrelevantSearchContext(QuerySearchResult queryResult) {
-        // we only release search context that we did not fetch from if we are not scrolling
-        // and if it has at lease one hit that didn't make it to the global topDocs
-        if (context.getRequest().scroll() == null &&
-            context.getRequest().pointInTimeBuilder() == null &&
-            queryResult.hasSearchContext()) {
+        // we only release search context that we did not fetch from, if we are not scrolling
+        // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
+        if (queryResult.hasSearchContext()
+                && context.getRequest().scroll() == null
+                && context.getRequest().pointInTimeBuilder() == null) {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());

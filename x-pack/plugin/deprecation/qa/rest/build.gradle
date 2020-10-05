@@ -1,0 +1,31 @@
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.java-rest-test'
+
+esplugin {
+  description 'Deprecated query plugin'
+  classname 'org.elasticsearch.xpack.deprecation.TestDeprecationPlugin'
+}
+
+dependencies {
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+}
+
+// let the javaRestTest see the classpath of main
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
+
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index'
+  }
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+}
+
+test.enabled = false

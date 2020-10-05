@@ -193,8 +193,14 @@ public class ClusterStateChanges {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), clusterSettings,
             Collections.emptySet());
-        MetadataIndexUpgradeService metadataIndexUpgradeService =
-            new MetadataIndexUpgradeService(SETTINGS, xContentRegistry, null, null, null) {
+        MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(
+            SETTINGS,
+            xContentRegistry,
+            null,
+            null,
+            null,
+            null
+        ) {
             // metadata upgrader should do nothing
             @Override
             public IndexMetadata upgradeIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {

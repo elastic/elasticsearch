@@ -24,6 +24,7 @@ The top_hits aggregation returns regular search hits, because of this many per h
 * <<highlighting,Highlighting>>
 * <<request-body-search-explain,Explain>>
 * <<named-queries,Named queries>>
+* <<search-fields-param,Search fields>>
 * <<source-filtering,Source filtering>>
 * <<stored-fields,Stored fields>>
 * <<script-fields,Script fields>>
@@ -41,7 +42,7 @@ by aggregations, use a <<query-dsl-function-score-query,`function_score`>> or
 
 ==== Example
 
-In the following example we group the sales by type and per type we show the last sale. 
+In the following example we group the sales by type and per type we show the last sale.
 For each sale only the date and price fields are being included in the source.
 
 [source,console]

@@ -212,3 +212,81 @@ setup:
               cardinality:
                 field: int_field
                 precision_threshold: -1
+
+---
+"profiler int":
+  - skip:
+      version: " - 7.99.99"
+      reason:  new info added in 8.0.0 to be backported to 7.10.0
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+  - match: { aggregations.distinct_int.value: 4 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.empty_collectors_used: 0 }
+  - gt: { profile.shards.0.aggregations.0.debug.numeric_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_overhead_too_high: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }
+
+---
+"profiler double":
+  - skip:
+      version: " - 7.99.99"
+      reason:  new info added in 8.0.0 to be backported to 7.10.0
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_double:
+              cardinality:
+                field: double_field
+  - match: { aggregations.distinct_double.value: 4 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.empty_collectors_used: 0 }
+  - gt: { profile.shards.0.aggregations.0.debug.numeric_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_overhead_too_high: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }
+
+---
+"profiler string":
+  - skip:
+      version: " - 7.99.99"
+      reason:  new info added in 8.0.0 to be backported to 7.10.0
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+  - match: { aggregations.distinct_string.value: 1 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.empty_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.numeric_collectors_used: 0 }
+  - gt: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_overhead_too_high: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }

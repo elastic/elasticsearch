@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
-import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.stats.FeatureMetric;
@@ -147,9 +146,6 @@ public class Verifier {
 
             plan.forEachDown(p -> {
                 Set<Failure> localFailures = new LinkedHashSet<>();
-
-                checkNoPipesAfterLimit(p, localFailures);
-
                 failures.addAll(localFailures);
 
                 // mark the plan as analyzed
@@ -239,13 +235,5 @@ public class Verifier {
         }
 
         return failures;
-    }
-
-    private void checkNoPipesAfterLimit(LogicalPlan p, Set<Failure> localFailures) {
-        if ((p instanceof LimitWithOffset) == false) {
-            if (p.anyMatch(LimitWithOffset.class::isInstance)) {
-                localFailures.add(fail(p, "Pipe [{}] not allowed (yet) after head/tail", p.sourceText()));
-            }
-        }
     }
 }

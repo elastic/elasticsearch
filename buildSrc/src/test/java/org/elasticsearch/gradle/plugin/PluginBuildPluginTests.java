@@ -50,7 +50,7 @@ public class PluginBuildPluginTests extends GradleUnitTestCase {
         );
         assertNotNull("plugin extensions has the right type", project.getExtensions().findByType(PluginPropertiesExtension.class));
 
-        assertNotNull("plugin created an integTest class", project.getTasks().findByName("integTest"));
+        assertNull("plugin should not create the integTest task", project.getTasks().findByName("integTest"));
     }
 
     @Ignore("https://github.com/elastic/elasticsearch/issues/47123")

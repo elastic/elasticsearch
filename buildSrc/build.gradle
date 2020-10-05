@@ -178,6 +178,12 @@ if (project != rootProject) {
     integTestRuntimeOnly(project(":libs:elasticsearch-core"))
   }
 
+  eclipse {
+    classpath {
+      plusConfigurations += [configurations.integTestRuntimeClasspath]
+    }
+  }
+
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
   processResources {
     exclude 'buildSrc.marker'

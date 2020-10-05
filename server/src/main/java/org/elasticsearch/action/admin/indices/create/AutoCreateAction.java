@@ -49,7 +49,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Api that auto creates an index that originate from requests that write into an index that doesn't yet exist.
+ * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
  */
 public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 

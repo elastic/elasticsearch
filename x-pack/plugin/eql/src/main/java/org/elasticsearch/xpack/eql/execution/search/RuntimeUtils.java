@@ -64,7 +64,7 @@ public final class RuntimeUtils {
         }
         return extractors;
     }
-    
+
     public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
         if (ref instanceof SearchHitFieldRef) {
             SearchHitFieldRef f = (SearchHitFieldRef) ref;
@@ -94,7 +94,7 @@ public final class RuntimeUtils {
 
         throw new EqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
     }
-    
+
 
     public static SearchRequest prepareRequest(Client client,
                                                SearchSourceBuilder source,

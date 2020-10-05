@@ -137,8 +137,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("event category field is null or empty", validationException);
         }
 
-        if (size <= 0) {
-            validationException = addValidationError("size must be greater than 0", validationException);
+        if (size < 0) {
+            validationException = addValidationError("size must be greater than or equal to 0", validationException);
         }
 
         if (fetchSize < 2) {
@@ -329,6 +329,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
+                Objects.equals(size, that.size) &&
+                Objects.equals(fetchSize, that.fetchSize) &&
                 Objects.equals(timestampField, that.timestampField) &&
                 Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
@@ -337,6 +339,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(isCaseSensitive, that.isCaseSensitive);
     }
+
 
     @Override
     public int hashCode() {
@@ -373,6 +376,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new EqlSearchTask(id, type, action, getDescription(), parentTaskId, headers, null, null, keepAlive);
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     @Override

@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.MediaTypeParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -32,7 +34,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 /**
  * Templating class for displaying SQL responses in text formats.
  */
-enum TextFormat {
+enum TextFormat implements MediaType {
 
     /**
      * Default text writer.
@@ -82,7 +84,7 @@ enum TextFormat {
         }
 
         @Override
-        String shortName() {
+        public String format() {
             return FORMAT_TEXT;
         }
 
@@ -100,6 +102,13 @@ enum TextFormat {
         protected String eol() {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public String subtype() {
+            return "plain";
+        }
+
+
     },
 
     /**
@@ -124,7 +133,7 @@ enum TextFormat {
         }
 
         @Override
-        String shortName() {
+        public String format() {
             return FORMAT_CSV;
         }
 
@@ -214,6 +223,11 @@ enum TextFormat {
                 return !header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT);
             }
         }
+
+        @Override
+        public String subtype() {
+            return "csv";
+        }
     },
 
     TSV() {
@@ -229,7 +243,7 @@ enum TextFormat {
         }
 
         @Override
-        String shortName() {
+        public String format() {
             return FORMAT_TSV;
         }
 
@@ -263,6 +277,11 @@ enum TextFormat {
 
             return sb.toString();
         }
+
+        @Override
+        public String subtype() {
+            return "tab-separated-values";
+        }
     };
 
     private static final String FORMAT_TEXT = "txt";
@@ -274,6 +293,8 @@ enum TextFormat {
     private static final String URL_PARAM_HEADER = "header";
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
+
+    private static final MediaTypeParser<TextFormat> parser = new MediaTypeParser<>(TextFormat.values());
 
     String format(RestRequest request, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
@@ -296,24 +317,16 @@ enum TextFormat {
     }
 
     static TextFormat fromMediaTypeOrFormat(String accept) {
-        for (TextFormat text : values()) {
-            String contentType = text.contentType();
-            if (contentType.equalsIgnoreCase(accept)
-                    || accept.toLowerCase(Locale.ROOT).startsWith(contentType + ";")
-                    || text.shortName().equalsIgnoreCase(accept)) {
-                return text;
-            }
+        TextFormat textFormat = parser.fromFormat(accept);
+        if (textFormat != null) {
+            return textFormat;
         }
-
+        textFormat = parser.fromMediaType(accept);
+        if (textFormat != null) {
+            return textFormat;
+        }
         throw new IllegalArgumentException("invalid format [" + accept + "]");
     }
-
-    /**
-     * Short name typically used by format parameter.
-     * Can differ from the IANA mime type.
-     */
-    abstract String shortName();
-
 
     /**
      * Formal IANA mime type.
@@ -359,5 +372,16 @@ enum TextFormat {
      */
     String maybeEscape(String value, Character delimiter) {
         return value;
+    }
+
+
+    @Override
+    public String type() {
+        return "text";
+    }
+
+    @Override
+    public String typeWithSubtype() {
+        return contentType();
     }
 }

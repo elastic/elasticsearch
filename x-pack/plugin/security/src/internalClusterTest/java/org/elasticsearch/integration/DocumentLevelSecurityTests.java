@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -65,7 +66,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.integration.FieldLevelSecurityTests.openSearchContext;
+import static org.elasticsearch.integration.FieldLevelSecurityTests.openPointInTime;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -780,7 +781,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         }
         refresh();
 
-        String readerId = openSearchContext("user1", TimeValue.timeValueMinutes(1), "test");
+        String pitId = openPointInTime("user1", TimeValue.timeValueMinutes(1), "test");
         SearchResponse response = null;
         try {
             for (int from = 0; from < numVisible; from++) {
@@ -789,7 +790,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     .prepareSearch()
                     .setSize(1)
                     .setFrom(from)
-                    .setSearchContext(readerId, TimeValue.timeValueMinutes(1))
+                    .setPointInTime(new PointInTimeBuilder(pitId))
                     .setQuery(termQuery("field1", "value1"))
                     .get();
                 assertNoFailures(response);

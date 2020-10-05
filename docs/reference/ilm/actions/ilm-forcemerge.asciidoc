@@ -23,16 +23,16 @@ shards are relocating, in which case they will not be merged.
 (Required, integer) 
 Number of segments to merge to. To fully merge the index, set to `1`.
 
-`codec`::
-(Optional, string)   
-Use the `best_compression` codec. Valid values: `best_compression`.
+`index_codec`::
+(Optional, string)
+Codec used to compress the document store. The only accepted value is
+`best_compression`, which uses {wikipedia}/DEFLATE[DEFLATE] for a higher
+compression ratio but slower stored fields performance. To use the default LZ4
+codec, omit this argument.
 +
-[WARNING]
-======
-Setting `"codec": "best_compression"` in the {ilm-init} forcemerge action causes {ilm-int} to
-<<indices-close,close>> and then <<indices-open-close,re-open>> the index prior to the force merge.
-During this time, the index is unavailable for both read and write operations.
-======
+WARNING: If using `best_compression`, {ilm-init} will <<indices-close,close>>
+and then <<indices-open-close,re-open>> the index prior to the force merge.
+While closed, the index will be unavailable for read or write operations.
 
 [[ilm-forcemerge-action-ex]]
 ==== Example

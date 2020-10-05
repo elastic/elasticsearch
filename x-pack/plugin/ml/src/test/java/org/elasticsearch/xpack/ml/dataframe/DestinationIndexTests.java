@@ -48,6 +48,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -161,16 +163,13 @@ public class DestinationIndexTests extends ESTestCase {
 
         CreateIndexRequest createIndexRequest = createIndexRequestCaptor.getValue();
 
-        assertThat(createIndexRequest.settings().keySet(),
-            containsInAnyOrder("index.number_of_shards", "index.number_of_replicas", "index.sort.field", "index.sort.order"));
+        assertThat(createIndexRequest.settings().keySet(), containsInAnyOrder("index.number_of_shards", "index.number_of_replicas"));
         assertThat(createIndexRequest.settings().getAsInt("index.number_of_shards", -1), equalTo(5));
         assertThat(createIndexRequest.settings().getAsInt("index.number_of_replicas", -1), equalTo(1));
-        assertThat(createIndexRequest.settings().get("index.sort.field"), equalTo("ml__id_copy"));
-        assertThat(createIndexRequest.settings().get("index.sort.order"), equalTo("asc"));
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings())) {
             Map<String, Object> map = parser.map();
-            assertThat(extractValue("_doc.properties.ml__id_copy.type", map), equalTo("keyword"));
+            assertThat(extractValue("_doc.properties.ml__incremental_id.type", map), equalTo("long"));
             assertThat(extractValue("_doc.properties.field_1", map), equalTo("field_1_mappings"));
             assertThat(extractValue("_doc.properties.field_2", map), equalTo("field_2_mappings"));
             assertThat(extractValue("_doc.properties.numerical-field.type", map), equalTo("integer"));
@@ -196,25 +195,25 @@ public class DestinationIndexTests extends ESTestCase {
     public void testCreateDestinationIndex_Classification() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(NUMERICAL_FIELD));
         assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsNested() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD));
         assertThat(extractValue("_doc.properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsAlias() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD));
         assertThat(extractValue("_doc.properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsAliasToNested() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NESTED_FIELD));
         assertThat(extractValue("_doc.properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_ResultsFieldsExistsInSourceIndex() {
@@ -280,7 +279,7 @@ public class DestinationIndexTests extends ESTestCase {
         assertThat(putMappingRequest.indices(), arrayContaining(DEST_INDEX));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, putMappingRequest.source())) {
             Map<String, Object> map = parser.map();
-            assertThat(extractValue("properties.ml__id_copy.type", map), equalTo("keyword"));
+            assertThat(extractValue("properties.ml__incremental_id.type", map), equalTo("long"));
             return map;
         }
     }
@@ -297,25 +296,25 @@ public class DestinationIndexTests extends ESTestCase {
     public void testUpdateMappingsToDestIndex_Classification() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(NUMERICAL_FIELD));
         assertThat(extractValue("properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsNested() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD));
         assertThat(extractValue("properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsAlias() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD));
         assertThat(extractValue("properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsAliasToNested() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(ALIAS_TO_NESTED_FIELD));
         assertThat(extractValue("properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_ResultsFieldsExistsInSourceIndex() {
@@ -337,6 +336,83 @@ public class DestinationIndexTests extends ESTestCase {
             equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field"));
 
         verifyZeroInteractions(client);
+    }
+
+    public void testReadMetadata_GivenNoMeta() {
+        Map<String, Object> mappings = new HashMap<>();
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> metadata.isCompatible());
+        expectThrows(UnsupportedOperationException.class, () -> metadata.getVersion());
+    }
+
+    public void testReadMetadata_GivenMetaWithoutCreatedTag() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", Collections.emptyMap());
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> metadata.isCompatible());
+        expectThrows(UnsupportedOperationException.class, () -> metadata.getVersion());
+    }
+
+    public void testReadMetadata_GivenMetaNotCreatedByAnalytics() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", Collections.singletonMap("created", "other"));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> metadata.isCompatible());
+        expectThrows(UnsupportedOperationException.class, () -> metadata.getVersion());
+    }
+
+    public void testReadMetadata_GivenCurrentVersion() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.CURRENT));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(true));
+        assertThat(metadata.isCompatible(), is(true));
+        assertThat(metadata.getVersion(), equalTo(Version.CURRENT.toString()));
+    }
+
+    public void testReadMetadata_GivenMinCompatibleVersion() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), DestinationIndex.MIN_COMPATIBLE_VERSION));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(true));
+        assertThat(metadata.isCompatible(), is(true));
+        assertThat(metadata.getVersion(), equalTo(DestinationIndex.MIN_COMPATIBLE_VERSION.toString()));
+    }
+
+    public void testReadMetadata_GivenIncompatibleVersion() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.V_7_9_3));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(true));
+        assertThat(metadata.isCompatible(), is(false));
+        assertThat(metadata.getVersion(), equalTo(Version.V_7_9_3.toString()));
     }
 
     private static <Response> Answer<Response> callListenerOnResponse(Response response) {

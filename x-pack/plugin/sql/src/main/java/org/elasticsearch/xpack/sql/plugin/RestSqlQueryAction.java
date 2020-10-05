@@ -64,7 +64,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * isn't but there is a {@code Accept} header then we use that. If there
          * isn't then we use the {@code Content-Type} header which is required.
          */
-        String accept = null;
+        String accept;
 
         if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
                 && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
@@ -92,7 +92,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * that doesn't parse it'll throw an {@link IllegalArgumentException}
          * which we turn into a 400 error.
          */
-        XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromMediaTypeOrFormat(accept);
+        XContentType xContentType = getXContentType(accept);
         textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 
         if (xContentType == null && sqlRequest.columnar()) {
@@ -128,6 +128,14 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 return restResponse;
             }
         });
+    }
+
+    private XContentType getXContentType(String accept) {
+        if (accept == null) {
+            return XContentType.JSON;
+        }
+        XContentType xContentType = XContentType.fromFormat(accept);
+        return xContentType != null ? xContentType : XContentType.fromMediaType(accept);
     }
 
     @Override

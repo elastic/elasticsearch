@@ -40,8 +40,8 @@ import org.mockito.Mockito;
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
-import static org.elasticsearch.xpack.security.authz.AuthorizationService.AUTHORIZATION_INFO_KEY;
-import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGINATING_ACTION_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.security.authz.AuthorizationServiceTests.authzInfoRoles;
 import static org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener.ensureAuthenticatedUserIsSame;
 import static org.hamcrest.Matchers.is;
@@ -68,7 +68,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
         try (LegacyReaderContext readerContext =
-                 new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
+                 new LegacyReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L), indexService, shard,
+                     shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(false);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -79,7 +80,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             SecuritySearchOperationListener listener =
                 new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
             listener.onNewScrollContext(readerContext);
-            listener.validateSearchContext(readerContext, Empty.INSTANCE);
+            listener.validateReaderContext(readerContext, Empty.INSTANCE);
             verify(licenseState, times(2)).isSecurityEnabled();
             verifyZeroInteractions(auditTrailService, searchContext);
         }
@@ -89,7 +90,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
         try (LegacyReaderContext readerContext =
-                 new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
+                 new LegacyReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
+                     indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -117,7 +119,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
         try (LegacyReaderContext readerContext =
-                 new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
+                 new LegacyReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L), indexService, shard,
+                     shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
             readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY,
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
             final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
@@ -136,7 +139,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
                 Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
                 authentication.writeToContext(threadContext);
-                listener.validateSearchContext(readerContext, Empty.INSTANCE);
+                listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
                 verify(licenseState).isSecurityEnabled();
                 verifyZeroInteractions(auditTrail);
@@ -148,7 +151,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 Authentication authentication =
                     new Authentication(new User("test", "role"), new RealmRef(realmName, "file", nodeName), null);
                 authentication.writeToContext(threadContext);
-                listener.validateSearchContext(readerContext, Empty.INSTANCE);
+                listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
                 verify(licenseState, times(2)).isSecurityEnabled();
                 verifyZeroInteractions(auditTrail);
@@ -166,7 +169,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles()));
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
-                    () -> listener.validateSearchContext(readerContext, request));
+                    () -> listener.validateReaderContext(readerContext, request));
                 assertEquals(readerContext.id(), expected.contextId());
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), nullValue());
                 verify(licenseState, Mockito.atLeast(3)).isSecurityEnabled();
@@ -185,7 +188,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 authentication.writeToContext(threadContext);
                 threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
-                listener.validateSearchContext(readerContext, request);
+                listener.validateReaderContext(readerContext, request);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
                 verify(licenseState, Mockito.atLeast(4)).isSecurityEnabled();
                 verifyNoMoreInteractions(auditTrail);
@@ -204,7 +207,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles()));
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(SearchContextMissingException.class,
-                    () -> listener.validateSearchContext(readerContext, request));
+                    () -> listener.validateReaderContext(readerContext, request));
                 assertEquals(readerContext.id(), expected.contextId());
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), nullValue());
                 verify(licenseState, Mockito.atLeast(5)).isSecurityEnabled();

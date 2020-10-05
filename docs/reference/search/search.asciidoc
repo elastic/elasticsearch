@@ -89,21 +89,9 @@ computation as part of a hit. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
---
-By default, you cannot page through more than 10,000 documents using the `from`
-and `size` parameters. This limit is set using the
-<<index-max-result-window,`index.max_result_window`>> index setting.
-
-Deep paging or requesting many results at once can result in slow searches.
-Results are sorted before being returned. Because search requests usually span
-multiple shards, each shard must generate its own sorted results. These separate
-results must then be combined and sorted to ensure that the overall order is
-correct.
-
-As an alternative to deep paging, we recommend using
-<<scroll-search-results,scroll>> or the
+By default, you cannot page through more than 10,000 hits using the `from` and
+`size` parameters. To page through more hits, use the
 <<search-after,`search_after`>> parameter.
---
 
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
@@ -229,24 +217,9 @@ last modification of each hit. See <<optimistic-concurrency-control>>.
 `size`::
 (Optional, integer) Defines the number of hits to return. Defaults to `10`.
 +
---
-By default, you cannot page through more than 10,000 documents using the `from`
-and `size` parameters. This limit is set using the
-<<index-max-result-window,`index.max_result_window`>> index setting.
-
-Deep paging or requesting many results at once can result in slow searches.
-Results are sorted before being returned. Because search requests usually span
-multiple shards, each shard must generate its own sorted results. These separate
-results must then be combined and sorted to ensure that the overall order is
-correct.
-
-As an alternative to deep paging, we recommend using
-<<scroll-search-results,scroll>> or the
+By default, you cannot page through more than 10,000 hits using the `from` and
+`size` parameters. To page through more hits, use the
 <<search-after,`search_after`>> parameter.
-
-If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
-value cannot be `0`.
---
 
 `sort`::
 (Optional, string) A comma-separated list of <field>:<direction> pairs.
@@ -315,8 +288,8 @@ the scores are not used for sorting. Defaults to `false`.
 (Optional, integer or boolean)
 Number of hits matching the query to count accurately. Defaults to `10000`.
 +
-If `true`, the default value is used. If `false`, the response does not
-include the total number of hits matching the query.
+If `true`, the exact number of hits is returned at the cost of some performance.
+If `false`, the response does not include the total number of hits matching the query.
 
 `typed_keys`::
 (Optional, boolean) If `true`, aggregation and suggester names are be prefixed
@@ -359,6 +332,33 @@ pattern].
 For other field data types, this parameter is not supported.
 ====
 
+`fields`::
+(Optional, array of strings and objects)
+Array of wildcard (`*`) patterns. The request returns values for field names
+matching these patterns in the `hits.fields` property of the response.
++
+You can specify items in the array as a string or object.
+See <<search-fields-param>> for more details.
++
+.Properties of `fields` objects
+[%collapsible%open]
+====
+`field`::
+(Required, string)
+Wildcard pattern. The request returns values for field names matching this pattern.
+
+`format`::
+(Optional, string)
+Format in which the values are returned.
++
+The date fields <<date,`date`>> and <<date_nanos, `date_nanos`>> accept a
+<<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>> accept either
+`geojson` for http://www.geojson.org[GeoJSON] (the default) or `wkt` for
+{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
++
+For other field data types, this parameter is not supported.
+====
+
 [[request-body-search-explain]]
 `explain`::
 (Optional, boolean) If `true`, returns detailed information about score
@@ -366,21 +366,9 @@ computation as part of a hit. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
---
-By default, you cannot page through more than 10,000 documents using the `from`
-and `size` parameters. This limit is set using the
-<<index-max-result-window,`index.max_result_window`>> index setting.
-
-Deep paging or requesting many results at once can result in slow searches.
-Results are sorted before being returned. Because search requests usually span
-multiple shards, each shard must generate its own sorted results. These separate
-results must then be combined and sorted to ensure that the overall order is
-correct.
-
-As an alternative to deep paging, we recommend using
-<<scroll-search-results,scroll>> or the
+By default, you cannot page through more than 10,000 hits using the `from` and
+`size` parameters. To page through more hits, use the
 <<search-after,`search_after`>> parameter.
---
 
 `indices_boost`::
 (Optional, array of objects)
@@ -397,7 +385,7 @@ are supported.
 `<boost-value>` is the factor by which scores are multiplied.
 +
 A boost value greater than `1.0` increases the score. A boost value between
-`0` and `1.0` decreases the score. 
+`0` and `1.0` decreases the score.
 ====
 
 [[search-api-min-score]]
@@ -419,24 +407,9 @@ last modification of each hit. See <<optimistic-concurrency-control>>.
 `size`::
 (Optional, integer) The number of hits to return. Needs to be non-negative and defaults to `10`.
 +
---
-By default, you cannot page through more than 10,000 documents using the `from`
-and `size` parameters. This limit is set using the
-<<index-max-result-window,`index.max_result_window`>> index setting.
-
-Deep paging or requesting many results at once can result in slow searches.
-Results are sorted before being returned. Because search requests usually span
-multiple shards, each shard must generate its own sorted results. These separate
-results must then be combined and sorted to ensure that the overall order is
-correct.
-
-As an alternative to deep paging, we recommend using
-<<scroll-search-results,scroll>> or the
+By default, you cannot page through more than 10,000 hits using the `from` and
+`size` parameters. To page through more hits, use the
 <<search-after,`search_after`>> parameter.
-
-If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
-value cannot be `0`.
---
 
 `_source`::
 (Optional)

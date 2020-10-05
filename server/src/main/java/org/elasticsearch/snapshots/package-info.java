@@ -99,6 +99,9 @@
  * update to remove the deletion's entry in {@code SnapshotDeletionsInProgress} which concludes the process of deleting a snapshot.</li>
  * </ol>
  *
+ * <h2>Cloning a Snapshot</h2>
+ * TODO: write up the steps in a snapshot clone properly
+ *
  * <h2>Concurrent Snapshot Operations</h2>
  *
  * Snapshot create and delete operations may be started concurrently. Operations targeting different repositories run independently of

@@ -334,6 +334,9 @@
       "max_num_threads" : {
         "type" : "integer"
       },
+      "model_memory_limit": {
+        "type" : "keyword"
+      },
       "model_plot_config" : {
         "properties" : {
           "enabled" : {

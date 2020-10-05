@@ -109,10 +109,8 @@ Source string. Empty strings return an empty string (`""`), regardless of the
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<left>`::
@@ -125,10 +123,8 @@ whitespace.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<right>`::
@@ -141,10 +137,8 @@ whitespace.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<greedy_matching>`::
@@ -399,10 +393,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<substring>`::
@@ -414,10 +406,8 @@ Substring to search for. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 *Returns:* boolean or `null`
@@ -477,10 +467,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<substring>`::
@@ -498,10 +486,8 @@ Otherwise, empty strings return `0`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<start_pos>`::
@@ -564,10 +550,8 @@ String for which to return the character length. If `null`, the function returns
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 *Returns:* integer or `null`
@@ -614,10 +598,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<reg_exp>`::
@@ -811,10 +793,8 @@ ignored. Empty strings (`""`) are not supported.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 
 If this argument is `null`, the function returns `null`.
 --
@@ -879,10 +859,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<substring>`::
@@ -894,10 +872,8 @@ Substring to search for. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 *Returns:* boolean or `null`
@@ -978,10 +954,8 @@ Source string to search. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 
 `<substring>`::
 (Required, string or `null`)
@@ -990,10 +964,8 @@ Substring to search for. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 
 *Returns:* boolean or `null`
 
@@ -1147,10 +1119,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<wildcard_exp>`::

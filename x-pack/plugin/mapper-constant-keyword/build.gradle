@@ -14,4 +14,3 @@ dependencies {
   internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-integTest.enabled = false

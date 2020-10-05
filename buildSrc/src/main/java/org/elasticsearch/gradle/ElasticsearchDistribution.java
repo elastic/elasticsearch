@@ -193,6 +193,10 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     @Override
     public String toString() {
+        return getName() + "_" + getType() + "_" + getVersion();
+    }
+
+    public String getFilepath() {
         return configuration.getSingleFile().toString();
     }
 

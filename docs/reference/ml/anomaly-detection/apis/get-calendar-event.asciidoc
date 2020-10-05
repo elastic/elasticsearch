@@ -25,8 +25,10 @@ Retrieves information about the scheduled events in calendars.
 [[ml-get-calendar-event-desc]]
 == {api-description-title}
 
-You can get scheduled event information for a single calendar or for all
-calendars by using `_all`.
+You can get scheduled event information for multiple calendars in a single
+API request by using a comma-separated list of ids or a wildcard expression.
+You can get scheduled event information for all calendars by using `_all`,
+by specifying `*` as the `<calendar_id>`, or by omitting the `<calendar_id>`.
 
 For more information, see
 {ml-docs}/ml-calendars.html[Calendars and scheduled events].

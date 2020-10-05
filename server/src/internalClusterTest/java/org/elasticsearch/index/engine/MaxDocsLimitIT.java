@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterMaxDocsChanger;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;

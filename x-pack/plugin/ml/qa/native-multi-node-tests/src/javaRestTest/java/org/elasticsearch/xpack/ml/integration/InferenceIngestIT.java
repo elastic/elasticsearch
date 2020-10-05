@@ -76,7 +76,6 @@ public class InferenceIngestIT extends ESRestTestCase {
                     // There may not be an index to delete, in which case there's no warning
                     return false;
                 } else if (warnings.size() > 1) {
-                    logger.warn("too many warnings: {}", warnings);
                     return true;
                 }
                 // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.

@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;

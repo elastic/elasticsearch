@@ -747,7 +747,7 @@ public class ApiKeyService {
                                   ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
         if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
-            && apiKeyIds.length == 0) {
+            && (apiKeyIds == null || apiKeyIds.length == 0)) {
             logger.trace("none of the parameters [api key id, api key name, username, realm name] were specified for invalidation");
             invalidateListener
                 .onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
@@ -757,7 +757,7 @@ public class ApiKeyService {
                     if (apiKeys.isEmpty()) {
                         logger.debug(
                             "No active api keys to invalidate for realm [{}], username [{}], api key name [{}] and api key id [{}]",
-                            realmName, username, apiKeyName, apiKeyIds);
+                            realmName, username, apiKeyName, Arrays.toString(apiKeyIds));
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
                         invalidateAllApiKeys(apiKeys.stream().map(apiKey -> apiKey.getId()).collect(Collectors.toSet()),
@@ -831,7 +831,7 @@ public class ApiKeyService {
                     boolQuery.filter(QueryBuilders.termQuery("name", apiKeyName));
                 }
             }
-            if (apiKeyIds.length > 0) {
+            if (apiKeyIds != null && apiKeyIds.length > 0) {
                 boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
             }
 

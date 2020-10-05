@@ -563,9 +563,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (indices.isEmpty()) {
                         // No indices in this snapshot - we are done
                         userCreateSnapshotListener.onResponse(snapshot.snapshot());
-                        endSnapshot(new SnapshotsInProgress.Entry(
-                            snapshot, State.STARTED, Collections.emptyList(), repositoryData.getGenId(), ImmutableOpenMap.of(), version,
-                            null), clusterState.metadata(), repositoryData);
+                        endSnapshot(SnapshotsInProgress.startedEntry(
+                            snapshot.snapshot(), snapshot.includeGlobalState(), snapshot.partial(), Collections.emptyList(),
+                            Collections.emptyList(), threadPool.absoluteTimeInMillis(), repositoryData.getGenId(),
+                            ImmutableOpenMap.of(), snapshot.userMetadata(), version), clusterState.metadata(), repositoryData);
                         return;
                     }
                     clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshot() + "]", new ClusterStateUpdateTask() {

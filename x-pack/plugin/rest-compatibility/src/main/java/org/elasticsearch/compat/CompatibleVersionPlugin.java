@@ -8,25 +8,18 @@ package org.elasticsearch.compat;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RestCompatibilityPlugin;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 public class CompatibleVersionPlugin extends Plugin implements RestCompatibilityPlugin {
-
-    private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
-        "(application|text)/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?",
-        Pattern.CASE_INSENSITIVE
-    );
 
     @Override
     public Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, boolean hasContent) {
-        String aVersion = parseVersion(acceptHeader);
+        Byte aVersion = XContentType.parseVersion(acceptHeader);
         byte acceptVersion = aVersion == null ? Version.CURRENT.major : Integer.valueOf(aVersion).byteValue();
-        String cVersion = parseVersion(contentTypeHeader);
+        Byte cVersion = XContentType.parseVersion(contentTypeHeader);
         byte contentTypeVersion = cVersion == null ? Version.CURRENT.major : Integer.valueOf(cVersion).byteValue();
 
         // accept version must be current or prior
@@ -78,15 +71,5 @@ public class CompatibleVersionPlugin extends Plugin implements RestCompatibility
         }
 
         return Version.CURRENT;
-    }
-
-    private static String parseVersion(String mediaType) {
-        if (mediaType != null) {
-            Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
-            if (matcher.find() && "vnd.elasticsearch+".equalsIgnoreCase(matcher.group(2))) {
-                return matcher.group(5);
-            }
-        }
-        return null;
     }
 }

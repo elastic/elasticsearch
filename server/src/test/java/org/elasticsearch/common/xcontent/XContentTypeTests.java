@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class XContentTypeTests extends ESTestCase {
@@ -33,6 +34,7 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaType(mediaType), equalTo(expectedXContentType));
         assertThat(XContentType.fromMediaType(mediaType + ";"), equalTo(expectedXContentType));
         assertThat(XContentType.fromMediaType(mediaType + "; charset=UTF-8"), equalTo(expectedXContentType));
+        assertThat(XContentType.fromMediaType(mediaType + "; charset=utf-8"), equalTo(expectedXContentType));
     }
 
     public void testFromNdJson() throws Exception {
@@ -92,5 +94,66 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaType(""), nullValue());
         assertThat(XContentType.fromMediaType("text/plain"), nullValue());
         assertThat(XContentType.fromMediaType("gobbly;goop"), nullValue());
+    }
+
+    public void testVersionedMediaType() {
+        String version = String.valueOf(Math.abs(randomByte()));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version),
+            equalTo(XContentType.JSON));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+cbor;compatible-with=" + version),
+            equalTo(XContentType.CBOR));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+smile;compatible-with=" + version),
+            equalTo(XContentType.SMILE));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+yaml;compatible-with=" + version),
+            equalTo(XContentType.YAML));
+        assertThat(XContentType.fromMediaType("application/json"),
+            equalTo(XContentType.JSON));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
+            equalTo(XContentType.JSON));
+
+
+        assertThat(XContentType.fromMediaType("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
+            equalTo(XContentType.JSON));
+        assertThat(XContentType.fromMediaType("APPLICATION/JSON"),
+            equalTo(XContentType.JSON));
+    }
+
+    public void testVersionParsing() {
+        byte version = (byte) Math.abs(randomByte());
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+json;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+cbor;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+smile;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/json"),
+            nullValue());
+
+
+        assertThat(XContentType.parseVersion("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("APPLICATION/JSON"),
+            nullValue());
+
+        assertThat(XContentType.parseVersion("application/json;compatible-with=" + version + ".0"),
+            is(nullValue()));
+    }
+
+    public void testUnrecognizedParameter() {
+        assertThat(XContentType.parseVersion("application/json; sth=123"),
+            is(nullValue()));    }
+
+    public void testMediaTypeWithoutESSubtype() {
+        String version = String.valueOf(Math.abs(randomByte()));
+        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version), nullValue());
+    }
+
+    public void testAnchoring() {
+        String version = String.valueOf(Math.abs(randomByte()));
+        assertThat(XContentType.fromMediaType("sth_application/json;compatible-with=" + version + ".0"), nullValue());
+        assertThat(XContentType.fromMediaType("sth_application/json;compatible-with=" + version + "_sth"), nullValue());
+        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version + "_sth"), nullValue());
     }
 }

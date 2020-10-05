@@ -49,7 +49,7 @@ public class TypeFieldTypeTests extends MapperServiceTestCase {
             MappedFieldType ft = mapperService.fieldType(TypeFieldType.NAME);
             IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test", () -> {
                 throw new UnsupportedOperationException();
-            }).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
+            }).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             LeafOrdinalsFieldData afd = fd.load(r.leaves().get(0));
             SortedSetDocValues values = afd.getOrdinalsValues();
             assertTrue(values.advanceExact(0));

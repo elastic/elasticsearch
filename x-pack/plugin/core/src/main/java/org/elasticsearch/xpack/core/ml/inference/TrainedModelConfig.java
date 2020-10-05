@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -37,6 +38,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,7 +56,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
     public static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
-    private static final Set<String> RESERVED_METADATA_FIELDS = Collections.singleton(TOTAL_FEATURE_IMPORTANCE);
+    public static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
+    private static final Set<String> RESERVED_METADATA_FIELDS = new HashSet<>(Arrays.asList(
+        TOTAL_FEATURE_IMPORTANCE,
+        FEATURE_IMPORTANCE_BASELINE));
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
 
@@ -473,6 +478,17 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
             this.metadata.put(TOTAL_FEATURE_IMPORTANCE,
                 totalFeatureImportance.stream().map(TotalFeatureImportance::asMap).collect(Collectors.toList()));
+            return this;
+        }
+
+        public Builder setBaselineFeatureImportance(FeatureImportanceBaseline featureImportanceBaseline) {
+            if (featureImportanceBaseline == null) {
+                return this;
+            }
+            if (this.metadata == null) {
+                this.metadata = new HashMap<>();
+            }
+            this.metadata.put(FEATURE_IMPORTANCE_BASELINE, featureImportanceBaseline.asMap());
             return this;
         }
 

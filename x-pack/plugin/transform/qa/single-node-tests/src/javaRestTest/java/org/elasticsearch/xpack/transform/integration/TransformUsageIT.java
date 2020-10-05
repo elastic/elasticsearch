@@ -119,7 +119,7 @@ public class TransformUsageIT extends TransformRestTestCase {
                 }
             }
             // Refresh the index so that statistics are searchable
-            refreshIndex(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+            refreshAllIndices();
         }, 60, TimeUnit.SECONDS);
 
         stopTransform("test_usage_continuous", false);

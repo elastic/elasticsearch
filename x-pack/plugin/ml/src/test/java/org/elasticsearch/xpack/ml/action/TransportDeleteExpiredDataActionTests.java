@@ -30,12 +30,18 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private TransportDeleteExpiredDataAction transportDeleteExpiredDataAction;
+    private AnomalyDetectionAuditor auditor;
 
     /**
      * A data remover that only checks for timeouts.
@@ -57,9 +63,10 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         transportDeleteExpiredDataAction = new TransportDeleteExpiredDataAction(threadPool, ThreadPool.Names.SAME, transportService,
             new ActionFilters(Collections.emptySet()), client, clusterService, mock(JobConfigProvider.class),
-            mock(JobResultsProvider.class), mock(AnomalyDetectionAuditor.class),
+            mock(JobResultsProvider.class), auditor,
             Clock.systemUTC());
     }
 
@@ -82,7 +89,8 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
         Supplier<Boolean> isTimedOutSupplier = () -> false;
 
-        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
+        DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request(null, null);
+        transportDeleteExpiredDataAction.deleteExpiredData(request, removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
 
         assertTrue(succeeded.get());
     }
@@ -102,8 +110,43 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
         Supplier<Boolean> isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
 
-        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
-
+        DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request(null, null);
+        request.setJobId("_all");
+        transportDeleteExpiredDataAction.deleteExpiredData(request, removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
         assertFalse(succeeded.get());
+
+        verify(auditor, times(1)).warning("",
+            "Deleting expired ML data was cancelled after the timeout period of [8h] was exceeded. " +
+                "The setting [xpack.ml.nightly_maintenance_requests_per_second] " +
+                "controls the deletion rate, consider increasing the value to assist in pruning old data");
+        verifyNoMoreInteractions(auditor);
     }
+
+
+    public void testDeleteExpiredDataIterationWithTimeout_GivenJobIds() {
+
+        final int numRemovers = randomIntBetween(2, 5);
+        AtomicInteger removersRemaining = new AtomicInteger(randomIntBetween(0, numRemovers - 1));
+
+        List<MlDataRemover> removers = Stream.generate(DummyDataRemover::new).limit(numRemovers).collect(Collectors.toList());
+
+        AtomicBoolean succeeded = new AtomicBoolean();
+        ActionListener<DeleteExpiredDataAction.Response> finalListener = ActionListener.wrap(
+            response -> succeeded.set(response.isDeleted()),
+            e -> fail(e.getMessage())
+        );
+
+        Supplier<Boolean> isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
+
+        DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request(null, null);
+        request.setJobId("foo*");
+        request.setExpandedJobIds(new String[] {"foo1", "foo2"});
+        transportDeleteExpiredDataAction.deleteExpiredData(request, removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
+        assertFalse(succeeded.get());
+
+        verify(auditor, times(1)).warning(eq("foo1"), anyString());
+        verify(auditor, times(1)).warning(eq("foo2"), anyString());
+        verifyNoMoreInteractions(auditor);
+    }
+
 }

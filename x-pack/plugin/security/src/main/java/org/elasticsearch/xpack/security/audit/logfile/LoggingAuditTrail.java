@@ -527,6 +527,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             if (eventAction != null) {
                 assert msg instanceof ToXContentObject;
+                // audit records for config changes do not contain the origin address and type fields (the request.id should suffice)
                 final StringMapMessage logEntry = new LogEntryBuilder(false)
                         .with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, eventAction)

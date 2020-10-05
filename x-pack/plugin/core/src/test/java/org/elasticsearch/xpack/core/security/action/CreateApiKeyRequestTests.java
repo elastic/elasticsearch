@@ -8,15 +8,22 @@ package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -68,6 +75,52 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
         assertThat(ve.validationErrors().get(0), containsString("api key name may not begin with an underscore"));
+    }
+
+    public void testToXContent() {
+        final List<RoleDescriptor> descriptorList;
+        if (false) {
+            if (randomBoolean()) {
+                descriptorList = null;
+            } else {
+                descriptorList = List.of();
+            }
+        } else {
+            if (true) {
+                RoleDescriptor.IndicesPrivileges indicesPrivileges =
+                        RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("test")
+                                .privileges("read")
+                                .grantedFields("field_grant1")
+                                .query("{match_all:{}}")
+                                .allowRestrictedIndices(true)
+                                .build();
+                ConfigurableClusterPrivilege configurableClusterPrivilege =
+                        new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("app1"));
+                RoleDescriptor.ApplicationResourcePrivileges applicationResourcePrivileges =
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .privileges("priv1").resources("res2").application("app2").build();
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("string_meta", "test");
+                metadata.put("list_meta", List.of("one", "two"));
+                RoleDescriptor roleDescriptor = new RoleDescriptor("full_role", new String[] {"manage_ilm", "manage_security"},
+                        new RoleDescriptor.IndicesPrivileges[] {indicesPrivileges},
+                        new RoleDescriptor.ApplicationResourcePrivileges[] {applicationResourcePrivileges},
+                        new ConfigurableClusterPrivilege[] {configurableClusterPrivilege},
+                        new String[] {"minnie"}, metadata, null);
+                descriptorList = List.of(roleDescriptor);
+            } else {
+                descriptorList = List.of();
+            }
+        }
+        final TimeValue expiration;
+        if (randomBoolean()) {
+            expiration = null;
+        } else {
+            expiration = TimeValue.timeValueHours(2);
+        }
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-name", descriptorList, expiration);
+        createApiKeyRequest.toXContent()
     }
 
     public void testSerialization() throws IOException {

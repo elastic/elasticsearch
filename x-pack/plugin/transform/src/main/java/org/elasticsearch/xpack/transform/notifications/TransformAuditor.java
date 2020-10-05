@@ -33,13 +33,15 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
             TransformInternalIndexConstants.AUDIT_INDEX,
             () -> {
                 try {
-                    IndexTemplateMetadata templateMeta = TransformInternalIndex.getAuditIndexTemplateMetadata();
+                    IndexTemplateMetadata templateMeta = TransformInternalIndex.getAuditIndexTemplateMetadata(
+                        clusterService.state().nodes().getMinNodeVersion());
 
                     PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateMeta.name())
                         .patterns(templateMeta.patterns())
                         .version(templateMeta.version())
                         .settings(templateMeta.settings())
-                        .mapping(templateMeta.mappings().uncompressed(), XContentType.JSON);
+                        .mapping(templateMeta.mappings().iterator().next().key,
+                            templateMeta.mappings().iterator().next().value.uncompressed(), XContentType.JSON);
 
                     for (ObjectObjectCursor<String, AliasMetadata> cursor : templateMeta.getAliases()) {
                         AliasMetadata meta = cursor.value;

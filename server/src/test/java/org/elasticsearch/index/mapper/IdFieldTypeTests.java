@@ -32,13 +32,13 @@ import org.mockito.Mockito;
 public class IdFieldTypeTests extends ESTestCase {
 
     public void testRangeQuery() {
-        MappedFieldType ft = IdFieldMapper.IdFieldType.INSTANCE;
+        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null));
         assertEquals("Field [_id] of type [_id] does not support range queries", e.getMessage());
     }
 
-    public void testTermsQuery() throws Exception {
+    public void testTermsQuery() {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
         Settings indexSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -53,7 +53,7 @@ public class IdFieldTypeTests extends ESTestCase {
         MapperService mapperService = Mockito.mock(MapperService.class);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
-        MappedFieldType ft = IdFieldMapper.IdFieldType.INSTANCE;
+        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
     }

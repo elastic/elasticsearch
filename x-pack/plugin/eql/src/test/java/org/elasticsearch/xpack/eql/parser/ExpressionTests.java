@@ -263,6 +263,12 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:19: token recognition error at: '` == true'", e.getMessage());
     }
 
+    public void testIdentifierForEventTypeDisallowed() {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> parser.createStatement("`identifier` where foo == true"));
+        assertEquals("line 1:1: no viable alternative at input '`identifier`'", e.getMessage());
+    }
+
     public void testFunctions() {
         List<Expression> arguments = Arrays.asList(
             new UnresolvedAttribute(null, "some.field"),

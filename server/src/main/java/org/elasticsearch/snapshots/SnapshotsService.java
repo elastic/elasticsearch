@@ -324,6 +324,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 .collect(Collectors.toMap(IndexId::getName, Function.identity()));
     }
 
+    // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
+    //       for repository metadata and loading it has predictable performance
     public void cloneSnapshot(CloneSnapshotRequest request, ActionListener<Void> listener) {
         final String repositoryName = request.repository();
         Repository repository = repositoriesService.repository(repositoryName);

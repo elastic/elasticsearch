@@ -109,10 +109,6 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         }
     }
 
-    protected String executorName() {
-        return ThreadPool.Names.GENERIC;
-    }
-
     private void setMaxConcurrentFetches(Integer maxConcurrentFetches) {
         this.maxConcurrentFetches = maxConcurrentFetches;
     }
@@ -188,7 +184,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         try {
             final SnapshotShard snapshotShard = queue.poll(0L, TimeUnit.MILLISECONDS);
             if (snapshotShard != null) {
-                threadPool.executor(executorName()).execute(new AbstractRunnable() {
+                threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() {
                         if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {

@@ -701,7 +701,7 @@ public class Node implements Closeable {
      * @return A function that can be used to determine the requested REST compatible version
      * package scope for testing
      */
-     CompatibleVersion getRestCompatibleFunction() {
+    CompatibleVersion getRestCompatibleFunction() {
         List<RestCompatibilityPlugin> restCompatibilityPlugins = pluginsService.filterPlugins(RestCompatibilityPlugin.class);
         final CompatibleVersion compatibleVersion;
         if (restCompatibilityPlugins.size() > 1) {

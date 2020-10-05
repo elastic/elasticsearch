@@ -63,7 +63,7 @@ public class CustomRealmIT extends ESRestTestCase {
         request.addParameter("flat_settings", "true");
         Response response = client().performRequest(request);
         String responseString = EntityUtils.toString(response.getEntity());
-        assertThat(responseString, not(containsString("xpack.security.authc.realms.custom.custom.filtered_setting")));
-        assertThat(responseString, containsString("xpack.security.authc.realms.custom.custom.order"));
+        assertThat(responseString, not(containsString("xpack.security.authc.realms.custom.my_realm.filtered_setting")));
+        assertThat(responseString, containsString("xpack.security.authc.realms.custom.my_realm.order"));
     }
 }

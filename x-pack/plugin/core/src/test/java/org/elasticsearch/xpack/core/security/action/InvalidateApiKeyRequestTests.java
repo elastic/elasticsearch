@@ -188,11 +188,23 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
+            out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.V_7_9_0));
             invalidateApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
+            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.V_7_9_0));
+            InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
+
+            assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));
+        }
+        {
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setVersion(randomVersionBetween(random(), Version.V_7_10_0, Version.CURRENT));
+            invalidateApiKeyRequest.writeTo(out);
+
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_10_0, Version.CURRENT));
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));

@@ -31,23 +31,11 @@ public final class EqlTestUtils {
     private EqlTestUtils() {
     }
 
-    public static final EqlConfiguration TEST_CFG_CASE_INSENSITIVE = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, false,
-            123, "", new TaskId("test", 123), null);
-
-    public static final EqlConfiguration TEST_CFG_CASE_SENSITIVE = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, true,
+    public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[] {"none"},
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, 
             123, "", new TaskId("test", 123), null);
 
     public static EqlConfiguration randomConfiguration() {
-        return internalRandomConfiguration(randomBoolean());
-    }
-
-    public static EqlConfiguration randomConfigurationWithCaseSensitive(boolean isCaseSensitive) {
-        return internalRandomConfiguration(isCaseSensitive);
-    }
-
-    private static EqlConfiguration internalRandomConfiguration(boolean isCaseSensitive) {
         return new EqlConfiguration(new String[]{randomAlphaOfLength(16)},
             randomZone(),
             randomAlphaOfLength(16),
@@ -55,7 +43,6 @@ public final class EqlTestUtils {
             null,
             new TimeValue(randomNonNegativeLong()),
             randomBoolean(),
-            isCaseSensitive,
             randomIntBetween(1, 1000),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),

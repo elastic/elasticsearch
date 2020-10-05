@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,6 +50,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
+
 /**
  * Datafeed configuration options. Describes where to proactively pull input
  * data from.
@@ -65,6 +68,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private static final int TWO_MINS_SECONDS = 2 * SECONDS_IN_MINUTE;
     private static final int TWENTY_MINS_SECONDS = 20 * SECONDS_IN_MINUTE;
     private static final int HALF_DAY_SECONDS = 12 * 60 * SECONDS_IN_MINUTE;
+    public static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
+    private static final TimeValue MIN_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
+    private static final TimeValue MAX_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(2);
 
     private static final Logger logger = LogManager.getLogger(DatafeedConfig.class);
 
@@ -451,17 +457,43 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
-        builder.field(Job.ID.getPreferredName(), jobId);
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
+        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
+            builder.field(ID.getPreferredName(), id);
+            // We don't include the job_id in export as we assume the PUT will be referring to a new job as well
+            builder.field(Job.ID.getPreferredName(), jobId);
+            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
+            }
+            if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(HEADERS.getPreferredName(), headers);
+            }
+            builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
+            if (chunkingConfig != null) {
+                builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
+            }
+            builder.startObject(INDICES_OPTIONS.getPreferredName());
+            indicesOptions.toXContent(builder, params);
+            builder.endObject();
+        } else { // Don't include random defaults or unnecessary defaults in export
+            if (queryDelay.equals(defaultRandomQueryDelay(jobId)) == false) {
+                builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
+            }
+            // Indices options are a pretty advanced feature, better to not include them if they are just the default ones
+            if (indicesOptions.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+                builder.startObject(INDICES_OPTIONS.getPreferredName());
+                indicesOptions.toXContent(builder, params);
+                builder.endObject();
+            }
+            // Removing the default chunking config as it is determined by OTHER fields
+            if (chunkingConfig != null && chunkingConfig.equals(defaultChunkingConfig(aggProvider)) == false) {
+                builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
+            }
         }
-        builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
+        builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         builder.field(INDICES.getPreferredName(), indices);
-        builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
         if (aggProvider != null) {
             builder.field(AGGREGATIONS.getPreferredName(), aggProvider.getAggs());
         }
@@ -473,24 +505,32 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             builder.endObject();
         }
         builder.field(SCROLL_SIZE.getPreferredName(), scrollSize);
-        if (chunkingConfig != null) {
-            builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
-        }
-        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(HEADERS.getPreferredName(), headers);
-        }
         if (delayedDataCheckConfig != null) {
             builder.field(DELAYED_DATA_CHECK_CONFIG.getPreferredName(), delayedDataCheckConfig);
         }
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
-        builder.startObject(INDICES_OPTIONS.getPreferredName());
-        indicesOptions.toXContent(builder, params);
-        builder.endObject();
-
         builder.endObject();
         return builder;
+    }
+
+    private static TimeValue defaultRandomQueryDelay(String jobId) {
+        Random random = new Random(jobId.hashCode());
+        long delayMillis = random.longs(MIN_DEFAULT_QUERY_DELAY.millis(), MAX_DEFAULT_QUERY_DELAY.millis()).findFirst().getAsLong();
+        return TimeValue.timeValueMillis(delayMillis);
+    }
+
+    private static ChunkingConfig defaultChunkingConfig(@Nullable AggProvider aggProvider) {
+        if (aggProvider == null || aggProvider.getParsedAggs() == null) {
+            return ChunkingConfig.newAuto();
+        } else {
+            long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(aggProvider.getParsedAggs());
+            if (histogramIntervalMillis <= 0) {
+                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+            }
+            return ChunkingConfig.newManual(TimeValue.timeValueMillis(DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
+        }
     }
 
     /**
@@ -585,10 +625,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     }
 
     public static class Builder {
-
-        public static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
-        private static final TimeValue MIN_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
-        private static final TimeValue MAX_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(2);
 
         private String id;
         private String jobId;
@@ -826,25 +862,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         private void setDefaultChunkingConfig() {
             if (chunkingConfig == null) {
-                if (aggProvider == null || aggProvider.getParsedAggs() == null) {
-                    chunkingConfig = ChunkingConfig.newAuto();
-                } else {
-                    long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(aggProvider.getParsedAggs());
-                    if (histogramIntervalMillis <= 0) {
-                        throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
-                    }
-                    chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueMillis(
-                            DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
-                }
+                chunkingConfig = defaultChunkingConfig(aggProvider);
             }
         }
 
         private void setDefaultQueryDelay() {
             if (queryDelay == null) {
-                Random random = new Random(jobId.hashCode());
-                long delayMillis = random.longs(MIN_DEFAULT_QUERY_DELAY.millis(), MAX_DEFAULT_QUERY_DELAY.millis())
-                        .findFirst().getAsLong();
-                queryDelay = TimeValue.timeValueMillis(delayMillis);
+                queryDelay = defaultRandomQueryDelay(jobId);
             }
         }
 

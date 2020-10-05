@@ -450,6 +450,7 @@ Returns:
 By default `flat_settings` is set to `false`.
 
 [discrete]
+[[api-conventions-parameters]]
 ==== Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the

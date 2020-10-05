@@ -5,15 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Delete forecast API
+=== Delete forecasts API
 
-The delete forecast API provides the ability to delete a {ml} job's
-forecast in the cluster.
+Deletes forecasts from an {anomaly-job}.
 It accepts a +{request}+ object and responds
 with an +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Delete forecast request
+==== Delete forecasts request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 All other fields are optional for the request.
@@ -39,7 +38,7 @@ include-tagged::{doc-tests-file}[{api}-request-options]
 request finds no forecasts. It defaults to `true`
 
 [id="{upid}-{api}-response"]
-==== Delete forecast response
+==== Delete forecasts response
 
 An +{response}+ contains an acknowledgement of the forecast(s) deletion
 

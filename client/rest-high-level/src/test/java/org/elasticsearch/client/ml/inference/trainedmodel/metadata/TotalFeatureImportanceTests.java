@@ -20,8 +20,10 @@ package org.elasticsearch.client.ml.inference.trainedmodel.metadata;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -29,13 +31,19 @@ import java.util.stream.Stream;
 public class TotalFeatureImportanceTests extends AbstractXContentTestCase<TotalFeatureImportance> {
 
 
+    @SuppressWarnings("unchecked")
     public static TotalFeatureImportance randomInstance() {
+        Supplier<Object> classNameGenerator = randomFrom(
+            () -> randomAlphaOfLength(10),
+            ESTestCase::randomBoolean,
+            () -> randomIntBetween(0, 10)
+        );
         return new TotalFeatureImportance(
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomImportance(),
             randomBoolean() ?
                 null :
-                Stream.generate(() -> new TotalFeatureImportance.ClassImportance(randomAlphaOfLength(10), randomImportance()))
+                Stream.generate(() -> new TotalFeatureImportance.ClassImportance(classNameGenerator.get(), randomImportance()))
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList())
             );

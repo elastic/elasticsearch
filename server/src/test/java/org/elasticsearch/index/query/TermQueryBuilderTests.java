@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -29,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TypeFieldType;
 
 import java.io.IOException;
 
@@ -111,7 +111,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         }
     }
-    
+
     private Query termQuery(MappedFieldType mapper, Object value, boolean caseInsensitive) {
         if (caseInsensitive) {
             return mapper.termQueryCaseInsensitive(value, null);
@@ -193,7 +193,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     public void testTypeField() throws IOException {
         TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
         builder.doToQuery(createShardContext());
-        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(TypeFieldType.TYPES_V7_DEPRECATION_MESSAGE);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

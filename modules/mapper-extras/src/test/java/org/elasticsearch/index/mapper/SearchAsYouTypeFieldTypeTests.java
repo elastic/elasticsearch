@@ -49,8 +49,14 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         UNSEARCHABLE.freeze();
     }
 
+    private static final FieldType SEARCHABLE = new FieldType();
+    static {
+        SEARCHABLE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        SEARCHABLE.freeze();
+    }
+
     private static SearchAsYouTypeFieldType createFieldType() {
-        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, Defaults.FIELD_TYPE, null,
+        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, SEARCHABLE, null,
             Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
         fieldType.setPrefixField(new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
         fieldType.setShingleFields(new ShingleFieldType[] {

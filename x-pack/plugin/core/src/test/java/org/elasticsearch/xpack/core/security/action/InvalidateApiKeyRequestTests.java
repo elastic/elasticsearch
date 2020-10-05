@@ -135,13 +135,13 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             {randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true"},
         };
         String[][] expectedErrorMessages = new String[][]{
-            {"One of [api key id, api key name, username, realm name] must be specified if [owner] flag is false"},
-            {"username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id or api key name is specified"},
-            {"only one of [api key id, api key name] can be specified"},
+            {"One of [api key id(s), api key name, username, realm name] must be specified if [owner] flag is false"},
+            {"username or realm name must not be specified when the api key id(s) or api key name are specified",
+                "only one of [api key id(s), api key name] can be specified"},
+            {"username or realm name must not be specified when the api key id(s) or api key name are specified",
+                "only one of [api key id(s), api key name] can be specified"},
+            {"username or realm name must not be specified when the api key id(s) or api key name are specified"},
+            {"only one of [api key id(s), api key name] can be specified"},
             {"neither username nor realm-name may be specified when invalidating owned API keys"},
             {"neither username nor realm-name may be specified when invalidating owned API keys"}
         };

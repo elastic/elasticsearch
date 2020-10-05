@@ -797,21 +797,21 @@ registry where bytes_written_string_list[1] : "en"
 [[queries]]
 name = "matchLite1"
 query = '''
-process where matchLite(command_line, ?".*?net1\s+localgroup\s+.*?")
+process where matchLite(command_line, """.*?net1\s+localgroup\s+.*?""")
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 name = "matchLite2"
 query = '''
-process where matchLite(command_line, ?".*?net1\s+\w+\s+.*?")
+process where matchLite(command_line, """.*?net1\s+\w+\s+.*?""")
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 name = "matchLite3"
 query = '''
-process where matchLite(command_line, ?".*?net1\s+\w{4,15}\s+.*?")
+process where matchLite(command_line, """.*?net1\s+\w{4,15}\s+.*?""")
 '''
 expected_event_ids  = [98]
 
@@ -819,13 +819,13 @@ expected_event_ids  = [98]
 name = "match1"
 expected_event_ids  = [98]
 query = '''
-process where match(command_line, ?".*?net1\s+\w{4,15}\s+.*?")
+process where match(command_line, """.*?net1\s+\w{4,15}\s+.*?""")
 '''
 
 [[queries]]
 name = "matchLite4"
 query = '''
-process where matchLite(command_line, ?".*?net1\s+[localgrup]{4,15}\s+.*?")
+process where matchLite(command_line, """.*?net1\s+[localgrup]{4,15}\s+.*?""")
 '''
 expected_event_ids  = [98]
 

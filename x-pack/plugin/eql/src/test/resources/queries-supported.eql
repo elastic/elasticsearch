@@ -178,19 +178,19 @@ process where command_line : "*%*%*" ;
 process where command_line : "%*%*" ;
 
 
-process where match(?".*?net1\s+localgroup\s+.*?", command_line)
+process where match(""".*?net1\s+localgroup\s+.*?""", command_line)
 ;
 
-process where match(?".*?net1\s+\w+\s+.*?", command_line)
+process where match(""".*?net1\s+\w+\s+.*?""", command_line)
 ;
 
-process where match(?".*?net1\s+\w{4,15}\s+.*?", command_line)
+process where match(""".*?net1\s+\w{4,15}\s+.*?""", command_line)
 ;
 
-process where match(?".*?net1\s+\w{4,15}\s+.*?", command_line)
+process where match(""".*?net1\s+\w{4,15}\s+.*?""", command_line)
 ;
 
-process where match(?".*?net1\s+[localgrup]{4,15}\s+.*?", command_line)
+process where match(""".*?net1\s+[localgrup]{4,15}\s+.*?""", command_line)
 ;
 
 file where opcode:0 and startsWith(file_name, "exploRER.")
@@ -687,3 +687,21 @@ process where fake_field != "*"
 
 process where not (fake_field : "*")
 | head 4;
+
+
+// eventType values
+"123" where process_name == "svchost.exe";
+
+"!#$%^&!#$\"123*&^%$()" where process_name == "svchost.exe";
+
+"""""!#$%^&!""#$\"123*""&^%$()""""" where process_name == "svchost.exe";
+
+"\".  ..\"   .. \"" where process_name == "svchost.exe";
+
+""""".  ..   .. """"" where process_name == "svchost.exe";
+
+sequence
+  ["!#$134" where serial_event_id<3] by unique_pid1
+  ["""!#@$%12345)(*&%^%#$@""" where true] by unique_ppid2
+| tail 1
+;

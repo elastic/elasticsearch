@@ -73,7 +73,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testQueryStartsWithNumber() {
         assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
-        assertEquals("1:1: no viable alternative at input '\"42\"'", errorParsing("\"42\" where true"));
     }
 
     public void testMissingColumn() {

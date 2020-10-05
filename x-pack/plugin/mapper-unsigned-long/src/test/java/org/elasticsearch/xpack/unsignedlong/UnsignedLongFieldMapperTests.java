@@ -8,14 +8,9 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -28,7 +23,6 @@ import java.math.BigInteger;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 import static org.hamcrest.Matchers.containsString;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
@@ -210,21 +204,6 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", outOfRangeValue)));
             expectThrows(MapperParsingException.class, runnable);
         }
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        UnsignedLongFieldMapper mapper = new UnsignedLongFieldMapper.Builder("field", settings).build(context);
-        assertEquals(List.of(0L), fetchSourceValue(mapper, 0L));
-        assertEquals(List.of(9223372036854775807L), fetchSourceValue(mapper, 9223372036854775807L));
-        assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(mapper, "18446744073709551615"));
-        assertEquals(List.of(), fetchSourceValue(mapper, ""));
-
-        UnsignedLongFieldMapper nullValueMapper = new UnsignedLongFieldMapper.Builder("field", settings).nullValue("18446744073709551615")
-            .build(context);
-        assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {

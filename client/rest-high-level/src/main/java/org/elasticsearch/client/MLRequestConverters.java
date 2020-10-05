@@ -121,7 +121,10 @@ final class MLRequestConverters {
 
         RequestConverters.Params params = new RequestConverters.Params();
         if (getJobRequest.getAllowNoMatch() != null) {
-            params.putParam("allow_no_match", Boolean.toString(getJobRequest.getAllowNoMatch()));
+            params.putParam(GetJobRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getJobRequest.getAllowNoMatch()));
+        }
+        if (getJobRequest.getForExport() != null) {
+            params.putParam(GetJobRequest.FOR_EXPORT, Boolean.toString(getJobRequest.getForExport()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -269,6 +272,9 @@ final class MLRequestConverters {
         if (getDatafeedRequest.getAllowNoMatch() != null) {
             params.putParam(GetDatafeedRequest.ALLOW_NO_MATCH.getPreferredName(),
                     Boolean.toString(getDatafeedRequest.getAllowNoMatch()));
+        }
+        if (getDatafeedRequest.getForExport() != null) {
+            params.putParam(GetDatafeedRequest.FOR_EXPORT, Boolean.toString(getDatafeedRequest.getForExport()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -645,7 +651,10 @@ final class MLRequestConverters {
             }
         }
         if (getRequest.getAllowNoMatch() != null) {
-            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getRequest.getAllowNoMatch()));
+            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH, Boolean.toString(getRequest.getAllowNoMatch()));
+        }
+        if (getRequest.getForExport() != null) {
+            params.putParam(GetDataFrameAnalyticsRequest.FOR_EXPORT, Boolean.toString(getRequest.getForExport()));
         }
         request.addParameters(params.asMap());
         return request;

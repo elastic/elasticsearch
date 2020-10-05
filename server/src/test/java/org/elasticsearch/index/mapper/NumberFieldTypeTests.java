@@ -131,12 +131,15 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
     }
 
+    private static MappedFieldType unsearchable() {
+        return new NumberFieldType("field", NumberType.LONG, false, false, true, true, null, Collections.emptyMap());
+    }
+
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", null));
 
-        MappedFieldType unsearchable
-            = new NumberFieldType("field", NumberType.LONG, false, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = unsearchable();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("42", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -253,7 +256,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3));
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
 
-        MappedFieldType unsearchable = new NumberFieldType("field", NumberType.LONG, false, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = unsearchable();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -638,5 +641,23 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             HalfFloatPoint.encodeDimension(value, bytes, 0);
             assertThat(NumberType.HALF_FLOAT.parsePoint(bytes), equalTo(value));
         }
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true)
+            .build(context)
+            .fieldType();
+        assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
+        assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
+
+        MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
+            .nullValue(2.71f)
+            .build(context)
+            .fieldType();
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 }

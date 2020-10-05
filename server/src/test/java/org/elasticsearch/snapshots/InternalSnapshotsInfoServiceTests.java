@@ -107,8 +107,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        threadPool.shutdownNow();
-        threadPool.awaitTermination(30L, TimeUnit.SECONDS);
+        final boolean terminated = terminate(threadPool);
+        assert terminated;
         clusterService.close();
     }
 

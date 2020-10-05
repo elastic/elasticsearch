@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -96,7 +97,10 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
                 .withParams(params)
                 .withContent(new BytesArray("{}"), XContentType.JSON).build();
 
-        dispatchRequest(submitAsyncRestRequest);
+        // Get a new context each time, so we don't get exceptions due to trying to add the same header multiple times
+        try (ThreadContext.StoredContext context = verifyingClient.threadPool().getThreadContext().stashContext()) {
+            dispatchRequest(submitAsyncRestRequest);
+        }
         assertThat(executeCalled.get(), equalTo(true));
         verifyingClient.reset();
     }

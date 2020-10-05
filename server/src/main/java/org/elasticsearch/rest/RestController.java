@@ -65,6 +65,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
+    private static final String ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -246,7 +247,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
             }
-            if (handler.allowSystemIndexAccessByDefault() == false) {
+            if (handler.allowSystemIndexAccessByDefault() == false && request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER) != null) {
                 client.threadPool().getThreadContext().putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
             }
 

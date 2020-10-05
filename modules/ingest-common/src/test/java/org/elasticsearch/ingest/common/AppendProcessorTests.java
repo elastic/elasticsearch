@@ -185,7 +185,7 @@ public class AppendProcessorTests extends ESTestCase {
         appendProcessor.execute(ingestDocument);
         List<?> list = ingestDocument.getFieldValue(field, List.class);
         assertThat(list.size(), equalTo(2));
-        assertThat(list, equalTo(List.of(originalValue, newValue)));
+        assertThat(list, equalTo(org.elasticsearch.common.collect.List.of(originalValue, newValue)));
     }
 
     public void testAppendingToListWithDuplicatesDisallowed() throws Exception {

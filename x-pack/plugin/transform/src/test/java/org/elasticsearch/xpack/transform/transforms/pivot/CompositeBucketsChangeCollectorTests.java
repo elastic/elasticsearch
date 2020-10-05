@@ -21,13 +21,13 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GeoTileGroupSourceTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSourceTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
@@ -38,6 +38,7 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,21 +71,11 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
     public void testPageSize() throws IOException {
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
-        // a histogram group_by has no limits
-        SingleGroupSource histogramGroupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
-        groups.put("hist", histogramGroupBy);
-
-        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);
-        assertEquals(1_000, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 1_000)).size());
-        assertEquals(100_000, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 100_000)).size());
-        assertEquals(10, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 10)).size());
-
         // a terms group_by is limited by terms query
         SingleGroupSource termsGroupBy = TermsGroupSourceTests.randomTermsGroupSourceNoScript();
         groups.put("terms", termsGroupBy);
 
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);
+        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);
         assertEquals(1_000, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 1_000)).size());
         assertEquals(10_000, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 10_000)).size());
         assertEquals(10, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 10)).size());
@@ -172,14 +163,54 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         // timestamp field does not match
         collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "sync_timestamp");
 
+        SingleValue minTimestamp = mock(SingleValue.class);
+        when(minTimestamp.getName()).thenReturn("_transform.output_timestamp.min");
+        when(minTimestamp.value()).thenReturn(122_633.0);
+
+        SingleValue maxTimestamp = mock(SingleValue.class);
+        when(maxTimestamp.getName()).thenReturn("_transform.output_timestamp.max");
+        when(maxTimestamp.value()).thenReturn(302_523.0);
+
+        // simulate the agg response, that should inject
+        Aggregations aggs = new Aggregations(Arrays.asList(minTimestamp, maxTimestamp));
+        SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
+        SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+        collector.processSearchResponse(response);
+
+        // provide checkpoints, although they don't matter in this case
         queryBuilder = collector.buildFilterQuery(66_666, 200_222);
-        assertNull(queryBuilder);
+        assertNotNull(queryBuilder);
+        assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
+        // rounded down
+        assertThat(((RangeQueryBuilder) queryBuilder).from(), equalTo(Long.valueOf(120_000)));
+        assertTrue(((RangeQueryBuilder) queryBuilder).includeLower());
+        // the upper bound is not rounded
+        assertThat(((RangeQueryBuilder) queryBuilder).to(), equalTo(Long.valueOf(302_523)));
+        assertTrue(((RangeQueryBuilder) queryBuilder).includeUpper());
+        assertThat(((RangeQueryBuilder) queryBuilder).fieldName(), equalTo("timestamp"));
 
         // field does not match, but output field equals sync field
         collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "output_timestamp");
 
+        when(minTimestamp.getName()).thenReturn("_transform.output_timestamp.min");
+        when(minTimestamp.value()).thenReturn(242_633.0);
+
+        when(maxTimestamp.getName()).thenReturn("_transform.output_timestamp.max");
+        when(maxTimestamp.value()).thenReturn(602_523.0);
+
+        // simulate the agg response, that should inject
+        collector.processSearchResponse(response);
         queryBuilder = collector.buildFilterQuery(66_666, 200_222);
-        assertNull(queryBuilder);
+        assertNotNull(queryBuilder);
+
+        assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
+        // rounded down
+        assertThat(((RangeQueryBuilder) queryBuilder).from(), equalTo(Long.valueOf(240_000)));
+        assertTrue(((RangeQueryBuilder) queryBuilder).includeLower());
+        // the upper bound is not rounded
+        assertThat(((RangeQueryBuilder) queryBuilder).to(), equalTo(Long.valueOf(602_523)));
+        assertTrue(((RangeQueryBuilder) queryBuilder).includeUpper());
+        assertThat(((RangeQueryBuilder) queryBuilder).fieldName(), equalTo("timestamp"));
 
         // missing bucket disables optimization
         groupBy = new DateHistogramGroupSource(
@@ -192,6 +223,11 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         groups.put("output_timestamp", groupBy);
 
         collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "timestamp");
+
+        queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        assertNull(queryBuilder);
+
+        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "sync_timestamp");
 
         queryBuilder = collector.buildFilterQuery(66_666, 200_222);
         assertNull(queryBuilder);

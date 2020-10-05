@@ -66,7 +66,7 @@ public interface Function {
          * TODO: replace the boolean with a more descriptive enum.
          *
          * @param searchResponse the response after querying for changes
-         * @return true in case of no more changed buckets, false in case changes buckets have been collected
+         * @return true if the collector is done and there are no more changes to look for
          */
         boolean processSearchResponse(SearchResponse searchResponse);
 
@@ -99,6 +99,13 @@ public interface Function {
          * @return true if the collector optimizes change detection
          */
         boolean isOptimized();
+
+        /**
+         * Whether the collector requires an extra query to identify the changes.
+         *
+         * @return true if collector requires an extra query for identifying changes
+         */
+        boolean queryForChanges();
     }
 
     /**
@@ -181,17 +188,6 @@ public interface Function {
      * @return the page size
      */
     int getInitialPageSize();
-
-    /**
-     * Whether this function - given its configuration - supports incremental bucket update used in continuous mode.
-     *
-     * If so, the indexer uses the change collector to update the continuous transform.
-     *
-     * TODO: simplify and remove this method if possible
-     *
-     * @return true if incremental bucket update is supported
-     */
-    boolean supportsIncrementalBucketUpdate();
 
     /**
      * Build the query for the next iteration

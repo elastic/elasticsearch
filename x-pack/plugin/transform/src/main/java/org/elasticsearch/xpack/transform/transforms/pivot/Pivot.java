@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.Function;
 
@@ -51,7 +50,6 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -65,7 +63,6 @@ public class Pivot implements Function {
 
     private final PivotConfig config;
     private final String transformId;
-    private final boolean supportsIncrementalBucketUpdate;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
@@ -74,13 +71,6 @@ public class Pivot implements Function {
         this.config = config;
         this.transformId = transformId;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
-
-        boolean supportsIncrementalBucketUpdate = false;
-        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            supportsIncrementalBucketUpdate |= entry.getValue().supportsIncrementalBucketUpdate();
-        }
-
-        this.supportsIncrementalBucketUpdate = supportsIncrementalBucketUpdate;
     }
 
     @Override
@@ -217,8 +207,8 @@ public class Pivot implements Function {
     public ChangeCollector buildChangeCollector(String synchronizationField) {
         CompositeAggregationBuilder aggregationBuilder = null;
 
-        // skip if none of the group_by's requires it
-        if (supportsIncrementalBucketUpdate()) {
+        // only create the composite aggregation if required
+        if (config.getGroupConfig().getGroups().entrySet().stream().anyMatch(e -> e.getValue().supportsIncrementalBucketUpdate())) {
             aggregationBuilder = createCompositeAggregationSources(config, true);
         }
 
@@ -227,11 +217,6 @@ public class Pivot implements Function {
             config.getGroupConfig().getGroups(),
             synchronizationField
         );
-    }
-
-    @Override
-    public boolean supportsIncrementalBucketUpdate() {
-        return supportsIncrementalBucketUpdate;
     }
 
     public Stream<Map<String, Object>> extractResults(

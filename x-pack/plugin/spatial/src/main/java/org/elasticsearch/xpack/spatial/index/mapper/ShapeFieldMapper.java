@@ -84,7 +84,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         private final ShapeQueryProcessor queryProcessor;
 
         public ShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexed, stored, hasDocValues, false, meta);
             this.queryProcessor = new ShapeQueryProcessor();
         }
 

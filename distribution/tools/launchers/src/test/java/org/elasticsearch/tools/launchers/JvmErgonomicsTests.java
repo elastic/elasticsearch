@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -132,12 +133,10 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testG1GOptionsForLargeHeapWhenTuningSet() throws InterruptedException, IOException {
-        assertThat(
-            JvmErgonomics.choose(
-                Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60", "-XX:G1ReservePercent=10")
-            ),
-            everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent=")))
+        List<String> jvmErgonomics = JvmErgonomics.choose(
+            Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60", "-XX:G1ReservePercent=10")
         );
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
     }
 
     public void testExtractNoSystemProperties() {

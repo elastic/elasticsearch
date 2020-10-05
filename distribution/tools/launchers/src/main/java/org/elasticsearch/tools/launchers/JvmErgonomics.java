@@ -65,10 +65,10 @@ final class JvmErgonomics {
         final boolean tuneG1GCInitiatingHeapOccupancyPercent = tuneG1GCInitiatingHeapOccupancyPercent(finalJvmOptions);
         final int tuneG1GCReservePercent = tuneG1GCReservePercent(finalJvmOptions, tuneG1GCForSmallHeap);
 
-        if (tuneG1GCHeapRegion == true) {
+        if (tuneG1GCHeapRegion) {
             ergonomicChoices.add("-XX:G1HeapRegionSize=4m");
         }
-        if (tuneG1GCInitiatingHeapOccupancyPercent != true) {
+        if (tuneG1GCInitiatingHeapOccupancyPercent) {
             ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=45");
         }
         if (tuneG1GCReservePercent != 0) {

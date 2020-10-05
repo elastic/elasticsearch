@@ -97,7 +97,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         }
         request.setRoleDescriptors(descriptorList);
 
-        boolean testV710Bwc = true;// randomBoolean();
+        boolean testV710Bwc = randomBoolean();
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             if (testV710Bwc) {

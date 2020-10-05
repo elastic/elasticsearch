@@ -39,7 +39,8 @@ public final class CreateApiKeyRequest extends ActionRequest {
     private WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
 
     public CreateApiKeyRequest() {
-        this.id = UUIDs.base64UUID();
+        this.id = UUIDs.base64UUID(); // because auditing can currently only catch requests but not responses,
+        // we generate the API key id soonest so it's part of the request body so it is audited
     }
 
     /**
@@ -49,7 +50,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
      * @param expiration to specify expiration for the API key
      */
     public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
-        this.id = UUIDs.base64UUID();
+        this();
         this.name = name;
         this.roleDescriptors = (roleDescriptors == null) ? List.of() : List.copyOf(roleDescriptors);
         this.expiration = expiration;

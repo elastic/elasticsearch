@@ -104,16 +104,14 @@ description = "Test the `endsWith` function with case matching"
 
 [endswith_insensitive]
 description = "Test the `endsWith` function with case insensitivity"
-case_insensitive = true
 
     [[endswith_insensitive.fold.tests]]
     expression = 'endsWith("FooBarBaz", "baz")'
-    expected = true
+    expected = false
 
 
 [endswith_sensitive]
 description = "Test the `endsWith` function with case sensitivity"
-case_sensitive = true
 
     [[endswith_sensitive.fold.tests]]
     expression = 'endsWith("FooBarBaz", "baz")'
@@ -331,7 +329,6 @@ description = "Test the `startsWith` function"
 
 [startswith_case_sensitive]
 description = "Test the `startsWith` function with case-sensitive matching"
-case_sensitive = true
 
     [[startswith_case_sensitive.tests]]
     expression = '''startsWith("FooBar", "Foo")'''
@@ -344,7 +341,6 @@ case_sensitive = true
 
 [startswith_case_insensitive]
 description = "Test the `startsWith` function with case-insensitive matching"
-case_insensitive = true
 
     [[startswith_case_insensitive.fold.tests]]
     expression = '''startsWith("FooBar", "Foo")'''
@@ -352,11 +348,11 @@ case_insensitive = true
 
     [[startswith_case_insensitive.fold.tests]]
     expression = '''startsWith("FooBar", "FOO")'''
-    expected = true
+    expected = false
 
     [[startswith_case_insensitive.fold.tests]]
     expression = '''startsWith("FooBar", "foo")'''
-    expected = true
+    expected = false
 
     [[startswith_case_insensitive.fold.tests]]
     expression = '''startsWith("FooBar", "Bar")'''
@@ -498,11 +494,10 @@ description = "Test that `wildcard` folds with correct case matches."
 
 [wildcard_case_insensitive]
 description = "Test that `wildcard` function folds case insensitive as expected."
-case_insensitive = true
 
     [[wildcard_case_insensitive.fold.tests]]
     expression = 'wildcard("FOO", "f*o*o*")'
-    expected = true
+    expected = false
 
     [[wildcard_case_insensitive.fold.tests]]
     expression = 'wildcard("bar", "f*o*o*")'
@@ -511,7 +506,6 @@ case_insensitive = true
 
 [wildcard_case_sensitive]
 description = "Test that `wildcard` folds case-sensitive matches."
-case_sensitive = true
 
     [[wildcard_case_sensitive.fold.tests]]
     expression = 'wildcard("Foo", "F*o*o*")'

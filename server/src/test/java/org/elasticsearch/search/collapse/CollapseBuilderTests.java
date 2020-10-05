@@ -32,12 +32,15 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -155,14 +158,14 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
 
             numberFieldType =
                 new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, true, false,
-                    false, Collections.emptyMap());
+                    false, false, null, Collections.emptyMap());
             when(shardContext.fieldMapper("field")).thenReturn(numberFieldType);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
             assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
 
             numberFieldType =
                 new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false,
-                    true, Collections.emptyMap());
+                    true, false, null, Collections.emptyMap());
             when(shardContext.fieldMapper("field")).thenReturn(numberFieldType);
             builder.setInnerHits(new InnerHitBuilder());
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
@@ -203,6 +206,11 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 @Override
                 public String typeName() {
                     return null;
+                }
+
+                @Override
+                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                    throw new UnsupportedOperationException();
                 }
 
                 @Override

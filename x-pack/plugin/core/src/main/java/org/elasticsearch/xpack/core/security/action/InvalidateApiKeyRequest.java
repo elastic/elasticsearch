@@ -28,9 +28,9 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     private final String realmName;
     private final String userName;
+    private final String[] ids;
     private final String name;
     private final boolean ownedByAuthenticatedUser;
-    private final String[] ids;
 
     public InvalidateApiKeyRequest() {
         this(null, null, null, null, false, null);
@@ -67,13 +67,13 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
         this.realmName = realmName;
         this.userName = userName;
-        this.name = name;
-        this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
         if (id != null) {
             this.ids = new String[] {id};
         } else {
             this.ids = ids;
         }
+        this.name = name;
+        this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
     }
 
     public String getRealmName() {
@@ -194,7 +194,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
             }
         }
         if (ids != null && Strings.hasText(name)) {
-            validationException = addValidationError("only one of [api key id, api key name] can be specified", validationException);
+            validationException = addValidationError("only one of [api key id(s), api key name] can be specified", validationException);
         }
         return validationException;
     }

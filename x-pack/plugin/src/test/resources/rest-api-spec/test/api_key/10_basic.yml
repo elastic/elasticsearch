@@ -261,7 +261,7 @@ teardown:
       security.invalidate_api_key:
         body:  >
           {
-            "ids": [ "${api_key_id_2}", "${api_key_id_3}" ]
+            "ids": [ "${api_key_id_1}", "${api_key_id_2}", "${api_key_id_3}" ]
           }
   - length: { "invalidated_api_keys" : 2 }
   - match: { "invalidated_api_keys.0" : "/^(${api_key_id_2}|${api_key_id_3})$/" }

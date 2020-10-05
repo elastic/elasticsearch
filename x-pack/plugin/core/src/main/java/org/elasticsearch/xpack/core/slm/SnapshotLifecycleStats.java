@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.slm;
+package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -79,8 +79,8 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         this.policyStats = new ConcurrentHashMap<>();
     }
 
-    // Package visible for testing
-    SnapshotLifecycleStats(long retentionRuns, long retentionFailed, long retentionTimedOut, long retentionTimeMs,
+    // public for testing
+    public SnapshotLifecycleStats(long retentionRuns, long retentionFailed, long retentionTimedOut, long retentionTimeMs,
                            Map<String, SnapshotPolicyStats> policyStats) {
         this.retentionRunCount.inc(retentionRuns);
         this.retentionFailedCount.inc(retentionFailed);

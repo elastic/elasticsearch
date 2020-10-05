@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper.writeNamedObject;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
 
 
 public class TrainedModelConfig implements ToXContentObject, Writeable {
@@ -52,7 +53,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String NAME = "trained_model_config";
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
-    public static final String FOR_EXPORT = "for_export";
     public static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
     private static final Set<String> RESERVED_METADATA_FIELDS = Collections.singleton(TOTAL_FEATURE_IMPORTANCE);
 

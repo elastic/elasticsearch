@@ -32,7 +32,7 @@ import static java.util.stream.Collectors.toList;
 
 public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
-    protected static final String PARAM_FORMATTING = "%1$s.test -> %2$s";
+    protected static final String PARAM_FORMATTING = "%2$s";
 
     private RestHighLevelClient highLevelClient;
 

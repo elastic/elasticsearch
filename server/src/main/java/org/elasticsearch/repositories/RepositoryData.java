@@ -529,7 +529,7 @@ public final class RepositoryData {
      *                           from cached bytes that we trust to not contain broken generations.
      */
     public static RepositoryData snapshotsFromXContent(XContentParser parser, long genId, boolean fixBrokenShardGens) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
 
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
@@ -549,13 +549,11 @@ public final class RepositoryData {
                     parseIndices(parser, fixBrokenShardGens, snapshots, indexSnapshots, indexLookup, shardGenerations);
                     break;
                 case INDEX_METADATA_IDENTIFIERS:
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(),
-                            parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                     indexMetaIdentifiers = parser.mapStrings();
                     break;
                 case MIN_VERSION:
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
-                            parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
                     final Version version = Version.fromString(parser.text());
                     assert SnapshotsService.useShardGenerations(version);
                     break;
@@ -611,7 +609,7 @@ public final class RepositoryData {
     private static void parseSnapshots(XContentParser parser, Map<String, SnapshotId> snapshots, Map<String, SnapshotState> snapshotStates,
                                        Map<String, Version> snapshotVersions,
                                        Map<SnapshotId, Map<String, String>> indexMetaLookup) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             String name = null;
             String uuid = null;
@@ -667,14 +665,14 @@ public final class RepositoryData {
     private static void parseIndices(XContentParser parser, boolean fixBrokenShardGens, Map<String, SnapshotId> snapshots,
                                      Map<IndexId, List<SnapshotId>> indexSnapshots, Map<String, IndexId> indexLookup,
                                      ShardGenerations.Builder shardGenerations) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             final String indexName = parser.currentName();
             final List<SnapshotId> snapshotIds = new ArrayList<>();
             final List<String> gens = new ArrayList<>();
 
             IndexId indexId = null;
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 final String indexMetaFieldName = parser.currentName();
                 final XContentParser.Token currentToken = parser.nextToken();
@@ -683,7 +681,7 @@ public final class RepositoryData {
                         indexId = new IndexId(indexName, parser.text());
                         break;
                     case SNAPSHOTS:
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
                         XContentParser.Token currToken;
                         while ((currToken = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             final String uuid;
@@ -708,8 +706,7 @@ public final class RepositoryData {
                         }
                         break;
                     case SHARD_GENERATIONS:
-                        XContentParserUtils.ensureExpectedToken(
-                                XContentParser.Token.START_ARRAY, currentToken, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             gens.add(parser.textOrNull());
                         }

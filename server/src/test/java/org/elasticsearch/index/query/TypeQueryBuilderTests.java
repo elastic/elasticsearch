@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

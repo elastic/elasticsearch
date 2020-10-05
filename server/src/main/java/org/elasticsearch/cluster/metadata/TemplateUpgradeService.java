@@ -98,7 +98,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState state = event.state();
-        if (event.localNodeMaster() == false) {
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
             return;
         }
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {

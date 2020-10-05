@@ -17,6 +17,7 @@ public class QueryTranslationTests extends AbstractQueryFolderTestCase {
         assertThat(asQuery(plan), containsString("\"term\":{\"process_name\""));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63262")
     public void testLikeOptimization() throws Exception {
         PhysicalPlan plan = plan("process where process_name : \"*\" ");
         assertThat(asQuery(plan), containsString("\"exists\":{\"field\":\"process_name\""));

@@ -788,8 +788,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private java.util.Optional<String> getRequiredJavaHome() {
         // If we are testing the current version of Elasticsearch, use the configured runtime Java
-        if (getTestDistribution() == TestDistribution.INTEG_TEST
-            || getVersion().equals(VersionProperties.getElasticsearchVersion())) {
+        if (getTestDistribution() == TestDistribution.INTEG_TEST || getVersion().equals(VersionProperties.getElasticsearchVersion())) {
             return java.util.Optional.of(BuildParams.getRuntimeJavaHome()).map(File::getAbsolutePath);
         } else if (getVersion().before("7.0.0")) {
             return java.util.Optional.of(bwcJdk.getJavaHomePath().toString());

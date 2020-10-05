@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.info;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.Util;

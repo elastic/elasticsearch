@@ -127,27 +127,8 @@ case_insensitive = true
     expected = false
 
 
-
-[endswith_sensitive]
-case_sensitive = true
-
-    [[endswith_sensitive.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'baz')"
-    expected = false
-
-
-[startswith_case_insensitive]
-
-    [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'FOO')"
-    expected = true
-
-    [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'foo')"
-    expected = true
-
 [substring]
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', null, 5)"
+    expression = '''substring("hello world", null, 5)'''
     expected = "hello"

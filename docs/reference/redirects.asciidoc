@@ -540,6 +540,26 @@ See <<put-transform>>, <<preview-transform>>, <<update-transform>>,
 This page was deleted.
 See <<put-dfanalytics>>.
 
+[role="exclude",id="put-inference"]
+=== Create trained model API
+
+See <<put-trained-models>>.
+
+[role="exclude",id="get-inference-stats"]
+=== Get trained model statistics API
+
+See <<get-trained-models-stats>>.
+
+[role="exclude",id="get-inference"]
+=== Get trained model API
+
+See <<get-trained-models>>.
+
+[role="exclude",id="delete-inference"]
+=== Delete trained model API
+
+See <<delete-trained-models>>.
+
 [role="exclude",id="data-frames-settings"]
 === {transforms-cap}  settings in Elasticsearch
 
@@ -676,10 +696,11 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
-because it was out of date and erroneously implied that it should be used by application developers.
-There is an issue ({es-issue}[#55258])
-for providing general testing guidance for applications that communicate with {es}.
+({es-issue}55257[55257]) from the {es} Reference because it was out of date and
+erroneously implied that it should be used by application developers.
+
+There is an issue ({es-issue}55258[#55258]) for providing general testing
+guidance for applications that communicate with {es}.
 
 
 [role="exclude",id="why-randomized-testing"]
@@ -1184,3 +1205,13 @@ information about snapshot-backed indices. We plan to remove or drastically
 change this API as part of a future release.
 
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
+
+[role="exclude",id="avoid-oversharding"]
+=== Avoid oversharding
+
+See <<size-your-shards>>.
+
+[role="exclude",id="_parameters_8"]
+=== elasticsearch-croneval parameters
+
+See <<elasticsearch-croneval-parameters>>.

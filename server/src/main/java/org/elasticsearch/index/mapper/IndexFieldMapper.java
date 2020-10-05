@@ -21,13 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Supplier;
 
@@ -53,7 +53,12 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, QueryShardContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+            if (caseInsensitive) {
+                // Thankfully, all index names are lower-cased so we don't have to pass a case_insensitive mode flag
+                // down to all the index name-matching logic. We just lower-case the search string
+                pattern = Strings.toLowercaseAscii(pattern);
+            }
             return context.indexMatches(pattern);
         }
 
@@ -67,6 +72,10 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName, name(), CoreValuesSourceType.BYTES);
         }
 
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
     }
 
     public IndexFieldMapper() {
@@ -74,14 +83,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {}
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {}
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

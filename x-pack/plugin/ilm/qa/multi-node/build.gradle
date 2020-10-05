@@ -1,8 +1,14 @@
+import org.elasticsearch.gradle.util.GradleUtils
+
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
+
+// let the javaRestTest see the classpath of main
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
+
 
 File repoDir = file("$buildDir/testclusters/repo")
 

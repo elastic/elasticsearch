@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredi
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
@@ -73,6 +76,8 @@ public final class ExpressionTranslators {
             new BinaryComparisons(),
             new Ranges(),
             new BinaryLogic(),
+            new IsNulls(),
+            new IsNotNulls(),
             new Nots(),
             new Likes(),
             new InComparisons(),
@@ -203,6 +208,46 @@ public final class ExpressionTranslators {
                     new NotQuery(not.source(), wrappedQuery);
 
             return wrapIfNested(q, e);
+        }
+    }
+
+    public static class IsNotNulls extends ExpressionTranslator<IsNotNull> {
+
+        @Override
+        protected Query asQuery(IsNotNull isNotNull, TranslatorHandler handler) {
+            return doTranslate(isNotNull, handler);
+        }
+
+        public static Query doTranslate(IsNotNull isNotNull, TranslatorHandler handler) {
+            Query query = null;
+
+            if (isNotNull.field() instanceof FieldAttribute) {
+                query = new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
+            } else {
+                query = new ScriptQuery(isNotNull.source(), isNotNull.asScript());
+            }
+
+            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), query);
+        }
+    }
+
+    public static class IsNulls extends ExpressionTranslator<IsNull> {
+
+        @Override
+        protected Query asQuery(IsNull isNull, TranslatorHandler handler) {
+            return doTranslate(isNull, handler);
+        }
+
+        public static Query doTranslate(IsNull isNull, TranslatorHandler handler) {
+            Query query = null;
+
+            if (isNull.field() instanceof FieldAttribute) {
+                query = new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(isNull.field())));
+            } else {
+                query = new ScriptQuery(isNull.source(), isNull.asScript());
+            }
+
+            return handler.wrapFunctionQuery(isNull, isNull.field(), query);
         }
     }
 

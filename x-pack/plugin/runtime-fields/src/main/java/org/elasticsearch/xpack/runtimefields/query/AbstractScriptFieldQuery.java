@@ -17,7 +17,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.AbstractScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractFieldScript;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -26,7 +26,7 @@ import java.util.function.Function;
 /**
  * Abstract base class for building queries based on script fields.
  */
-abstract class AbstractScriptFieldQuery<S extends AbstractScriptFieldScript> extends Query {
+abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> extends Query {
     /**
      * We don't have the infrastructure to estimate the match cost of a script
      * so we just use a big number.

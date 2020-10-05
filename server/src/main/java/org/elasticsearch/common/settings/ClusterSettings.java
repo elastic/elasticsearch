@@ -355,6 +355,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportSettings.CONNECTIONS_PER_NODE_PING,
             TransportSettings.TRACE_LOG_EXCLUDE_SETTING,
             TransportSettings.TRACE_LOG_INCLUDE_SETTING,
+            TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
             NetworkService.NETWORK_SERVER,
             NetworkService.GLOBAL_NETWORK_HOST_SETTING,
             NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING,

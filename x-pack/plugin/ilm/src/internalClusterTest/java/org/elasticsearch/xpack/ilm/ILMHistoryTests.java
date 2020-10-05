@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -100,7 +101,7 @@ public class ILMHistoryTests extends ESIntegTestCase {
                 //instead of failing the whole test change it to assertion error and wait some more time
                 fail(e.getMessage());
             }
-        });
+        }, 1L, TimeUnit.MINUTES);
 
         //make sure ILM is stopped so no new items will be queued in ILM history
         assertTrue(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).actionGet().isAcknowledged());

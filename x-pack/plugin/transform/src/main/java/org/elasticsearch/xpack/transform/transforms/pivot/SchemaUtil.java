@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -77,6 +78,11 @@ public final class SchemaUtil {
             .getGroups()
             .forEach(
                 (destinationFieldName, group) -> {
+                    // skip any fields that use scripts as there will be no source mapping
+                    if (group.getScriptConfig() != null) {
+                        return;
+                    }
+
                     // We will always need the field name for the grouping to create the mapping
                     fieldNamesForGrouping.put(destinationFieldName, group.getField());
                     // Sometimes the group config will supply a desired mapping as well
@@ -107,7 +113,7 @@ public final class SchemaUtil {
         getSourceFieldMappings(
             client,
             source,
-            allFieldNames.values().toArray(new String[0]),
+            allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
             ActionListener.wrap(
                 sourceMappings -> listener.onResponse(
                     resolveMappings(
@@ -182,7 +188,8 @@ public final class SchemaUtil {
             } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [{}], fall back to dynamic mapping.", targetFieldName);
+                logger.warn("Failed to deduce mapping for [{}], fall back to dynamic mapping. " +
+                    "Create the destination index with complete mappings first to avoid deducing the mappings", targetFieldName);
             }
         });
 
@@ -192,7 +199,8 @@ public final class SchemaUtil {
             if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [{}], fall back to keyword.", targetFieldName);
+                logger.warn("Failed to deduce mapping for [{}], fall back to keyword. " +
+                    "Create the destination index with complete mappings first to avoid deducing the mappings", targetFieldName);
                 targetMapping.put(targetFieldName, KeywordFieldMapper.CONTENT_TYPE);
             }
         });

@@ -88,7 +88,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
                 var extractedConfiguration = sub.getConfigurations().create("extracted");
                 extractedConfiguration.setCanBeResolved(false);
                 extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
-                sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExplodedArchiveTask());
+                sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
 
             });
         });

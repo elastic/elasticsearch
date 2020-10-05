@@ -68,24 +68,15 @@ public class DataTierTests extends ESTestCase {
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
-        final String[] frozenNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
-                .filter(DataTier::isFrozenNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
-
         assertThat(discoveryNodes.resolveNodes("data:true"), arrayContainingInAnyOrder(dataNodes));
         assertThat(discoveryNodes.resolveNodes("data_content:true"), arrayContainingInAnyOrder(contentNodes));
         assertThat(discoveryNodes.resolveNodes("data_hot:true"), arrayContainingInAnyOrder(hotNodes));
         assertThat(discoveryNodes.resolveNodes("data_warm:true"), arrayContainingInAnyOrder(warmNodes));
         assertThat(discoveryNodes.resolveNodes("data_cold:true"), arrayContainingInAnyOrder(coldNodes));
-        assertThat(discoveryNodes.resolveNodes("data_frozen:true"), arrayContainingInAnyOrder(frozenNodes));
         Set<String> allTiers = new HashSet<>(Arrays.asList(contentNodes));
         allTiers.addAll(Arrays.asList(hotNodes));
         allTiers.addAll(Arrays.asList(warmNodes));
         allTiers.addAll(Arrays.asList(coldNodes));
-        allTiers.addAll(Arrays.asList(frozenNodes));
         assertThat(discoveryNodes.resolveNodes("data:true"), arrayContainingInAnyOrder(allTiers.toArray(Strings.EMPTY_ARRAY)));
     }
 
@@ -113,7 +104,6 @@ public class DataTierTests extends ESTestCase {
         allRoles.add(DataTier.DATA_HOT_NODE_ROLE);
         allRoles.add(DataTier.DATA_WARM_NODE_ROLE);
         allRoles.add(DataTier.DATA_COLD_NODE_ROLE);
-        allRoles.add(DataTier.DATA_FROZEN_NODE_ROLE);
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();

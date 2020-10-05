@@ -81,6 +81,19 @@ setup:
   - match: {sensor.mappings.properties.over_v.script.lang: painless }
 
 ---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields: [over_v, over_v_from_source, big_vals]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.over_v: [false] }
+  - match: {hits.hits.0.fields.over_v_from_source: [false] }
+  - match: {hits.hits.0.fields.big_vals: [false, true] } # doc values are sorted with falses before trues
+
+---
 "docvalue_fields":
   - do:
       search:

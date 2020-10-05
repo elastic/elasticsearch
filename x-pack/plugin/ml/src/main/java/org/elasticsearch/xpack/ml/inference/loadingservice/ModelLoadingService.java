@@ -270,7 +270,7 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void loadModel(String modelId, Consumer consumer) {
-        provider.getTrainedModel(modelId, false, ActionListener.wrap(
+        provider.getTrainedModel(modelId, false, false, ActionListener.wrap(
             trainedModelConfig -> {
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
                 provider.getTrainedModelForInference(modelId, ActionListener.wrap(
@@ -306,7 +306,7 @@ public class ModelLoadingService implements ClusterStateListener {
         // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
         // by a simulated pipeline
         logger.trace(() -> new ParameterizedMessage("[{}] not actively loading, eager loading without cache", modelId));
-        provider.getTrainedModel(modelId, false, ActionListener.wrap(
+        provider.getTrainedModel(modelId, false, false, ActionListener.wrap(
             trainedModelConfig -> {
                 // Verify we can pull the model into memory without causing OOM
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
@@ -434,7 +434,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
             logger.trace(() -> new ParameterizedMessage("Persisting stats for evicted model [{}]",
                 notification.getValue().model.getModelId()));
-            
+
             // If the model is no longer referenced, flush the stats to persist as soon as possible
             notification.getValue().model.persistStats(referencedModels.contains(notification.getKey()) == false);
         } finally {

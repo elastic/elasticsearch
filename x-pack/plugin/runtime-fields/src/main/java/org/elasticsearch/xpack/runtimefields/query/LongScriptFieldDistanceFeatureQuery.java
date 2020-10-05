@@ -17,21 +17,21 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFieldQuery<AbstractLongScriptFieldScript> {
+public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFieldQuery<AbstractLongFieldScript> {
     private final long origin;
     private final long pivot;
     private final float boost;
 
     public LongScriptFieldDistanceFeatureQuery(
         Script script,
-        Function<LeafReaderContext, AbstractLongScriptFieldScript> leafFactory,
+        Function<LeafReaderContext, AbstractLongFieldScript> leafFactory,
         String fieldName,
         long origin,
         long pivot,
@@ -44,7 +44,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
     }
 
     @Override
-    protected boolean matches(AbstractLongScriptFieldScript scriptContext, int docId) {
+    protected boolean matches(AbstractLongFieldScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
         return scriptContext.count() > 0;
     }
@@ -67,7 +67,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
 
             @Override
             public Explanation explain(LeafReaderContext context, int doc) {
-                AbstractLongScriptFieldScript script = scriptContextFunction().apply(context);
+                AbstractLongFieldScript script = scriptContextFunction().apply(context);
                 script.runForDoc(doc);
                 long value = valueWithMinAbsoluteDistance(script);
                 float weight = LongScriptFieldDistanceFeatureQuery.this.boost * boost;
@@ -85,12 +85,12 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
     }
 
     private class DistanceScorer extends Scorer {
-        private final AbstractLongScriptFieldScript script;
+        private final AbstractLongFieldScript script;
         private final TwoPhaseIterator twoPhase;
         private final DocIdSetIterator disi;
         private final float weight;
 
-        protected DistanceScorer(Weight weight, AbstractLongScriptFieldScript script, int maxDoc, float boost) {
+        protected DistanceScorer(Weight weight, AbstractLongFieldScript script, int maxDoc, float boost) {
             super(weight);
             this.script = script;
             twoPhase = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
@@ -137,7 +137,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
         }
     }
 
-    long minAbsoluteDistance(AbstractLongScriptFieldScript script) {
+    long minAbsoluteDistance(AbstractLongFieldScript script) {
         long minDistance = Long.MAX_VALUE;
         for (int i = 0; i < script.count(); i++) {
             minDistance = Math.min(minDistance, distanceFor(script.values()[i]));
@@ -145,7 +145,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
         return minDistance;
     }
 
-    long valueWithMinAbsoluteDistance(AbstractLongScriptFieldScript script) {
+    long valueWithMinAbsoluteDistance(AbstractLongFieldScript script) {
         long minDistance = Long.MAX_VALUE;
         long minDistanceValue = Long.MAX_VALUE;
         for (int i = 0; i < script.count(); i++) {

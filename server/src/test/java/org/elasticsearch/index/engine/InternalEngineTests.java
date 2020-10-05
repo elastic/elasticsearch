@@ -91,6 +91,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
@@ -189,6 +190,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -202,7 +204,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class InternalEngineTests extends EngineTestCase {
@@ -1202,9 +1207,11 @@ public class InternalEngineTests extends EngineTestCase {
                 .setIfSeqNo(indexResult.getSeqNo()).setIfPrimaryTerm(primaryTerm.get() + 1),
             searcherFactory));
 
-        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.id(), create.uid())
+        final VersionConflictEngineException versionConflictEngineException
+            = expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.id(), create.uid())
                 .setIfSeqNo(indexResult.getSeqNo() + 1).setIfPrimaryTerm(primaryTerm.get() + 1),
             searcherFactory));
+        assertThat(versionConflictEngineException.getStackTrace(), emptyArray());
     }
 
     public void testVersioningNewIndex() throws IOException {
@@ -1695,6 +1702,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getVersion(), equalTo(lastOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                    assertThat(result.getFailure().getStackTrace(), emptyArray());
                 } else {
                     final Engine.IndexResult result;
                     if (versionedOp) {
@@ -1732,6 +1740,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getVersion(), equalTo(lastOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                    assertThat(result.getFailure().getStackTrace(), emptyArray());
                 } else {
                     final Engine.DeleteResult result;
                     long correctSeqNo = docDeleted ? UNASSIGNED_SEQ_NO : lastOpSeqNo;
@@ -1837,6 +1846,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getVersion(), equalTo(highestOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                    assertThat(result.getFailure().getStackTrace(), emptyArray());
                 }
             } else {
                 final Engine.Delete delete = (Engine.Delete) op;
@@ -1855,6 +1865,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getVersion(), equalTo(highestOpVersion));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                    assertThat(result.getFailure().getStackTrace(), emptyArray());
                 }
             }
             if (randomBoolean()) {
@@ -2832,7 +2843,6 @@ public class InternalEngineTests extends EngineTestCase {
 
         EngineConfig brokenConfig = new EngineConfig(
                 shardId,
-                allocationId.getId(),
                 threadPool,
                 config.getIndexSettings(),
                 null,
@@ -3998,6 +4008,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(operation, result.getFailure(), Matchers.instanceOf(VersionConflictEngineException.class));
         VersionConflictEngineException exception = (VersionConflictEngineException) result.getFailure();
         assertThat(operation, exception.getMessage(), containsString("but no document was found"));
+        assertThat(exception.getStackTrace(), emptyArray());
     }
 
     /*
@@ -5786,6 +5797,33 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testIndexThrottling() throws Exception {
+        final Engine.Index indexWithThrottlingCheck = spy(indexForDoc(createParsedDoc("1", null)));
+        final Engine.Index indexWithoutThrottlingCheck = spy(indexForDoc(createParsedDoc("2", null)));
+        doAnswer(invocation -> {
+            try {
+                assertTrue(engine.throttleLockIsHeldByCurrentThread());
+                return invocation.callRealMethod();
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).when(indexWithThrottlingCheck).startTime();
+        doAnswer(invocation -> {
+            try {
+                assertFalse(engine.throttleLockIsHeldByCurrentThread());
+                return invocation.callRealMethod();
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).when(indexWithoutThrottlingCheck).startTime();
+        engine.activateThrottling();
+        engine.index(indexWithThrottlingCheck);
+        engine.deactivateThrottling();
+        engine.index(indexWithoutThrottlingCheck);
+        verify(indexWithThrottlingCheck, atLeastOnce()).startTime();
+        verify(indexWithoutThrottlingCheck, atLeastOnce()).startTime();
+    }
+
     public void testRealtimeGetOnlyRefreshIfNeeded() throws Exception {
         final AtomicInteger refreshCount = new AtomicInteger();
         final ReferenceManager.RefreshListener refreshListener = new ReferenceManager.RefreshListener() {
@@ -5889,7 +5927,7 @@ public class InternalEngineTests extends EngineTestCase {
             EngineConfig config = engine.config();
             final TranslogConfig translogConfig = new TranslogConfig(config.getTranslogConfig().getShardId(),
                 createTempDir(), config.getTranslogConfig().getIndexSettings(), config.getTranslogConfig().getBigArrays());
-            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, store, config.getMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),
@@ -5929,6 +5967,27 @@ public class InternalEngineTests extends EngineTestCase {
                         assertSame(warmedUpReaders.get(1), externalSearcher.getDirectoryReader());
                     }
                 }
+            }
+        }
+    }
+
+    public void testProducesStoredFieldsReader() throws Exception {
+        // Make sure that the engine produces a SequentialStoredFieldsLeafReader.
+        // This is required for optimizations on SourceLookup to work, which is in-turn useful for runtime fields.
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField("test"),
+            new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+        Engine.Index operation = randomBoolean() ?
+            appendOnlyPrimary(doc, false, 1)
+            : appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
+        engine.index(operation);
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            IndexReader reader = searcher.getIndexReader();
+            assertThat(reader.leaves().size(), Matchers.greaterThanOrEqualTo(1));
+            for (LeafReaderContext context: reader.leaves()) {
+                assertThat(context.reader(), Matchers.instanceOf(SequentialStoredFieldsLeafReader.class));
+                SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+                assertNotNull(lf.getSequentialStoredFieldsReader());
             }
         }
     }

@@ -129,6 +129,11 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
     }
 
     @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), format);
     }

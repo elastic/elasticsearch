@@ -245,7 +245,6 @@ public class FollowingEngineTests extends ESTestCase {
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         return new EngineConfig(
                 shardId,
-                "allocation-id",
                 threadPool,
                 indexSettings,
                 null,

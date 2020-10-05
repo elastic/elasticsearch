@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.esplugin'
@@ -8,10 +9,8 @@ esplugin {
   classname 'org.elasticsearch.DieWithDignityPlugin'
 }
 
-dependencies {
-  // let the javaRestTest see the classpath of main
-  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
-}
+// let the javaRestTest see the classpath of main
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
 
 javaRestTest {
   systemProperty 'tests.security.manager', 'false'

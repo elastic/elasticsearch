@@ -19,7 +19,7 @@ event.
 GET /my-index-000001/_eql/search
 {
   "query": """
-    process where process.name = "regsvr32.exe"
+    process where process.name == "regsvr32.exe"
   """
 }
 ----
@@ -145,7 +145,7 @@ Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
 Common Schema (ECS)]. If a data stream or index does not contain the
 `event.category` field, this value is required.
 +
-The event category field is typically mapped as a field type in the
+The event category field must be mapped as a field type in the
 <<keyword,`keyword`>> family.
 
 `fetch_size`::
@@ -260,8 +260,8 @@ Events in the API response are sorted by this field's value, converted to
 milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
 ascending order.
 
-The timestamp field is typically mapped as a <<date,`date`>> or
-<<date_nanos,`date_nanos`>> field.
+The timestamp field should be mapped as a <<date,`date`>>. The
+<<date_nanos,`date_nanos`>> field type is not supported.
 --
 
 [[eql-search-api-wait-for-completion-timeout]]

@@ -59,7 +59,8 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject().field("_id", "1").endObject()), XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));
+            assertTrue(e.getCause().getMessage(),
+                e.getCause().getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));
         }
     }
 

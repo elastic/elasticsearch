@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
@@ -61,66 +60,14 @@ public class UnifiedHighlighter implements Highlighter {
     }
 
     @Override
-    public HighlightField highlight(FieldHighlightContext fieldContext) {
+    public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         @SuppressWarnings("unchecked")
         Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.hitContext.cache()
             .computeIfAbsent(UnifiedHighlighter.class.getName(), k -> new HashMap<>());
-        CustomUnifiedHighlighter highlighter = (CustomUnifiedHighlighter) cache.computeIfAbsent(fieldContext.fieldName, f -> {
-            Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
-                ? HighlightUtils.Encoders.HTML
-                : HighlightUtils.Encoders.DEFAULT;
-            int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
-            int keywordIgnoreAbove = Integer.MAX_VALUE;
-            if (fieldContext.fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-                KeywordFieldMapper mapper = (KeywordFieldMapper) fieldContext.context.getMapperService().documentMapper()
-                    .mappers().getMapper(fieldContext.fieldName);
-                keywordIgnoreAbove = mapper.ignoreAbove();
-            }
-            int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-            Analyzer analyzer = getAnalyzer(fieldContext.context.getMapperService().documentMapper());
-            PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
-            IndexSearcher searcher = fieldContext.context.searcher();
-            OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
-            BreakIterator breakIterator;
-            int higlighterNumberOfFragments;
-            if (numberOfFragments == 0
-                    // non-tokenized fields should not use any break iterator (ignore boundaryScannerType)
-                    || fieldContext.fieldType.getTextSearchInfo().isTokenized() == false) {
-                /*
-                 * We use a control char to separate values, which is the
-                 * only char that the custom break iterator breaks the text
-                 * on, so we don't lose the distinction between the different
-                 * values of a field and we get back a snippet per value
-                 */
-                breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-                higlighterNumberOfFragments = numberOfFragments == 0 ? Integer.MAX_VALUE - 1 : numberOfFragments;
-            } else {
-                //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
-                breakIterator = getBreakIterator(fieldContext.field);
-                higlighterNumberOfFragments = numberOfFragments;
-            }
-            try {
-                return new CustomUnifiedHighlighter(
-                    searcher,
-                    analyzer,
-                    offsetSource,
-                    passageFormatter,
-                    fieldContext.field.fieldOptions().boundaryScannerLocale(),
-                    breakIterator,
-                    fieldContext.context.getFullyQualifiedIndex().getName(),
-                    fieldContext.fieldName,
-                    fieldContext.query,
-                    fieldContext.field.fieldOptions().noMatchSize(),
-                    higlighterNumberOfFragments,
-                    fieldMatcher(fieldContext),
-                    keywordIgnoreAbove,
-                    maxAnalyzedOffset
-                );
-            } catch (IOException e) {
-                throw new FetchPhaseExecutionException(fieldContext.shardTarget,
-                    "Failed to highlight field [" + fieldContext.fieldName + "]", e);
-            }
-        });
+        if (cache.containsKey(fieldContext.fieldName) == false) {
+            cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));
+        }
+        CustomUnifiedHighlighter highlighter = cache.get(fieldContext.fieldName);
         MappedFieldType fieldType = fieldContext.fieldType;
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
@@ -132,13 +79,7 @@ public class UnifiedHighlighter implements Highlighter {
             }
             return mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
         };
-        Snippet[] fieldSnippets;
-        try {
-            fieldSnippets = highlighter.highlightField(hitContext.reader(), hitContext.docId(), loadFieldValues);
-        } catch (IOException e) {
-            throw new FetchPhaseExecutionException(fieldContext.shardTarget,
-                "Failed to highlight field [" + fieldContext.fieldName + "]", e);
-        }
+        Snippet[] fieldSnippets = highlighter.highlightField(hitContext.reader(), hitContext.docId(), loadFieldValues);
 
         if (fieldSnippets == null || fieldSnippets.length == 0) {
             return null;
@@ -166,10 +107,61 @@ public class UnifiedHighlighter implements Highlighter {
         return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
     }
 
+    CustomUnifiedHighlighter buildHighlighter(FieldHighlightContext fieldContext) throws IOException {
+        Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
+            ? HighlightUtils.Encoders.HTML
+            : HighlightUtils.Encoders.DEFAULT;
+        int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
+        int keywordIgnoreAbove = Integer.MAX_VALUE;
+        if (fieldContext.fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+            KeywordFieldMapper mapper = (KeywordFieldMapper) fieldContext.context.mapperService().documentMapper()
+                .mappers().getMapper(fieldContext.fieldName);
+            keywordIgnoreAbove = mapper.ignoreAbove();
+        }
+        int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
+        Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
+        PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
+        IndexSearcher searcher = fieldContext.context.searcher();
+        OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
+        BreakIterator breakIterator;
+        int higlighterNumberOfFragments;
+        if (numberOfFragments == 0
+            // non-tokenized fields should not use any break iterator (ignore boundaryScannerType)
+            || fieldContext.fieldType.getTextSearchInfo().isTokenized() == false) {
+            /*
+             * We use a control char to separate values, which is the
+             * only char that the custom break iterator breaks the text
+             * on, so we don't lose the distinction between the different
+             * values of a field and we get back a snippet per value
+             */
+            breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
+            higlighterNumberOfFragments = numberOfFragments == 0 ? Integer.MAX_VALUE - 1 : numberOfFragments;
+        } else {
+            //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
+            breakIterator = getBreakIterator(fieldContext.field);
+            higlighterNumberOfFragments = numberOfFragments;
+        }
+        return new CustomUnifiedHighlighter(
+            searcher,
+            analyzer,
+            offsetSource,
+            passageFormatter,
+            fieldContext.field.fieldOptions().boundaryScannerLocale(),
+            breakIterator,
+            fieldContext.context.getIndexName(),
+            fieldContext.fieldName,
+            fieldContext.query,
+            fieldContext.field.fieldOptions().noMatchSize(),
+            higlighterNumberOfFragments,
+            fieldMatcher(fieldContext),
+            keywordIgnoreAbove,
+            maxAnalyzedOffset
+        );
+    }
+
     protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchHighlightContext.Field field, Encoder encoder) {
-        CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0],
+        return new CustomPassageFormatter(field.fieldOptions().preTags()[0],
             field.fieldOptions().postTags()[0], encoder);
-        return passageFormatter;
     }
 
 
@@ -244,7 +236,7 @@ public class UnifiedHighlighter implements Highlighter {
     private Predicate<String> fieldMatcher(FieldHighlightContext fieldContext) {
         if (fieldContext.field.fieldOptions().requireFieldMatch()) {
             String fieldName = fieldContext.fieldName;
-            return name -> fieldName.equals(name);
+            return fieldName::equals;
         }
         // ignore terms that targets the _id field since they use a different encoding
         // that is not compatible with utf8

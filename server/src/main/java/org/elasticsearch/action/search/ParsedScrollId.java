@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.search;
 
-class ParsedScrollId {
+import java.util.Arrays;
+
+public class ParsedScrollId {
 
     public static final String QUERY_THEN_FETCH_TYPE = "queryThenFetch";
 
@@ -47,5 +49,9 @@ class ParsedScrollId {
 
     public SearchContextIdForNode[] getContext() {
         return context;
+    }
+
+    public boolean hasLocalIndices() {
+        return Arrays.stream(context).anyMatch(c -> c.getClusterAlias() == null);
     }
 }

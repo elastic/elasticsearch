@@ -56,7 +56,6 @@ testClusters.integTest {
       systemProperty 'es.autoscaling_feature_flag_registered', 'true'
     }
     setting 'xpack.autoscaling.enabled', 'true'
-    setting 'xpack.eql.enabled', 'true'
     keystorePassword 's3cr3t'
   }
 

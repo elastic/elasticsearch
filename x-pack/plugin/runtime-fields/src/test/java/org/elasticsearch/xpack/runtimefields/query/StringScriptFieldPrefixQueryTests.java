@@ -18,12 +18,18 @@ import static org.hamcrest.Matchers.is;
 public class StringScriptFieldPrefixQueryTests extends AbstractStringScriptFieldQueryTestCase<StringScriptFieldPrefixQuery> {
     @Override
     protected StringScriptFieldPrefixQuery createTestInstance() {
-        return new StringScriptFieldPrefixQuery(randomScript(), leafFactory, randomAlphaOfLength(5), randomAlphaOfLength(6));
+        return new StringScriptFieldPrefixQuery(
+            randomScript(),
+            leafFactory,
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(6),
+            randomBoolean()
+        );
     }
 
     @Override
     protected StringScriptFieldPrefixQuery copy(StringScriptFieldPrefixQuery orig) {
-        return new StringScriptFieldPrefixQuery(orig.script(), leafFactory, orig.fieldName(), orig.prefix());
+        return new StringScriptFieldPrefixQuery(orig.script(), leafFactory, orig.fieldName(), orig.prefix(), orig.caseInsensitive());
     }
 
     @Override
@@ -31,6 +37,7 @@ public class StringScriptFieldPrefixQueryTests extends AbstractStringScriptField
         Script script = orig.script();
         String fieldName = orig.fieldName();
         String prefix = orig.prefix();
+        boolean caseInsensitive = orig.caseInsensitive();
         switch (randomInt(2)) {
             case 0:
                 script = randomValueOtherThan(script, this::randomScript);
@@ -41,19 +48,30 @@ public class StringScriptFieldPrefixQueryTests extends AbstractStringScriptField
             case 2:
                 prefix += "modified";
                 break;
+            case 3:
+                caseInsensitive = !caseInsensitive;
+                break;
             default:
                 fail();
         }
-        return new StringScriptFieldPrefixQuery(script, leafFactory, fieldName, prefix);
+        return new StringScriptFieldPrefixQuery(script, leafFactory, fieldName, prefix, caseInsensitive);
     }
 
     @Override
     public void testMatches() {
-        StringScriptFieldPrefixQuery query = new StringScriptFieldPrefixQuery(randomScript(), leafFactory, "test", "foo");
+        StringScriptFieldPrefixQuery query = new StringScriptFieldPrefixQuery(randomScript(), leafFactory, "test", "foo", false);
         assertTrue(query.matches(List.of("foo")));
+        assertFalse(query.matches(List.of("Foo")));
         assertTrue(query.matches(List.of("foooo")));
+        assertFalse(query.matches(List.of("Foooo")));
         assertFalse(query.matches(List.of("fo")));
         assertTrue(query.matches(List.of("fo", "foo")));
+        assertFalse(query.matches(List.of("Fo", "fOo")));
+
+        StringScriptFieldPrefixQuery ciQuery = new StringScriptFieldPrefixQuery(randomScript(), leafFactory, "test", "foo", true);
+        assertTrue(ciQuery.matches(List.of("fOo")));
+        assertTrue(ciQuery.matches(List.of("Foooo")));
+        assertTrue(ciQuery.matches(List.of("fo", "foO")));
     }
 
     @Override

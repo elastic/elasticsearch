@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.runtimefields.query;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
 
 import java.net.InetAddress;
 
@@ -16,7 +16,7 @@ import static org.mockito.Mockito.mock;
 
 public abstract class AbstractIpScriptFieldQueryTestCase<T extends AbstractIpScriptFieldQuery> extends AbstractScriptFieldQueryTestCase<T> {
 
-    protected final IpScriptFieldScript.LeafFactory leafFactory = mock(IpScriptFieldScript.LeafFactory.class);
+    protected final IpFieldScript.LeafFactory leafFactory = mock(IpFieldScript.LeafFactory.class);
 
     @Override
     public final void testVisit() {

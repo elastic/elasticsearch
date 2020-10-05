@@ -396,7 +396,7 @@ Returns:
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
-      "index.routing.allocation.include._tier" : "data_hot",
+      "index.routing.allocation.include._tier_preference" : "data_content",
       "index.provided_name" : "my-index-000001"
     }
   }
@@ -433,7 +433,7 @@ Returns:
         "routing": {
           "allocation": {
             "include": {
-              "_tier": "data_hot"
+              "_tier_preference": "data_content"
             }
           }
         },
@@ -450,6 +450,7 @@ Returns:
 By default `flat_settings` is set to `false`.
 
 [discrete]
+[[api-conventions-parameters]]
 ==== Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the

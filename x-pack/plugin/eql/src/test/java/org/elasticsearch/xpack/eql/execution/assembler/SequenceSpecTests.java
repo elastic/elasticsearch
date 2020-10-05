@@ -12,7 +12,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
@@ -82,7 +81,7 @@ public class SequenceSpecTests extends ESTestCase {
             return (long) hit.docId();
         }
     }
-    
+
     static class KeyExtractor extends EmptyHitExtractor {
         @Override
         public String extract(SearchHit hit) {
@@ -172,7 +171,7 @@ public class SequenceSpecTests extends ESTestCase {
                 r.searchSource().size(Integer.MAX_VALUE);
             }
             Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? events.get(ordinal) : emptyMap();
-            
+
             EventsAsHits eah = new EventsAsHits(evs);
             SearchHits searchHits = new SearchHits(eah.hits.toArray(new SearchHit[0]), new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
                     0.0f);
@@ -182,8 +181,7 @@ public class SequenceSpecTests extends ESTestCase {
         }
 
         @Override
-        public void get(Iterable<List<HitReference>> refs, ActionListener<List<List<GetResponse>>> listener) {
-            //no-op
+        public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
         }
     }
 
@@ -202,7 +200,7 @@ public class SequenceSpecTests extends ESTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         return SeriesUtils.readSpec("/sequences.series-spec");
     }
-    
+
     public void test() {
         int stages = events.size();
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
@@ -214,7 +212,7 @@ public class SequenceSpecTests extends ESTestCase {
 
         // convert the results through a test specific payload
         SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null);
-        
+
         QueryClient testClient = new TestQueryClient();
         TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher);
 
@@ -229,7 +227,7 @@ public class SequenceSpecTests extends ESTestCase {
         String prefix = "Line " + lineNumber + ":";
         assertNotNull(prefix + "no matches found", seq);
         assertEquals(prefix + "different sequences matched ", matches.size(), seq.size());
-        
+
         for (int i = 0; i < seq.size(); i++) {
             Sequence s = seq.get(i);
             List<String> match = matches.get(i);

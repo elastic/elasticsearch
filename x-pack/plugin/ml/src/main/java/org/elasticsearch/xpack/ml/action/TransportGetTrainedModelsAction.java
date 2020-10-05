@@ -57,15 +57,25 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                 }
 
                 if (request.isIncludeModelDefinition()) {
-                    provider.getTrainedModel(totalAndIds.v2().iterator().next(), true, ActionListener.wrap(
-                        config -> listener.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()),
-                        listener::onFailure
-                    ));
+                    provider.getTrainedModel(
+                        totalAndIds.v2().iterator().next(),
+                        true,
+                        request.isIncludeTotalFeatureImportance(),
+                        ActionListener.wrap(
+                            config -> listener.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()),
+                            listener::onFailure
+                        )
+                    );
                 } else {
-                    provider.getTrainedModels(totalAndIds.v2(), request.isAllowNoResources(), ActionListener.wrap(
-                        configs -> listener.onResponse(responseBuilder.setModels(configs).build()),
-                        listener::onFailure
-                    ));
+                    provider.getTrainedModels(
+                        totalAndIds.v2(),
+                        request.isAllowNoResources(),
+                        request.isIncludeTotalFeatureImportance(),
+                        ActionListener.wrap(
+                            configs -> listener.onResponse(responseBuilder.setModels(configs).build()),
+                            listener::onFailure
+                        )
+                    );
                 }
             },
             listener::onFailure

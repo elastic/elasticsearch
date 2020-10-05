@@ -12,6 +12,9 @@ dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(':test:framework')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(project(xpackModule('ql:test'))) {
+    exclude group: 'org.elasticsearch.plugin', module: 'ql'
+  }
 }
 
 configurations {

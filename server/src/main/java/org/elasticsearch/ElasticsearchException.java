@@ -403,13 +403,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         return innerFromXContent(parser, false);
     }
 
     public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;
@@ -596,7 +596,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             return new ElasticsearchException(buildMessage("exception", parser.text(), null));
         }
 
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         token = parser.nextToken();
 
         // Root causes are parsed in the innerFromXContent() and are added as suppressed exceptions.

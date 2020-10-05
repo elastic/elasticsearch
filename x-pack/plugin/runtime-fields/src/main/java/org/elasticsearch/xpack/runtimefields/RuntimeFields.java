@@ -11,7 +11,13 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.RuntimeFieldMapper;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,12 +33,12 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
     @Override
     public List<ScriptContext<?>> getContexts() {
         return List.of(
-            BooleanScriptFieldScript.CONTEXT,
-            DateScriptFieldScript.CONTEXT,
-            DoubleScriptFieldScript.CONTEXT,
-            IpScriptFieldScript.CONTEXT,
-            LongScriptFieldScript.CONTEXT,
-            StringScriptFieldScript.CONTEXT
+            BooleanFieldScript.CONTEXT,
+            DateFieldScript.CONTEXT,
+            DoubleFieldScript.CONTEXT,
+            IpFieldScript.CONTEXT,
+            LongFieldScript.CONTEXT,
+            StringFieldScript.CONTEXT
         );
     }
 }

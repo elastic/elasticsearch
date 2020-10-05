@@ -50,7 +50,17 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoPointScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
+public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
+    @Override
+    protected boolean supportsTermQueries() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsRangeQueries() {
+        return false;
+    }
 
     @Override
     public void testDocValues() throws IOException {
@@ -151,11 +161,11 @@ public class GeoPointScriptFieldTypeTests extends AbstractScriptFieldTypeTestCas
 
     @Override
     protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.rangeQuery("0.0", "45.0", false, false, null, null, null, mockContext());
+        throw new IllegalArgumentException("Unsupported");
     }
 
     @Override
-    public void testTermQuery() throws IOException {
+    public void testTermQuery() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().termQuery("0.0,0.0", mockContext()));
         assertThat(
             e.getMessage(),
@@ -165,7 +175,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractScriptFieldTypeTestCas
 
     @Override
     protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.termQuery(GeometryTestUtils.randomPoint(), mockContext());
+        throw new IllegalArgumentException("Unsupported");
     }
 
     @Override
@@ -186,50 +196,6 @@ public class GeoPointScriptFieldTypeTests extends AbstractScriptFieldTypeTestCas
     protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
         return ft.termsQuery(randomList(100, () -> GeometryTestUtils.randomPoint()), mockContext());
     }
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testRangeQueryWithShapeRelationIsError() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testRangeQueryIsExpensive() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testRangeQueryInLoop() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testTermQueryIsExpensive() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testTermQueryInLoop() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testTermsQueryIsExpensive() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testTermsQueryInLoop() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testPhraseQueryIsError() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testPhrasePrefixQueryIsError() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testMultiPhraseQueryIsError() {}
-
-    @Override
-    @AwaitsFix(bugUrl = "Not supported")
-    public void testSpanPrefixQueryIsError() {}
 
     @Override
     protected GeoPointScriptFieldType simpleMappedFieldType() throws IOException {

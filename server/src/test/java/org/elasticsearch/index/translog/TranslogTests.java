@@ -1257,10 +1257,9 @@ public class TranslogTests extends ESTestCase {
         final Set<Long> seenSeqNos = new HashSet<>();
         boolean opsHaveValidSequenceNumbers = randomBoolean();
         for (int i = 0; i < numOps; i++) {
-            byte[] bytes = new byte[1028];
+            byte[] bytes = new byte[4];
             ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
             out.writeInt(i);
-            out.writeBytes(new byte[1024], 1024);
             long seqNo;
             do {
                 seqNo = opsHaveValidSequenceNumbers ? randomNonNegativeLong() : SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -1280,7 +1279,7 @@ public class TranslogTests extends ESTestCase {
             translog.openReader(writer.path(), Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME)));
         for (int i = 0; i < numOps; i++) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
-            reader.readBytes(buffer, reader.getFirstOperationOffset() + 1028 * i);
+            reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * i);
             buffer.flip();
             final int value = buffer.getInt();
             assertEquals(i, value);
@@ -1290,16 +1289,15 @@ public class TranslogTests extends ESTestCase {
         assertThat(reader.getCheckpoint().minSeqNo, equalTo(minSeqNo));
         assertThat(reader.getCheckpoint().maxSeqNo, equalTo(maxSeqNo));
 
-        byte[] bytes = new byte[1028];
+        byte[] bytes = new byte[4];
         ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
         out.writeInt(2048);
-        out.writeBytes(new byte[1024], 1024);
         writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
 
         if (reader instanceof TranslogReader) {
-            ByteBuffer buffer = ByteBuffer.allocate(1028);
+            ByteBuffer buffer = ByteBuffer.allocate(4);
             try {
-                reader.readBytes(buffer, reader.getFirstOperationOffset() + 1028 * numOps);
+                reader.readBytes(buffer, reader.getFirstOperationOffset() + 4 * numOps);
                 fail("read past EOF?");
             } catch (EOFException ex) {
                 // expected
@@ -1307,8 +1305,8 @@ public class TranslogTests extends ESTestCase {
             ((TranslogReader) reader).close();
         } else {
             // live reader!
-            ByteBuffer buffer = ByteBuffer.allocate(1028);
-            final long pos = reader.getFirstOperationOffset() + 1028 * numOps;
+            ByteBuffer buffer = ByteBuffer.allocate(4);
+            final long pos = reader.getFirstOperationOffset() + 4 * numOps;
             reader.readBytes(buffer, pos);
             buffer.flip();
             final int value = buffer.getInt();

@@ -87,7 +87,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final int forceWriteThreshold;
     private final ArrayList<Operation> bufferedOps = new ArrayList<>();
-    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
     private long bufferedBytes = 0L;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
@@ -197,8 +196,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
             maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-
-            nonFsyncedSequenceNumbers.add(seqNo);
 
             operationCounter++;
 
@@ -404,8 +401,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             ensureOpen();
                             checkpointToSync = getCheckpoint();
                             toWrite = pollOpsToWrite();
-                            flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                            nonFsyncedSequenceNumbers = new LongArrayList(64);
+                        }
+                        flushedSequenceNumbers = new LongArrayList(toWrite.size());
+                        for (Operation operation : toWrite) {
+                            flushedSequenceNumbers.add(operation.seqNo);
                         }
 
                         try {

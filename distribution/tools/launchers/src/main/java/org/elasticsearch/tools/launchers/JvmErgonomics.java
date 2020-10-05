@@ -60,7 +60,7 @@ final class JvmErgonomics {
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
         }
 
-        final boolean tuneG1GCForSmallHeap = tuneG1GCForSmallHeap(finalJvmOptions, heapSize);
+        final boolean tuneG1GCForSmallHeap = tuneG1GCForSmallHeap(heapSize);
         final boolean tuneG1GCHeapRegion = tuneG1GCHeapRegion(finalJvmOptions, tuneG1GCForSmallHeap);
         final boolean tuneG1GCInitiatingHeapOccupancyPercent = tuneG1GCInitiatingHeapOccupancyPercent(finalJvmOptions);
         final int tuneG1GCReservePercent = tuneG1GCReservePercent(finalJvmOptions, tuneG1GCForSmallHeap);
@@ -162,22 +162,25 @@ final class JvmErgonomics {
     }
 
     // Tune G1GC options for heaps < 8GB
-    static boolean tuneG1GCForSmallHeap(final Map<String, JvmOption> finalJvmOptions, final long heapSize) {
-        JvmOption g1GC = finalJvmOptions.get("UseG1GC");
-        return heapSize < 8L << 30 && g1GC.getMandatoryValue().equals("true");
+    static boolean tuneG1GCForSmallHeap(final long heapSize) {
+        return heapSize < 8L << 30;
     }
 
     static boolean tuneG1GCHeapRegion(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
         JvmOption g1GCHeapRegion = finalJvmOptions.get("G1HeapRegionSize");
-        return (tuneG1GCForSmallHeap && g1GCHeapRegion.isCommandLineOrigin() == false);
+        JvmOption g1GC = finalJvmOptions.get("UseG1GC");
+        return (tuneG1GCForSmallHeap && g1GC.getMandatoryValue().equals("true") && g1GCHeapRegion.isCommandLineOrigin() == false);
     }
 
     static int tuneG1GCReservePercent(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
+        JvmOption g1GC = finalJvmOptions.get("UseG1GC");
         JvmOption g1GCReservePercent = finalJvmOptions.get("G1ReservePercent");
-        if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap) {
-            return 15;
-        } else if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap == false) {
-            return 25;
+        if (g1GC.getMandatoryValue().equals("true")) {
+            if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap) {
+                return 15;
+            } else if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap == false) {
+                return 25;
+            }
         }
         return 0;
     }

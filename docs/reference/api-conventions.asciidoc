@@ -45,8 +45,8 @@ The defaults settings for the above parameters depend on the API being used.
 Some indices (hereafter "system indices") are used by various system
 modules and/or plugins to store state or configuration. These indices
 are not intended to be accessed directly, and accessing them directly is
-deprecated. In the next major version, access to these indices will be prevented
-by default to prevent accidental operations that may cause problems with
+deprecated. In the next major version, access to these indices will no longer be
+allowed to prevent accidental operations that may cause problems with
 Elasticsearch features which depend on the consistency of data in these
 indices.
 

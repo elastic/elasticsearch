@@ -10,6 +10,3 @@ class org.elasticsearch.painless.api.Json {
   String dump(def, boolean)
 }
 
-static_import {
-  def load(String) from_class org.elasticsearch.painless.api.Json
-}

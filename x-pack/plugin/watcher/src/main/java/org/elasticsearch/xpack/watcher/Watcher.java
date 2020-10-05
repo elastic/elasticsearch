@@ -179,7 +179,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;

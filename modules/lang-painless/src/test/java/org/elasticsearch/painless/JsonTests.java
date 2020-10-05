@@ -23,6 +23,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 
 public class JsonTests extends ScriptTestCase {
+
     public void testDump() {
         // simple object dump
         Object output = exec("Json.dump(params.data)", singletonMap("data", singletonMap("hello", "world")), true);

@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -280,11 +279,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 
 public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
@@ -542,32 +539,40 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
-            final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
-            realms.asList().stream().forEach((realm) -> {
-                Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
-                realmFailureHeaders.entrySet().stream().forEach((e) -> {
-                    String key = e.getKey();
-                    e.getValue().stream()
-                            .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
-                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+            Supplier<Map<String, List<String>>> headersSupplier = () -> {
+                final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
+                realms.asList().stream().forEach((realm) -> {
+                    Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
+                    realmFailureHeaders.entrySet().stream().forEach((e) -> {
+                        String key = e.getKey();
+                        e.getValue().stream()
+                                .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v)
+                                    == false)
+                                .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+                    });
                 });
-            });
 
-            if (TokenService.isTokenServiceEnabled(settings)) {
-                String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
-                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
-                        .contains(bearerScheme) == false) {
-                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                if (TokenService.isTokenServiceEnabled(settings)) {
+                    String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
+                    if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                            .contains(bearerScheme) == false) {
+                        defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                    }
                 }
-            }
-            if (API_KEY_SERVICE_ENABLED_SETTING.get(settings)) {
-                final String apiKeyScheme = "ApiKey";
-                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
-                    .contains(apiKeyScheme) == false) {
-                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(apiKeyScheme);
+                if (API_KEY_SERVICE_ENABLED_SETTING.get(settings)) {
+                    final String apiKeyScheme = "ApiKey";
+                    if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                        .contains(apiKeyScheme) == false) {
+                        defaultFailureResponseHeaders.get("WWW-Authenticate").add(apiKeyScheme);
+                    }
                 }
-            }
-            failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
+                return defaultFailureResponseHeaders;
+            };
+            DefaultAuthenticationFailureHandler finalDefaultFailureHandler = new DefaultAuthenticationFailureHandler(headersSupplier.get());
+            failureHandler = finalDefaultFailureHandler;
+            getLicenseState().addListener(() -> {
+                finalDefaultFailureHandler.setHeaders(headersSupplier.get());
+            });
         } else {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }
@@ -1068,23 +1073,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
-            return new ValidateUpgradedSecurityIndex()
-                .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
+            return new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings));
         }
         return null;
-    }
-
-    static final class ValidateUpgradedSecurityIndex implements BiConsumer<DiscoveryNode, ClusterState> {
-        @Override
-        public void accept(DiscoveryNode node, ClusterState state) {
-            if (state.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
-                IndexMetadata indexMetadata = state.getMetadata().getIndices().get(SECURITY_MAIN_ALIAS);
-                if (indexMetadata != null && INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) < INTERNAL_MAIN_INDEX_FORMAT) {
-                    throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_MAIN_INDEX_FORMAT + "] - " +
-                        "The Upgrade API must be run for 7.x nodes to join the cluster");
-                }
-            }
-        }
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

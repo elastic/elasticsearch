@@ -251,6 +251,51 @@ setup:
         index: ".ds-simple-data-stream1-000001"
 
 ---
+"Delete data stream missing behaviour":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: simple-data-streamz
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream*
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.delete_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      catch: missing
+      indices.delete_data_stream:
+        name: simple-data-stream2
+
+---
 "append-only writes to backing indices prohobited":
   - skip:
       version: " - 7.8.99"
@@ -354,3 +399,31 @@ setup:
       indices.delete_data_stream:
         name: logs-foobar
   - is_true: acknowledged
+
+---
+"Create index into a namespace that is governed by a data stream template":
+  - skip:
+      version: " - 7.9.1"
+      reason: "validation added in 7.9.2"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream: {}
+
+  # test response status code
+  - do:
+      catch: bad_request
+      indices.create:
+        index: logs-foobar
+
+  # test error message
+  - do:
+      catch: /cannot create index with name \[logs-foobar\], because it matches with template \[generic_logs_template\] that creates data streams only, use create data stream api instead/
+      indices.create:
+        index: logs-foobar

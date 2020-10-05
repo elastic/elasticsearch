@@ -125,8 +125,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     }
 
     static EqlSearchResponse createResponse(Results results, AsyncExecutionId id) {
-        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.events(), results.sequences(), results.counts(), results
-            .totalHits());
+        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.events(), results.sequences(), results.totalHits());
         if (id != null) {
             return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), id.getEncoded(), false, false);
         } else {

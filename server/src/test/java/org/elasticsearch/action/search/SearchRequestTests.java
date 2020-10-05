@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -167,8 +168,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // Reader context with scroll
             SearchRequest searchRequest = new SearchRequest()
-                .source(new SearchSourceBuilder().pointInTimeBuilder(
-                    new SearchSourceBuilder.PointInTimeBuilder("id", TimeValue.timeValueMillis(randomIntBetween(1, 10)))))
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id")))
                 .scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);

@@ -112,7 +112,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
-                addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
+                addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
             }, depsTask);
@@ -151,8 +151,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                     upgradeDepsTask.configure(t -> t.dependsOn(distribution, bwcDistro));
                     depsTasks.put(upgradeTaskname, upgradeDepsTask);
                     TaskProvider<Test> upgradeTest = configureTestTask(project, upgradeTaskname, distribution, t -> {
-                        addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::toString);
-                        addDistributionSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::toString);
+                        addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
+                        addDistributionSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::getFilepath);
                         t.include("**/PackageUpgradeTests.class");
                     }, upgradeDepsTask);
                     versionTasks.get(version.toString()).configure(t -> t.dependsOn(upgradeTest));
@@ -283,9 +283,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         vagrant.setBox(box);
 
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdkProvider, "", ""));
-        vagrant.vmEnv("JAVA_HOME", ""); // make sure any default java on the system is ignored
-        vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdkProvider, "/bin:$PATH", "\\bin;$Env:PATH"));
-        // pass these along to get correct build scans
+        // set java home for gradle to use. package tests will overwrite/remove this for each test case
+        vagrant.vmEnv("JAVA_HOME", convertPath(project, vagrant, gradleJdkProvider, "", ""));
         if (System.getenv("JENKINS_URL") != null) {
             Stream.of("JOB_NAME", "JENKINS_URL", "BUILD_NUMBER", "BUILD_URL").forEach(name -> vagrant.vmEnv(name, System.getenv(name)));
         }

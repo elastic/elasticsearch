@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class InternalInferenceAggregation extends InternalAggregation {
+public  class InternalInferenceAggregation extends InternalAggregation {
 
     private final InferenceResults inferenceResult;
 
@@ -47,6 +47,10 @@ public class InternalInferenceAggregation extends InternalAggregation {
         throw new UnsupportedOperationException("Reducing an inference aggregation is not supported");
     }
 
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
+    }
 
     @Override
     public Object getProperty(List<String> path) {

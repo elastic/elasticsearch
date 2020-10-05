@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.runtimefields.query;
 
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.hppc.cursors.LongCursor;
-
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -23,7 +22,7 @@ public class DoubleScriptFieldTermsQuery extends AbstractDoubleScriptFieldQuery 
      * Build the query.
      * @param terms The terms converted to a long with {@link Double#doubleToLongBits(double)}.
      */
-    public DoubleScriptFieldTermsQuery(Script script, DoubleScriptFieldScript.LeafFactory leafFactory, String fieldName, LongSet terms) {
+    public DoubleScriptFieldTermsQuery(Script script, DoubleFieldScript.LeafFactory leafFactory, String fieldName, LongSet terms) {
         super(script, leafFactory, fieldName);
         this.terms = terms;
     }

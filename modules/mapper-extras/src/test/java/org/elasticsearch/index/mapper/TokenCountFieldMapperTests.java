@@ -24,64 +24,73 @@ import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Test for {@link TokenCountFieldMapper}.
  */
-public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
+public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, MapperExtrasPlugin.class);
+    protected Collection<Plugin> getPlugins() {
+        return Collections.singletonList(new MapperExtrasPlugin());
     }
 
-    public void testMerge() throws IOException {
-        String stage1Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("person")
-                    .startObject("properties")
-                        .startObject("tc")
-                            .field("type", "token_count")
-                            .field("analyzer", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper stage1 = mapperService.merge("person",
-                new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE);
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "token_count").field("analyzer", "keyword");
+    }
 
-        String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("person")
-                    .startObject("properties")
-                        .startObject("tc")
-                            .field("type", "token_count")
-                            .field("analyzer", "standard")
-                        .endObject()
-                    .endObject()
-                .endObject().endObject());
-        DocumentMapper stage2 = mapperService.merge("person",
-                new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("some words");
+    }
 
-        // previous mapper has not been modified
-        assertThat(((TokenCountFieldMapper) stage1.mappers().getMapper("tc")).analyzer(), equalTo("keyword"));
-        // but the new one has the change
-        assertThat(((TokenCountFieldMapper) stage2.mappers().getMapper("tc")).analyzer(), equalTo("standard"));
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
+        checker.registerUpdateCheck(
+            this::minimalMapping,
+            b -> b.field("type", "token_count").field("analyzer", "standard"),
+            m -> {
+                TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
+                assertThat(tcfm.analyzer(), equalTo("standard"));
+            });
+    }
+
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        NamedAnalyzer dflt = new NamedAnalyzer(
+            "default",
+            AnalyzerScope.INDEX,
+            new StandardAnalyzer()
+        );
+        NamedAnalyzer standard = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
+        NamedAnalyzer keyword = new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer());
+        return new IndexAnalyzers(
+            Map.of("default", dflt, "standard", standard, "keyword", keyword),
+            Map.of(),
+            Map.of()
+        );
     }
 
     /**
@@ -120,33 +129,12 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
         Collections.shuffle(Arrays.asList(tokens), random());
         final TokenStream tokenStream = new CannedTokenStream(finalTokenIncrement, 0, tokens);
         // TODO: we have no CannedAnalyzer?
-        Analyzer analyzer = new Analyzer() {
+        return new Analyzer() {
             @Override
             public TokenStreamComponents createComponents(String fieldName) {
                 return new TokenStreamComponents(new MockTokenizer(), tokenStream);
             }
         };
-        return analyzer;
-    }
-
-    public void testEmptyName() throws IOException {
-        IndexService indexService = createIndex("test");
-        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("")
-                            .field("type", "token_count")
-                            .field("analyzer", "standard")
-                        .endObject()
-                    .endObject()
-                .endObject().endObject());
-
-        // Empty name not allowed in index created after 5.0
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type", new CompressedXContent(mapping))
-        );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
     public void testParseNullValue() throws Exception {
@@ -168,31 +156,27 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private DocumentMapper createIndexWithTokenCountField() throws IOException {
-        final String content = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("person")
-                .startObject("properties")
-                    .startObject("test")
-                        .field("type", "text")
-                        .startObject("fields")
-                            .startObject("tc")
-                                .field("type", "token_count")
-                                .field("analyzer", "standard")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject().endObject());
-
-        return createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(content));
+        return createDocumentMapper(mapping(b -> {
+            b.startObject("test");
+            {
+                b.field("type", "text");
+                b.startObject("fields");
+                {
+                    b.startObject("tc");
+                    {
+                        b.field("type", "token_count");
+                        b.field("analyzer", "standard");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
     }
 
     private SourceToParse createDocument(String fieldValue) throws Exception {
-        BytesReference request = BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-                .field("test", fieldValue)
-            .endObject());
-
-        return new SourceToParse("test", "1", request, XContentType.JSON);
+        return source(b -> b.field("test", fieldValue));
     }
 
     private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {

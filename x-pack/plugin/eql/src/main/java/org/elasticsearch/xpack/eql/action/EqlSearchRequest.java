@@ -40,7 +40,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false,
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true,
         false, true, false);
 
     private QueryBuilder filter = null;
@@ -123,7 +123,12 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is null", validationException);
+        } else {
+            if (indicesOptions.allowNoIndices()) {
+                validationException = addValidationError("allowNoIndices must be false", validationException);
+            }
         }
+
 
         if (query == null || query.isEmpty()) {
             validationException = addValidationError("query is null or empty", validationException);
@@ -137,8 +142,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("event category field is null or empty", validationException);
         }
 
-        if (size <= 0) {
-            validationException = addValidationError("size must be greater than 0", validationException);
+        if (size < 0) {
+            validationException = addValidationError("size must be greater than or equal to 0", validationException);
         }
 
         if (fetchSize < 2) {
@@ -329,6 +334,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
+                Objects.equals(size, that.size) &&
+                Objects.equals(fetchSize, that.fetchSize) &&
                 Objects.equals(timestampField, that.timestampField) &&
                 Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
@@ -337,6 +344,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(isCaseSensitive, that.isCaseSensitive);
     }
+
 
     @Override
     public int hashCode() {

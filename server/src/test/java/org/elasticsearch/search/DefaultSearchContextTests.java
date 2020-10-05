@@ -31,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -52,6 +53,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -142,7 +144,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
 
             ReaderContext readerWithoutScroll = new ReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
+                newContextId(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
             DefaultSearchContext contextWithoutScroll = new DefaultSearchContext(readerWithoutScroll, shardSearchRequest, target, null,
                 bigArrays, null, timeout, null, false);
             contextWithoutScroll.from(300);
@@ -158,7 +160,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             // resultWindow greater than maxResultWindow and scrollContext isn't null
             when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMillis(randomInt(1000))));
             ReaderContext readerContext = new LegacyReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), shardSearchRequest, randomNonNegativeLong());
+                newContextId(), indexService, indexShard, searcherSupplier.get(), shardSearchRequest, randomNonNegativeLong());
             DefaultSearchContext context1 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
                 bigArrays, null, timeout, null, false);
             context1.from(300);
@@ -191,7 +193,7 @@ public class DefaultSearchContextTests extends ESTestCase {
 
             readerContext.close();
             readerContext = new ReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
+                newContextId(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target,
                 null, bigArrays, null, timeout, null, false);
@@ -221,7 +223,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
 
             readerContext.close();
-            readerContext = new ReaderContext(randomNonNegativeLong(), indexService, indexShard,
+            readerContext = new ReaderContext(newContextId(), indexService, indexShard,
                 searcherSupplier.get(), randomNonNegativeLong(), false);
             DefaultSearchContext context4 =
                 new DefaultSearchContext(readerContext, shardSearchRequest, target, null, bigArrays, null, timeout, null, false);
@@ -275,7 +277,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             };
             SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
             ReaderContext readerContext = new ReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, searcherSupplier, randomNonNegativeLong(), false);
+                newContextId(), indexService, indexShard, searcherSupplier, randomNonNegativeLong(), false);
             DefaultSearchContext context = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
                 bigArrays, null, timeout, null, false);
 
@@ -290,5 +292,9 @@ public class DefaultSearchContextTests extends ESTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    private ShardSearchContextId newContextId() {
+        return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
     }
 }

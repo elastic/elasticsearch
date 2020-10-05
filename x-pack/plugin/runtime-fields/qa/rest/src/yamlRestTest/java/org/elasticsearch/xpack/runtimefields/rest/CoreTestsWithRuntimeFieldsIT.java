@@ -197,17 +197,17 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     }
 
     private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
-        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "emitValue(parse(value));"),
-        Map.entry(DateFieldMapper.CONTENT_TYPE, "emitValue(parse(value.toString()));"),
+        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "emit(parse(value));"),
+        Map.entry(DateFieldMapper.CONTENT_TYPE, "emit(parse(value.toString()));"),
         Map.entry(
             NumberType.DOUBLE.typeName(),
-            "emitValue(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
+            "emit(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
         ),
-        Map.entry(KeywordFieldMapper.CONTENT_TYPE, "emitValue(value.toString());"),
-        Map.entry(IpFieldMapper.CONTENT_TYPE, "emitValue(value.toString());"),
+        Map.entry(KeywordFieldMapper.CONTENT_TYPE, "emit(value.toString());"),
+        Map.entry(IpFieldMapper.CONTENT_TYPE, "emit(value.toString());"),
         Map.entry(
             NumberType.LONG.typeName(),
-            "emitValue(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
+            "emit(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
         )
     );
 

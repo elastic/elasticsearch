@@ -29,6 +29,7 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.math.BigInteger;
 import java.time.ZonedDateTime;
 import java.util.BitSet;
 import java.util.Collections;
@@ -734,6 +735,8 @@ public final class Def {
             return (float)value;
         } else if (value instanceof Double) {
             return (double)value;
+        } else if (value instanceof BigInteger) {
+            return ((BigInteger)value).doubleValue();
         } else {
             throw new ClassCastException("cannot implicitly cast " +
                     "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
@@ -866,7 +869,8 @@ public final class Def {
                 value instanceof Integer ||
                 value instanceof Long    ||
                 value instanceof Float   ||
-                value instanceof Double
+                value instanceof Double  ||
+                value instanceof BigInteger
         ) {
             return ((Number)value).doubleValue();
         } else {
@@ -1004,7 +1008,9 @@ public final class Def {
         } else if (value instanceof Float) {
             return (double)(float)value;
         } else if (value instanceof Double) {
-            return (Double)value;
+            return (Double) value;
+        } else if (value instanceof BigInteger) {
+            return ((BigInteger)value).doubleValue();
         } else {
             throw new ClassCastException("cannot implicitly cast " +
                     "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
@@ -1151,7 +1157,8 @@ public final class Def {
                 value instanceof Integer ||
                 value instanceof Long    ||
                 value instanceof Float   ||
-                value instanceof Double
+                value instanceof Double  ||
+                value instanceof BigInteger
         ) {
             return ((Number)value).doubleValue();
         } else {

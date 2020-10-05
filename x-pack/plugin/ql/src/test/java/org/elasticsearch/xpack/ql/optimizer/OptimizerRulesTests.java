@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.Arrays;
@@ -1317,5 +1319,54 @@ public class OptimizerRulesTests extends ESTestCase {
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(Predicates.combineOr(Arrays.asList(eq, range, neq, gt)));
         assertEquals(TRUE, exp);
+    }
+
+    //
+    // Like / Regex
+    //
+    public void testMatchAllLikeToExist() throws Exception {
+        for (String s : Arrays.asList("%", "%%", "%%%")) {
+            LikePattern pattern = new LikePattern(s, (char) 0);
+            FieldAttribute fa = getFieldAttribute();
+            Like l = new Like(EMPTY, fa, pattern);
+            Expression e = new OptimizerRules.ReplaceRegexMatch().rule(l);
+            assertEquals(IsNotNull.class, e.getClass());
+            IsNotNull inn = (IsNotNull) e;
+            assertEquals(fa, inn.field());
+        }
+    }
+
+    public void testMatchAllRLikeToExist() throws Exception {
+            RLikePattern pattern = new RLikePattern(".*");
+            FieldAttribute fa = getFieldAttribute();
+            RLike l = new RLike(EMPTY, fa, pattern);
+            Expression e = new OptimizerRules.ReplaceRegexMatch().rule(l);
+            assertEquals(IsNotNull.class, e.getClass());
+            IsNotNull inn = (IsNotNull) e;
+            assertEquals(fa, inn.field());
+    }
+
+    public void testExactMatchLike() throws Exception {
+        for (String s : Arrays.asList("ab", "ab0%", "ab0_c")) {
+            LikePattern pattern = new LikePattern(s, '0');
+            FieldAttribute fa = getFieldAttribute();
+            Like l = new Like(EMPTY, fa, pattern);
+            Expression e = new OptimizerRules.ReplaceRegexMatch().rule(l);
+            assertEquals(Equals.class, e.getClass());
+            Equals eq = (Equals) e;
+            assertEquals(fa, eq.left());
+            assertEquals(s.replace("0", StringUtils.EMPTY), eq.right().fold());
+        }
+    }
+
+    public void testExactMatchRLike() throws Exception {
+        RLikePattern pattern = new RLikePattern("abc");
+        FieldAttribute fa = getFieldAttribute();
+        RLike l = new RLike(EMPTY, fa, pattern);
+        Expression e = new OptimizerRules.ReplaceRegexMatch().rule(l);
+        assertEquals(Equals.class, e.getClass());
+        Equals eq = (Equals) e;
+        assertEquals(fa, eq.left());
+        assertEquals("abc", eq.right().fold());
     }
 }

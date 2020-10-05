@@ -21,4 +21,3 @@ dependencies {
   compileOnly project(":x-pack:plugin:core")
 }
 
-integTest.enabled = false

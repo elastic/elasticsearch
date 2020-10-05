@@ -24,10 +24,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -36,8 +36,53 @@ import static org.hamcrest.Matchers.instanceOf;
 public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        final byte[] binaryValue = new byte[100];
+        binaryValue[56] = 1;
+        builder.value(binaryValue);
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "binary");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+    }
+
+    public void testExistsQueryDocValuesEnabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", true);
+            if (randomBoolean()) {
+                b.field("store", randomBoolean());
+            }
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public void testExistsQueryStoreEnabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", true);
+            if (randomBoolean()) {
+                b.field("doc_values", false);
+            }
+        }));
+        assertExistsQuery(mapperService);
+    }
+
+    public void testExistsQueryStoreAndDocValuesDiabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", false);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
     }
 
     public void testDefaultMapping() throws Exception {
@@ -61,7 +106,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
         // case 2: a value that looks compressed: this used to fail in 1.x
         BytesStreamOutput out = new BytesStreamOutput();
-        try (StreamOutput compressed = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(out)) {
+        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalOutputStream(out)) {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
         final byte[] binaryValue2 = BytesReference.toBytes(out.bytes());

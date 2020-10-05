@@ -10,14 +10,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.Objects;
 
 public class StringScriptFieldFuzzyQuery extends AbstractStringScriptFieldAutomatonQuery {
     public static StringScriptFieldFuzzyQuery build(
         Script script,
-        StringScriptFieldScript.LeafFactory leafFactory,
+        StringFieldScript.LeafFactory leafFactory,
         String fieldName,
         String term,
         int maxEdits,
@@ -34,7 +34,7 @@ public class StringScriptFieldFuzzyQuery extends AbstractStringScriptFieldAutoma
 
     private StringScriptFieldFuzzyQuery(
         Script script,
-        StringScriptFieldScript.LeafFactory leafFactory,
+        StringFieldScript.LeafFactory leafFactory,
         String fieldName,
         ByteRunAutomaton automaton,
         FuzzyQuery delegate

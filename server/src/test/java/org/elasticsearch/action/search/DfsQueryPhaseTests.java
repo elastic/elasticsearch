@@ -25,8 +25,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -86,15 +89,19 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 }
             }
         };
+        SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, searchPhaseController(),
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
+            results.length(), exc -> {});
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
             (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
                 responseRef.set(response.results);
             }
-        }, mockSearchPhaseContext, exc ->  {});
+        }, mockSearchPhaseContext);
         assertEquals("dfs_query", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
@@ -141,15 +148,19 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 }
             }
         };
+        SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, searchPhaseController(),
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
+            results.length(), exc -> {});
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
             (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
                     responseRef.set(response.results);
                 }
-            }, mockSearchPhaseContext, exc -> {});
+            }, mockSearchPhaseContext);
         assertEquals("dfs_query", phase.getName());
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
@@ -198,15 +209,19 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 }
             }
         };
+        SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, searchPhaseController(),
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP, mockSearchPhaseContext.searchRequest,
+            results.length(), exc -> {});
+        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer,
             (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
                     responseRef.set(response.results);
                 }
-            }, mockSearchPhaseContext, exc  -> {});
+            }, mockSearchPhaseContext);
         assertEquals("dfs_query", phase.getName());
         expectThrows(UncheckedIOException.class, phase::run);
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty()); // phase execution will clean up on the contexts

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -31,16 +30,13 @@ import java.io.IOException;
 
 public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
-    private static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
-
     private final ShardId shardId;
     private final BulkItemResponse[] responses;
 
     BulkShardResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
-        responses = in.readArray(in.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION)
-                ? i -> new BulkItemResponse(shardId, i) : BulkItemResponse::new, BulkItemResponse[]::new);
+        responses = in.readArray(i -> new BulkItemResponse(shardId, i), BulkItemResponse[]::new);
     }
 
     // NOTE: public for testing only
@@ -75,7 +71,6 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
-        out.writeArray(out.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION)
-                ? (o, item) -> item.writeThin(out) : (o, item) -> item.writeTo(o), responses);
+        out.writeArray((o, item) -> item.writeThin(out), responses);
     }
 }

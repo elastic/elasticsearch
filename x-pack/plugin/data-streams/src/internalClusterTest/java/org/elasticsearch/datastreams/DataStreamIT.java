@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
@@ -47,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -281,6 +284,118 @@ public class DataStreamIT extends ESIntegTestCase {
             );
             BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
             assertThat(bulkItemResponses.getItems()[0].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+        }
+
+        {
+            // TODO: remove when fixing the bug when an index matching a backing index name is created before the data stream is created
+            createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName + "-baz");
+            client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+            BulkRequest bulkRequest = new BulkRequest().add(
+                new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON),
+                new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).create(true),
+                new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON),
+                new UpdateRequest(dataStreamName, "_id").doc("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON),
+                new DeleteRequest(dataStreamName, "_id"),
+                new IndexRequest(dataStreamName + "-baz").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).create(true),
+                new DeleteRequest(dataStreamName + "-baz", "_id"),
+                new IndexRequest(dataStreamName + "-baz").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON),
+                new IndexRequest(dataStreamName + "-baz").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).create(true),
+                // Non create ops directly against backing indices are allowed:
+                new DeleteRequest(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1), "_id"),
+                new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1)).source(
+                    "{\"@timestamp\": \"2020-12-12\"}",
+                    XContentType.JSON
+                ).id("_id").setIfSeqNo(1).setIfPrimaryTerm(1)
+            );
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat(bulkResponse.getItems(), arrayWithSize(11));
+            {
+                assertThat(bulkResponse.getItems()[0].getFailure(), notNullValue());
+                assertThat(bulkResponse.getItems()[0].getResponse(), nullValue());
+                assertThat(
+                    bulkResponse.getItems()[0].getFailure().getMessage(),
+                    containsString("only write ops with an op_type of create are allowed in data streams")
+                );
+            }
+            {
+                assertThat(bulkResponse.getItems()[1].getFailure(), nullValue());
+                assertThat(bulkResponse.getItems()[1].getResponse(), notNullValue());
+                assertThat(bulkResponse.getItems()[1].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+            }
+            {
+                assertThat(bulkResponse.getItems()[2].getFailure(), notNullValue());
+                assertThat(bulkResponse.getItems()[2].getResponse(), nullValue());
+                assertThat(
+                    bulkResponse.getItems()[2].getFailure().getMessage(),
+                    containsString("only write ops with an op_type of create are allowed in data streams")
+                );
+            }
+            {
+                assertThat(bulkResponse.getItems()[3].getFailure(), notNullValue());
+                assertThat(bulkResponse.getItems()[3].getResponse(), nullValue());
+                assertThat(
+                    bulkResponse.getItems()[3].getFailure().getMessage(),
+                    containsString("only write ops with an op_type of create are allowed in data streams")
+                );
+            }
+            {
+                assertThat(bulkResponse.getItems()[4].getFailure(), notNullValue());
+                assertThat(bulkResponse.getItems()[4].getResponse(), nullValue());
+                assertThat(
+                    bulkResponse.getItems()[4].getFailure().getMessage(),
+                    containsString("only write ops with an op_type of create are allowed in data streams")
+                );
+            }
+            {
+                assertThat(bulkResponse.getItems()[5].getFailure(), nullValue());
+                assertThat(bulkResponse.getItems()[5].getResponse(), notNullValue());
+                assertThat(
+                    bulkResponse.getItems()[5].getIndex(),
+                    equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1))
+                );
+            }
+            {
+                assertThat(bulkResponse.getItems()[6].getFailure(), notNullValue());
+                assertThat(bulkResponse.getItems()[6].getResponse(), nullValue());
+                assertThat(
+                    bulkResponse.getItems()[6].getFailure().getMessage(),
+                    containsString("only write ops with an op_type of create are allowed in data streams")
+                );
+            }
+            {
+                assertThat(bulkResponse.getItems()[7].getFailure(), notNullValue());
+                assertThat(bulkResponse.getItems()[7].getResponse(), nullValue());
+                assertThat(
+                    bulkResponse.getItems()[7].getFailure().getMessage(),
+                    containsString("only write ops with an op_type of create are allowed in data streams")
+                );
+            }
+            {
+                assertThat(bulkResponse.getItems()[8].getFailure(), nullValue());
+                assertThat(bulkResponse.getItems()[8].getResponse(), notNullValue());
+                assertThat(
+                    bulkResponse.getItems()[8].getIndex(),
+                    equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1))
+                );
+            }
+            {
+                assertThat(bulkResponse.getItems()[9].getFailure(), nullValue());
+                assertThat(bulkResponse.getItems()[9].getResponse(), notNullValue());
+                assertThat(
+                    bulkResponse.getItems()[9].getIndex(),
+                    equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1))
+                );
+            }
+            {
+                assertThat(bulkResponse.getItems()[10].getResponse(), nullValue());
+                assertThat(bulkResponse.getItems()[10].getFailure(), notNullValue());
+                assertThat(bulkResponse.getItems()[10].status(), equalTo(RestStatus.CONFLICT));
+                assertThat(
+                    bulkResponse.getItems()[10].getIndex(),
+                    equalTo(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1))
+                );
+            }
         }
     }
 
@@ -930,6 +1045,69 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getIndexResponse.getIndices(), arrayWithSize(1));
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-foobar"));
         assertThat(getIndexResponse.getSettings().get("logs-foobar").get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), equalTo("0"));
+    }
+
+    public void testCreatingDataStreamAndFirstBackingIndexExistsFails() throws Exception {
+        String dataStreamName = "logs-foobar";
+        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        createIndex(backingIndex);
+        putComposableIndexTemplate("id", List.of("logs-*"));
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        Exception e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet()
+        );
+        assertThat(e.getMessage(), equalTo("data stream could not be created because backing index [" + backingIndex + "] already exists"));
+    }
+
+    public void testAutoCreatingDataStreamAndFirstBackingIndexExistsFails() throws Exception {
+        String dataStreamName = "logs-foobar";
+        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        createIndex(backingIndex);
+        putComposableIndexTemplate("id", List.of("logs-*"));
+
+        IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create")
+            .source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON);
+        Exception e = expectThrows(ElasticsearchStatusException.class, () -> client().index(indexRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("data stream could not be created because backing index [" + backingIndex + "] already exists"));
+    }
+
+    public void testCreatingDataStreamAndBackingIndexExistsFails() throws Exception {
+        String dataStreamName = "logs-foobar";
+        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+
+        createIndex(backingIndex);
+        putComposableIndexTemplate("id", List.of("logs-*"));
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet()
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "data stream [logs-foobar] could create backing indices that conflict with 1 "
+                    + "existing index(s) or alias(s) including '.ds-logs-foobar-000002'"
+            )
+        );
+    }
+
+    public void testQueryDataStreamNameInIndexField() throws Exception {
+        putComposableIndexTemplate("id1", List.of("metrics-*"));
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        indexDocs("metrics-foo", 1);
+        indexDocs("metrics-bar", 1);
+
+        SearchRequest searchRequest = new SearchRequest("*");
+        searchRequest.source().query(new TermQueryBuilder("_index", "metrics-foo"));
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {

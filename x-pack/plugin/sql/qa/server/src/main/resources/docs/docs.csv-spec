@@ -262,6 +262,7 @@ DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
 DOW              |SCALAR         
 DOY              |SCALAR
+FORMAT           |SCALAR
 HOUR             |SCALAR
 HOUR_OF_DAY      |SCALAR         
 IDOW             |SCALAR
@@ -3087,6 +3088,36 @@ SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
 ------------------
 +19 00:00:00
 // end::truncateIntervalDay
+;
+
+formatDate
+// tag::formatDate
+SELECT FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::formatDate
+;
+
+formatDateTime
+// tag::formatDateTime
+SELECT FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.ff') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.98
+// end::formatDateTime
+;
+
+formatTime
+// tag::formatTime
+SELECT FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.f') AS "time";
+
+      time
+------------------
+11 22 33.9
+// end::formatTime
 ;
 
 constantDayOfWeek

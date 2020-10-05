@@ -17,14 +17,14 @@ setup:
                 type: runtime
                 runtime_type: keyword
                 script: |
-                  emitValue(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
               tomorrow:
                 type: runtime
                 runtime_type: date
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
-                      emitValue(toEpochMilli(dt.plus(params.days, ChronoUnit.DAYS)));
+                      emit(toEpochMilli(dt.plus(params.days, ChronoUnit.DAYS)));
                     }
                   params:
                     days: 1
@@ -36,7 +36,7 @@ setup:
                 script:
                   source: |
                     for (double v : doc['voltage']) {
-                      emitValue((long)(v * params.multiplier));
+                      emit((long)(v * params.multiplier));
                     }
                   params:
                     multiplier: 10
@@ -46,7 +46,7 @@ setup:
                 script:
                   source: |
                     for (double v : doc['voltage']) {
-                      emitValue(v / params.max);
+                      emit(v / params.max);
                     }
                   params:
                     max: 5.8
@@ -57,14 +57,14 @@ setup:
                   source: |
                     String m = doc["message"].value;
                     int end = m.indexOf(" ");
-                    emitValue(m.substring(0, end));
+                    emit(m.substring(0, end));
               over_v:
                 type: runtime
                 runtime_type: boolean
                 script:
                   source: |
                     for (def v : doc['voltage']) {
-                      emitValue(v >= params.min_v);
+                      emit(v >= params.min_v);
                     }
                   params:
                     min_v: 5.0

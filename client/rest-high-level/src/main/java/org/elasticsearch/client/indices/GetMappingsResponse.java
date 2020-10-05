@@ -50,7 +50,7 @@ public class GetMappingsResponse {
 
         XContentParserUtils.ensureExpectedToken(parser.currentToken(),
             XContentParser.Token.START_OBJECT,
-            parser::getTokenLocation);
+            parser);
 
         Map<String, Object> parts = parser.map();
 

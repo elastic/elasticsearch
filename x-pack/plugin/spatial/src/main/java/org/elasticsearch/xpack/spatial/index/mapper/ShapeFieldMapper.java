@@ -7,8 +7,10 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.XYShape;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
@@ -16,6 +18,7 @@ import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.util.List;
@@ -51,12 +54,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
 
         @Override
         public ShapeFieldMapper build(BuilderContext context) {
-            ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, meta);
             GeometryParser geometryParser
                 = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(), ignoreZValue().value());
             ft.setGeometryParser(new GeoShapeParser(geometryParser));
             ft.setGeometryIndexer(new ShapeIndexer(ft.name()));
-            ft.setGeometryQueryBuilder(new ShapeQueryProcessor());
             ft.setOrientation(orientation().value());
             return new ShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), orientation(), multiFieldsBuilder.build(this, context), copyTo);
@@ -76,9 +78,19 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         }
     }
 
-    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
-        public ShapeFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry>
+        implements ShapeQueryable {
+
+        private final ShapeQueryProcessor queryProcessor;
+
+        public ShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, false, meta);
+            this.queryProcessor = new ShapeQueryProcessor();
+        }
+
+        @Override
+        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            return queryProcessor.shapeQuery(shape, fieldName, relation, context);
         }
 
         @Override

@@ -18,6 +18,7 @@ import org.yaml.snakeyaml.util.UriEncoder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -106,31 +107,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
     }
 
     public void testMiniFarequoteWithDatafeeder() throws Exception {
-        boolean datesHaveNanoSecondResolution = randomBoolean();
-        String dateMappingType = datesHaveNanoSecondResolution ? "date_nanos" : "date";
-        String dateFormat = datesHaveNanoSecondResolution ? "strict_date_optional_time_nanos" : "strict_date_optional_time";
-        String randomNanos = datesHaveNanoSecondResolution ? "," + randomIntBetween(100000000, 999999999) : "";
-        Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity("{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time\": { \"type\":\"" + dateMappingType + "\", \"format\":\"" + dateFormat + "\"},"
-                + "      \"airline\": { \"type\":\"keyword\"},"
-                + "      \"responsetime\": { \"type\":\"float\"}"
-                + "    }"
-                + "  }"
-                + "}");
-        client().performRequest(createAirlineDataRequest);
-        Request airlineData1 = new Request("PUT", "/airline-data/_doc/1");
-        airlineData1.setJsonEntity("{\"time\":\"2016-06-01T00:00:00" + randomNanos + "Z\",\"airline\":\"AAA\",\"responsetime\":135.22}");
-        client().performRequest(airlineData1);
-        Request airlineData2 = new Request("PUT", "/airline-data/_doc/2");
-        airlineData2.setJsonEntity("{\"time\":\"2016-06-01T01:59:00" + randomNanos + "Z\",\"airline\":\"AAA\",\"responsetime\":541.76}");
-        client().performRequest(airlineData2);
-
-        // Ensure all data is searchable
-        refreshAllIndices();
-
+        createAndIndexFarequote();
         String jobId = "mini-farequote-with-data-feeder-job";
         createFarequoteJob(jobId);
         String datafeedId = "bar";
@@ -265,6 +242,211 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(new Request("DELETE", BASE_PATH + "anomaly_detectors/" + jobId));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testExportAndPutJob() throws Exception {
+        String jobId = "test-export-import-job";
+        createFarequoteJob(jobId);
+        Response jobResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "?for_export=true"));
+        Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("jobs")).get(0);
+
+        XContentBuilder xContentBuilder = jsonBuilder().map(originalJobBody);
+        Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/" + jobId + "-import");
+        request.setJsonEntity(Strings.toString(xContentBuilder));
+        client().performRequest(request);
+
+        Response importedJobResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "-import" + "?for_export=true"));
+        Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse).get("jobs")).get(0);
+        assertThat(originalJobBody, equalTo(importedJobBody));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExportAndPutDatafeed() throws Exception {
+        createAndIndexFarequote();
+        String jobId = "test-export-import-datafeed";
+        createFarequoteJob(jobId);
+        String datafeedId = jobId + "-datafeed";
+        createDatafeed(datafeedId, jobId);
+
+        Response dfResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "?for_export=true"));
+        Map<String, Object> originalDfBody = (Map<String, Object>)((List<?>) entityAsMap(dfResponse).get("datafeeds")).get(0);
+
+        //Delete this so we can PUT another datafeed for the same job
+        client().performRequest(new Request("DELETE", BASE_PATH + "datafeeds/" + datafeedId));
+
+        Map<String, Object> toPut = new HashMap<>(originalDfBody);
+        toPut.put("job_id", jobId);
+        XContentBuilder xContentBuilder = jsonBuilder().map(toPut);
+        Request request = new Request("PUT", BASE_PATH + "datafeeds/" + datafeedId + "-import");
+        request.setJsonEntity(Strings.toString(xContentBuilder));
+        client().performRequest(request);
+
+        Response importedDfResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "-import" + "?for_export=true"));
+        Map<String, Object> importedDfBody = (Map<String, Object>)((List<?>) entityAsMap(importedDfResponse).get("datafeeds")).get(0);
+        assertThat(originalDfBody, equalTo(importedDfBody));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExportAndPutDataFrameAnalytics_OutlierDetection() throws Exception {
+        createAndIndexFarequote();
+        String analyticsId = "outlier-export-import";
+        XContentBuilder xContentBuilder = jsonBuilder();
+        xContentBuilder.startObject();
+        {
+            xContentBuilder.field("description", "outlier analytics");
+
+            xContentBuilder.startObject("source");
+            {
+                xContentBuilder.field("index", "airline-data");
+            }
+            xContentBuilder.endObject();
+            xContentBuilder.startObject("dest");
+            {
+                xContentBuilder.field("index", "outliers-airline-data");
+            }
+            xContentBuilder.endObject();
+            xContentBuilder.startObject("analysis");
+            {
+                xContentBuilder.startObject("outlier_detection");
+                {
+                    xContentBuilder.field("compute_feature_influence", false);
+                }
+                xContentBuilder.endObject();
+            }
+            xContentBuilder.endObject();
+        }
+        xContentBuilder.endObject();
+
+        Request request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId);
+        request.setJsonEntity(Strings.toString(xContentBuilder));
+        client().performRequest(request);
+
+        Response jobResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?for_export=true"));
+        Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
+
+        XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
+        request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import");
+        request.setJsonEntity(Strings.toString(newBuilder));
+        client().performRequest(request);
+
+        Response importedJobResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?for_export=true"));
+        Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse)
+            .get("data_frame_analytics"))
+            .get(0);
+        assertThat(originalJobBody, equalTo(importedJobBody));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExportAndPutDataFrameAnalytics_Regression() throws Exception {
+        createAndIndexFarequote();
+        String analyticsId = "regression-export-import";
+        XContentBuilder xContentBuilder = jsonBuilder();
+        xContentBuilder.startObject();
+        {
+            xContentBuilder.field("description", "regression analytics");
+
+            xContentBuilder.startObject("source");
+            {
+                xContentBuilder.field("index", "airline-data");
+            }
+            xContentBuilder.endObject();
+            xContentBuilder.startObject("dest");
+            {
+                xContentBuilder.field("index", "regression-airline-data");
+            }
+            xContentBuilder.endObject();
+            xContentBuilder.startObject("analysis");
+            {
+                xContentBuilder.startObject("regression");
+                {
+                    xContentBuilder.field("dependent_variable", "responsetime");
+                    xContentBuilder.field("training_percent", 50);
+                }
+                xContentBuilder.endObject();
+            }
+            xContentBuilder.endObject();
+        }
+        xContentBuilder.endObject();
+
+        Request request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId);
+        request.setJsonEntity(Strings.toString(xContentBuilder));
+        client().performRequest(request);
+
+        Response jobResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?for_export=true"));
+        Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
+
+        XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
+        request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import");
+        request.setJsonEntity(Strings.toString(newBuilder));
+        client().performRequest(request);
+
+        Response importedJobResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?for_export=true"));
+        Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse)
+            .get("data_frame_analytics"))
+            .get(0);
+        assertThat(originalJobBody, equalTo(importedJobBody));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExportAndPutDataFrameAnalytics_Classification() throws Exception {
+        createAndIndexFarequote();
+        String analyticsId = "classification-export-import";
+        XContentBuilder xContentBuilder = jsonBuilder();
+        xContentBuilder.startObject();
+        {
+            xContentBuilder.field("description", "classification analytics");
+
+            xContentBuilder.startObject("source");
+            {
+                xContentBuilder.field("index", "airline-data");
+            }
+            xContentBuilder.endObject();
+            xContentBuilder.startObject("dest");
+            {
+                xContentBuilder.field("index", "classification-airline-data");
+            }
+            xContentBuilder.endObject();
+            xContentBuilder.startObject("analysis");
+            {
+                xContentBuilder.startObject("classification");
+                {
+                    xContentBuilder.field("dependent_variable", "airline");
+                    xContentBuilder.field("training_percent", 60);
+                }
+                xContentBuilder.endObject();
+            }
+            xContentBuilder.endObject();
+        }
+        xContentBuilder.endObject();
+
+        Request request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId);
+        request.setJsonEntity(Strings.toString(xContentBuilder));
+        client().performRequest(request);
+
+        Response jobResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?for_export=true"));
+        Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
+
+        XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
+        request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import");
+        request.setJsonEntity(Strings.toString(newBuilder));
+        client().performRequest(request);
+
+        Response importedJobResponse = client().performRequest(
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?for_export=true"));
+        Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse)
+            .get("data_frame_analytics"))
+            .get(0);
+        assertThat(originalJobBody, equalTo(importedJobBody));
+    }
+
     private Response createDatafeed(String datafeedId, String jobId) throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder();
         xContentBuilder.startObject();
@@ -321,5 +503,32 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertThat(asMap.size(), equalTo(2));
         assertThat(asMap.get("flushed"), is(true));
         assertThat(asMap.get("last_finalized_bucket_end"), equalTo(expectedLastFinalizedBucketEnd));
+    }
+
+    private void createAndIndexFarequote() throws Exception {
+        boolean datesHaveNanoSecondResolution = randomBoolean();
+        String dateMappingType = datesHaveNanoSecondResolution ? "date_nanos" : "date";
+        String dateFormat = datesHaveNanoSecondResolution ? "strict_date_optional_time_nanos" : "strict_date_optional_time";
+        String randomNanos = datesHaveNanoSecondResolution ? "," + randomIntBetween(100000000, 999999999) : "";
+        Request createAirlineDataRequest = new Request("PUT", "/airline-data");
+        createAirlineDataRequest.setJsonEntity("{"
+            + "  \"mappings\": {"
+            + "    \"properties\": {"
+            + "      \"time\": { \"type\":\"" + dateMappingType + "\", \"format\":\"" + dateFormat + "\"},"
+            + "      \"airline\": { \"type\":\"keyword\"},"
+            + "      \"responsetime\": { \"type\":\"float\"}"
+            + "    }"
+            + "  }"
+            + "}");
+        client().performRequest(createAirlineDataRequest);
+        Request airlineData1 = new Request("PUT", "/airline-data/_doc/1");
+        airlineData1.setJsonEntity("{\"time\":\"2016-06-01T00:00:00" + randomNanos + "Z\",\"airline\":\"AAA\",\"responsetime\":135.22}");
+        client().performRequest(airlineData1);
+        Request airlineData2 = new Request("PUT", "/airline-data/_doc/2");
+        airlineData2.setJsonEntity("{\"time\":\"2016-06-01T01:59:00" + randomNanos + "Z\",\"airline\":\"AAA\",\"responsetime\":541.76}");
+        client().performRequest(airlineData2);
+
+        // Ensure all data is searchable
+        refreshAllIndices();
     }
 }

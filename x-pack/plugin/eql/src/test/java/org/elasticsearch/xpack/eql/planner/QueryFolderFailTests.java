@@ -133,11 +133,11 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
 
     public void testMatchWithText() {
         VerificationException e = expectThrows(VerificationException.class,
-            () -> plan("process where match(plain_text, 'foo.*')"));
+            () -> plan("process where match(plain_text, \"foo.*\")"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-            "line 1:15: [match(plain_text, 'foo.*')] cannot operate on first argument field of data type [text]: No keyword/multi-field " +
-            "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+            "line 1:15: [match(plain_text, \"foo.*\")] cannot operate on first argument field of data type [text]: " +
+            "No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
     public void testMatchWithNonString() {
@@ -253,9 +253,9 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
 
     public void testWildcardWithNumericField() {
         VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where wildcard(pid, '*.exe')"));
+                () -> plan("process where wildcard(pid, \"*.exe\")"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-                "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
+                "line 1:15: first argument of [wildcard(pid, \"*.exe\")] must be [string], found value [pid] type [long]", msg);
     }
 }

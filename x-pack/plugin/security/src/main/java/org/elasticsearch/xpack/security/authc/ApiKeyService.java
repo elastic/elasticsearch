@@ -241,7 +241,7 @@ public class ApiKeyService {
                 executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
                     TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
                         indexResponse -> {
-                            assert indexResponse.getId() == request.getId();
+                            assert request.getId().equals(indexResponse.getId());
                             listener.onResponse(
                                     new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
                         },

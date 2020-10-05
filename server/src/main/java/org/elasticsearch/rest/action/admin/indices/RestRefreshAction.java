@@ -54,11 +54,6 @@ public class RestRefreshAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean allowSystemIndexAccessByDefault() {
-        return true;
-    }
-
-    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RefreshRequest refreshRequest = new RefreshRequest(Strings.splitStringByCommaToArray(request.param("index")));
         refreshRequest.indicesOptions(IndicesOptions.fromRequest(request, refreshRequest.indicesOptions()));

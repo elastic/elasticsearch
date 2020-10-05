@@ -834,7 +834,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request refreshRequest = new Request("POST", "/_refresh");
         refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
         // Allow system index deprecation warnings
-        refreshRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+        final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
+        requestOptions.setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {
                 return false;
             } else if (warnings.size() > 1) {
@@ -842,7 +843,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             } else {
                 return warnings.get(0).startsWith("this request accesses system indices:") == false;
             }
-        }));
+        });
+        refreshRequest.setOptions(requestOptions);
         client().performRequest(refreshRequest);
     }
 

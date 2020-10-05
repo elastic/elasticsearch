@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -57,7 +58,6 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -247,22 +247,21 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         });
     }
 
-    private void applyClusterState(final String reason, final Function<ClusterState, ClusterState> applier) throws Exception {
-        final CompletableFuture<String> future = new CompletableFuture<>();
-        clusterService.getClusterApplierService().onNewClusterState(reason,
+    private void applyClusterState(final String reason, final Function<ClusterState, ClusterState> applier) {
+        PlainActionFuture.get(future -> clusterService.getClusterApplierService().onNewClusterState(reason,
             () -> applier.apply(clusterService.state()),
             new ClusterApplier.ClusterApplyListener() {
                 @Override
                 public void onSuccess(String source) {
-                    future.complete(source);
+                    future.onResponse(source);
                 }
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    future.completeExceptionally(e);
+                    future.onFailure(e);
                 }
-            });
-        future.get();
+            })
+        );
     }
 
     private void waitForMaxActiveGenericThreads(final int nbActive) throws Exception {

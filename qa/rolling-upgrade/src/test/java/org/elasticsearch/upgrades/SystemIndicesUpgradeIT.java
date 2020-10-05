@@ -40,7 +40,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // create index
             Request createTestIndex = new Request("PUT", "/test_index_old");
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}}");
             client().performRequest(createTestIndex);
 
             Request bulk = new Request("POST", "/_bulk");

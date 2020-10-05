@@ -228,6 +228,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63088")
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
         assumeTrue("API key is available since 6.7.0", getOldClusterVersion().onOrAfter(Version.V_6_7_0));

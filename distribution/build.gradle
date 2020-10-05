@@ -65,7 +65,7 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
  *****************************************************************************/
 
 // integ test zip only uses server, so a different notice file is needed there
-tasks.register("buildServerNotice", NoticeTask)
+def buildServerNoticeTaskProvider = tasks.register("buildServerNotice", NoticeTask)
 
 // other distributions include notices from modules as well, which are added below later
 def buildDefaultNoticeTaskProvider = tasks.register("buildDefaultNotice", NoticeTask) {
@@ -76,9 +76,9 @@ def buildOssNoticeTaskProvider = tasks.register("buildOssNotice", NoticeTask).co
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
-tasks.register("buildDefaultNoJdkNotice", NoticeTask)
+def buildDefaultNoJdkNoticeTaskProvider = tasks.register("buildDefaultNoJdkNotice", NoticeTask)
 
-tasks.register("buildOssNoJdkNotice", NoticeTask)
+def buildOssNoJdkNoticeTaskProvider = tasks.register("buildOssNoJdkNotice", NoticeTask)
 
 // The :server and :libs projects belong to all distributions
 tasks.withType(NoticeTask).configureEach {
@@ -281,8 +281,10 @@ Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   File licenses = new File(xpackModule.projectDir, 'licenses')
   if (licenses.exists()) {
-    buildDefaultNotice.licensesDir licenses
-    buildDefaultNotice.source xpackModule.file('src/main/java')
+    buildDefaultNoticeTaskProvider.configure {
+      licensesDir licenses
+      source xpackModule.file('src/main/java')
+    }
   }
   copyModule(processDefaultOutputsTaskProvider, xpackModule)
   copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, xpackModule)
@@ -471,16 +473,16 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     noticeFile = { oss, jdk ->
       copySpec {
         if (project.name == 'integ-test-zip') {
-          from buildServerNotice
+          from buildServerNoticeTaskProvider
         } else {
           if (oss && jdk) {
-            from buildOssNotice
+            from buildOssNoticeTaskProvider
           } else if (oss) {
-            from buildOssNoJdkNotice
+            from buildOssNoJdkNoticeTaskProvider
           } else if (jdk) {
-            from buildDefaultNotice
+            from buildDefaultNoticeTaskProvider
           } else {
-            from buildDefaultNoJdkNotice
+            from buildDefaultNoJdkNoticeTaskProvider
           }
         }
       }

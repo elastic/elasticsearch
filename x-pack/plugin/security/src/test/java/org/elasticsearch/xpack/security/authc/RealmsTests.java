@@ -263,6 +263,7 @@ public class RealmsTests extends ESTestCase {
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
 
         allowAllRealms();
+        // We want to trigger license feature recording during node startup (when the realms are first created).
         verify(licenseState, atLeastOnce()).checkFeature(Feature.SECURITY);
         verify(licenseState, atLeastOnce()).checkFeature(Feature.SECURITY_CUSTOM_REALM);
 

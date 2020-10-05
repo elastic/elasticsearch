@@ -1609,6 +1609,10 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         @Override
         protected List<Realm> calculateLicensedRealms(XPackLicenseState license) {
+            if (allRealms == null) {
+                // This can happen because the realms are recalculated during construction
+                return super.calculateLicensedRealms(license);
+            }
             if (license.checkFeature(Feature.SECURITY_CUSTOM_REALM)) {
                 return allRealms;
             } else {

@@ -53,8 +53,8 @@ public class Realms implements Iterable<Realm> {
 
     // All realms that were explicitly configured in the settings, some of these may not be enabled due to licensing
     private final List<Realm> allConfiguredRealms;
-    // the default native realms to enable if no other realms are permitted under the current license
-    private final List<Realm> fallbackNativeRealms;
+    // the default builtin realms to enable if no other realms are permitted under the current license
+    private final List<Realm> fallbackRealms;
 
     // the realms in current use. This list will change dynamically as the license changes
     private volatile List<Realm> activeRealms;
@@ -73,9 +73,10 @@ public class Realms implements Iterable<Realm> {
         this.allConfiguredRealms.forEach(r -> r.initialize(this, licenseState));
         this.activeRealms = allConfiguredRealms;
 
-        this.fallbackNativeRealms = buildFallbackRealms(reservedRealm);
+        this.fallbackRealms = buildFallbackRealms(reservedRealm);
 
         licenseState.addListener(this::recomputeActiveRealms);
+        recomputeActiveRealms();
     }
 
     protected void recomputeActiveRealms() {
@@ -84,7 +85,7 @@ public class Realms implements Iterable<Realm> {
         if (hasConfigurableRealms(licensedRealms)) {
             activeRealms = licensedRealms;
         } else {
-            activeRealms = fallbackNativeRealms;
+            activeRealms = fallbackRealms;
         }
         if (logger.isDebugEnabled()) {
             logger.debug("license state has changed to [{}]; configured realms are: [{}]; active realms are: [{}]",

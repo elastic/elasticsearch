@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
@@ -126,8 +125,8 @@ public final class ExpressionTranslators {
             if (e.field() instanceof FieldAttribute) {
                 targetFieldName = handler.nameOf(((FieldAttribute) e.field()).exactAttribute());
                 if (e instanceof Like) {
-                    LikePattern p = ((Like) e).pattern();
-                    q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
+                    Like l = (Like) e;
+                    q = new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
                 }
 
                 if (e instanceof RLike) {

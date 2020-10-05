@@ -6,34 +6,27 @@
 
 package org.elasticsearch.xpack.analytics.aggregations.bucket.histogram;
 
-import com.tdunning.math.stats.Centroid;
-import com.tdunning.math.stats.TDigest;
-import org.apache.lucene.document.BinaryDocValuesField;
+import static java.util.Collections.singleton;
+import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
+
+import java.util.Collections;
+import java.util.List;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-
-import static java.util.Collections.singleton;
 
 public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -42,9 +35,9 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
     public void testHistograms() throws Exception {
         try (Directory dir = newDirectory();
                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {0, 1.2, 10, 12, 24})));
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {5.3, 6, 6, 20})));
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30})));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {0, 1.2, 10, 12, 24})));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {5.3, 6, 6, 20})));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30})));
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field(FIELD_NAME)
@@ -79,9 +72,9 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
     public void testMinDocCount() throws Exception {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {0, 1.2, 10, 12, 24})));
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {5.3, 6, 6, 20})));
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30, 90})));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {0, 1.2, 10, 12, 24})));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {5.3, 6, 6, 20})));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30, 90})));
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field(FIELD_NAME)
@@ -108,8 +101,8 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             // Note, these values are carefully chosen to ensure that no matter what offset we pick, no two can end up in the same bucket
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {3.2, 9.3})));
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-5, 3.2 })));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {3.2, 9.3})));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {-5, 3.2 })));
 
             final double offset = randomDouble();
             final double interval = 5;
@@ -142,8 +135,8 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-4.5, 4.3})));
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-5, 3.2 })));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {-4.5, 4.3})));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {-5, 3.2 })));
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field(FIELD_NAME)
@@ -177,8 +170,8 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-4.5, 4.3})));
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-5, 3.2 })));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {-4.5, 4.3})));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] {-5, 3.2 })));
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field(FIELD_NAME)
@@ -195,23 +188,6 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals("Histogram aggregation on histogram fields does not support sub-aggregations", e.getMessage());
             }
         }
-    }
-
-    private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
-        TDigest histogram = new TDigestState(100.0); //default
-        for (double value : values) {
-            histogram.add(value);
-        }
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        histogram.compress();
-        Collection<Centroid> centroids = histogram.centroids();
-        Iterator<Centroid> iterator = centroids.iterator();
-        while ( iterator.hasNext()) {
-            Centroid centroid = iterator.next();
-            streamOutput.writeVInt(centroid.count());
-            streamOutput.writeDouble(centroid.mean());
-        }
-        return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
     }
 
     @Override

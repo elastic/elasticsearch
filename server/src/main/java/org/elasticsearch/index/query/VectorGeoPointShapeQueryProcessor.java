@@ -41,16 +41,14 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType.QueryProcessor;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 
-public class VectorGeoPointShapeQueryProcessor implements QueryProcessor {
+public class VectorGeoPointShapeQueryProcessor {
 
-    @Override
-    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         validateIsGeoPointFieldType(fieldName, context);
         // geo points only support intersects
         if (relation != ShapeRelation.INTERSECTS) {

@@ -219,8 +219,8 @@ public class CircleProcessorTests extends ESTestCase {
         VectorGeoShapeQueryProcessor processor = new VectorGeoShapeQueryProcessor();
         QueryShardContext mockedContext = mock(QueryShardContext.class);
         when(mockedContext.fieldMapper(any())).thenReturn(shapeType);
-        Query sameShapeQuery = processor.process(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
-        Query pointOnDatelineQuery = processor.process(new Point(180, circle.getLat()), fieldName,
+        Query sameShapeQuery = processor.geoShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query pointOnDatelineQuery = processor.geoShapeQuery(new Point(180, circle.getLat()), fieldName,
             ShapeRelation.INTERSECTS, mockedContext);
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -251,8 +251,8 @@ public class CircleProcessorTests extends ESTestCase {
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
         QueryShardContext mockedContext = mock(QueryShardContext.class);
         when(mockedContext.fieldMapper(any())).thenReturn(shapeType);
-        Query sameShapeQuery = processor.process(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
-        Query centerPointQuery = processor.process(new Point(circle.getLon(), circle.getLat()), fieldName,
+        Query sameShapeQuery = processor.shapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query centerPointQuery = processor.shapeQuery(new Point(circle.getLon(), circle.getLat()), fieldName,
             ShapeRelation.INTERSECTS, mockedContext);
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

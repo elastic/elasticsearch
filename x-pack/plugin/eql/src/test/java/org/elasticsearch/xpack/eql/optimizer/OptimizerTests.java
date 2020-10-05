@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
@@ -61,7 +60,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG_CASE_INSENSITIVE;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
@@ -85,9 +84,9 @@ public class OptimizerTests extends ESTestCase {
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         PostAnalyzer postAnalyzer = new PostAnalyzer();
-        Analyzer analyzer = new Analyzer(TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         return optimizer.optimize(postAnalyzer.postAnalyze(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql),
-            resolution)), TEST_CFG_CASE_INSENSITIVE));
+            resolution)), TEST_CFG));
     }
 
     private LogicalPlan accept(String eql) {
@@ -134,8 +133,8 @@ public class OptimizerTests extends ESTestCase {
 
     public void testEqualsWildcard() {
         List<String> tests = Arrays.asList(
-            "foo where command_line == \"* bar *\"",
-            "foo where \"* bar *\" == command_line"
+            "foo where command_line : \"* bar *\"",
+            "foo where \"* bar *\" : command_line"
         );
 
         for (String q : tests) {
@@ -154,32 +153,25 @@ public class OptimizerTests extends ESTestCase {
         }
     }
 
-    public void testNotEqualsWildcard() {
+    // test wildcard gets applied for literals as well regardless of the side used
+    public void testEqualsWildcardWithLiterals() {
         List<String> tests = Arrays.asList(
-            "foo where command_line != \"* baz *\"",
-            "foo where \"* baz *\" != command_line"
+            "foo where \"abc\": \"*b*\"",
+            "foo where \"*b*\" : \"abc\""
         );
 
         for (String q : tests) {
             LogicalPlan plan = defaultPipes(accept(q));
-
             assertTrue(plan instanceof Filter);
-
+            // check the optimizer kicked in and folding was applied
             Filter filter = (Filter) plan;
-            And condition = (And) filter.condition();
-            assertTrue(condition.right() instanceof Not);
-
-            Not not = (Not) condition.right();
-            Like like = (Like) not.field();
-            assertEquals(((FieldAttribute) like.field()).name(), "command_line");
-            assertEquals(like.pattern().asJavaRegex(), "^.* baz .*$");
-            assertEquals(like.pattern().asLuceneWildcard(), "* baz *");
-            assertEquals(like.pattern().asIndexNameWildcard(), "* baz *");
+            Equals condition = (Equals) filter.condition();
+            assertEquals("foo", condition.right().fold());
         }
     }
 
     public void testWildcardEscapes() {
-        LogicalPlan plan = defaultPipes(accept("foo where command_line == \"* %bar_ * \\\\ \\n \\r \\t\""));
+        LogicalPlan plan = defaultPipes(accept("foo where command_line : \"* %bar_ * \\\\ \\n \\r \\t\""));
         assertTrue(plan instanceof Filter);
 
         Filter filter = (Filter) plan;

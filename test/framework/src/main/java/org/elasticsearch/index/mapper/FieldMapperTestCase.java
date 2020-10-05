@@ -46,6 +46,12 @@ import java.util.function.BiConsumer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Base class for testing {@link FieldMapper}s.
+ * @param <T> builder for the mapper to test
+ * @deprecated prefer {@link FieldMapperTestCase2}
+ */
+@Deprecated
 public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> extends ESSingleNodeTestCase {
 
     protected final Settings SETTINGS = Settings.builder()
@@ -83,10 +89,6 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         new Modifier("analyzer", false, (a, b) -> {
             a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
             a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
-        }),
-        new Modifier("boost", true, (a, b) -> {
-           a.boost(1.1f);
-           b.boost(1.2f);
         }),
         new Modifier("doc_values", false, (a, b) -> {
             a.docValues(true);
@@ -245,5 +247,4 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         x.endObject().endObject();
         return Strings.toString(x);
     }
-
 }

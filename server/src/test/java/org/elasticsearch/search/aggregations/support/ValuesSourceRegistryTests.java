@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
@@ -59,12 +60,12 @@ public class ValuesSourceRegistryTests extends ESTestCase {
             null,
             CoreValuesSourceType.BYTES
         );
+        ValuesSourceRegistry.RegistryKey key = new ValuesSourceRegistry.RegistryKey("bogus", HistogramAggregatorSupplier.class);
         ValuesSourceRegistry registry = new ValuesSourceRegistry(
-            Map.of("bogus", List.of()),
-            Map.of(new ValuesSourceRegistry.RegistryKey<>("bogus", ValuesSourceRegistry.CompositeSupplier.class), List.of()),
+            Map.of(key, List.of()),
             null
         );
-        expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(fieldOnly, "bogus"));
-        expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(scriptOnly, "bogus"));
+        expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, fieldOnly));
+        expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, scriptOnly));
     }
 }

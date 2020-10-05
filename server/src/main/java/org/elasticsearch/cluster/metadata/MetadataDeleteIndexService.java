@@ -128,7 +128,7 @@ public class MetadataDeleteIndexService {
             clusterBlocksBuilder.removeIndexBlocks(indexName);
             metadataBuilder.remove(indexName);
             if (backingIndices.containsKey(index)) {
-                DataStream parent = backingIndices.get(index);
+                DataStream parent = metadataBuilder.dataStream(backingIndices.get(index).getName());
                 metadataBuilder.put(parent.removeBackingIndex(index));
             }
         }

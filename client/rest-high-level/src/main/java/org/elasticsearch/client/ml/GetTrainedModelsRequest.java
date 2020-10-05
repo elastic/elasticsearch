@@ -26,21 +26,26 @@ import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.common.Nullable;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 public class GetTrainedModelsRequest implements Validatable {
 
+    private static final String DEFINITION = "definition";
+    private static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
     public static final String ALLOW_NO_MATCH = "allow_no_match";
-    public static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
     public static final String FOR_EXPORT = "for_export";
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
     public static final String TAGS = "tags";
+    public static final String INCLUDE = "include";
 
     private final List<String> ids;
     private Boolean allowNoMatch;
-    private Boolean includeDefinition;
+    private Set<String> includes = new HashSet<>();
     private Boolean decompressDefinition;
     private Boolean forExport;
     private PageParams pageParams;
@@ -86,19 +91,32 @@ public class GetTrainedModelsRequest implements Validatable {
         return this;
     }
 
-    public Boolean getIncludeDefinition() {
-        return includeDefinition;
+    public Set<String> getIncludes() {
+        return Collections.unmodifiableSet(includes);
+    }
+
+    public GetTrainedModelsRequest includeDefinition() {
+        this.includes.add(DEFINITION);
+        return this;
+    }
+
+    public GetTrainedModelsRequest includeTotalFeatureImportance() {
+        this.includes.add(TOTAL_FEATURE_IMPORTANCE);
+        return this;
     }
 
     /**
      * Whether to include the full model definition.
      *
      * The full model definition can be very large.
-     *
+     * @deprecated Use {@link GetTrainedModelsRequest#includeDefinition()}
      * @param includeDefinition If {@code true}, the definition is included.
      */
+    @Deprecated
     public GetTrainedModelsRequest setIncludeDefinition(Boolean includeDefinition) {
-        this.includeDefinition = includeDefinition;
+        if (includeDefinition != null && includeDefinition) {
+            return this.includeDefinition();
+        }
         return this;
     }
 
@@ -173,13 +191,13 @@ public class GetTrainedModelsRequest implements Validatable {
         return Objects.equals(ids, other.ids)
             && Objects.equals(allowNoMatch, other.allowNoMatch)
             && Objects.equals(decompressDefinition, other.decompressDefinition)
-            && Objects.equals(includeDefinition, other.includeDefinition)
+            && Objects.equals(includes, other.includes)
             && Objects.equals(forExport, other.forExport)
             && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, allowNoMatch, pageParams, decompressDefinition, includeDefinition, forExport);
+        return Objects.hash(ids, allowNoMatch, pageParams, decompressDefinition, includes, forExport);
     }
 }

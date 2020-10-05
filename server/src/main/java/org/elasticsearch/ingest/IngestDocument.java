@@ -377,7 +377,24 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(String path, Object value) {
-        setFieldValue(path, value, true);
+        appendFieldValue(path, value, true);
+    }
+
+    /**
+     * Appends the provided value to the provided path in the document.
+     * Any non existing path element will be created.
+     * If the path identifies a list, the value will be appended to the existing list.
+     * If the path identifies a scalar, the scalar will be converted to a list and
+     * the provided value will be added to the newly created list.
+     * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
+     * existing (or newly created) list.
+     * @param path The path within the document in dot-notation
+     * @param value The value or values to append to the existing ones
+     * @param allowDuplicates When false, any values that already exist in the field will not be added
+     * @throws IllegalArgumentException if the path is null, empty or invalid.
+     */
+    public void appendFieldValue(String path, Object value, boolean allowDuplicates) {
+        setFieldValue(path, value, true, allowDuplicates);
     }
 
     /**
@@ -395,6 +412,24 @@ public final class IngestDocument {
     public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
         Map<String, Object> model = createTemplateModel();
         appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model));
+    }
+
+    /**
+     * Appends the provided value to the provided path in the document.
+     * Any non existing path element will be created.
+     * If the path identifies a list, the value will be appended to the existing list.
+     * If the path identifies a scalar, the scalar will be converted to a list and
+     * the provided value will be added to the newly created list.
+     * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
+     * existing (or newly created) list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param valueSource The value source that will produce the value or values to append to the existing ones
+     * @param allowDuplicates When false, any values that already exist in the field will not be added
+     * @throws IllegalArgumentException if the path is null, empty or invalid.
+     */
+    public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean allowDuplicates) {
+        Map<String, Object> model = createTemplateModel();
+        appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), allowDuplicates);
     }
 
     /**
@@ -452,6 +487,10 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append) {
+        setFieldValue(path, value, append, true);
+    }
+
+    private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
@@ -500,7 +539,7 @@ public final class IngestDocument {
             if (append) {
                 if (map.containsKey(leafKey)) {
                     Object object = map.get(leafKey);
-                    List<Object> list = appendValues(object, value);
+                    Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
@@ -528,7 +567,7 @@ public final class IngestDocument {
             }
             if (append) {
                 Object object = list.get(index);
-                List<Object> newList = appendValues(object, value);
+                Object newList = appendValues(object, value, allowDuplicates);
                 if (newList != object) {
                     list.set(index, newList);
                 }
@@ -542,7 +581,7 @@ public final class IngestDocument {
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Object> appendValues(Object maybeList, Object value) {
+    private static Object appendValues(Object maybeList, Object value, boolean allowDuplicates) {
         List<Object> list;
         if (maybeList instanceof List) {
             //maybeList is already a list, we append the provided values to it
@@ -552,8 +591,13 @@ public final class IngestDocument {
             list = new ArrayList<>();
             list.add(maybeList);
         }
-        appendValues(list, value);
-        return list;
+        if (allowDuplicates) {
+            appendValues(list, value);
+            return list;
+        } else {
+            // if no values were appended due to duplication, return the original object so the ingest document remains unmodified
+            return appendValuesWithoutDuplicates(list, value) ? list : maybeList;
+        }
     }
 
     private static void appendValues(List<Object> list, Object value) {
@@ -562,6 +606,25 @@ public final class IngestDocument {
         } else {
             list.add(value);
         }
+    }
+
+    private static boolean appendValuesWithoutDuplicates(List<Object> list, Object value) {
+        boolean valuesWereAppended = false;
+        if (value instanceof List) {
+            List<?> valueList = (List<?>) value;
+            for (Object val : valueList) {
+                if (list.contains(val) == false) {
+                    list.add(val);
+                    valuesWereAppended = true;
+                }
+            }
+        } else {
+            if (list.contains(value) == false) {
+                list.add(value);
+                valuesWereAppended = true;
+            }
+        }
+        return valuesWereAppended;
     }
 
     private static <T> T cast(String path, Object object, Class<T> clazz) {

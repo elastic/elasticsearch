@@ -39,11 +39,13 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -184,7 +186,7 @@ public class ReservedRealmTests extends ESTestCase {
         verify(securityIndex).indexExists();
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        reservedRealm.doLookupUser("foobar", future);
+        reservedRealm.doLookupUser("foobar", assertListenerIsOnlyCalledOnce(future));
         final User doesntExist = future.actionGet();
         assertThat(doesntExist, nullValue());
         verifyNoMoreInteractions(usersStore);
@@ -199,10 +201,27 @@ public class ReservedRealmTests extends ESTestCase {
         final String principal = expectedUser.principal();
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
-        reservedRealm.doLookupUser(principal, listener);
+        reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
         final User user = listener.actionGet();
         assertNull(user);
         verifyZeroInteractions(usersStore);
+    }
+
+
+    public void testLookupDisabledAnonymous() throws Exception {
+        Settings settings = Settings.builder()
+            .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
+            .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
+            .build();
+        final ReservedRealm reservedRealm =
+            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
+                securityIndex, threadPool);
+        final User expectedUser = new AnonymousUser(settings);
+        final String principal = expectedUser.principal();
+
+        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
+        assertThat(listener.actionGet(), equalTo(expectedUser));
     }
 
     public void testLookupThrows() throws Exception {
@@ -440,5 +459,14 @@ public class ReservedRealmTests extends ESTestCase {
                 return null;
             }).when(usersStore).getReservedUserInfo(eq(entry.getKey()), any(ActionListener.class));
         }
+    }
+
+    private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {
+        final AtomicInteger callCount = new AtomicInteger(0);
+        return ActionListener.runBefore(delegate, () -> {
+            if (callCount.incrementAndGet() != 1) {
+                fail("Listener was called twice");
+            }
+        });
     }
 }

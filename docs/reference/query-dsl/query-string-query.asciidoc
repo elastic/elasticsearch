@@ -165,7 +165,7 @@ value for a <<number,numeric>> field, are ignored. Defaults to `false`.
 +
 --
 (Optional, integer) Maximum number of
-https://en.wikipedia.org/wiki/Deterministic_finite_automaton[automaton states]
+{wikipedia}/Deterministic_finite_automaton[automaton states]
 required for the query. Default is `10000`.
 
 {es} uses https://lucene.apache.org/core/[Apache Lucene] internally to parse
@@ -217,9 +217,9 @@ information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 +
 --
 (Optional, string)
-https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
+{wikipedia}/List_of_UTC_time_offsets[Coordinated Universal
 Time (UTC) offset] or
-https://en.wikipedia.org/wiki/List_of_tz_database_time_zones[IANA time zone]
+{wikipedia}/List_of_tz_database_time_zones[IANA time zone]
 used to convert `date` values in the query string to UTC.
 
 Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`, and IANA
@@ -548,7 +548,6 @@ The example above creates a boolean query:
 
 that matches documents with at least two of the three per-term blended queries.
 
-==== Notes
 ===== Allow expensive queries
 Query string query can be internally be transformed to a <<query-dsl-prefix-query, `prefix query`>> which means
 that if the prefix queries are disabled as explained <<prefix-query-allow-expensive-queries, here>> the query will not be

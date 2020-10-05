@@ -226,7 +226,7 @@ GET /my-data-stream/_search
 }
 ----
 
-You can use a comma-separated list or wildcard (`*`) expression to search
+You can use a comma-separated list to search
 multiple data streams, indices, and index aliases in the same request.
 
 The following request searches `my-data-stream` and `my-data-stream-alt`,
@@ -243,8 +243,11 @@ GET /my-data-stream,my-data-stream-alt/_search
   }
 }
 ----
-The following request uses the `my-data-stream*` wildcard expression to search any data
-stream, index, or index alias beginning with `my-data-stream`.
+
+Index patterns are also supported.
+
+The following request uses the `my-data-stream*` index pattern to search any
+data stream, index, or index alias beginning with `my-data-stream`.
 
 [source,console]
 ----

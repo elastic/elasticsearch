@@ -26,16 +26,61 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.ResolverStyle;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class JavaDateMathParserTests extends ESTestCase {
 
     private final DateFormatter formatter = DateFormatter.forPattern("date_optional_time||epoch_millis");
     private final DateMathParser parser = formatter.toDateMathParser();
+
+
+    public void testRoundUpParserBasedOnList() {
+        DateFormatter formatter = new JavaDateFormatter("test", new DateTimeFormatterBuilder()
+            .appendPattern("uuuu-MM-dd")
+            .toFormatter(Locale.ROOT),
+            new DateTimeFormatterBuilder()
+                .appendPattern("uuuu-MM-dd'T'HH:mm:ss.S").appendZoneOrOffsetId().toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT),
+            new DateTimeFormatterBuilder()
+                .appendPattern("uuuu-MM-dd'T'HH:mm:ss.S").appendOffset("+HHmm", "Z").toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT));
+        Instant parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.0+0000", () -> 0L, true, (ZoneId) null);
+        assertThat(parsed.toEpochMilli(), equalTo(0L));
+    }
+
+    public void testMergingOfMultipleParsers() {
+        //date_time has 2 parsers, date_time_no_millis has 4. Parsing with rounding should be able to use all of them
+        DateFormatter formatter = DateFormatter.forPattern("date_time||date_time_no_millis");
+        //date_time 2 parsers
+        Instant parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.0+00:00", () -> 0L, true, (ZoneId) null);
+        assertThat(parsed.toEpochMilli(), equalTo(0L));
+
+
+        parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.0+0000", () -> 0L, true, (ZoneId) null);
+        assertThat(parsed.toEpochMilli(), equalTo(0L));
+
+        //date_time_no_millis  4 parsers
+        parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00+00:00", () -> 0L, true, (ZoneId) null);
+        assertThat(parsed.toEpochMilli(), equalTo(999L));//defaulting millis
+
+        parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00+0000", () -> 0L, true, (ZoneId) null);
+        assertThat(parsed.toEpochMilli(), equalTo(999L));//defaulting millis
+
+        parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00UTC+00:00", () -> 0L, true, (ZoneId) null);
+        assertThat(parsed.toEpochMilli(), equalTo(999L));//defaulting millis
+
+        // this one is actually still using parser number 3. I don't see a combination to use parser number 4
+        parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00", () -> 0L, true, (ZoneId) null);
+        assertThat(parsed.toEpochMilli(), equalTo(999L));//defaulting millis
+    }
 
     public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
         //the pattern has to be composite and the match should not be on the first one

@@ -49,7 +49,7 @@ import java.util.function.LongUnaryOperator;
 public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<TermsValuesSourceBuilder> {
 
     @FunctionalInterface
-    public interface TermsCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface TermsCompositeSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             String name,
@@ -95,7 +95,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     }
 
     static void register(ValuesSourceRegistry.Builder builder) {
-        builder.registerComposite(
+        builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
@@ -150,10 +150,10 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
                     }
                 );
-            }
-        );
+            },
+            false);
 
-        builder.registerComposite(
+        builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> new CompositeValuesSourceConfig(
@@ -197,8 +197,8 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                         );
                     }
                 }
-            )
-        );
+            ),
+            false);
     }
 
     @Override
@@ -209,7 +209,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(REGISTRY_KEY, config)
+            .getAggregator(REGISTRY_KEY, config)
             .apply(config, name, script() != null, format(), missingBucket(), order());
     }
 }

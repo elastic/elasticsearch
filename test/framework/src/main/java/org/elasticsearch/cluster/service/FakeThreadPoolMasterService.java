@@ -126,7 +126,7 @@ public class FakeThreadPoolMasterService extends MasterService {
         assert waitForPublish == false;
         waitForPublish = true;
         final AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterChangedEvent.state());
-        clusterStatePublisher.publish(clusterChangedEvent, new ActionListener<Void>() {
+        final ActionListener<Void> publishListener = new ActionListener<>() {
 
             private boolean listenerCalled = false;
 
@@ -157,7 +157,20 @@ public class FakeThreadPoolMasterService extends MasterService {
                     scheduleNextTaskIfNecessary();
                 }
             }
-        }, wrapAckListener(ackListener));
+        };
+        threadPool.generic().execute(threadPool.getThreadContext().preserveContext(new Runnable() {
+            @Override
+            public void run() {
+                clusterStatePublisher.publish(clusterChangedEvent, publishListener, wrapAckListener(ackListener));
+            }
+
+            @Override
+            public String toString() {
+                return "publish change of cluster state from version [" + clusterChangedEvent.previousState().version() + "] in term [" +
+                        clusterChangedEvent.previousState().term() + "] to version [" + clusterChangedEvent.state().version()
+                        + "] in term [" + clusterChangedEvent.state().term() + "]";
+            }
+        }));
     }
 
     protected AckListener wrapAckListener(AckListener ackListener) {

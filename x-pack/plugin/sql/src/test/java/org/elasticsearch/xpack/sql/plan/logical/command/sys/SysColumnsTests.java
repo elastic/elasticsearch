@@ -12,10 +12,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.index.IndexResolver.IndexInfo;
-import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -55,9 +52,6 @@ public class SysColumnsTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = loadMapping("mapping-multi-field-with-nested.json", true);
-    private final IndexInfo index = new IndexInfo("test_emp", IndexType.STANDARD_INDEX);
-    private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
-
 
     public void testSysColumns() {
         List<List<?>> rows = new ArrayList<>();
@@ -565,20 +559,16 @@ public class SysColumnsTests extends ESTestCase {
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any(), any());
         doAnswer(invocation -> {
-            ((ActionListener<List<EsIndex>>) invocation.getArguments()[3]).onResponse(singletonList(test));
+            ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any());
+        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any(), any());
 
         SqlSession session = new SqlSession(config, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
-    }
-
-    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Map<String, EsField> mapping) {
-        return sql(sql, params, SqlTestUtils.TEST_CFG, mapping);
     }
 
     private static void checkOdbcShortTypes(SchemaRowSet r) {

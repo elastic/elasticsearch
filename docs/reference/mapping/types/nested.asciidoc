@@ -1,5 +1,5 @@
 [[nested]]
-=== Nested data type
+=== Nested field type
 ++++
 <titleabbrev>Nested</titleabbrev>
 ++++

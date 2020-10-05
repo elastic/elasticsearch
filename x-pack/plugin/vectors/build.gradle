@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name 'vectors'
@@ -14,4 +15,3 @@ dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-integTest.enabled = false

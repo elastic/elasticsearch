@@ -74,6 +74,12 @@ The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
     #scope: node <2>
     #username: "user"
     #password: "secret"
+    #ssl.enabled: true
+    #ssl.certificate_authorities: ["/etc/pki/root/ca.pem"]
+    #ssl.certificate: "/etc/pki/client/cert.pem"
+    #ssl.key: "/etc/pki/client/cert.key"
+    #ssl.verification_mode: "full"            
+    xpack.enabled: true
 ----------------------------------
 <1> By default, the module collects {es} monitoring metrics from
 `http://localhost:9200`. If that host and port number are not correct, you must
@@ -95,6 +101,8 @@ Alternatively, use the
 
 .. Add the `username` and `password` settings to the {es} module configuration
 file. 
+
+.. If TLS is enabled on the HTTP layer of your {es} cluster, you must either use https as the URL scheme in the `hosts` setting or add the `ssl.enabled: true` setting. Depending on the TLS configuration of your {es} cluster, you might also need to specify {metricbeat-ref}/configuration-ssl.html[additional ssl.*] settings.
 --
 
 . Optional: Disable the system module in {metricbeat}.

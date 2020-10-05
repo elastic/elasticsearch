@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -20,6 +21,8 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -261,7 +264,16 @@ public class RBACEngine implements AuthorizationEngine {
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
                 if (SearchScrollAction.NAME.equals(action)) {
-                    authorizeIndexActionName(action, authorizationInfo, null, listener);
+                    ActionRunnable.supply(
+                        ActionListener.wrap(parsedScrollId -> {
+                            if (parsedScrollId.hasLocalIndices()) {
+                                authorizeIndexActionName(action, authorizationInfo, null, listener);
+                            } else {
+                                listener.onResponse(new IndexAuthorizationResult(true, null));
+                            }
+                        }, listener::onFailure),
+                        ((SearchScrollRequest) request)::parseScrollId
+                    ).run();
                 } else {
                     // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.
                     // Scroll related actions have special security logic, where the security context of the initial search
@@ -284,6 +296,8 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so no additional checks are needed here.
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
+            } else if (action.equals(ClosePointInTimeAction.NAME)) {
+                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
             } else {
                 assert false : "only scroll and async-search related requests are known indices api that don't " +
                     "support retrieving the indices they relate to";

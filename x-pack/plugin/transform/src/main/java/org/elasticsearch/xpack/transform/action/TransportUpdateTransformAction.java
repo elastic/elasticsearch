@@ -217,6 +217,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 // - transform is not failed (stopped transforms do not have a task)
                 // - the node where transform is executed on is at least 7.8.0 in order to understand the request
                 if (transformTask != null
+                    && transformTask.isAssigned()
                     && transformTask.getState() instanceof TransformState
                     && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
                     && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)) {

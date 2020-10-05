@@ -146,6 +146,10 @@ Example response:
       "data_streams" : {
          "available" : true,
          "enabled" : true,
+      },
+      "data_tiers" : {
+         "available" : true,
+         "enabled" : true,
       }
    },
    "tagline" : "You know, for X"

@@ -24,6 +24,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -59,11 +60,13 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     private final OriginSettingClient client;
     private final ThreadPool threadPool;
     private final long cutoffEpochMs;
+    private final TaskId parentTaskId;
 
-    public ExpiredForecastsRemover(OriginSettingClient client, ThreadPool threadPool) {
+    public ExpiredForecastsRemover(OriginSettingClient client, ThreadPool threadPool, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
+        this.parentTaskId = parentTaskId;
     }
 
     @Override
@@ -90,6 +93,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
 
         SearchRequest searchRequest = new SearchRequest(RESULTS_INDEX_PATTERN);
         searchRequest.source(source);
+        searchRequest.setParentTask(parentTaskId);
         client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, forecastStatsHandler, false));
     }
@@ -114,6 +118,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete)
             .setRequestsPerSecond(requestsPerSec)
             .setAbortOnVersionConflict(false);
+        request.setParentTask(parentTaskId);
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {

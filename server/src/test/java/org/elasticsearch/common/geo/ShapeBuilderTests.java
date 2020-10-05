@@ -43,6 +43,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertM
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertPolygon;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+
 /**
  * Tests for {@link ShapeBuilder}
  */
@@ -775,8 +777,10 @@ public class ShapeBuilderTests extends ESTestCase {
         );
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+        assertThat(e.getMessage(), not(containsString("NaN")));
         e = expectThrows(InvalidShapeException.class, () -> buildGeometry(builder.close()));
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+        assertThat(e.getMessage(), not(containsString("NaN")));
     }
 
     public Object buildGeometry(ShapeBuilder<?, ?, ?> builder) {

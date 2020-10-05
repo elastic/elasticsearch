@@ -74,6 +74,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     public abstract Setting<Boolean> legacySetting();
 
+    /**
+     * Indicates whether a node with the given role can contain data. Defaults to false and can be overridden
+     */
+    public boolean canContainData() {
+        return false;
+    }
+
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
@@ -114,6 +121,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             return Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
         }
 
+        @Override
+        public boolean canContainData() {
+            return true;
+        }
     };
 
     /**

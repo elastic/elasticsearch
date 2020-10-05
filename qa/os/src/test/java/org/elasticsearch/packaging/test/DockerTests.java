@@ -21,9 +21,11 @@ package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
 import org.junit.Before;
@@ -39,10 +41,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
+import static org.elasticsearch.packaging.util.Docker.getImageName;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
@@ -52,10 +56,12 @@ import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailu
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
+import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -164,8 +170,11 @@ public class DockerTests extends PackagingTestCase {
         final String jvmOptions = "-Xms512m\n-Xmx512m\n-Dlog4j2.disable.jmx=true\n";
         append(tempDir.resolve("jvm.options"), jvmOptions);
 
-        // Make the temp directory and contents accessible when bind-mounted
+        // Make the temp directory and contents accessible when bind-mounted.
         Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
+        // These permissions are necessary to run the tests under Vagrant
+        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.yml"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
 
         // Restart the container
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/usr/share/elasticsearch/config"));
@@ -207,8 +216,47 @@ public class DockerTests extends PackagingTestCase {
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/failed").intValue(), equalTo(0));
 
+            // Ensure container is stopped before we remove tempEsDataDir, so nothing
+            // is using the directory.
+            removeContainer();
+
             rmDirWithPrivilegeEscalation(tempEsDataDir);
         });
+    }
+
+    /**
+     * Check that it is possible to run Elasticsearch under a different user and group to the default.
+     */
+    public void test072RunEsAsDifferentUserAndGroup() throws Exception {
+        assumeFalse(Platforms.WINDOWS);
+
+        final Path tempEsDataDir = tempDir.resolve("esDataDir");
+        final Path tempEsConfigDir = tempDir.resolve("esConfDir");
+        final Path tempEsLogsDir = tempDir.resolve("esLogsDir");
+
+        Files.createDirectory(tempEsConfigDir);
+        Files.createDirectory(tempEsConfigDir.resolve("jvm.options.d"));
+        Files.createDirectory(tempEsDataDir);
+        Files.createDirectory(tempEsLogsDir);
+
+        copyFromContainer(installation.config("elasticsearch.yml"), tempEsConfigDir);
+        copyFromContainer(installation.config("jvm.options"), tempEsConfigDir);
+        copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
+
+        chownWithPrivilegeEscalation(tempEsConfigDir, "501:501");
+        chownWithPrivilegeEscalation(tempEsDataDir, "501:501");
+        chownWithPrivilegeEscalation(tempEsLogsDir, "501:501");
+
+        // Define the bind mounts
+        final Map<Path, Path> volumes = new HashMap<>();
+        volumes.put(tempEsDataDir.toAbsolutePath(), installation.data);
+        volumes.put(tempEsConfigDir.toAbsolutePath(), installation.config);
+        volumes.put(tempEsLogsDir.toAbsolutePath(), installation.logs);
+
+        // Restart the container
+        runContainer(distribution(), volumes, null, 501, 501);
+
+        waitForElasticsearch(installation);
     }
 
     /**
@@ -235,6 +283,8 @@ public class DockerTests extends PackagingTestCase {
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
+        // But when running in Vagrant, also ensure ES can actually access the file
+        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
@@ -476,12 +526,17 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that there are no files with a GID other than 0.
      */
-    public void test101AllFilesAreGroupZero() throws Exception {
-        // We wait for Elasticsearch to finish starting up in order to avoid the situation where `find` traverses the filesystem
-        // and sees files in a directory listing, which have disappeared by the time `find` tries to examine them. This periodically
-        // happened with the keystore, for example.
-        waitForElasticsearch(installation);
-        final String findResults = sh.run("find . -not -gid 0").stdout;
+    public void test101AllFilesAreGroupZero() {
+        // Run a `find` command in a new container without Elasticsearch running, so
+        // that the results aren't subject to sporadic failures from files appearing /
+        // disappearing while `find` is traversing the filesystem.
+        //
+        // We also create a file under `data/` to ensure that files are created with the
+        // expected group.
+        final Shell localSh = new Shell();
+        final String findResults = localSh.run(
+            "docker run --rm --tty " + getImageName(distribution) + " bash -c ' touch data/test && find . -not -gid 0 ' "
+        ).stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
     }
@@ -621,5 +676,45 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat("Failed to find [cpu] in node OS cgroup stats", cgroupStats.get("cpu"), not(nullValue()));
         assertThat("Failed to find [cpuacct] in node OS cgroup stats", cgroupStats.get("cpuacct"), not(nullValue()));
+    }
+
+    /**
+     * Check that the UBI images has the correct license information in the correct place.
+     */
+    public void test200UbiImagesHaveLicenseDirectory() {
+        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
+
+        final String[] files = sh.run("find /licenses -type f").stdout.split("\n");
+        assertThat(files, arrayContaining("/licenses/LICENSE"));
+
+        // UBI image doesn't contain `diff`
+        final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout;
+        final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout;
+        assertThat(ubiLicense, equalTo(distroLicense));
+    }
+
+    /**
+     * Check that the UBI image has the expected labels
+     */
+    public void test210UbiLabels() throws Exception {
+        assumeTrue(distribution.packaging == Distribution.Packaging.DOCKER_UBI);
+
+        final Map<String, String> labels = getImageLabels(distribution);
+
+        final Map<String, String> staticLabels = new HashMap<>();
+        staticLabels.put("name", "Elasticsearch");
+        staticLabels.put("maintainer", "infra@elastic.co");
+        staticLabels.put("vendor", "Elastic");
+        staticLabels.put("summary", "Elasticsearch");
+        staticLabels.put("description", "You know, for search.");
+
+        final Set<String> dynamicLabels = Set.of("release", "version");
+
+        staticLabels.forEach((key, value) -> {
+            assertThat(labels, hasKey(key));
+            assertThat(labels.get(key), equalTo(value));
+        });
+
+        dynamicLabels.forEach(key -> assertThat(labels, hasKey(key)));
     }
 }

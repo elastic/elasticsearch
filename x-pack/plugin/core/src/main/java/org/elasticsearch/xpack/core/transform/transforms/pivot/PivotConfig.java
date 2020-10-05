@@ -197,9 +197,8 @@ public class PivotConfig implements Writeable, ToXContentObject {
             return Collections.emptyList();
         }
         List<String> usedNames = new ArrayList<>();
-        // TODO this will need to change once we allow multi-bucket aggs + field merging
-        aggregationConfig.getAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
-        aggregationConfig.getPipelineAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
+        aggregationConfig.getAggregatorFactories().forEach(agg -> addAggNames("", agg, usedNames));
+        aggregationConfig.getPipelineAggregatorFactories().forEach(agg -> addAggNames("", agg, usedNames));
         usedNames.addAll(groups.getGroups().keySet());
         return aggFieldValidation(usedNames);
     }
@@ -251,13 +250,18 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return validationFailures;
     }
 
-    private static void addAggNames(AggregationBuilder aggregationBuilder, Collection<String> names) {
-        names.add(aggregationBuilder.getName());
-        aggregationBuilder.getSubAggregations().forEach(agg -> addAggNames(agg, names));
-        aggregationBuilder.getPipelineAggregations().forEach(agg -> addAggNames(agg, names));
+    private static void addAggNames(String namePrefix, AggregationBuilder aggregationBuilder, Collection<String> names) {
+        if (aggregationBuilder.getSubAggregations().isEmpty() && aggregationBuilder.getPipelineAggregations().isEmpty()) {
+            names.add(namePrefix + aggregationBuilder.getName());
+            return;
+        }
+
+        String newNamePrefix = namePrefix + aggregationBuilder.getName() + ".";
+        aggregationBuilder.getSubAggregations().forEach(agg -> addAggNames(newNamePrefix, agg, names));
+        aggregationBuilder.getPipelineAggregations().forEach(agg -> addAggNames(newNamePrefix, agg, names));
     }
 
-    private static void addAggNames(PipelineAggregationBuilder pipelineAggregationBuilder, Collection<String> names) {
-        names.add(pipelineAggregationBuilder.getName());
+    private static void addAggNames(String namePrefix, PipelineAggregationBuilder pipelineAggregationBuilder, Collection<String> names) {
+        names.add(namePrefix + pipelineAggregationBuilder.getName());
     }
 }

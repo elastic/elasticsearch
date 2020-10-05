@@ -271,18 +271,18 @@ DELETE /_index_template/timeseries_template
 
 [discrete]
 [[manage-time-series-data-without-data-streams]]
-=== Manage time-series data without data streams
+=== Manage time series data without data streams
 
 Even though <<data-streams, data streams>> are a convenient way to scale
-and manage time-series data, they are designed to be append-only. We recognise there
+and manage time series data, they are designed to be append-only. We recognise there
 might be use-cases where data needs to be updated or deleted in place and the
 data streams don't support delete and update requests directly,
 so the index APIs would need to be used directly on the data stream's backing indices.
 
-In these cases, you can use an index alias to manage indices containing the time-series data
+In these cases, you can use an index alias to manage indices containing the time series data
 and periodically roll over to a new index.
 
-To automate rollover and management of time-series indices with {ilm-init} using an index
+To automate rollover and management of time series indices with {ilm-init} using an index
 alias, you:
 
 . Create a lifecycle policy that defines the appropriate phases and actions.
@@ -352,7 +352,7 @@ DELETE _index_template/timeseries_template
 
 [discrete]
 [[ilm-gs-alias-bootstrap]]
-=== Bootstrap the initial time-series index with a write index alias
+=== Bootstrap the initial time series index with a write index alias
 
 To get things started, you need to bootstrap an initial index and
 designate it as the write index for the rollover alias specified in your index template.

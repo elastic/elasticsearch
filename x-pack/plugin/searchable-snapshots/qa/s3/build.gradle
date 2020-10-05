@@ -43,18 +43,13 @@ if (useFixture) {
 }
 
 integTest {
-  dependsOn repositoryPlugin.bundlePlugin
   systemProperty 'test.s3.bucket', s3Bucket
   nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" + BuildParams.testSeed : 'base_path'
 }
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
-
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
+  plugin repositoryPlugin.path
 
   keystore 's3.client.searchable_snapshots.access_key', s3AccessKey
   keystore 's3.client.searchable_snapshots.secret_key', s3SecretKey

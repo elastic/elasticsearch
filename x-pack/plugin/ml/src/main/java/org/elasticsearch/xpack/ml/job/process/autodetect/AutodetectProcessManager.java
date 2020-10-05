@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import joptsimple.internal.Strings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -32,9 +33,11 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -77,9 +80,11 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -328,10 +333,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 }, handler
         );
 
-        // Step 2. Set the filter on the message and get scheduled events
-        ActionListener<MlFilter> filterListener = ActionListener.wrap(
-                filter -> {
-                    updateProcessMessage.setFilter(filter);
+        // Step 2. Set the filters on the message and get scheduled events
+        ActionListener<List<MlFilter>> filtersListener = ActionListener.wrap(
+                filters -> {
+                    updateProcessMessage.setFilters(filters);
 
                     if (updateParams.isUpdateScheduledEvents()) {
                         jobManager.getJob(jobTask.getJobId(), new ActionListener<>() {
@@ -355,13 +360,17 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 }, handler
         );
 
-        // Step 1. Get the filter
-        if (updateParams.getFilter() == null) {
-            filterListener.onResponse(null);
+        // All referenced filters must also be updated
+        Set<String> filterIds = updateParams.extractReferencedFilters();
+
+        // Step 1. Get the filters
+        if (filterIds.isEmpty()) {
+            filtersListener.onResponse(null);
         } else {
-            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(updateParams.getFilter().getId());
+            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(Strings.join(filterIds, ","));
+            getFilterRequest.setPageParams(new PageParams(0, filterIds.size()));
             executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest, ActionListener.wrap(
-                getFilterResponse -> filterListener.onResponse(getFilterResponse.getFilters().results().get(0)),
+                getFilterResponse -> filtersListener.onResponse(getFilterResponse.getFilters().results()),
                 handler
             ));
         }
@@ -448,8 +457,20 @@ public class AutodetectProcessManager implements ClusterStateListener {
         );
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
-        ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-            AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+        ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
+            ack -> ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler),
+            e -> {
+                // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
+                // and it would cause more harm than good to block jobs from opening in subsequent releases
+                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                    AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+            }
+        );
+
+        // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
+        AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, annotationsIndexUpdateHandler);
     }
 
     private boolean createProcessAndSetRunning(ProcessContext processContext,

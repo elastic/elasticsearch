@@ -176,7 +176,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return Collections.singletonMap("fake-mapper", new KeywordFieldMapper.TypeParser());
+            return Collections.singletonMap("fake-mapper", KeywordFieldMapper.PARSER);
         }
 
         @Override

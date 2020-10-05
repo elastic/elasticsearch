@@ -19,18 +19,10 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Describes a system index. Provides the information required to create and maintain the system index.
@@ -90,49 +82,6 @@ public class SystemIndexDescriptor {
     @Override
     public String toString() {
         return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "]]";
-    }
-
-    /**
-     * Given a collection of {@link SystemIndexDescriptor}s and their sources, checks to see if the index patterns of the listed
-     * descriptors overlap with any of the other patterns. If any do, throws an exception.
-     *
-     * @param sourceToDescriptors A map of source (plugin) names to the SystemIndexDescriptors they provide.
-     * @throws IllegalStateException Thrown if any of the index patterns overlaps with another.
-     */
-    public static void checkForOverlappingPatterns(Map<String, Collection<SystemIndexDescriptor>> sourceToDescriptors) {
-        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToDescriptors.entrySet().stream()
-            .flatMap(entry -> entry.getValue().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
-            .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
-            .collect(Collectors.toList());
-
-        // This is O(n^2) with the number of system index descriptors, and each check is quadratic with the number of states in the
-        // automaton, but the absolute number of system index descriptors should be quite small (~10s at most), and the number of states
-        // per pattern should be low as well. If these assumptions change, this might need to be reworked.
-        sourceDescriptorPair.forEach(descriptorToCheck -> {
-            List<Tuple<String, SystemIndexDescriptor>> descriptorsMatchingThisPattern = sourceDescriptorPair.stream()
-
-                .filter(d -> descriptorToCheck.v2() != d.v2()) // Exclude the pattern currently being checked
-                .filter(d -> overlaps(descriptorToCheck.v2(), d.v2()))
-                .collect(Collectors.toList());
-            if (descriptorsMatchingThisPattern.isEmpty() == false) {
-                StringBuilder errorMessage = new StringBuilder();
-                errorMessage.append("a system index descriptor [")
-                    .append(descriptorToCheck.v2())
-                    .append("] from plugin [")
-                    .append(descriptorToCheck.v1())
-                    .append("] overlaps with other system index descriptors: [")
-                    .append(descriptorsMatchingThisPattern.stream()
-                        .map(descriptor -> descriptor.v2() + " from plugin [" + descriptor.v1() + "]")
-                        .collect(Collectors.joining(", ")));
-                throw new IllegalStateException(errorMessage.toString());
-            }
-        });
-    }
-
-    private static boolean overlaps(SystemIndexDescriptor a1, SystemIndexDescriptor a2) {
-        Automaton a1Automaton = Regex.simpleMatchToAutomaton(a1.getIndexPattern());
-        Automaton a2Automaton = Regex.simpleMatchToAutomaton(a2.getIndexPattern());
-        return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 
     // TODO: Index settings and mapping

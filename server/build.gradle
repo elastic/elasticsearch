@@ -294,4 +294,7 @@ tasks.named("dependencyLicenses").configure {
 tasks.named("licenseHeaders").configure {
     // Ignore our vendored version of Google Guice
     excludes << 'org/elasticsearch/common/inject/**/*'
+    // Ignore temporary copies of impending 8.7 Lucene classes
+    excludes << 'org/apache/lucene/search/RegExp87*'
+    excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }

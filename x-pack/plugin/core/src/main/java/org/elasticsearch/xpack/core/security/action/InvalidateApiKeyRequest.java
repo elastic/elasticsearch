@@ -176,13 +176,13 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         }
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && ids == null
             && Strings.hasText(name) == false && ownedByAuthenticatedUser == false) {
-            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified if " +
+            validationException = addValidationError("One of [api key id(s), api key name, username, realm name] must be specified if " +
                 "[owner] flag is false", validationException);
         }
         if (ids != null || Strings.hasText(name)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(
-                    "username or realm name must not be specified when the api key id or api key name is specified",
+                    "username or realm name must not be specified when the api key id(s) or api key name are specified",
                     validationException);
             }
         }

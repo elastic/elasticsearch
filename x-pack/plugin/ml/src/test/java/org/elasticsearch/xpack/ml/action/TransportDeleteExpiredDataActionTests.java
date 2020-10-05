@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -58,7 +59,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         transportDeleteExpiredDataAction = new TransportDeleteExpiredDataAction(threadPool, ThreadPool.Names.SAME, transportService,
             new ActionFilters(Collections.emptySet()), client, clusterService, mock(JobConfigProvider.class),
-            mock(JobResultsProvider.class),
+            mock(JobResultsProvider.class), mock(AnomalyDetectionAuditor.class),
             Clock.systemUTC());
     }
 

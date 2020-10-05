@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -37,8 +38,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.AdjustableSemaphore;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -53,6 +52,7 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
@@ -78,7 +78,8 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     /** a blocking queue used for concurrent fetching **/
     private final BlockingQueue<SnapshotShard> queue;
 
-    private final AdjustableSemaphore semaphore;
+    private volatile int maxConcurrentFetches;
+    private final AtomicInteger concurrentFetches;
 
     public InternalSnapshotsInfoService(
         final Settings settings,
@@ -93,10 +94,13 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         this.knownSnapshotShardSizes = ImmutableOpenMap.of();
         this.unknownSnapshotShards  = Sets.newConcurrentHashSet();
         this.queue = new LinkedBlockingQueue<>();
-        this.semaphore = new AdjustableSemaphore(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.get(settings), false);
+        this.concurrentFetches = new AtomicInteger(0);
+        this.maxConcurrentFetches = INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.get(settings);
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING, this::setMaxConcurrentFetches);
-        clusterService.addListener(this);
+        if (DiscoveryNode.isMasterNode(settings)) {
+            clusterService.addListener(this);
+        }
     }
 
     protected String executorName() {
@@ -104,7 +108,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     }
 
     private void setMaxConcurrentFetches(Integer maxConcurrentFetches) {
-        semaphore.setMaxPermits(maxConcurrentFetches);
+        this.maxConcurrentFetches = maxConcurrentFetches;
     }
 
     @Override
@@ -154,9 +158,15 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                 }
             }
 
-            final int nbFetchers = Math.min(unknownShards, semaphore.getMaxPermits());
+            final int nbFetchers = Math.min(unknownShards, maxConcurrentFetches);
             for (int i = 0; i < nbFetchers; i++) {
-                fetchNextSnapshotShard();
+                final int activeFetches = concurrentFetches.incrementAndGet();
+                if (activeFetches < maxConcurrentFetches + 1) {
+                    fetchNextSnapshotShard();
+                } else {
+                    final int value = concurrentFetches.decrementAndGet();
+                    assert value >= 0 : "Unexpected value: " + value;
+                }
             }
         } else {
             synchronized (this) {
@@ -168,72 +178,69 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     }
 
     private void fetchNextSnapshotShard() {
-        if (semaphore.tryAcquire()) {
-            final RunOnce releaseOnce = new RunOnce(semaphore::release);
-            boolean success = false;
-            try {
-                final SnapshotShard snapshotShard = queue.poll(0L, TimeUnit.MILLISECONDS);
-                if (snapshotShard != null) {
-                    threadPool.executor(executorName()).execute(new AbstractRunnable() {
-                        @Override
-                        protected void doRun() {
-                            if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-                                logger.debug("skipping snapshot shard size retrieval for {} as node is no longer master", snapshotShard);
-                                return;
-                            }
-
-                            final RepositoriesService repositories = repositoriesService.get();
-                            assert repositories != null;
-                            final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
-
-                            logger.debug("fetching snapshot shard size for {}", snapshotShard);
-                            final IndexShardSnapshotStatus status = repository.getShardSnapshotStatus(
-                                snapshotShard.snapshot().getSnapshotId(),
-                                snapshotShard.index(),
-                                snapshotShard.shardId()
-                            );
-
-                            final long snapshotShardSize = status.asCopy().getTotalSize();
-                            logger.debug("snapshot shard size for {}: {} bytes", snapshotShard, snapshotShardSize);
-
-                            boolean updated = false;
-                            synchronized (InternalSnapshotsInfoService.this) {
-                                if (isMaster) {
-                                    final ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes =
-                                        ImmutableOpenMap.builder(knownSnapshotShardSizes);
-                                    updated = newSnapshotShardSizes.put(snapshotShard, snapshotShardSize) == null;
-                                    knownSnapshotShardSizes = newSnapshotShardSizes.build();
-                                }
-                            }
-                            if (updated) {
-                                rerouteService.get().reroute("snapshot shard size updated", Priority.HIGH,
-                                    ActionListener.wrap(
-                                        r -> logger.trace("reroute after snapshot shard size update completed"),
-                                        e -> logger.debug("reroute after snapshot shard size update failed", e)));
-                            }
+        boolean success = false;
+        try {
+            final SnapshotShard snapshotShard = queue.poll(0L, TimeUnit.MILLISECONDS);
+            if (snapshotShard != null) {
+                threadPool.executor(executorName()).execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {
+                        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+                            logger.debug("skipping snapshot shard size retrieval for {} as node is no longer master", snapshotShard);
+                            return;
                         }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn(() -> new ParameterizedMessage("failed to retrieve shard size for {}", snapshotShard), e);
-                        }
+                        final RepositoriesService repositories = repositoriesService.get();
+                        assert repositories != null;
+                        final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
 
-                        @Override
-                        public void onAfter() {
-                            unknownSnapshotShards.remove(snapshotShard);
-                            releaseOnce.run();
-                            fetchNextSnapshotShard();
+                        logger.debug("fetching snapshot shard size for {}", snapshotShard);
+                        final IndexShardSnapshotStatus status = repository.getShardSnapshotStatus(
+                            snapshotShard.snapshot().getSnapshotId(),
+                            snapshotShard.index(),
+                            snapshotShard.shardId()
+                        );
+
+                        final long snapshotShardSize = status.asCopy().getTotalSize();
+                        logger.debug("snapshot shard size for {}: {} bytes", snapshotShard, snapshotShardSize);
+
+                        boolean updated = false;
+                        synchronized (InternalSnapshotsInfoService.this) {
+                            if (isMaster) {
+                                final ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes =
+                                    ImmutableOpenMap.builder(knownSnapshotShardSizes);
+                                updated = newSnapshotShardSizes.put(snapshotShard, snapshotShardSize) == null;
+                                knownSnapshotShardSizes = newSnapshotShardSizes.build();
+                            }
                         }
-                    });
-                    success = true;
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.warn("snapshot shard size fetcher has been interrupted", e);
-            } finally {
-                if (success == false) {
-                    releaseOnce.run();
-                }
+                        if (updated) {
+                            rerouteService.get().reroute("snapshot shard size updated", Priority.HIGH,
+                                ActionListener.wrap(
+                                    r -> logger.trace("reroute after snapshot shard size update completed"),
+                                    e -> logger.debug("reroute after snapshot shard size update failed", e)));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(() -> new ParameterizedMessage("failed to retrieve shard size for {}", snapshotShard), e);
+                    }
+
+                    @Override
+                    public void onAfter() {
+                        unknownSnapshotShards.remove(snapshotShard);
+                        fetchNextSnapshotShard();
+                    }
+                });
+                success = true;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("snapshot shard size fetcher has been interrupted", e);
+        } finally {
+            if (success == false) {
+                final int value = concurrentFetches.decrementAndGet();
+                assert value >= 0 : "Unexpected value: " + value;
             }
         }
     }
@@ -246,11 +253,6 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     // used in tests
     int numberOfKnownSnapshotShardSizes() {
         return knownSnapshotShardSizes.size();
-    }
-
-    // used in tests
-    boolean hasQueuedFetchingThreads() {
-        return semaphore.hasQueuedThreads();
     }
 
     public static class SnapshotShard {

@@ -149,7 +149,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(settings.getSettings(),
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), settings.getIndexScopedSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()), settings.getIndexScopedSettings(),
                 settings.getClusterSettings(), settings.getSettingsFilter(), threadPool, singletonList(dupsMainAction),
                 null, null, usageService, null);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
@@ -184,7 +184,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(settings.getSettings(),
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), settings.getIndexScopedSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()), settings.getIndexScopedSettings(),
                 settings.getClusterSettings(), settings.getSettingsFilter(), threadPool, singletonList(registersFakeHandler),
                 null, null, usageService, null);
             actionModule.initRestHandlers(null);

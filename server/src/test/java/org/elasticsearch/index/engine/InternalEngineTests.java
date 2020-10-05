@@ -1319,7 +1319,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
-            Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
+            Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService::fieldType)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
             for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
                 long minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitCheckpoint + 1);
@@ -1343,7 +1343,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
-            assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocs.size()));
+            assertThat(readAllOperationsInLucene(engine, mapperService::fieldType), hasSize(liveDocs.size()));
         }
     }
 
@@ -1407,7 +1407,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
-            Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
+            Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService::fieldType)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
             for (long seqno = 0; seqno <= engine.getPersistedLocalCheckpoint(); seqno++) {
                 String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
@@ -1450,7 +1450,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
-            assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocsWithSource.size()));
+            assertThat(readAllOperationsInLucene(engine, mapperService::fieldType), hasSize(liveDocsWithSource.size()));
         }
     }
 
@@ -3337,7 +3337,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(1, topDocs.totalHits.value);
         }
         if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            List<Translog.Operation> ops = readAllOperationsInLucene(engine, createMapperService());
+            List<Translog.Operation> ops = readAllOperationsInLucene(engine, createMapperService()::fieldType);
             assertThat(ops.stream().map(o -> o.seqNo()).collect(Collectors.toList()), hasItem(20L));
         }
     }
@@ -4059,7 +4059,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(noOp.reason(), equalTo(reason));
             if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
                 MapperService mapperService = createMapperService();
-                List<Translog.Operation> operationsFromLucene = readAllOperationsInLucene(noOpEngine, mapperService);
+                List<Translog.Operation> operationsFromLucene = readAllOperationsInLucene(noOpEngine, mapperService::fieldType);
                 assertThat(operationsFromLucene, hasSize(maxSeqNo + 2 - localCheckpoint)); // fills n gap and 2 manual noop.
                 for (int i = 0; i < operationsFromLucene.size(); i++) {
                     assertThat(operationsFromLucene.get(i),
@@ -4133,7 +4133,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
         }
         if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            List<Translog.Operation> operations = readAllOperationsInLucene(engine, createMapperService());
+            List<Translog.Operation> operations = readAllOperationsInLucene(engine, createMapperService()::fieldType);
             assertThat(operations, hasSize(numOps));
         }
     }
@@ -5071,7 +5071,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             MapperService mapperService = createMapperService();
-            List<Translog.Operation> actualOps = readAllOperationsInLucene(engine, mapperService);
+            List<Translog.Operation> actualOps = readAllOperationsInLucene(engine, mapperService::fieldType);
             assertThat(actualOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
         }
@@ -5152,7 +5152,7 @@ public class InternalEngineTests extends EngineTestCase {
                 long minRetainSeqNos = engine.getMinRetainedSeqNo();
                 assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get() + 1));
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
-                Set<Long> actualOps = readAllOperationsInLucene(engine, createMapperService()).stream()
+                Set<Long> actualOps = readAllOperationsInLucene(engine, createMapperService()::fieldType).stream()
                     .map(Translog.Operation::seqNo).collect(Collectors.toSet());
                 assertThat(actualOps, containsInAnyOrder(expectedOps));
             }
@@ -5239,7 +5239,7 @@ public class InternalEngineTests extends EngineTestCase {
                     @Override
                     protected void doRun() throws Exception {
                         latch.await();
-                        Translog.Snapshot changes = engine.newChangesSnapshot("test", mapperService, min, max, true);
+                        Translog.Snapshot changes = engine.newChangesSnapshot("test", mapperService::fieldType, min, max, true);
                         changes.close();
                     }
                 });

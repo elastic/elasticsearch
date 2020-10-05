@@ -282,7 +282,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             .fielddataBuilder("test", () -> {
                 throw new UnsupportedOperationException();
             })
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         SetOnce<List<?>> result = new SetOnce<>();
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());

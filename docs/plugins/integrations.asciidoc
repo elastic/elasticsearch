@@ -56,7 +56,7 @@ releases 2.0 and later do not support rivers.
 * https://github.com/jprante/elasticsearch-jdbc[JDBC importer]:
   The Java Database Connection (JDBC) importer allows to fetch data from JDBC sources for indexing into Elasticsearch (by Jörg Prante)
 
-* https://github.com/BigDataDevs/kafka-elasticsearch-consumer [Kafka Standalone Consumer(Indexer)]:
+* https://github.com/BigDataDevs/kafka-elasticsearch-consumer[Kafka Standalone Consumer (Indexer)]:
   Kafka Standalone Consumer [Indexer] will read messages from Kafka in batches, processes(as implemented) and bulk-indexes them into Elasticsearch. Flexible and scalable. More documentation in above GitHub repo's Wiki.
 
 * https://github.com/ozlerhakan/mongolastic[Mongolastic]:
@@ -74,6 +74,9 @@ releases 2.0 and later do not support rivers.
 
 * https://github.com/senacor/elasticsearch-evolution[Elasticsearch Evolution]:
   A library to migrate elasticsearch mappings.
+
+* https://pgsync.com[PGSync]:
+  A tool for syncing data from Postgres to Elasticsearch.
 
 [discrete]
 [[deployment]]

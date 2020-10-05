@@ -449,13 +449,13 @@ public class RoundingTests extends ESTestCase {
                     assertThat("Values smaller than rounded value should round further down", prepared.round(roundedDate - 1),
                         lessThan(roundedDate));
                     assertThat("Rounding should be >= previous rounding value", roundedDate, greaterThanOrEqualTo(previousRoundedValue));
+                    assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
+                    assertThat("NextRounding value rounds to itself", nextRoundingValue,
+                        isDate(rounding.round(nextRoundingValue), tz));
 
                     if (tz.getRules().isFixedOffset()) {
-                        assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
                         assertThat("NextRounding value should be interval from rounded value", nextRoundingValue - roundedDate,
                             equalTo(interval));
-                        assertThat("NextRounding value should be a rounded date", nextRoundingValue,
-                            equalTo(rounding.round(nextRoundingValue)));
                     }
                     previousRoundedValue = roundedDate;
                 } catch (AssertionError e) {
@@ -467,6 +467,48 @@ public class RoundingTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well with the java.time APIs.
+     */
+    public void testHardNextRoundingValue() {
+        Rounding rounding = new Rounding.TimeIntervalRounding(960000, ZoneId.of("Europe/Minsk"));
+        long rounded = rounding.prepareForUnknown().round(877824908400L);
+        long next = rounding.prepareForUnknown().nextRoundingValue(rounded);
+        assertThat(next, greaterThan(rounded));
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well with the java.time APIs.
+     */
+    public void testOtherHardNextRoundingValue() {
+        Rounding rounding = new Rounding.TimeIntervalRounding(480000, ZoneId.of("Portugal"));
+        long rounded = rounding.prepareJavaTime().round(972780720000L);
+        long next = rounding.prepareJavaTime().nextRoundingValue(rounded);
+        assertThat(next, greaterThan(rounded));
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well our janky Newton's Method/binary search hybrid.
+     */
+    public void testHardNewtonsMethod() {
+        ZoneId tz = ZoneId.of("Asia/Jerusalem");
+        Rounding rounding = new Rounding.TimeIntervalRounding(19800000, tz);
+        assertThat(rounding.prepareJavaTime().nextRoundingValue(1824929914182L), isDate(time("2027-10-31T01:30:00", tz), tz));
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well with the java.time APIs.
+     */
+    public void testOtherHardNewtonsMethod() {
+        ZoneId tz = ZoneId.of("America/Glace_Bay");
+        Rounding rounding = new Rounding.TimeIntervalRounding(13800000, tz);
+        assertThat(rounding.prepareJavaTime().nextRoundingValue(1383463147373L), isDate(time("2013-11-03T03:40:00", tz), tz));
     }
 
     /**

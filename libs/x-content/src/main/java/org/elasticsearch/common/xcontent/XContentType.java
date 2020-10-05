@@ -124,6 +124,8 @@ public enum XContentType {
         if (mediaType == null) {
             return null;
         }
+
+        mediaType = removeVersionInMediaType(mediaType);
         for (XContentType type : values()) {
             if (isSameMediaTypeOrFormatAs(mediaType, type)) {
                 return type;
@@ -135,6 +137,23 @@ public enum XContentType {
         }
 
         return null;
+    }
+
+    /**
+     * Clients compatible with ES 7.x might start sending media types with versioned media type
+     * in a form of application/vnd.elasticsearch+json;compatible-with=7.
+     * This has to be removed in order to be used in 7.x server.
+     * The same client connecting using that media type will be able to communicate with ES 8 thanks to compatible API.
+     * @param mediaType - a media type used on Content-Type header, might contain versioned media type.
+     *
+     * @return a media type string without
+     */
+    private static String removeVersionInMediaType(String mediaType) {
+        if (mediaType.contains("vnd.elasticsearch")) {
+            return mediaType.replaceAll("vnd.elasticsearch\\+", "")
+                .replaceAll("\\s*;\\s*compatible-with=\\d+", "");
+        }
+        return mediaType;
     }
 
     /**

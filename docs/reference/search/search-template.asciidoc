@@ -156,7 +156,7 @@ The API returns the following result:
 {
   "script" : {
     "lang" : "mustache",
-    "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
+    "source" : """{"query":{"match":{"title":"{{query_string}}"}}}""",
     "options": {
       "content_type" : "application/json; charset=UTF-8"
     }

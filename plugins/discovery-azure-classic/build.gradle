@@ -74,7 +74,7 @@ File keystore = new File(project.buildDir, 'keystore/test-node.jks')
 // generate the keystore
 TaskProvider createKey = tasks.register("createKey", LoggedExec) {
   doFirst {
-    project.delete(keystore.parentFile)
+    delete(keystore.parentFile)
     keystore.parentFile.mkdirs()
   }
   outputs.file(keystore).withPropertyName('keystoreFile')

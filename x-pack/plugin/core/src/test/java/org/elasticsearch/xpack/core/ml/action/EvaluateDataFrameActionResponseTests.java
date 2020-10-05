@@ -11,19 +11,24 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Response;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRocResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AccuracyResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.PrecisionResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.RecallResultTests;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Huber;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicError;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Huber;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
 
 import java.util.Arrays;
 import java.util.List;
 
 public class EvaluateDataFrameActionResponseTests extends AbstractWireSerializingTestCase<Response> {
+
+    private static final String OUTLIER_DETECTION = "outlier_detection";
+    private static final String CLASSIFICATION = "classification";
+    private static final String REGRESSION = "regression";
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -32,18 +37,35 @@ public class EvaluateDataFrameActionResponseTests extends AbstractWireSerializin
 
     @Override
     protected Response createTestInstance() {
-        String evaluationName = randomAlphaOfLength(10);
-        List<EvaluationMetricResult> metrics =
-            Arrays.asList(
-                AccuracyResultTests.createRandom(),
-                PrecisionResultTests.createRandom(),
-                RecallResultTests.createRandom(),
-                MulticlassConfusionMatrixResultTests.createRandom(),
-                new MeanSquaredError.Result(randomDouble()),
-                new MeanSquaredLogarithmicError.Result(randomDouble()),
-                new Huber.Result(randomDouble()),
-                new RSquared.Result(randomDouble()));
-        return new Response(evaluationName, randomSubsetOf(metrics));
+        String evaluationName = randomFrom(OUTLIER_DETECTION, CLASSIFICATION, REGRESSION);
+        List<EvaluationMetricResult> metrics;
+        switch (evaluationName) {
+            case OUTLIER_DETECTION:
+                metrics = randomSubsetOf(
+                    Arrays.asList(
+                        AucRocResultTests.createRandom()));
+                break;
+            case CLASSIFICATION:
+                metrics = randomSubsetOf(
+                    Arrays.asList(
+                        AucRocResultTests.createRandom(),
+                        AccuracyResultTests.createRandom(),
+                        PrecisionResultTests.createRandom(),
+                        RecallResultTests.createRandom(),
+                        MulticlassConfusionMatrixResultTests.createRandom()));
+                    break;
+            case REGRESSION:
+                metrics = randomSubsetOf(
+                    Arrays.asList(
+                        new MeanSquaredError.Result(randomDouble()),
+                        new MeanSquaredLogarithmicError.Result(randomDouble()),
+                        new Huber.Result(randomDouble()),
+                        new RSquared.Result(randomDouble())));
+                break;
+            default:
+                throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
+        }
+        return new Response(evaluationName, metrics);
     }
 
     @Override

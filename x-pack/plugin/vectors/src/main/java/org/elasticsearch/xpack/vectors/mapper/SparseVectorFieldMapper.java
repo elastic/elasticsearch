@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
@@ -20,9 +18,8 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -35,6 +32,7 @@ import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -44,7 +42,9 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A {@link FieldMapper} for indexing a sparse vector of floats.
  */
-public class SparseVectorFieldMapper extends FieldMapper {
+@Deprecated
+public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SparseVectorFieldMapper.class);
     public static final String DEPRECATION_MESSAGE = "The [sparse_vector] field type is deprecated and will be removed in 8.0.";
 
@@ -52,40 +52,34 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
     public static int MAX_DIMS_NUMBER = 65535; //maximum allowed dimension's number
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        final Version indexCreatedVersion;
+
+        public Builder(String name, Version indexCreatedVersion) {
+            super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
         }
-    }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
-
-        public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Collections.singletonList(meta);
         }
 
         @Override
         public SparseVectorFieldMapper build(BuilderContext context) {
             return new SparseVectorFieldMapper(
-                    name, fieldType, new SparseVectorFieldType(buildFullName(context), meta),
-                    context.indexCreatedVersion(), multiFieldsBuilder.build(this, context), copyTo);
+                    name, new SparseVectorFieldType(buildFullName(context), meta.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build(), indexCreatedVersion);
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            deprecationLogger.deprecate("sparse_vector", DEPRECATION_MESSAGE);
-            SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder(name);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        deprecationLogger.deprecate("sparse_vector", DEPRECATION_MESSAGE);
+        return new Builder(n, c.indexVersionCreated());
+    });
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
@@ -102,6 +96,19 @@ public class SparseVectorFieldMapper extends FieldMapper {
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new UnsupportedOperationException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
         }
 
         @Override
@@ -128,21 +135,15 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     private final Version indexCreatedVersion;
 
-    private SparseVectorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                    Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
-        assert fieldType.indexOptions() == IndexOptions.NONE;
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                    MultiFields multiFields, CopyTo copyTo, Version indexCreatedVersion) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.indexCreatedVersion = indexCreatedVersion;
     }
 
     @Override
     protected SparseVectorFieldMapper clone() {
         return (SparseVectorFieldMapper) super.clone();
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
     }
 
     @Override
@@ -155,7 +156,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         if (context.externalValueSet()) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
-        ensureExpectedToken(Token.START_OBJECT, context.parser().currentToken(), context.parser()::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, context.parser().currentToken(), context.parser());
         int[] dims = new int[0];
         float[] values = new float[0];
         int dimCount = 0;
@@ -197,35 +198,17 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean docValuesByDefault() {
-        return true;
-    }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
+    protected String contentType() {
+        return CONTENT_TYPE;
     }
 
     @Override
-    protected String contentType() {
-        return CONTENT_TYPE;
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), indexCreatedVersion).init(this);
     }
 }

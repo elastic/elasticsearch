@@ -44,7 +44,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -366,15 +365,27 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(
             new Classification("foo").getExplicitlyMappedFields(Collections.singletonMap("foo", "not_a_map"), "results"),
             equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
+        Map<String, Object> expectedTopClassesMapping = new HashMap<String, Object>() {{
+            put("type", "nested");
+            put("properties", new HashMap<String, Object>() {{
+                put("class_name", Collections.singletonMap("bar", "baz"));
+                put("class_probability", Collections.singletonMap("type", "double"));
+            }});
+        }};
         Map<String, Object> explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
             Collections.singletonMap("foo", Collections.singletonMap("bar", "baz")),
             "results");
-        assertThat(explicitlyMappedFields,
-            allOf(
-                hasEntry("results.foo_prediction", Collections.singletonMap("bar", "baz")),
-                hasEntry("results.top_classes.class_name", Collections.singletonMap("bar", "baz"))));
+        assertThat(explicitlyMappedFields, hasEntry("results.foo_prediction", Collections.singletonMap("bar", "baz")));
+        assertThat(explicitlyMappedFields, hasEntry("results.top_classes", expectedTopClassesMapping));
         assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING));
 
+        expectedTopClassesMapping = new HashMap<String, Object>() {{
+            put("type", "nested");
+            put("properties", new HashMap<String, Object>() {{
+                put("class_name", Collections.singletonMap("type", "long"));
+                put("class_probability", Collections.singletonMap("type", "double"));
+            }});
+        }};
         explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
             new HashMap<String, Object>() {{
                 put("foo", new HashMap<String, String>() {{
@@ -384,10 +395,8 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                 put("bar", Collections.singletonMap("type", "long"));
             }},
             "results");
-        assertThat(explicitlyMappedFields,
-            allOf(
-                hasEntry("results.foo_prediction", Collections.singletonMap("type", "long")),
-                hasEntry("results.top_classes.class_name", Collections.singletonMap("type", "long"))));
+        assertThat(explicitlyMappedFields, hasEntry("results.foo_prediction", Collections.singletonMap("type", "long")));
+        assertThat(explicitlyMappedFields, hasEntry("results.top_classes", expectedTopClassesMapping));
         assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING));
 
         assertThat(

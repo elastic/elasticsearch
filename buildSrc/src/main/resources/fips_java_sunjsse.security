@@ -1,6 +1,6 @@
 # Security Properties for JDK 8, with BouncyCastle FIPS provider and SunJSSE in FIPS mode
 
-security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider
+security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider C:HYBRID;ENABLE{All};
 security.provider.2=com.sun.net.ssl.internal.ssl.Provider BCFIPS
 security.provider.3=sun.security.provider.Sun
 security.provider.4=sun.security.jgss.SunProvider

@@ -36,7 +36,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -125,9 +124,11 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<NamedAnalyzer> analyzer;
         private final Parameter<NamedAnalyzer> searchAnalyzer;
         private final Parameter<Boolean> preserveSeparators = Parameter.boolParam("preserve_separators", false,
-            m -> toType(m).preserveSeparators, Defaults.DEFAULT_PRESERVE_SEPARATORS);
+            m -> toType(m).preserveSeparators, Defaults.DEFAULT_PRESERVE_SEPARATORS)
+            .alwaysSerialize();
         private final Parameter<Boolean> preservePosInc = Parameter.boolParam("preserve_position_increments", false,
-            m -> toType(m).preservePosInc, Defaults.DEFAULT_POSITION_INCREMENTS);
+            m -> toType(m).preservePosInc, Defaults.DEFAULT_POSITION_INCREMENTS)
+            .alwaysSerialize();
         private final Parameter<ContextMappings> contexts = new Parameter<>("contexts", false, () -> null,
             (n, c, o) -> ContextMappings.load(o, c.indexVersionCreated()), m -> toType(m).contexts)
             .setSerializer((b, n, c) -> {
@@ -141,7 +142,8 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Integer> maxInputLength = Parameter.intParam("max_input_length", true,
             m -> toType(m).maxInputLength, Defaults.DEFAULT_MAX_INPUT_LENGTH)
             .addDeprecatedName("max_input_len")
-            .setValidator(Builder::validateInputLength);
+            .setValidator(Builder::validateInputLength)
+            .alwaysSerialize();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NamedAnalyzer defaultAnalyzer;
@@ -156,7 +158,8 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
             this.indexVersionCreated = indexVersionCreated;
-            this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> defaultAnalyzer);
+            this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> defaultAnalyzer)
+                .alwaysSerialize();
             this.searchAnalyzer
                 = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, analyzer::getValue);
         }
@@ -169,26 +172,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(analyzer, searchAnalyzer, preserveSeparators, preservePosInc, contexts, maxInputLength, meta);
-        }
-
-        @Override
-        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            builder.field("analyzer", this.analyzer.getValue().name());
-            if (Objects.equals(this.analyzer.getValue().name(), this.searchAnalyzer.getValue().name()) == false) {
-                builder.field("search_analyzer", this.searchAnalyzer.getValue().name());
-            }
-            builder.field(this.preserveSeparators.name, this.preserveSeparators.getValue());
-            builder.field(this.preservePosInc.name, this.preservePosInc.getValue());
-            builder.field(this.maxInputLength.name, this.maxInputLength.getValue());
-            if (this.contexts.getValue() != null) {
-                builder.startArray(this.contexts.name);
-                this.contexts.getValue().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.endArray();
-            }
-            if (this.meta.getValue().isEmpty() == false) {
-                builder.field(this.meta.name, this.meta.getValue());
-            }
+            return Arrays.asList(analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta);
         }
 
         @Override
@@ -315,6 +299,24 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), mapperService, true) {
+                @Override
+                protected List<?> parseSourceValue(Object value) {
+                    if (value instanceof List) {
+                        return (List<?>) value;
+                    } else {
+                        return Collections.singletonList(value);
+                    }
+                }
+            };
         }
 
     }
@@ -529,24 +531,6 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             throw new ParsingException(parser.getTokenLocation(), "failed to parse [" + parser.currentName()
                 + "]: expected text or object, but got " + token.name());
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected List<?> parseSourceValue(Object value) {
-                if (value instanceof List) {
-                    return (List<?>) value;
-                } else {
-                    return org.elasticsearch.common.collect.List.of(value);
-                }
-            }
-        };
     }
 
     static class CompletionInputMetadata {

@@ -29,9 +29,8 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Set;
 
-public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeaturesFieldMapper.Builder> {
+public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -42,11 +41,6 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
     protected void assertExistsQuery(MapperService mapperService) {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> super.assertExistsQuery(mapperService));
         assertEquals("[rank_features] fields do not support [exists] queries", iae.getMessage());
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "store", "doc_values", "index");
     }
 
     @Override
@@ -115,10 +109,5 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase2<RankFeatu
         })));
         assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
                 "the same document", e.getCause().getMessage());
-    }
-
-    @Override
-    protected RankFeaturesFieldMapper.Builder newBuilder() {
-        return new RankFeaturesFieldMapper.Builder("rf");
     }
 }

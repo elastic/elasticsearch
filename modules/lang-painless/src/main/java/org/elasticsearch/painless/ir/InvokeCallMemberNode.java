@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
@@ -108,9 +109,13 @@ public class InvokeCallMemberNode extends ArgumentsNode {
 
     /* ---- end visitor ---- */
 
+    public InvokeCallMemberNode(Location location) {
+        super(location);
+    }
+
     @Override
     public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+        methodWriter.writeDebugInfo(getLocation());
 
         if (localFunction != null) {
             if (localFunction.isStatic() == false) {

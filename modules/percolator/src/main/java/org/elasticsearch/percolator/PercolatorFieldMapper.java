@@ -65,6 +65,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -96,9 +97,10 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class PercolatorFieldMapper extends FieldMapper {
+public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
     static final XContentType QUERY_BUILDER_CONTENT_TYPE = XContentType.SMILE;
+
     static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING = Setting.boolSetting(
         "index.percolator.map_unmapped_fields_as_text", false, Setting.Property.IndexScope);
     static final String CONTENT_TYPE = "percolator";
@@ -114,18 +116,30 @@ public class PercolatorFieldMapper extends FieldMapper {
     static final String RANGE_FIELD_NAME = "range_field";
     static final String MINIMUM_SHOULD_MATCH_FIELD_NAME = "minimum_should_match_field";
 
-    static class Builder extends FieldMapper.Builder<Builder> {
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), queryShardContext).init(this);
+    }
+
+    static class Builder extends ParametrizedFieldMapper.Builder {
+
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Supplier<QueryShardContext> queryShardContext;
 
         Builder(String fieldName, Supplier<QueryShardContext> queryShardContext) {
-            super(fieldName, new FieldType());
+            super(fieldName);
             this.queryShardContext = queryShardContext;
         }
 
         @Override
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(meta);
+        }
+
+        @Override
         public PercolatorFieldMapper build(BuilderContext context) {
-            PercolatorFieldType fieldType = new PercolatorFieldType(buildFullName(context), meta);
+            PercolatorFieldType fieldType = new PercolatorFieldType(buildFullName(context), meta.getValue());
             context.path().add(name());
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
             fieldType.queryTermsField = extractedTermsField.fieldType();
@@ -142,8 +156,8 @@ public class PercolatorFieldMapper extends FieldMapper {
             fieldType.mapUnmappedFieldsAsText = getMapUnmappedFieldAsText(context.indexSettings());
 
             context.path().remove();
-            return new PercolatorFieldMapper(name(), Builder.this.fieldType, fieldType,
-                    multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField,
+            return new PercolatorFieldMapper(name(), fieldType,
+                    multiFieldsBuilder.build(this, context), copyTo.build(), queryShardContext, extractedTermsField,
                     extractionResultField, queryBuilderField, rangeFieldMapper, minimumShouldMatchFieldMapper,
                 getMapUnmappedFieldAsText(context.indexSettings()));
         }
@@ -208,6 +222,19 @@ public class PercolatorFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
         }
 
         Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
@@ -314,12 +341,12 @@ public class PercolatorFieldMapper extends FieldMapper {
     private final RangeFieldMapper rangeFieldMapper;
     private final boolean mapUnmappedFieldsAsText;
 
-    PercolatorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    PercolatorFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                           MultiFields multiFields, CopyTo copyTo, Supplier<QueryShardContext> queryShardContext,
                           KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
                           BinaryFieldMapper queryBuilderField, RangeFieldMapper rangeFieldMapper,
                           NumberFieldMapper minimumShouldMatchFieldMapper, boolean mapUnmappedFieldsAsText) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.queryShardContext = queryShardContext;
         this.queryTermsField = queryTermsField;
         this.extractionResultField = extractionResultField;
@@ -357,19 +384,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext));
         Query query = queryBuilderForProcessing.toQuery(queryShardContext);
         processQuery(query, context);
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
     }
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
@@ -476,12 +490,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context) {
         throw new UnsupportedOperationException("should not be invoked");
     }
 
@@ -547,15 +556,5 @@ public class PercolatorFieldMapper extends FieldMapper {
         System.arraycopy(minEncoded, 0, bytes, offset, minEncoded.length);
         System.arraycopy(maxEncoded, 0, bytes, BinaryRange.BYTES + offset, maxEncoded.length);
         return bytes;
-    }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return false;
     }
 }

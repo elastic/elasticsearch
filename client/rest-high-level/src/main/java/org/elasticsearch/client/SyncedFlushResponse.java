@@ -102,13 +102,13 @@ public class SyncedFlushResponse implements ToXContentObject {
     }
 
     public static SyncedFlushResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
         ShardCounts totalCounts = null;
         Map<String, IndexResult> indexResults = new HashMap<>();
         XContentLocation startLoc = parser.getTokenLocation();
         while (parser.nextToken().equals(Token.FIELD_NAME)) {
             if (parser.currentName().equals(SHARDS_FIELD)) {
-                ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
                 totalCounts = ShardCounts.fromXContent(parser);
             } else {
                 String indexName = parser.currentName();

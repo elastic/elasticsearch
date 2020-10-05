@@ -118,6 +118,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             return termsQuery(Arrays.asList(value), context);
         }

@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Explain {dfanalytics} API</titleabbrev>
+<titleabbrev>Explain {dfanalytics}</titleabbrev>
 ++++
 
 Explains a {dataframe-analytics-config}.

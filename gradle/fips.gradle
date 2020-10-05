@@ -25,7 +25,7 @@ if (BuildParams.inFipsJvm) {
       fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_11.policy")
     }
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
-    def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.1')
+    def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2')
     def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')
 
     pluginManager.withPlugin('java') {

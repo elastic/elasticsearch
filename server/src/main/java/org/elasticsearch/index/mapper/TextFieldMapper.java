@@ -395,6 +395,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException();
         }
@@ -413,6 +418,11 @@ public class TextFieldMapper extends FieldMapper {
             this.maxChars = maxChars;
             this.parentField = parentField;
             this.hasPositions = hasPositions;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
         }
 
         static boolean canMerge(PrefixFieldType first, PrefixFieldType second) {
@@ -511,11 +521,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -538,11 +543,6 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -638,6 +638,19 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value.toString();
+                }
+            };
         }
 
         @Override
@@ -834,19 +847,6 @@ public class TextFieldMapper extends FieldMapper {
                 context.doc().add(new Field(phraseFieldMapper.fieldType().name(), value, phraseFieldMapper.fieldType));
             }
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value.toString();
-            }
-        };
     }
 
     @Override

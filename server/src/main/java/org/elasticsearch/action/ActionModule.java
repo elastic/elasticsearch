@@ -250,6 +250,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
@@ -427,7 +428,7 @@ public class ActionModule extends AbstractModule {
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-                        CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                        CircuitBreakerService circuitBreakerService, UsageService usageService, SystemIndices systemIndices) {
         this.transportClient = transportClient;
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -438,7 +439,9 @@ public class ActionModule extends AbstractModule {
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
-        autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver);
+        autoCreateIndex = transportClient
+            ? null
+            : new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),

@@ -22,6 +22,8 @@ package org.elasticsearch.painless;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Collections;
+
 public class RegexLimitTests extends ScriptTestCase {
     // This regex has backtracking due to .*?
     private final String pattern = "/abc.*?def/";
@@ -286,7 +288,7 @@ public class RegexLimitTests extends ScriptTestCase {
     }
 
     public void testSnippetRegex() {
-        String charSequence = "abcdef123456".repeat(100);
+        String charSequence = String.join("", Collections.nCopies(100, "abcdef123456"));
         String script = "if ('" + charSequence + "' ==~ " + pattern + ") { return 100; } return 200";
 
         setRegexLimitFactor(1);

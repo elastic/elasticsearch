@@ -1874,25 +1874,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // INIT state snapshots won't ever be physically written to the repository but all other states will end up in the repo
                     outstandingDeletes.add(runningSnapshot.getSnapshotId());
                 }
-                final Set<SnapshotId> activeCloneSources = snapshots.entries()
-                        .stream()
-                        .filter(SnapshotsInProgress.Entry::isClone)
-                        .map(SnapshotsInProgress.Entry::source)
-                        .collect(Collectors.toSet());
-                for (SnapshotId snapshotId : snapshotIds) {
-                    if (activeCloneSources.contains(snapshotId)) {
-                        throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotId),
-                                "cannot delete snapshot while it is being cloned");
-                    }
-                }
-                final SnapshotDeletionsInProgress deletionsInProgress =
-                        currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
-                final RepositoryCleanupInProgress repositoryCleanupInProgress =
-                        currentState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
-                if (repositoryCleanupInProgress.hasCleanupInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotIds.get(0)),
-                            "cannot delete snapshots while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
-                }
                 if (state == State.INIT) {
                     // snapshot is still initializing, mark it as aborted
                     shards = snapshotEntry.shards();
@@ -2087,6 +2068,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final Set<SnapshotId> activeCloneSources = snapshots.entries()
+                    .stream()
+                    .filter(SnapshotsInProgress.Entry::isClone)
+                    .map(SnapshotsInProgress.Entry::source)
+                    .collect(Collectors.toSet());
+                for (SnapshotId snapshotId : snapshotIds) {
+                    if (activeCloneSources.contains(snapshotId)) {
+                        throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotId),
+                            "cannot delete snapshot while it is being cloned");
+                    }
+                }
                 final SnapshotsInProgress updatedSnapshots;
                 if (minNodeVersion.onOrAfter(FULL_CONCURRENCY_VERSION)) {
                     updatedSnapshots = SnapshotsInProgress.of(snapshots.entries().stream()

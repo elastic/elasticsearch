@@ -694,6 +694,11 @@ public class IndexNameExpressionResolver {
         return false;
     }
 
+    /**
+     * Determines whether or not system index access should be allowed in the current context.
+     *
+     * @return True if system index access should be allowed, false otherwise.
+     */
     public boolean isSystemIndexAccessAllowed() {
         return Booleans.parseBoolean(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY), true);
     }

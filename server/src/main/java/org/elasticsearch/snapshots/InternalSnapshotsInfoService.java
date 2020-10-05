@@ -226,7 +226,8 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
                     @Override
                     public void onAfter() {
-                        unknownSnapshotShards.remove(snapshotShard);
+                        final boolean removed = unknownSnapshotShards.remove(snapshotShard);
+                        assert removed : "snapshot shard size to remove not found for " + snapshotShard;
                         fetchNextSnapshotShard();
                     }
                 });

@@ -101,7 +101,7 @@ releases 2.0 and later do not support rivers.
 [discrete]
 ==== Supported by the community:
 
-* https://camel.apache.org/elasticsearch.html[Apache Camel Integration]:
+* https://camel.apache.org/components/2.x/elasticsearch-component.html[Apache Camel Integration]:
   An Apache camel component to integrate Elasticsearch
 
 * https://metacpan.org/pod/Catmandu::Store::ElasticSearch[Catmandu]:

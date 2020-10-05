@@ -92,6 +92,16 @@ public class FakeStringFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected String parseSourceValue(Object value) {
+                    return value.toString();
+                }
+            };
+        }
     }
 
     protected FakeStringFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType,
@@ -119,16 +129,6 @@ public class FakeStringFieldMapper extends FieldMapper {
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                return value.toString();
-            }
-        };
     }
 
     @Override

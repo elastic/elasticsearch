@@ -21,11 +21,8 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.FieldAliasMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -46,7 +43,7 @@ public class FieldFetcher {
     public static FieldFetcher create(MapperService mapperService,
                                       SearchLookup searchLookup,
                                       Collection<FieldAndFormat> fieldAndFormats) {
-        MappingLookup fieldMappers = mapperService.documentMapper().mappers();
+
         List<FieldContext> fieldContexts = new ArrayList<>();
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
@@ -55,19 +52,11 @@ public class FieldFetcher {
 
             Collection<String> concreteFields = mapperService.simpleMatchToFullName(fieldPattern);
             for (String field : concreteFields) {
-                Mapper mapper = fieldMappers.getMapper(field);
-                if (mapper == null || mapperService.isMetadataField(field)) {
+                MappedFieldType ft = mapperService.fieldType(field);
+                if (ft == null || mapperService.isMetadataField(field)) {
                     continue;
                 }
-
-                if (mapper instanceof FieldAliasMapper) {
-                    String target = ((FieldAliasMapper) mapper).path();
-                    mapper = fieldMappers.getMapper(target);
-                    assert mapper instanceof FieldMapper;
-                }
-
-                FieldMapper fieldMapper = (FieldMapper) mapper;
-                ValueFetcher valueFetcher = fieldMapper.valueFetcher(mapperService, searchLookup, format);
+                ValueFetcher valueFetcher = ft.valueFetcher(mapperService, searchLookup, format);
                 fieldContexts.add(new FieldContext(field, valueFetcher));
             }
         }

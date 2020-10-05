@@ -1,8 +1,8 @@
 ---
 "Null value":
   - skip:
-      version: " - 7.99.99"
-      reason: "unsigned_long was added in 8.0"
+      version: " - 7.9.99"
+      reason: "unsigned_long was added in 7.10"
 
   - do:
       indices.create:

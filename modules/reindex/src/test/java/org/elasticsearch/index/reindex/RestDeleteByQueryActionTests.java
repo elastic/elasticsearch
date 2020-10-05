@@ -24,8 +24,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
-
 import org.junit.Before;
+
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
@@ -44,6 +44,10 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
             .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_delete_by_query")
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         dispatchRequest(request);
 
         // checks the type in the URL is propagated correctly to the request object

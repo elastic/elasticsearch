@@ -31,8 +31,8 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Arrays;
+import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
 
@@ -102,6 +102,10 @@ public class RestReindexActionTests extends RestActionTestCase {
         }
         b.endObject();
         requestBuilder.withContent(new BytesArray(BytesReference.bytes(b).toBytesRef()), XContentType.JSON);
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         dispatchRequest(requestBuilder.build());
         assertWarnings(ReindexRequest.TYPES_DEPRECATION_MESSAGE);
     }
@@ -123,6 +127,10 @@ public class RestReindexActionTests extends RestActionTestCase {
         }
         b.endObject();
         requestBuilder.withContent(new BytesArray(BytesReference.bytes(b).toBytesRef()), XContentType.JSON);
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         dispatchRequest(requestBuilder.build());
         assertWarnings(ReindexRequest.TYPES_DEPRECATION_MESSAGE);
     }

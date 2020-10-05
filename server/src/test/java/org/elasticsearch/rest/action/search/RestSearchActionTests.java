@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -40,6 +40,9 @@ public class RestSearchActionTests extends RestActionTestCase {
             .withPath("/some_index/some_type/_search")
             .build();
 
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         dispatchRequest(request);
         assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
@@ -53,6 +56,9 @@ public class RestSearchActionTests extends RestActionTestCase {
             .withPath("/some_index/_search")
             .withParams(params)
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
         assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);

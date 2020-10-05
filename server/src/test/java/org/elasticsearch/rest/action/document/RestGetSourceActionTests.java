@@ -65,11 +65,14 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      * test deprecation is logged if type is used in path
      */
     public void testTypeInPath() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                     .withMethod(method)
                     .withPath("/some_index/some_type/id/_source")
                     .build();
+
             dispatchRequest(request);
             assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
         }
@@ -79,6 +82,8 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      * test deprecation is logged if type is used as parameter
      */
     public void testTypeParameter() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {

@@ -345,7 +345,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
             client().performRequest(shrinkIndexRequest);
 
-            client().performRequest(new Request("POST", "/_refresh"));
+            refreshAllIndices();
         } else {
             numDocs = countOfIndexedRandomDocuments();
         }
@@ -430,7 +430,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             numDocs = countOfIndexedRandomDocuments();
         }
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
 
         Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(response);

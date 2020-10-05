@@ -53,8 +53,6 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteExpiredDataAction.class);
 
-    static final Duration DEFAULT_MAX_DURATION = Duration.ofHours(8);
-
     private final ThreadPool threadPool;
     private final String executor;
     private final OriginSettingClient client;

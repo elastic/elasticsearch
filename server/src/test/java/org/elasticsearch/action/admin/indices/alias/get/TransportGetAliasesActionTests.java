@@ -34,7 +34,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportGetAliasesActionTests extends ESTestCase {
-    private final SystemIndices EMPTY_SYSTEM_INDICES = new SystemIndices(Collections.EMPTY_MAP);
+    private final SystemIndices EMPTY_SYSTEM_INDICES = new SystemIndices(Collections.emptyMap());
 
     public void testPostProcess() {
         GetAliasesRequest request = new GetAliasesRequest();

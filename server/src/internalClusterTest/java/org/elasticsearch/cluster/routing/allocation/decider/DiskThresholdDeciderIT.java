@@ -151,18 +151,13 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
         // reduce disk size of node 0 so that no shards fit below the high watermark, forcing all shards onto the other data node
         // (subtract the translog size since the disk threshold decider ignores this and may therefore move the shard back again)
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
-        assertBusy(() ->  {
-            refreshDiskUsage();
-            assertThat(getShardRoutings(dataNode0Id), empty());
-        });
+        refreshDiskUsage();
+        assertBusy(() -> assertThat(getShardRoutings(dataNode0Id), empty()));
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
         refreshDiskUsage();
-        assertBusy(() -> {
-            refreshDiskUsage();
-            assertThat(getShardRoutings(dataNode0Id), hasSize(1));
-        });
+        assertBusy(() -> assertThat(getShardRoutings(dataNode0Id), hasSize(1)));
     }
 
     private Set<ShardRouting> getShardRoutings(String nodeId) {

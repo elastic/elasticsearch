@@ -50,6 +50,8 @@ import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -602,7 +604,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // Set context class loader to plugin's class loader so that plugins
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
-            Thread.currentThread().setContextClassLoader(loader);
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                Thread.currentThread().setContextClassLoader(loader);
+                return null;
+            });
 
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
             if (loader != pluginClass.getClassLoader()) {
@@ -614,7 +619,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             loaded.put(name, plugin);
             return plugin;
         } finally {
-            Thread.currentThread().setContextClassLoader(cl);
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                Thread.currentThread().setContextClassLoader(cl);
+                return null;
+            });
         }
     }
 

@@ -211,7 +211,8 @@ node.roles: [ data ]
 ----
 
 In a multi-tier deployment architecture, you use specialised data roles to assign data nodes to specific tiers: `data_content`,`data_hot`,
-`data_warm`, or `data_cold. A node can belong to multiple tiers, but a node that has one of the specialised data roles cannot have the generic  `data` role. ```
+`data_warm`, or `data_cold`. A node can belong to multiple tiers, but a node that has one of the specialised data roles cannot have the
+generic `data` role.
 
 [[data-content-node]]
 ==== [x-pack]#Content data node#
@@ -240,9 +241,9 @@ node.roles: [ data_hot ]
 [[data-warm-node]]
 ==== [x-pack]#Warm data node#
 
-Warm data nodes hold indices after they are no longer being written to, but still being
-queried, usually at a lower frequency than it was in the hot tier. Lower performant
-hardware can usually be used in this tier.
+Warm data nodes store indices that are no longer being regularly updated, but are still being
+queried. Query volume is usually at a lower frequency than it was while the index was in the hot tier.
+Less performant hardware can usually be used for nodes in this tier.
 
 To create a dedicated warm node, set:
 [source,yaml]

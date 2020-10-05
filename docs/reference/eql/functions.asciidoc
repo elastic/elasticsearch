@@ -6,7 +6,7 @@
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 {es} supports the following <<eql-functions,EQL functions>>.
 

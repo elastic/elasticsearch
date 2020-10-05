@@ -248,6 +248,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 request.ensureSafeBuffers();
             }
             if (handler.allowSystemIndexAccessByDefault() == false && request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER) == null) {
+                // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product with a plan
+                // to move away from direct access to system indices, and thus deprecation warnings should not be emitted.
+                // This header is intended for internal use only.
                 client.threadPool().getThreadContext().putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
             }
 

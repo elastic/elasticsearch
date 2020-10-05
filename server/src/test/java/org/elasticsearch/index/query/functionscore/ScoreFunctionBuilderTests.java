@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -60,10 +59,8 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         Mockito.when(context.index()).thenReturn(settings.getIndex());
         Mockito.when(context.getShardId()).thenReturn(0);
         Mockito.when(context.getIndexSettings()).thenReturn(settings);
-        MapperService mapperService = Mockito.mock(MapperService.class);
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("foo", NumberType.LONG);
-        Mockito.when(mapperService.fieldType(Mockito.anyString())).thenReturn(ft);
-        Mockito.when(context.getMapperService()).thenReturn(mapperService);
+        Mockito.when(context.fieldMapper(Mockito.anyString())).thenReturn(ft);
         builder.toFunction(context);
         assertWarnings("As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
     }

@@ -17,7 +17,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -188,7 +187,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
     private class TestNativeProcess extends AbstractNativeProcess {
 
         TestNativeProcess() {
-            super("foo", nativeController, processPipes, 0, null, onProcessCrash, Duration.ZERO);
+            super("foo", nativeController, processPipes, 0, null, onProcessCrash);
         }
 
         @Override

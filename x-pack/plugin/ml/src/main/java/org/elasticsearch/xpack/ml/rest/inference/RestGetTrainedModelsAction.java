@@ -34,6 +34,7 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
@@ -41,9 +42,18 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
-            new Route(GET, MachineLearning.BASE_PATH + "inference"));
+            new ReplacedRoute(
+                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
+                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
+            new ReplacedRoute(
+                GET, MachineLearning.BASE_PATH + "trained_models",
+                GET, MachineLearning.BASE_PATH + "inference"));
     }
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =
@@ -89,7 +99,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Set.of(TrainedModelConfig.DECOMPRESS_DEFINITION, TrainedModelConfig.FOR_EXPORT);
+        return Set.of(TrainedModelConfig.DECOMPRESS_DEFINITION, FOR_EXPORT);
     }
 
     private static class RestToXContentListenerWithDefaultValues<T extends ToXContentObject> extends RestToXContentListener<T> {

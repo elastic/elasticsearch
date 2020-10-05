@@ -391,6 +391,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
+        if (fullName.equals(TypeFieldType.NAME)) {
+            return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
+        }
         return this.mapper == null ? null : this.mapper.fieldTypes().get(fullName);
     }
 
@@ -464,8 +467,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
      */
-    public BooleanSupplier isIdFieldDataEnabled() {
-        return idFieldDataEnabled;
+    public boolean isIdFieldDataEnabled() {
+        return idFieldDataEnabled.getAsBoolean();
     }
 
     @Override

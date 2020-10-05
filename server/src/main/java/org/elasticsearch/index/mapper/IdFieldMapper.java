@@ -96,15 +96,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> {
-        BooleanSupplier fieldDataEnabled = c.mapperService().isIdFieldDataEnabled();
-        return new IdFieldMapper(fieldDataEnabled);
-    });
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(() -> c.mapperService().isIdFieldDataEnabled()));
 
     static final class IdFieldType extends TermBasedFieldType {
-        private final BooleanSupplier fieldDataEnabled;
+        private final Supplier<Boolean> fieldDataEnabled;
 
-        IdFieldType(BooleanSupplier fieldDataEnabled) {
+        IdFieldType(Supplier<Boolean> fieldDataEnabled) {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.fieldDataEnabled = fieldDataEnabled;
@@ -119,6 +116,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public boolean isSearchable() {
             // The _id field is always searchable.
             return true;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -147,7 +149,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            if (fieldDataEnabled.getAsBoolean() == false) {
+            if (fieldDataEnabled.get() == false) {
                 throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
                     + "you can re-enable it by updating the dynamic cluster setting: "
                     + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
@@ -162,12 +164,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 @Override
                 public IndexFieldData<?> build(
                     IndexFieldDataCache cache,
-                    CircuitBreakerService breakerService,
-                    MapperService mapperService
+                    CircuitBreakerService breakerService
                 ) {
                     deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache,
-                        breakerService, mapperService);
+                        breakerService);
                     return new IndexFieldData<>() {
                         @Override
                         public String getFieldName() {
@@ -255,12 +256,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
+    private IdFieldMapper(Supplier<Boolean> fieldDataEnabled) {
         super(new IdFieldType(fieldDataEnabled));
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
         BytesRef id = Uid.encodeId(context.sourceToParse().id());
         context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
     }
@@ -269,5 +270,4 @@ public class IdFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

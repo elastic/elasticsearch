@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -55,9 +56,13 @@ public class LoadDotDefNode extends ExpressionNode {
 
     /* ---- end visitor ---- */
 
+    public LoadDotDefNode(Location location) {
+        super(location);
+    }
+
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+        methodWriter.writeDebugInfo(getLocation());
         Type methodType = Type.getMethodType(
                 MethodWriter.getType(getExpressionType()),
                 MethodWriter.getType(def.class));

@@ -1,10 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-trained-models-stats]]
-= Get trained model statistics API
+= Get trained models statistics API
 [subs="attributes"]
 ++++
-<titleabbrev>Get trained model stats</titleabbrev>
+<titleabbrev>Get trained models stats</titleabbrev>
 ++++
 
 Retrieves usage information for trained models.

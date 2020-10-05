@@ -5,14 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Stop datafeed API
+=== Stop datafeeds API
 
-The stop datafeed API provides the ability to stop a {ml} datafeed in the cluster.
+Stops a {ml} datafeed in the cluster.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Stop datafeed request
+==== Stop datafeeds request
 
 A +{request}+ object is created referencing any number of non-null `datafeedId` entries.
 Wildcards and `_all` are also accepted.

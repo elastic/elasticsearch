@@ -5,7 +5,7 @@
 Phases allowed: warm, cold.
 
 Updates the <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
-index setting in order to migrate the index to the <<modules-tiers, data tier>> corresponding
+index setting in order to migrate the index to the <<data-tiers, data tier>> corresponding
 to the current phase.
 
 In the warm phase, the `migrate` action sets <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
@@ -36,7 +36,7 @@ Defaults to `true`.
 [[ilm-enabled-migrate-ex]]
 ==== Example
 
-In the following policy, the allocate action is specified to reduce the number of replicas before {ilm-init} migrates the index to warm nodes.  
+In the following policy, the allocate action is specified to reduce the number of replicas before {ilm-init} migrates the index to warm nodes.
 
 NOTE: Explicitly specifying the migrate action is not required--{ilm-init} automatically performs the migrate action unless you specify allocation options or disable migration.
 

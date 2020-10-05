@@ -79,8 +79,6 @@ include::settings/monitoring-settings.asciidoc[]
 
 include::modules/node.asciidoc[]
 
-include::modules/datatiers.asciidoc[]
-
 include::modules/network.asciidoc[]
 
 include::modules/indices/query_cache.asciidoc[]

@@ -2,7 +2,7 @@
 [[data-tier-shard-filtering]]
 === Index-level data tier allocation filtering
 
-You can use index-level allocation settings to control which <<modules-tiers, data tier>>
+You can use index-level allocation settings to control which <<data-tiers, data tier>>
 the index is allocated to. The data tier allocator is a
 <<shard-allocation-filtering, shard allocation filter>> that uses two built-in
 node attributes:  `_tier` and `_tier_preference`.

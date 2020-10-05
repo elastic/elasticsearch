@@ -102,11 +102,11 @@ The index allocation settings support the following built-in attributes:
 `_ip`::         Match either `_host_ip` or `_publish_ip`
 `_host`::       Match nodes by hostname
 `_id`::         Match nodes by node id
-`_tier`::       Match nodes by the node's <<modules-tiers, data tier>> role.
+`_tier`::       Match nodes by the node's <<data-tiers, data tier>> role.
                 For more details see <<data-tier-shard-filtering, data tier allocation filtering>>
 
 NOTE: `_tier` filtering is based on <<modules-node, node>> roles. Only
-a subset of roles are <<modules-tiers, data tier>> roles, and the generic
+a subset of roles are <<data-tiers, data tier>> roles, and the generic
 <<data-node, data role>> will match any tier filtering.
 
 You can use wildcards when specifying attribute values, for example:

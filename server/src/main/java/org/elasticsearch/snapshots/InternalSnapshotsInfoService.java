@@ -210,6 +210,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                                 final ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes =
                                     ImmutableOpenMap.builder(knownSnapshotShardSizes);
                                 updated = newSnapshotShardSizes.put(snapshotShard, snapshotShardSize) == null;
+                                assert updated : "snapshot shard size already exists for " + snapshotShard;
                                 knownSnapshotShardSizes = newSnapshotShardSizes.build();
                             }
                         }

@@ -258,6 +258,7 @@ public class Packages {
         }
         Files.write(installation.envFile, envLines);
     }
+
     /**
      * Starts Elasticsearch, without checking that startup is successful.
      */

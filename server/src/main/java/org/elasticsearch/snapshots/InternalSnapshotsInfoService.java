@@ -186,7 +186,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() {
-                        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+                        if (isMaster == false) {
                             logger.debug("skipping snapshot shard size retrieval for {} as node is no longer master", snapshotShard);
                             return;
                         }

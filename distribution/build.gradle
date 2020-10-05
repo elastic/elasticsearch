@@ -123,7 +123,7 @@ tasks.register("processTransportOutputs", Sync) {
 }
 
 // these are dummy tasks that can be used to depend on the relevant sub output dir
-tasks.register("buildOssModules") {
+def buildOssModulesTaskProvider = tasks.register("buildOssModules") {
   dependsOn "processOssOutputs"
   outputs.dir "${ossOutputs}/modules"
 }
@@ -135,7 +135,7 @@ tasks.register("buildOssConfig") {
   dependsOn "processOssOutputs"
   outputs.dir "${ossOutputs}/config"
 }
-tasks.register("buildDefaultModules") {
+def buildDefaultModulesTaskProvider = tasks.register("buildDefaultModules") {
   dependsOn "processDefaultOutputs"
   outputs.dir "${defaultOutputs}/modules"
 }
@@ -155,7 +155,7 @@ tasks.register("buildTransportModules") {
   dependsOn "processTransportOutputs"
   outputs.dir "${transportOutputs}/modules"
 }
-tasks.register("buildExternalTestModules") {
+def buildExternalTestModules = tasks.register("buildExternalTestModules") {
   dependsOn "processExternalTestOutputs"
   outputs.dir "${externalTestOutputs}/modules"
 }
@@ -366,11 +366,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.mode = 0644
           }
         }
-        Task buildModules
+        TaskProvider buildModules
         if (oss) {
-          buildModules = project(':distribution').buildOssModules
+          buildModules = buildOssModulesTaskProvider
         } else {
-          buildModules = project(':distribution').buildDefaultModules
+          buildModules = buildDefaultModulesTaskProvider
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64']
         if (platform != null) {
@@ -390,7 +390,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           }
         }
         if (BuildParams.isSnapshotBuild()) {
-          from(project(':distribution').buildExternalTestModules)
+          from(buildExternalTestModules)
         }
         if (project.path.startsWith(':distribution:packages')) {
           from(project(':distribution').buildSystemdModule)

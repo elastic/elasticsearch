@@ -150,12 +150,12 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             return;
         }
 
-        if (event.localNodeMaster() == false) {
+        final ClusterState state = event.state();
+
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
             // not our job to recover
             return;
         }
-
-        final ClusterState state = event.state();
         if (state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
             // already recovered
             return;

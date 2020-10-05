@@ -162,7 +162,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().nodes().isLocalNodeElectedMaster()) {
+        if (event.localNodeMaster()) {
             long currentNanoTime = currentNanoTime();
             scheduleIfNeeded(currentNanoTime, event.state());
         }

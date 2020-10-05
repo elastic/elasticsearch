@@ -25,7 +25,7 @@ for data tier filtering.
 `index.routing.allocation.include._tier`::
 
     Assign the index to a node whose `node.roles` configuration has at
-    least one of to the comma-separated.
+    least one of to the comma-separated values.
 
 `index.routing.allocation.require._tier`::
 

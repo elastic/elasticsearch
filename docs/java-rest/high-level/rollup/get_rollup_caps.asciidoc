@@ -7,6 +7,8 @@
 [id="{upid}-x-pack-{api}"]
 === Get Rollup Capabilities API
 
+experimental::[]
+
 The Get Rollup Capabilities API allows the user to query a target index pattern (`logstash-*`, etc)
 and determine if there are any rollup jobs that are/were configured to rollup that pattern.
 The API accepts a `GetRollupCapsRequest` object as a request and returns a `GetRollupCapsResponse`.

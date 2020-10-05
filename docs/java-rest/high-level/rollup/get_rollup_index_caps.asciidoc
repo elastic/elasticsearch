@@ -7,6 +7,8 @@
 [id="{upid}-x-pack-{api}"]
 === Get Rollup Index Capabilities API
 
+experimental::[]
+
 The Get Rollup Index Capabilities API allows the user to determine if a concrete index or index pattern contains
 stored rollup jobs and data.  If it contains data stored from rollup jobs, the capabilities of those jobs
 are returned. The API accepts a `GetRollupIndexCapsRequest` object as a request and returns a `GetRollupIndexCapsResponse`.

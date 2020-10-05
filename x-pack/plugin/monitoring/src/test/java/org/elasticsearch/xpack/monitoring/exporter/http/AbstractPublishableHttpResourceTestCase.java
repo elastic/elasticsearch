@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -30,8 +31,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
-import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.*;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_DOES_NOT_EXIST;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_EXISTS;
 import static org.hamcrest.Matchers.instanceOf;
@@ -54,7 +54,8 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     protected final TimeValue masterTimeout = randomFrom(TimeValue.timeValueMinutes(5), TimeValue.MINUS_ONE, null);
 
     protected final RestClient client = mock(RestClient.class);
-    protected final ActionListener<Boolean> listener = mockBooleanActionListener();
+    protected final ActionListener<Boolean> checkListener = mockBooleanActionListener();
+    protected final ActionListener<ResourcePublishResult> publishListener = mockPublishResultActionListener();
 
     /**
      * Perform {@link PublishableHttpResource#doCheck(RestClient, ActionListener) doCheck} against the {@code resource} and assert that it
@@ -103,9 +104,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         addParameters(request, expectedParameters);
         whenPerformRequestAsyncWith(client, request, e);
 
-        resource.doCheck(client, listener);
+        resource.doCheck(client, checkListener);
 
-        verifyListener(null);
+        verifyCheckListener(null);
     }
 
     /**
@@ -142,9 +143,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         addParameters(request, deleteParameters(resource.getDefaultParameters()));
         whenPerformRequestAsyncWith(client, request, e);
 
-        resource.doCheck(client, listener);
+        resource.doCheck(client, checkListener);
 
-        verifyListener(null);
+        verifyCheckListener(null);
     }
 
     /**
@@ -181,9 +182,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
         whenPerformRequestAsyncWith(client, e);
 
-        resource.doPublish(client, listener);
+        resource.doPublish(client, publishListener);
 
-        verifyListener(null);
+        verifyPublishListener(null);
 
         Map <String, String> allParameters = new HashMap<>();
         allParameters.putAll(resource.getDefaultParameters());
@@ -258,10 +259,10 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        resource.doCheck(client, listener);
+        resource.doCheck(client, checkListener);
 
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
-        verifyListener(expected);
+        verifyCheckListener(expected);
     }
 
     private void doPublishWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
@@ -274,9 +275,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
         whenPerformRequestAsyncWith(client, response);
 
-        resource.doPublish(client, listener);
+        resource.doPublish(client, publishListener);
 
-        verifyListener(errorFree ? true : null);
+        verifyPublishListener(errorFree ? ResourcePublishResult.ready() : null);
 
         final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
         verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
@@ -308,9 +309,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         addParameters(request, deleteParameters(resource.getDefaultParameters()));
         whenPerformRequestAsyncWith(client, request, response);
 
-        resource.doCheck(client, listener);
+        resource.doCheck(client, checkListener);
 
-        verifyListener(expected);
+        verifyCheckListener(expected);
     }
 
     protected RestStatus successfulCheckStatus() {
@@ -444,13 +445,23 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         }
     }
 
-    protected void verifyListener(final Boolean expected) {
+    protected void verifyPublishListener(final ResourcePublishResult expected) {
         if (expected == null) {
-            verify(listener, never()).onResponse(anyBoolean());
-            verify(listener).onFailure(any(Exception.class));
+            verify(publishListener, never()).onResponse(any());
+            verify(publishListener).onFailure(any(Exception.class));
         } else {
-            verify(listener).onResponse(expected);
-            verify(listener, never()).onFailure(any(Exception.class));
+            verify(publishListener).onResponse(expected);
+            verify(publishListener, never()).onFailure(any(Exception.class));
+        }
+    }
+
+    protected void verifyCheckListener(final Boolean expected) {
+        if (expected == null) {
+            verify(checkListener, never()).onResponse(anyBoolean());
+            verify(checkListener).onFailure(any(Exception.class));
+        } else {
+            verify(checkListener).onResponse(expected);
+            verify(checkListener, never()).onFailure(any(Exception.class));
         }
     }
 

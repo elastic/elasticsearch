@@ -14,10 +14,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockPublishResultActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -31,7 +32,7 @@ public class VersionHttpResourceTests extends ESTestCase {
 
     private final String owner = getClass().getSimpleName();
     private final RestClient client = mock(RestClient.class);
-    private final ActionListener<Boolean> listener = mockBooleanActionListener();
+    private final ActionListener<ResourcePublishResult> publishListener = mockPublishResultActionListener();
 
     public void testDoCheckAndPublishSuccess() {
         final Version minimumVersion = VersionUtils.randomVersion(random());
@@ -40,9 +41,9 @@ public class VersionHttpResourceTests extends ESTestCase {
 
         final VersionHttpResource resource = new VersionHttpResource(owner, minimumVersion);
 
-        resource.doCheckAndPublish(client, listener);
+        resource.doCheckAndPublish(client, publishListener);
 
-        verify(listener).onResponse(true);
+        verify(publishListener).onResponse(ResourcePublishResult.ready());
         verify(response).getEntity();
     }
 
@@ -52,9 +53,9 @@ public class VersionHttpResourceTests extends ESTestCase {
 
         final VersionHttpResource resource = new VersionHttpResource(owner, Version.CURRENT);
 
-        resource.doCheckAndPublish(client, listener);
+        resource.doCheckAndPublish(client, publishListener);
 
-        verify(listener).onFailure(any(Exception.class));
+        verify(publishListener).onFailure(any(Exception.class));
         verify(response).getEntity();
     }
 
@@ -64,9 +65,9 @@ public class VersionHttpResourceTests extends ESTestCase {
 
         final VersionHttpResource resource = new VersionHttpResource(owner, Version.CURRENT);
 
-        resource.doCheckAndPublish(client, listener);
+        resource.doCheckAndPublish(client, publishListener);
 
-        verify(listener).onFailure(any(Exception.class));
+        verify(publishListener).onFailure(any(Exception.class));
         verify(response).getEntity();
     }
 
@@ -76,9 +77,9 @@ public class VersionHttpResourceTests extends ESTestCase {
 
         final VersionHttpResource resource = new VersionHttpResource(owner, Version.CURRENT);
 
-        resource.doCheckAndPublish(client, listener);
+        resource.doCheckAndPublish(client, publishListener);
 
-        verify(listener).onFailure(any(Exception.class));
+        verify(publishListener).onFailure(any(Exception.class));
         verify(response).getEntity();
     }
 
@@ -90,9 +91,9 @@ public class VersionHttpResourceTests extends ESTestCase {
 
         final VersionHttpResource resource = new VersionHttpResource(owner, Version.CURRENT);
 
-        resource.doCheckAndPublish(client, listener);
+        resource.doCheckAndPublish(client, publishListener);
 
-        verify(listener).onFailure(any(Exception.class));
+        verify(publishListener).onFailure(any(Exception.class));
     }
 
     private Response responseForJSON(final String json) {

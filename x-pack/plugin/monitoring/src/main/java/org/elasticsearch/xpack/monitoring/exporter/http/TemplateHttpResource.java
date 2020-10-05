@@ -93,7 +93,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
      * Publish the missing {@linkplain #templateName template}.
      */
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         putResource(client, listener, logger,
                     "/_template", templateName, Collections.emptyMap(), this::templateToHttpEntity, "monitoring template",
                     resourceOwnerName, "monitoring cluster");

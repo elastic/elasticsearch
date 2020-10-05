@@ -71,7 +71,7 @@ public class PipelineHttpResource extends PublishableHttpResource {
      * Publish the current {@linkplain #pipelineName pipeline}.
      */
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         putResource(client, listener, logger,
                     "/_ingest/pipeline", pipelineName, Collections.emptyMap(), this::pipelineToHttpEntity, "monitoring pipeline",
                     resourceOwnerName, "monitoring cluster");

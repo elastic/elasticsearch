@@ -52,7 +52,7 @@ public class VersionHttpResource extends HttpResource {
      * If it does not, then there is nothing that can be done except wait until it does. There is no publishing aspect to this operation.
      */
     @Override
-    protected void doCheckAndPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doCheckAndPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         logger.trace("checking [{}] to ensure that it supports the minimum version [{}]", resourceOwnerName, minimumVersion);
 
         final Request request = new Request("GET", "/");
@@ -91,7 +91,7 @@ public class VersionHttpResource extends HttpResource {
      * @throws ClassCastException if the response is malformed.
      * @throws IOException if any parsing issue occurs.
      */
-    private boolean validateVersion(final Response response) throws IOException {
+    private ResourcePublishResult validateVersion(final Response response) throws IOException {
         Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
         // the response should be filtered to just '{"version":{"number":"xyz"}}', so this is cheap and guaranteed
         @SuppressWarnings("unchecked")
@@ -104,10 +104,11 @@ public class VersionHttpResource extends HttpResource {
 
         if (version.onOrAfter(minimumVersion)) {
             logger.debug("version [{}] >= [{}] and supported for [{}]", version, minimumVersion, resourceOwnerName);
-            return true;
+            return ResourcePublishResult.ready();
         } else {
             logger.error("version [{}] < [{}] and NOT supported for [{}]", version, minimumVersion, resourceOwnerName);
-            return false;
+            return ResourcePublishResult.notReady("version [" + version + "] < [" + minimumVersion + "] and NOT supported for ["
+                + resourceOwnerName + "]");
         }
     }
 

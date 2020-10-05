@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -82,7 +83,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
     private final MultiHttpResource resources =
             HttpExporter.createResources(
-                    new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState));
+                    new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)).allResources;
 
     @Before
     public void setupResources() {
@@ -106,9 +107,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void awaitCheckAndPublish(HttpResource resource, final Boolean expected) {
-        resource.checkAndPublish(client, listener);
+        resource.checkAndPublish(client, publishListener);
 
-        verifyListener(expected);
+        verifyPublishListener(expected != null ? new ResourcePublishResult(expected) : null);
     }
 
     public void testInvalidVersionBlocks() {
@@ -519,7 +520,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             .put("xpack.monitoring.migration.decommission_alerts", true)
             .build();
         MultiHttpResource overrideResource = HttpExporter.createResources(
-            new Exporter.Config("_http", "http", removalExporterSettings, clusterService, licenseState));
+            new Exporter.Config("_http", "http", removalExporterSettings, clusterService, licenseState)).allResources;
 
         assertTrue(overrideResource.isDirty());
         awaitCheckAndPublish(overrideResource, true);
@@ -595,7 +596,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         final MultiHttpResource resources =
                 HttpExporter.createResources(
-                        new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState));
+                        new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)).allResources;
 
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
@@ -611,9 +612,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         // it should be able to proceed! (note: we are not using the instance "resources" here)
-        resources.checkAndPublish(client, listener);
+        resources.checkAndPublish(client, publishListener);
 
-        verifyListener(true);
+        verifyPublishListener(ResourcePublishResult.ready());
         assertFalse(resources.isDirty());
 
         verifyVersionCheck();

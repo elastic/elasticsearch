@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 
 import java.util.Map;
 
@@ -40,9 +41,9 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     public void testDoCheckIgnoresClientWhenNotElectedMaster() {
         whenNotElectedMaster();
 
-        resource.doCheck(client, listener);
+        resource.doCheck(client, checkListener);
 
-        verify(listener).onResponse(true);
+        verify(checkListener).onResponse(true);
         verifyZeroInteractions(client);
     }
 
@@ -140,9 +141,9 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, listener);
+        resource.doPublish(client, publishListener);
 
-        verifyListener(true);
+        verifyPublishListener(ResourcePublishResult.ready());
 
         assertThat(mockWatch.checked, is(1));
         assertThat(mockWatch.published, is(publish ? 1 : 0));
@@ -153,9 +154,9 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, listener);
+        resource.doPublish(client, publishListener);
 
-        verifyListener(false);
+        verifyPublishListener(new ResourcePublishResult(false));
 
         assertThat(mockWatch.checked, is(1));
         assertThat(mockWatch.published, is(1));
@@ -166,9 +167,9 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, listener);
+        resource.doPublish(client, publishListener);
 
-        verifyListener(null);
+        verifyPublishListener(null);
 
         assertThat(mockWatch.checked, is(1));
         assertThat(mockWatch.published, is(1));

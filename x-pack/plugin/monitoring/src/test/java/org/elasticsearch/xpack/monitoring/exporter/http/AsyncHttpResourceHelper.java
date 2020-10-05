@@ -28,6 +28,11 @@ class AsyncHttpResourceHelper {
         return mock(ActionListener.class);
     }
 
+    @SuppressWarnings("unchecked")
+    static ActionListener<HttpResource.ResourcePublishResult> mockPublishResultActionListener() {
+        return mock(ActionListener.class);
+    }
+
     static void whenPerformRequestAsyncWith(final RestClient client, final Response response) {
         doAnswer(invocation -> {
             ((ResponseListener)invocation.getArguments()[1]).onSuccess(response);

@@ -54,7 +54,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -99,12 +98,13 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(() -> c.mapperService().isIdFieldDataEnabled()));
 
     static final class IdFieldType extends TermBasedFieldType {
+
         private final Supplier<Boolean> fieldDataEnabled;
 
         IdFieldType(Supplier<Boolean> fieldDataEnabled) {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.fieldDataEnabled = fieldDataEnabled;
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override

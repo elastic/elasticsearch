@@ -37,7 +37,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-//import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -68,13 +67,13 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+//import org.apache.lucene.util.automaton.RegExp;
 
 public class WildcardFieldMapperTests extends ESTestCase {
 
@@ -221,8 +220,8 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();
     }
-    
-    
+
+
     public void testTermAndPrefixQueryIgnoreWildcardSyntax() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
@@ -238,7 +237,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         DirectoryReader reader = iw.getReader();
         IndexSearcher searcher = newSearcher(reader);
         iw.close();
-        
+
         expectTermMatch(searcher, "f*oo*", 0);
         expectTermMatch(searcher, "f*oo?", 1);
         expectTermMatch(searcher, "*oo?", 0);
@@ -246,22 +245,22 @@ public class WildcardFieldMapperTests extends ESTestCase {
         expectPrefixMatch(searcher, "f*o", 1);
         expectPrefixMatch(searcher, "f*oo?", 1);
         expectPrefixMatch(searcher, "f??o", 0);
-        
+
         reader.close();
         dir.close();
     }
-    
+
     private void expectTermMatch(IndexSearcher searcher, String term,long count) throws IOException {
         Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_QSC);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));        
+        assertThat(td.totalHits.value, equalTo(count));
     }
-    
+
     private void expectPrefixMatch(IndexSearcher searcher, String term,long count) throws IOException {
         Query q = wildcardFieldType.fieldType().prefixQuery(term, null, MOCK_QSC);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));        
-    }    
+        assertThat(td.totalHits.value, equalTo(count));
+    }
 
 
     public void testSearchResultsVersusKeywordField() throws IOException {
@@ -869,28 +868,6 @@ public class WildcardFieldMapperTests extends ESTestCase {
         assertTrue("[" + result.toString() + "]should match [" + randomValue + "]" + substitutionPoint + "-" + substitutionLength + "/"
                 + randomValue.length(), bytesMatcher.run(br.bytes, br.offset, br.length));
         return result.toString();
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        WildcardFieldMapper mapper = new WildcardFieldMapper.Builder("field").build(context);
-        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
-
-        WildcardFieldMapper ignoreAboveMapper = new WildcardFieldMapper.Builder("field")
-            .ignoreAbove(4)
-            .build(context);
-        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
-
-        WildcardFieldMapper nullValueMapper = new WildcardFieldMapper.Builder("field")
-            .nullValue("NULL")
-            .build(context);
-        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 
     protected MappedFieldType provideMappedFieldType(String name) {

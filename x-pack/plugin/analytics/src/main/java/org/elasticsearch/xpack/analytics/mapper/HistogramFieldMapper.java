@@ -124,19 +124,6 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
-    }
-
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, Map<String, String> meta) {
@@ -146,6 +133,19 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
         }
 
         @Override

@@ -1240,7 +1240,7 @@ public class ApiKeyService {
         private final InvalidationCountingCacheWrapper<String, ApiKeyService.CachedApiKeyDoc> docCache;
         private final Cache<String, BytesReference> roleDescriptorsBytesCache;
 
-        public ApiKeyDocCache(TimeValue ttl, int maximumWeight) {
+        ApiKeyDocCache(TimeValue ttl, int maximumWeight) {
             this.docCache = new InvalidationCountingCacheWrapper<>(
                 CacheBuilder.<String, ApiKeyService.CachedApiKeyDoc>builder()
                     .setMaximumWeight(maximumWeight)

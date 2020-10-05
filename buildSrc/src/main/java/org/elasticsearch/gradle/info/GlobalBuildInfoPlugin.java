@@ -121,7 +121,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            params.setIsBundledJdkSupported(findIfBundledJdkSupported(project));
             if (isInternal) {
                 params.setBwcVersions(resolveBwcVersions(rootDir));
             }
@@ -277,32 +276,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             throw new GradleException(exceptionMessage);
         }
         return versionedJavaHome;
-    }
-
-    private static boolean findIfBundledJdkSupported(Project project) {
-        if (_isBundledJdkSupported == null) {
-            if (Os.isFamily(Os.FAMILY_UNIX) == false || Os.isFamily(Os.FAMILY_MAC)) {
-                _isBundledJdkSupported = true;
-            } else {
-                // check if glibc version can support java 15+
-                ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-                project.exec(spec -> {
-                    spec.setCommandLine("getconf", "GNU_LIBC_VERSION");
-                    spec.setStandardOutput(stdout);
-                });
-                String version = stdout.toString().trim();
-                final int[] glibcVersion;
-                try {
-                    String[] parts = version.split(" ")[1].split("\\.");
-                    glibcVersion = new int[] { Integer.parseInt(parts[0]), Integer.parseInt(parts[1]) };
-                } catch (Exception e) {
-                    throw new IllegalStateException("Could not parse glibc version from " + version, e);
-                }
-                // as of java 15, java requires GLIBC 2.14+
-                _isBundledJdkSupported = glibcVersion[0] == 2 && glibcVersion[1] >= 14 || glibcVersion[0] > 2;
-            }
-        }
-        return _isBundledJdkSupported;
     }
 
     private static String getJavaHomeEnvVarName(String version) {

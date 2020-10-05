@@ -29,6 +29,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -181,6 +182,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                 .build())
                         .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
+                        .build())
+                .fPut(
+                    AnnotationIndex.INDEX_NAME,
+                    IndexMetadata.builder(AnnotationIndex.INDEX_NAME)
+                        .settings(
+                            Settings.builder()
+                                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).build())
                         .build())
                 .build())
             .build();

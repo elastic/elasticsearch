@@ -37,7 +37,8 @@ public class RestRollupSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         restRequest.withContentOrSourceParamParserOrNull(parser ->
-                RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, size -> searchRequest.source().size(size)));
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser,
+                    client.getNamedWriteableRegistry(), size -> searchRequest.source().size(size)));
         RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
         return channel -> client.execute(RollupSearchAction.INSTANCE, searchRequest, new RestToXContentListener<>(channel));
     }

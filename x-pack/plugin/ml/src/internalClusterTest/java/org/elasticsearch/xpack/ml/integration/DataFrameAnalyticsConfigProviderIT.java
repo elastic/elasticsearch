@@ -27,8 +27,10 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -51,7 +53,8 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        configProvider = new DataFrameAnalyticsConfigProvider(client(), xContentRegistry());
+        configProvider = new DataFrameAnalyticsConfigProvider(client(), xContentRegistry(),
+            new DataFrameAnalyticsAuditor(client(), node().getNodeEnvironment().nodeId()));
         waitForMlTemplates();
     }
 
@@ -169,9 +172,9 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             blockingCall(
                 actionListener -> configProvider.put(initialConfig, emptyMap(), actionListener), configHolder, exceptionHolder);
 
+            assertNoException(exceptionHolder);
             assertThat(configHolder.get(), is(notNullValue()));
             assertThat(configHolder.get(), is(equalTo(initialConfig)));
-            assertThat(exceptionHolder.get(), is(nullValue()));
         }
         {   // Update that changes description
             AtomicReference<DataFrameAnalyticsConfig> updatedConfigHolder = new AtomicReference<>();
@@ -186,7 +189,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 actionListener -> configProvider.update(configUpdate, emptyMap(), ClusterState.EMPTY_STATE, actionListener),
                 updatedConfigHolder,
                 exceptionHolder);
-
+            assertNoException(exceptionHolder);
             assertThat(updatedConfigHolder.get(), is(notNullValue()));
             assertThat(
                 updatedConfigHolder.get(),
@@ -194,7 +197,6 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                     new DataFrameAnalyticsConfig.Builder(initialConfig)
                         .setDescription("description-1")
                         .build())));
-            assertThat(exceptionHolder.get(), is(nullValue()));
         }
         {   // Update that changes model memory limit
             AtomicReference<DataFrameAnalyticsConfig> updatedConfigHolder = new AtomicReference<>();
@@ -210,6 +212,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 updatedConfigHolder,
                 exceptionHolder);
 
+            assertNoException(exceptionHolder);
             assertThat(updatedConfigHolder.get(), is(notNullValue()));
             assertThat(
                 updatedConfigHolder.get(),
@@ -218,7 +221,6 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                         .setDescription("description-1")
                         .setModelMemoryLimit(new ByteSizeValue(1024))
                         .build())));
-            assertThat(exceptionHolder.get(), is(nullValue()));
         }
         {   // Noop update
             AtomicReference<DataFrameAnalyticsConfig> updatedConfigHolder = new AtomicReference<>();
@@ -231,6 +233,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 updatedConfigHolder,
                 exceptionHolder);
 
+            assertNoException(exceptionHolder);
             assertThat(updatedConfigHolder.get(), is(notNullValue()));
             assertThat(
                 updatedConfigHolder.get(),
@@ -239,7 +242,6 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                         .setDescription("description-1")
                         .setModelMemoryLimit(new ByteSizeValue(1024))
                         .build())));
-            assertThat(exceptionHolder.get(), is(nullValue()));
         }
         {   // Update that changes both description and model memory limit
             AtomicReference<DataFrameAnalyticsConfig> updatedConfigHolder = new AtomicReference<>();
@@ -256,6 +258,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 updatedConfigHolder,
                 exceptionHolder);
 
+            assertNoException(exceptionHolder);
             assertThat(updatedConfigHolder.get(), is(notNullValue()));
             assertThat(
                 updatedConfigHolder.get(),
@@ -264,7 +267,6 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                         .setDescription("description-2")
                         .setModelMemoryLimit(new ByteSizeValue(2048))
                         .build())));
-            assertThat(exceptionHolder.get(), is(nullValue()));
         }
         {  // Update that applies security headers
             Map<String, String> securityHeaders = Collections.singletonMap("_xpack_security_authentication", "dummy");
@@ -279,6 +281,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 updatedConfigHolder,
                 exceptionHolder);
 
+            assertNoException(exceptionHolder);
             assertThat(updatedConfigHolder.get(), is(notNullValue()));
             assertThat(
                 updatedConfigHolder.get(),
@@ -288,7 +291,6 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                         .setModelMemoryLimit(new ByteSizeValue(2048))
                         .setHeaders(securityHeaders)
                         .build())));
-            assertThat(exceptionHolder.get(), is(nullValue()));
         }
     }
 
@@ -368,6 +370,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
     public NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }

@@ -98,7 +98,7 @@ public class XPackLicenseState {
 
         ANALYTICS(OperationMode.MISSING, true),
 
-        SEARCHABLE_SNAPSHOTS(OperationMode.PLATINUM, true);
+        SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;

@@ -45,6 +45,7 @@ public abstract class AbstractRestChannel implements RestChannel {
     private final String filterPath;
     private final boolean pretty;
     private final boolean human;
+    private final String acceptHeader;
 
     private BytesStreamOutput bytesOut;
 
@@ -58,7 +59,8 @@ public abstract class AbstractRestChannel implements RestChannel {
     protected AbstractRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
-        this.format = request.param("format", request.header("Accept"));
+        this.format = request.param("format");
+        this.acceptHeader = request.header("Accept");
         this.filterPath = request.param("filter_path", null);
         this.pretty = request.paramAsBoolean("pretty", false);
         this.human = request.paramAsBoolean("human", false);
@@ -96,7 +98,11 @@ public abstract class AbstractRestChannel implements RestChannel {
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException {
         if (responseContentType == null) {
-            responseContentType = XContentType.fromMediaTypeOrFormat(format);
+            //TODO PG shoudld format vs acceptHeader be always the same, do we allow overriding?
+            responseContentType = XContentType.fromFormat(format);
+            if (responseContentType == null) {
+                responseContentType = XContentType.fromMediaType(acceptHeader);
+            }
         }
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter
         // taking precedence over the Accept header

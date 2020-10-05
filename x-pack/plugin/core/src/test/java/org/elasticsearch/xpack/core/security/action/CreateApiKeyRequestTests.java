@@ -28,7 +28,8 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         CreateApiKeyRequest request = new CreateApiKeyRequest();
 
         ActionRequestValidationException ve = request.validate();
-        assertNull(ve);
+        assertThat(ve.validationErrors().size(), is(1));
+        assertThat(ve.validationErrors().get(0), containsString("api key name is required"));
 
         request.setName(name);
         ve = request.validate();
@@ -38,25 +39,25 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not be more than 256 characters long"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not be more than 256 characters long"));
 
         request.setName(" leading space");
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not begin or end with whitespace"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not begin or end with whitespace"));
 
         request.setName("trailing space ");
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not begin or end with whitespace"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not begin or end with whitespace"));
 
         request.setName(" leading and trailing space ");
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not begin or end with whitespace"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not begin or end with whitespace"));
 
         request.setName("inner space");
         ve = request.validate();
@@ -66,7 +67,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name may not begin with an underscore"));
+        assertThat(ve.validationErrors().get(0), containsString("api key name may not begin with an underscore"));
     }
 
     public void testSerialization() throws IOException {

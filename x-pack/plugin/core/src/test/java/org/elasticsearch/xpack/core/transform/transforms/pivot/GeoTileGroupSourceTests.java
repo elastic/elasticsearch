@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -20,14 +21,22 @@ import java.io.IOException;
 public class GeoTileGroupSourceTests extends AbstractSerializingTestCase<GeoTileGroupSource> {
 
     public static GeoTileGroupSource randomGeoTileGroupSource() {
+        return randomGeoTileGroupSource(Version.CURRENT);
+    }
+
+    public static GeoTileGroupSource randomGeoTileGroupSource(Version version) {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
+        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
         return new GeoTileGroupSource(
             randomBoolean() ? null : randomAlphaOfLength(10),
+            missingBucket,
             randomBoolean() ? null : randomIntBetween(1, GeoTileUtils.MAX_ZOOM),
-            randomBoolean() ? null : new GeoBoundingBox(
-                new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
-            )
+            randomBoolean()
+                ? null
+                : new GeoBoundingBox(
+                    new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+                )
         );
     }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
@@ -436,9 +437,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // the loading occurred or which models are currently in the cache due to evictions.
         // Verify that we have at least loaded all three
         assertBusy(() -> {
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(false), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(false), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(false), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(false), eq(false), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(false), eq(false), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(false), eq(false), any());
         });
         assertBusy(() -> {
             assertThat(circuitBreaker.getUsed(), equalTo(10L));
@@ -552,10 +553,10 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }).when(trainedModelProvider).getTrainedModelForInference(eq(modelId), any());
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
             listener.onResponse(trainedModelConfig);
             return null;
-        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), any());
+        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), eq(false), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -563,20 +564,20 @@ public class ModelLoadingServiceTests extends ESTestCase {
         if (randomBoolean()) {
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
-                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
                 listener.onFailure(new ResourceNotFoundException(
                     Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                 return null;
-            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), any());
+            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), eq(false), any());
         } else {
             TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
             when(trainedModelConfig.getEstimatedHeapMemory()).thenReturn(0L);
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
-                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
                 listener.onResponse(trainedModelConfig);
                 return null;
-            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), any());
+            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), eq(false), any());
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
@@ -630,7 +631,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(Collections.singletonMap("processors",
             Collections.singletonList(
                 Collections.singletonMap(InferenceProcessor.TYPE,
-                    Collections.singletonMap(InferenceProcessor.MODEL_ID,
+                    Collections.singletonMap(InferenceResults.MODEL_ID_RESULTS_FIELD,
                         modelId)))))) {
             return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
         }

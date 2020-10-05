@@ -11,14 +11,14 @@ default.
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "index" : {
     "number_of_replicas" : 2
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[update-index-settings-api-request]]
@@ -77,14 +77,14 @@ To revert a setting to the default value, use `null`. For example:
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "index" : {
     "refresh_interval" : null
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The list of per-index settings which can be updated dynamically on live
 indices can be found in <<index-modules>>.
@@ -101,14 +101,14 @@ use:
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "index" : {
     "refresh_interval" : "-1"
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 (Another optimization option is to start the index without any replicas,
 and only later adding them, but that really depends on the use case).
@@ -118,7 +118,7 @@ the defaults for example):
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "index" : {
     "refresh_interval" : "1s"
@@ -131,7 +131,7 @@ And, a force merge should be called:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_forcemerge?max_num_segments=5
+POST /my-index-000001/_forcemerge?max_num_segments=5
 --------------------------------------------------
 // TEST[continued]
 
@@ -163,13 +163,13 @@ new data stream and reindex your data into it. See
 ====
 
 For example,
-the following commands add the `content` analyzer to the `twitter` index:
+the following commands add the `content` analyzer to the `my-index-000001` index:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_close
+POST /my-index-000001/_close
 
-PUT /twitter/_settings
+PUT /my-index-000001/_settings
 {
   "analysis" : {
     "analyzer":{
@@ -181,6 +181,6 @@ PUT /twitter/_settings
   }
 }
 
-POST /twitter/_open
+POST /my-index-000001/_open
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]

@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.MediaTypeParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -17,6 +19,8 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -25,11 +29,12 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 
 /**
  * Templating class for displaying SQL responses in text formats.
  */
-enum TextFormat {
+enum TextFormat implements MediaType {
 
     /**
      * Default text writer.
@@ -79,17 +84,17 @@ enum TextFormat {
         }
 
         @Override
-        String shortName() {
-            return "txt";
+        public String format() {
+            return FORMAT_TEXT;
         }
 
         @Override
         String contentType() {
-            return "text/plain";
+            return CONTENT_TYPE_TXT;
         }
 
         @Override
-        protected String delimiter() {
+        protected Character delimiter() {
             throw new UnsupportedOperationException();
         }
 
@@ -97,6 +102,13 @@ enum TextFormat {
         protected String eol() {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public String subtype() {
+            return "plain";
+        }
+
+
     },
 
     /**
@@ -109,40 +121,64 @@ enum TextFormat {
      *
      */
     CSV() {
-
         @Override
-        protected String delimiter() {
-            return ",";
+        protected Character delimiter() {
+            return ',';
         }
 
         @Override
         protected String eol() {
-            //LFCR
+            //CRLF
             return "\r\n";
         }
 
         @Override
-        String shortName() {
-            return "csv";
+        public String format() {
+            return FORMAT_CSV;
         }
 
         @Override
         String contentType() {
-            return "text/csv";
+            return CONTENT_TYPE_CSV;
         }
 
         @Override
         String contentType(RestRequest request) {
-            return contentType() + "; charset=utf-8; header=" + (hasHeader(request) ? "present" : "absent");
+            return contentType() + "; charset=utf-8; " +
+                URL_PARAM_HEADER + "=" + (hasHeader(request) ? PARAM_HEADER_PRESENT : PARAM_HEADER_ABSENT);
         }
 
         @Override
-        String maybeEscape(String value) {
+        protected Character delimiter(RestRequest request) {
+            String delimiterParam = request.param(URL_PARAM_DELIMITER);
+            if (delimiterParam == null) {
+                return delimiter();
+            }
+            delimiterParam = URLDecoder.decode(delimiterParam, StandardCharsets.UTF_8);
+            if (delimiterParam.length() != 1) {
+                throw new IllegalArgumentException("invalid " +
+                    (delimiterParam.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiterParam + "]");
+            }
+            Character delimiter = delimiterParam.charAt(0);
+            switch (delimiter) {
+                case '"':
+                case '\n':
+                case '\r':
+                    throw new IllegalArgumentException("illegal reserved character specified as delimiter [" + delimiter + "]");
+                case '\t':
+                    throw new IllegalArgumentException("illegal delimiter [TAB] specified as delimiter for the [csv] format; " +
+                        "choose the [tsv] format instead");
+            }
+            return delimiter;
+        }
+
+        @Override
+        String maybeEscape(String value, Character delimiter) {
             boolean needsEscaping = false;
 
             for (int i = 0; i < value.length(); i++) {
                 char c = value.charAt(i);
-                if (c == '"' || c == ',' || c == '\n' || c == '\r') {
+                if (c == '"' || c == '\n' || c == '\r' || c == delimiter) {
                     needsEscaping = true;
                     break;
                 }
@@ -162,20 +198,21 @@ enum TextFormat {
                 sb.append('"');
                 value = sb.toString();
             }
+
             return value;
         }
 
         @Override
         boolean hasHeader(RestRequest request) {
-            String header = request.param("header");
+            String header = request.param(URL_PARAM_HEADER);
             if (header == null) {
                 List<String> values = request.getAllHeaderValues("Accept");
                 if (values != null) {
-                    // header is a parameter specified by ; so try breaking it down
+                    // header values are separated by `;` so try breaking it down
                     for (String value : values) {
                         String[] params = Strings.tokenizeToStringArray(value, ";");
                         for (String param : params) {
-                            if (param.toLowerCase(Locale.ROOT).equals("header=absent")) {
+                            if (param.toLowerCase(Locale.ROOT).equals(URL_PARAM_HEADER + "=" + PARAM_HEADER_ABSENT)) {
                                 return false;
                             }
                         }
@@ -183,31 +220,36 @@ enum TextFormat {
                 }
                 return true;
             } else {
-                return !header.toLowerCase(Locale.ROOT).equals("absent");
+                return !header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT);
             }
+        }
+
+        @Override
+        public String subtype() {
+            return "csv";
         }
     },
 
     TSV() {
         @Override
-        protected String delimiter() {
-            return "\t";
+        protected Character delimiter() {
+            return '\t';
         }
 
         @Override
         protected String eol() {
-            // only CR
+            // only LF
             return "\n";
         }
 
         @Override
-        String shortName() {
-            return "tsv";
+        public String format() {
+            return FORMAT_TSV;
         }
 
         @Override
         String contentType() {
-            return "text/tab-separated-values";
+            return CONTENT_TYPE_TSV;
         }
 
         @Override
@@ -216,7 +258,7 @@ enum TextFormat {
         }
 
         @Override
-        String maybeEscape(String value) {
+        String maybeEscape(String value, Character __) {
             StringBuilder sb = new StringBuilder();
 
             for (int i = 0; i < value.length(); i++) {
@@ -235,19 +277,36 @@ enum TextFormat {
 
             return sb.toString();
         }
+
+        @Override
+        public String subtype() {
+            return "tab-separated-values";
+        }
     };
 
+    private static final String FORMAT_TEXT = "txt";
+    private static final String FORMAT_CSV = "csv";
+    private static final String FORMAT_TSV = "tsv";
+    private static final String CONTENT_TYPE_TXT = "text/plain";
+    private static final String CONTENT_TYPE_CSV = "text/csv";
+    private static final String CONTENT_TYPE_TSV = "text/tab-separated-values";
+    private static final String URL_PARAM_HEADER = "header";
+    private static final String PARAM_HEADER_ABSENT = "absent";
+    private static final String PARAM_HEADER_PRESENT = "present";
+
+    private static final MediaTypeParser<TextFormat> parser = new MediaTypeParser<>(TextFormat.values());
 
     String format(RestRequest request, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
         // if the header is requested (and the column info is present - namely it's the first page) return the info
         if (hasHeader(request) && response.columns() != null) {
-            row(sb, response.columns(), ColumnInfo::name);
+            row(sb, response.columns(), ColumnInfo::name, delimiter(request));
         }
 
         for (List<Object> row : response.rows()) {
-            row(sb, row, f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY));
+            row(sb, row, f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY),
+                delimiter(request));
         }
 
         return sb.toString();
@@ -258,24 +317,16 @@ enum TextFormat {
     }
 
     static TextFormat fromMediaTypeOrFormat(String accept) {
-        for (TextFormat text : values()) {
-            String contentType = text.contentType();
-            if (contentType.equalsIgnoreCase(accept)
-                    || accept.toLowerCase(Locale.ROOT).startsWith(contentType + ";")
-                    || text.shortName().equalsIgnoreCase(accept)) {
-                return text;
-            }
+        TextFormat textFormat = parser.fromFormat(accept);
+        if (textFormat != null) {
+            return textFormat;
         }
-
+        textFormat = parser.fromMediaType(accept);
+        if (textFormat != null) {
+            return textFormat;
+        }
         throw new IllegalArgumentException("invalid format [" + accept + "]");
     }
-
-    /**
-     * Short name typically used by format parameter.
-     * Can differ from the IANA mime type.
-     */
-    abstract String shortName();
-
 
     /**
      * Formal IANA mime type.
@@ -292,11 +343,11 @@ enum TextFormat {
     }
 
     // utility method for consuming a row.
-    <F> void row(StringBuilder sb, List<F> row, Function<F, String> toString) {
+    <F> void row(StringBuilder sb, List<F> row, Function<F, String> toString, Character delimiter) {
         for (int i = 0; i < row.size(); i++) {
-            sb.append(maybeEscape(toString.apply(row.get(i))));
+            sb.append(maybeEscape(toString.apply(row.get(i)), delimiter));
             if (i < row.size() - 1) {
-                sb.append(delimiter());
+                sb.append(delimiter);
             }
         }
         sb.append(eol());
@@ -305,7 +356,11 @@ enum TextFormat {
     /**
      * Delimiter between fields
      */
-    protected abstract String delimiter();
+    protected abstract Character delimiter();
+
+    protected Character delimiter(RestRequest request) {
+        return delimiter();
+    }
 
     /**
      * String indicating end-of-line or row.
@@ -315,7 +370,18 @@ enum TextFormat {
     /**
      * Method used for escaping (if needed) a given value.
      */
-    String maybeEscape(String value) {
+    String maybeEscape(String value, Character delimiter) {
         return value;
+    }
+
+
+    @Override
+    public String type() {
+        return "text";
+    }
+
+    @Override
+    public String typeWithSubtype() {
+        return contentType();
     }
 }

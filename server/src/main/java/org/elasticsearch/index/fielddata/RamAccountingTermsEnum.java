@@ -22,7 +22,7 @@ import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.index.fielddata.plain.AbstractIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractIndexOrdinalsFieldData;
 
 import java.io.IOException;
 
@@ -38,13 +38,14 @@ public final class RamAccountingTermsEnum extends FilteredTermsEnum {
 
     private final CircuitBreaker breaker;
     private final TermsEnum termsEnum;
-    private final AbstractIndexFieldData.PerValueEstimator estimator;
+    private final AbstractIndexOrdinalsFieldData.PerValueEstimator estimator;
     private final String fieldName;
     private long totalBytes;
     private long flushBuffer;
 
 
-    public RamAccountingTermsEnum(TermsEnum termsEnum, CircuitBreaker breaker, AbstractIndexFieldData.PerValueEstimator estimator,
+    public RamAccountingTermsEnum(TermsEnum termsEnum, CircuitBreaker breaker,
+                                  AbstractIndexOrdinalsFieldData.PerValueEstimator estimator,
                                   String fieldName) {
         super(termsEnum);
         this.breaker = breaker;

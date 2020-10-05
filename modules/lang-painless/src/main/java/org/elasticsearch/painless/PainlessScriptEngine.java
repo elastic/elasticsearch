@@ -299,16 +299,15 @@ public final class PainlessScriptEngine implements ScriptEngine {
         constructor.endMethod();
 
         Method reflect = null;
+        Method docFieldsReflect = null;
 
         for (Method method : context.factoryClazz.getMethods()) {
             if ("newInstance".equals(method.getName())) {
                 reflect = method;
-
-                break;
             } else if ("newFactory".equals(method.getName())) {
                 reflect = method;
-
-                break;
+            } else if ("docFields".equals(method.getName())) {
+                docFieldsReflect = method;
             }
         }
 
@@ -340,6 +339,32 @@ public final class PainlessScriptEngine implements ScriptEngine {
         deterAdapter.push(scriptScope.isDeterministic());
         deterAdapter.returnValue();
         deterAdapter.endMethod();
+
+        if (docFieldsReflect != null) {
+            if (false == docFieldsReflect.getReturnType().equals(List.class)) {
+                throw new IllegalArgumentException("doc_fields must return a List");
+            }
+            if (docFieldsReflect.getParameterCount() != 0) {
+                throw new IllegalArgumentException("doc_fields may not take parameters");
+            }
+            org.objectweb.asm.commons.Method docFields = new org.objectweb.asm.commons.Method(docFieldsReflect.getName(),
+                MethodType.methodType(List.class).toMethodDescriptorString());
+            GeneratorAdapter docAdapter = new GeneratorAdapter(Opcodes.ASM5, docFields,
+                writer.visitMethod(Opcodes.ACC_PUBLIC, docFieldsReflect.getName(), docFields.getDescriptor(), null, null));
+            docAdapter.visitCode();
+            docAdapter.newInstance(WriterConstants.ARRAY_LIST_TYPE);
+            docAdapter.dup();
+            docAdapter.push(scriptScope.docFields().size());
+            docAdapter.invokeConstructor(WriterConstants.ARRAY_LIST_TYPE, WriterConstants.ARRAY_LIST_CTOR_WITH_SIZE);
+            for (int i = 0; i < scriptScope.docFields().size(); i++) {
+                docAdapter.dup();
+                docAdapter.push(scriptScope.docFields().get(i));
+                docAdapter.invokeInterface(WriterConstants.LIST_TYPE, WriterConstants.LIST_ADD);
+                docAdapter.pop(); // Don't want the result of calling add
+            }
+            docAdapter.returnValue();
+            docAdapter.endMethod();
+        }
 
         writer.visitEnd();
         Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());

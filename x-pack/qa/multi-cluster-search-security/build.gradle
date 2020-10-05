@@ -10,15 +10,13 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'security', 'async_search', 'indices'
+    includeXpack 'security', 'async_search', 'indices', 'open_point_in_time', 'close_point_in_time'
   }
 }
 
 task 'remote-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  runner {
-    systemProperty 'tests.rest.suite', 'remote_cluster'
-  }
+  systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
 testClusters.'remote-cluster' {
@@ -35,10 +33,8 @@ testClusters.'remote-cluster' {
 
 task 'mixed-cluster'(type: RestIntegTestTask) {
   dependsOn 'remote-cluster'
-  runner {
-    useCluster testClusters.'remote-cluster'
-    systemProperty 'tests.rest.suite', 'multi_cluster'
-  }
+  useCluster testClusters.'remote-cluster'
+  systemProperty 'tests.rest.suite', 'multi_cluster'
 }
 
 testClusters.'mixed-cluster' {
@@ -55,9 +51,9 @@ testClusters.'mixed-cluster' {
   user username: "test_user", password: "x-pack-test-password"
 }
 
-task integTest {
+tasks.register("integTest") {
   dependsOn 'mixed-cluster'
 }
 
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
-check.dependsOn(integTest)
+tasks.named("test").configure { enabled = false } // no unit tests for multi-cluster-search, only the rest integration test
+tasks.named("check").configure { dependsOn("integTest") }

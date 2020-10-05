@@ -171,7 +171,7 @@ When Elasticsearch stores `_source`, it compresses multiple documents at once
 in order to improve the overall compression ratio. For instance it is very
 common that documents share the same field names, and quite common that they
 share some field values, especially on fields that have a low cardinality or
-a https://en.wikipedia.org/wiki/Zipf%27s_law[zipfian] distribution.
+a {wikipedia}/Zipf%27s_law[zipfian] distribution.
 
 By default documents are compressed together in the order that they are added
 to the index. If you enabled <<index-modules-index-sorting,index sorting>>
@@ -184,3 +184,11 @@ structure, fields, and values together should improve the compression ratio.
 Due to the fact that multiple documents are compressed together into blocks,
 it is more likely to find longer duplicate strings in those `_source` documents
 if fields always occur in the same order.
+
+[discrete]
+[[roll-up-historical-data]]
+=== Roll up historical data
+
+Keeping older data can useful for later analysis but is often avoided due to
+storage costs. You can use data rollups to summarize and store historical data
+at a fraction of the raw data's storage cost. See <<xpack-rollup>>.

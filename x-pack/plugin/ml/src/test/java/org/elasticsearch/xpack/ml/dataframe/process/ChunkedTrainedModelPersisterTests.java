@@ -18,7 +18,10 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
@@ -35,6 +38,8 @@ import org.mockito.Mockito;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -78,7 +83,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
             ActionListener<Boolean> storeListener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
             storeListener.onResponse(true);
             return null;
-        }).when(trainedModelProvider).storeTrainedModelMetadata(any(TrainedModelConfig.class), any(ActionListener.class));
+        }).when(trainedModelProvider).storeTrainedModelConfig(any(TrainedModelConfig.class), any(ActionListener.class));
 
         doAnswer(invocationOnMock -> {
             ActionListener<Void> storeListener = (ActionListener<Void>) invocationOnMock.getArguments()[1];
@@ -86,21 +91,35 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
             return null;
         }).when(trainedModelProvider).storeTrainedModelDefinitionDoc(any(TrainedModelDefinitionDoc.class), any(ActionListener.class));
 
+        doAnswer(invocationOnMock -> {
+            ActionListener<Void> storeListener = (ActionListener<Void>) invocationOnMock.getArguments()[1];
+            storeListener.onResponse(null);
+            return null;
+        }).when(trainedModelProvider).storeTrainedModelMetadata(any(TrainedModelMetadata.class), any(ActionListener.class));
+
         ChunkedTrainedModelPersister resultProcessor = createChunkedTrainedModelPersister(extractedFieldList, analyticsConfig);
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
         TrainedModelDefinitionChunk chunk1 = new TrainedModelDefinitionChunk(randomAlphaOfLength(10), 0, false);
         TrainedModelDefinitionChunk chunk2 = new TrainedModelDefinitionChunk(randomAlphaOfLength(10), 1, true);
+        ModelMetadata modelMetadata = new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
+            .limit(randomIntBetween(1, 10))
+            .collect(Collectors.toList()));
 
-        resultProcessor.createAndIndexInferenceModelMetadata(modelSizeInfo);
+        resultProcessor.createAndIndexInferenceModelConfig(modelSizeInfo);
         resultProcessor.createAndIndexInferenceModelDoc(chunk1);
         resultProcessor.createAndIndexInferenceModelDoc(chunk2);
+        resultProcessor.createAndIndexInferenceModelMetadata(modelMetadata);
 
         ArgumentCaptor<TrainedModelConfig> storedModelCaptor = ArgumentCaptor.forClass(TrainedModelConfig.class);
-        verify(trainedModelProvider).storeTrainedModelMetadata(storedModelCaptor.capture(), any(ActionListener.class));
+        verify(trainedModelProvider).storeTrainedModelConfig(storedModelCaptor.capture(), any(ActionListener.class));
 
         ArgumentCaptor<TrainedModelDefinitionDoc> storedDocCapture = ArgumentCaptor.forClass(TrainedModelDefinitionDoc.class);
         verify(trainedModelProvider, times(2))
             .storeTrainedModelDefinitionDoc(storedDocCapture.capture(), any(ActionListener.class));
+
+        ArgumentCaptor<TrainedModelMetadata> storedMetadataCaptor = ArgumentCaptor.forClass(TrainedModelMetadata.class);
+        verify(trainedModelProvider, times(1))
+            .storeTrainedModelMetadata(storedMetadataCaptor.capture(), any(ActionListener.class));
 
         TrainedModelConfig storedModel = storedModelCaptor.getValue();
         assertThat(storedModel.getLicenseLevel(), equalTo(License.OperationMode.PLATINUM));
@@ -132,6 +151,9 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         assertThat(storedModel.getModelId(), equalTo(storedDoc1.getModelId()));
         assertThat(storedModel.getModelId(), equalTo(storedDoc2.getModelId()));
 
+        TrainedModelMetadata storedMetadata = storedMetadataCaptor.getValue();
+        assertThat(storedMetadata.getModelId(), equalTo(storedModel.getModelId()));
+
         ArgumentCaptor<String> auditCaptor = ArgumentCaptor.forClass(String.class);
         verify(auditor).info(eq(JOB_ID), auditCaptor.capture());
         assertThat(auditCaptor.getValue(), containsString("Stored trained model with id [" + JOB_ID));
@@ -144,7 +166,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
             analyticsConfig,
             auditor,
             (unused)->{},
-            new ExtractedFields(fieldNames, Collections.emptyMap()));
+            new ExtractedFields(fieldNames, Collections.emptyList(), Collections.emptyMap()));
     }
 
 }

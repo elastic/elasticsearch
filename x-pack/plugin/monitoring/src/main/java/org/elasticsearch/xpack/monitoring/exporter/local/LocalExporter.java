@@ -64,8 +64,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -81,6 +79,7 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.loadPipeline;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
 import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
@@ -203,17 +202,13 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             return null;
         }
 
-        // List of templates
-        final Map<String, String> templates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                .collect(Collectors.toMap(MonitoringTemplateUtils::templateName, MonitoringTemplateUtils::loadTemplate));
-
         boolean setup = true;
 
         // elected master node needs to setup templates; non-master nodes need to wait for it to be setup
         if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            setup = setupIfElectedMaster(clusterState, templates, clusterStateChange);
+            setup = setupIfElectedMaster(clusterState, clusterStateChange);
         } else {
-            setup = setupIfNotElectedMaster(clusterState, templates.keySet());
+            setup = setupIfNotElectedMaster(clusterState);
         }
 
         // any failure/delay to setup the local exporter stops it until the next pass (10s by default)
@@ -237,13 +232,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * monitoring cluster (this one, as the local exporter) is not setup yet.
      *
      * @param clusterState The current cluster state.
-     * @param templates All template names that should exist.
      * @return {@code true} indicates that all resources are available and the exporter can be used. {@code false} to stop and wait.
      */
-    private boolean setupIfNotElectedMaster(final ClusterState clusterState, final Set<String> templates) {
+    private boolean setupIfNotElectedMaster(final ClusterState clusterState) {
         // any required template is not yet installed in the given cluster state, we'll wait.
-        for (final String template : templates) {
-            if (hasTemplate(clusterState, template) == false) {
+        for (final String template : MonitoringTemplateUtils.TEMPLATE_IDS) {
+            if (hasTemplate(clusterState, MonitoringTemplateUtils.templateName(template)) == false) {
                 logger.debug("monitoring index template [{}] does not exist, so service cannot start (waiting on master)",
                              template);
                 return false;
@@ -272,12 +266,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * If those resources do not exist, then we will create them.
      *
      * @param clusterState The current cluster state.
-     * @param templates All template names that should exist.
      * @param clusterStateChange {@code true} if a cluster state change caused this call (don't block it!)
      * @return {@code true} indicates that all resources are "ready" and the exporter can be used. {@code false} to stop and wait.
      */
-    private boolean setupIfElectedMaster(final ClusterState clusterState, final Map<String, String> templates,
-                                         final boolean clusterStateChange) {
+    private boolean setupIfElectedMaster(final ClusterState clusterState, final boolean clusterStateChange) {
         // we are on the elected master
         // Check that there is nothing that could block metadata updates
         if (clusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_WRITE)) {
@@ -295,17 +287,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         final AtomicInteger pendingResponses = new AtomicInteger(0);
 
         // Check that each required template exists, installing it if needed
-        final List<Entry<String, String>> missingTemplates = templates.entrySet()
-                .stream()
-                .filter((e) -> hasTemplate(clusterState, e.getKey()) == false)
+        final List<String> missingTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+                .filter(id -> hasTemplate(clusterState, templateName(id)) == false)
                 .collect(Collectors.toList());
 
         if (missingTemplates.isEmpty() == false) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found",
-                    missingTemplates.stream().map(Map.Entry::getKey).collect(Collectors.toList())));
-            for (Entry<String, String> template : missingTemplates) {
-                asyncActions.add(() -> putTemplate(template.getKey(), template.getValue(),
-                        new ResponseActionListener<>("template", template.getKey(), pendingResponses)));
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found", missingTemplates));
+            for (String templateId : missingTemplates) {
+                final String templateName = MonitoringTemplateUtils.templateName(templateId);
+                asyncActions.add(() -> putTemplate(templateName, MonitoringTemplateUtils.loadTemplate(templateId),
+                        new ResponseActionListener<>("template", templateName, pendingResponses)));
             }
         }
 

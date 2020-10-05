@@ -30,8 +30,10 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -181,6 +183,12 @@ public final class WriterConstants {
 
     public static final Type COLLECTION_TYPE = Type.getType(Collection.class);
     public static final Method COLLECTION_SIZE = getAsmMethod(int.class, "size");
+
+    public static final Type LIST_TYPE = Type.getType(List.class);
+    public static final Method LIST_ADD = getAsmMethod(boolean.class, "add", Object.class);
+
+    public static final Type ARRAY_LIST_TYPE = Type.getType(ArrayList.class);
+    public static final Method ARRAY_LIST_CTOR_WITH_SIZE = getAsmMethod(void.class, CTOR_METHOD_NAME, int.class);
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

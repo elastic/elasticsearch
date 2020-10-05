@@ -71,9 +71,9 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         logger.debug("Get datafeed '{}'", request.getDatafeedId());
 
         Map<String, DatafeedConfig> clusterStateConfigs =
-                expandClusterStateDatafeeds(request.getDatafeedId(), request.allowNoDatafeeds(), state);
+                expandClusterStateDatafeeds(request.getDatafeedId(), request.allowNoMatch(), state);
 
-        datafeedConfigProvider.expandDatafeedConfigs(request.getDatafeedId(), request.allowNoDatafeeds(), ActionListener.wrap(
+        datafeedConfigProvider.expandDatafeedConfigs(request.getDatafeedId(), request.allowNoMatch(), ActionListener.wrap(
                 datafeedBuilders -> {
                     // Check for duplicate datafeeds
                     for (DatafeedConfig.Builder datafeed : datafeedBuilders) {
@@ -99,13 +99,12 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         ));
     }
 
-    Map<String, DatafeedConfig> expandClusterStateDatafeeds(String datafeedExpression, boolean allowNoDatafeeds,
-                                                            ClusterState clusterState) {
+    Map<String, DatafeedConfig> expandClusterStateDatafeeds(String datafeedExpression, boolean allowNoMatch, ClusterState clusterState) {
 
         Map<String, DatafeedConfig> configById = new HashMap<>();
         try {
             MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-            Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(datafeedExpression, allowNoDatafeeds);
+            Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(datafeedExpression, allowNoMatch);
 
             for (String expandedDatafeedId : expandedDatafeedIds) {
                 configById.put(expandedDatafeedId, mlMetadata.getDatafeed(expandedDatafeedId));

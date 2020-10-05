@@ -11,20 +11,17 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobDeletionTask;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteJobAction INSTANCE = new DeleteJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/delete";
+    public static final String DELETION_TASK_DESCRIPTION_PREFIX = "delete-job-";
 
     private DeleteJobAction() {
         super(NAME, AcknowledgedResponse::new);
@@ -84,8 +81,8 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new JobDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId, headers);
+        public String getDescription() {
+            return DELETION_TASK_DESCRIPTION_PREFIX + jobId;
         }
 
         @Override

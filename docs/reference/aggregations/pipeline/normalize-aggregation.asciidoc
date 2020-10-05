@@ -46,7 +46,7 @@ _rescale_0_1_::
                 [0, 0, .1111, 1, .1111, .3333]
 
 _rescale_0_100_::
-                This method rescales the data such that the minimum number is zero, and the maximum number is 1, with the rest normalized
+                This method rescales the data such that the minimum number is zero, and the maximum number is 100, with the rest normalized
                 linearly in-between.
 
                 x' = 100 * (x - min_x) / (max_x - min_x)

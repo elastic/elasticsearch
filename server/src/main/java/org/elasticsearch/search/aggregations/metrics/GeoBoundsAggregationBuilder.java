@@ -39,6 +39,8 @@ import java.util.Objects;
 
 public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
+    public static final ValuesSourceRegistry.RegistryKey<GeoBoundsAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, GeoBoundsAggregatorSupplier.class);
 
     public static final ObjectParser<GeoBoundsAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, GeoBoundsAggregationBuilder::new);
@@ -137,5 +139,10 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

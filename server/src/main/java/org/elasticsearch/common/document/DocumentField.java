@@ -45,16 +45,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
  */
 public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
 
-    private String name;
-    private List<Object> values;
+    private final String name;
+    private final List<Object> values;
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
-        int size = in.readVInt();
-        values = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            values.add(in.readGenericValue());
-        }
+        values = in.readList(StreamInput::readGenericValue);
     }
 
     public DocumentField(String name, List<Object> values) {
@@ -95,10 +91,7 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeVInt(values.size());
-        for (Object obj : values) {
-            out.writeGenericValue(obj);
-        }
+        out.writeCollection(values, StreamOutput::writeGenericValue);
     }
 
     @Override
@@ -115,10 +108,10 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
     }
 
     public static DocumentField fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         String fieldName = parser.currentName();
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
         List<Object> values = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             values.add(parseFieldsValue(parser));

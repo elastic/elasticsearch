@@ -204,7 +204,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     }
 
     public static SnapshotIndexShardStatus fromXContent(XContentParser parser, String indexId) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         return PARSER.parse(parser, indexId, parser.currentName());
     }
 

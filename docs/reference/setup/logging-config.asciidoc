@@ -117,7 +117,7 @@ loggers. The logger section contains the java packages and their corresponding
 log level. The appender section contains the destinations for the logs.
 Extensive information on how to customize logging and all the supported
 appenders can be found on the
-http://logging.apache.org/log4j/2.x/manual/configuration.html[Log4j
+https://logging.apache.org/log4j/2.x/manual/configuration.html[Log4j
 documentation].
 
 [discrete]

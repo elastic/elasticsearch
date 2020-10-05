@@ -55,6 +55,18 @@ You will need to fork the main Elasticsearch code or documentation repository an
 
 Further instructions for specific projects are given below.
 
+### Tips for code changes
+Following these tips prior to raising a pull request will speed up the review
+cycle.
+
+* Add appropriate unit tests (details on writing tests can be found in the
+  [TESTING](TESTING.asciidoc) file)
+* Add integration tests, if applicable
+* Make sure the code you add follows the [formatting guidelines](#java-language-formatting-guidelines)
+* Lines that are not part of your change should not be edited (e.g. don't format
+  unchanged lines, don't reorder existing imports)
+* Add the appropriate [license headers](#license-headers) to any new files
+
 ### Submitting your changes
 
 Once your changes and tests are ready to submit for review:

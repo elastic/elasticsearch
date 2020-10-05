@@ -5,7 +5,7 @@
 ++++
 
 Provides <<dictionary-stemmers,dictionary stemming>> based on a provided
-http://en.wikipedia.org/wiki/Hunspell[Hunspell dictionary]. The `hunspell`
+{wikipedia}/Hunspell[Hunspell dictionary]. The `hunspell`
 filter requires
 <<analysis-hunspell-tokenfilter-dictionary-config,configuration>> of one or more
 language-specific Hunspell dictionaries.

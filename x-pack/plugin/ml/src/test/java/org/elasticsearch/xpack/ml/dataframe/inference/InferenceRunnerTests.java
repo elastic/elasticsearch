@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
@@ -79,6 +80,7 @@ public class InferenceRunnerTests extends ESTestCase {
     public void testInferTestDocs() {
         ExtractedFields extractedFields = new ExtractedFields(
             Collections.singletonList(new SourceField("key", Collections.singleton("integer"))),
+            Collections.emptyList(),
             Collections.emptyMap());
 
         Map<String, Object> doc1 = new HashMap<>();
@@ -92,13 +94,19 @@ public class InferenceRunnerTests extends ESTestCase {
         InferenceConfig config = ClassificationConfig.EMPTY_PARAMS;
 
         LocalModel localModel = localModelInferences(new ClassificationInferenceResults(1.0,
-        "foo",
-            Collections.emptyList(),
-            config),
+                "foo",
+                Collections.emptyList(),
+                Collections.emptyList(),
+                config,
+                1.0,
+                1.0),
             new ClassificationInferenceResults(0.0,
                 "bar",
                 Collections.emptyList(),
-                config));
+                Collections.emptyList(),
+                config,
+                .5,
+                .7));
 
         InferenceRunner inferenceRunner = createInferenceRunner(extractedFields);
 
@@ -117,11 +125,16 @@ public class InferenceRunnerTests extends ESTestCase {
         assertThat(doc1Source.get("test_results_field"),
             equalTo(new HashMap<>(){{
                 put("predicted_value", "foo");
+                put("prediction_probability", 1.0);
+                put("prediction_score", 1.0);
+                put("predicted_value", "foo");
                 put("is_training", false);
         }}));
         assertThat(doc2Source.get("test_results_field"),
             equalTo(new HashMap<>(){{
                 put("predicted_value", "bar");
+                put("prediction_probability", 0.5);
+                put("prediction_score", .7);
                 put("is_training", false);
             }}));
     }
@@ -164,7 +177,7 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     private InferenceRunner createInferenceRunner(ExtractedFields extractedFields) {
-        return new InferenceRunner(client, modelLoadingService,  resultsPersisterService, parentTaskId, config, extractedFields,
-            progressTracker, new DataCountsTracker());
+        return new InferenceRunner(Settings.EMPTY, client, modelLoadingService,  resultsPersisterService, parentTaskId, config,
+            extractedFields, progressTracker, new DataCountsTracker());
     }
 }

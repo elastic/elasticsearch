@@ -9,9 +9,9 @@ Shrinks an existing index into a new index with fewer primary shards.
 
 [source,console]
 ----
-POST /twitter/_shrink/shrunk-twitter-index
+POST /my-index-000001/_shrink/shrunk-my-index-000001
 ----
-// TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
 
 
 [[shrink-index-api-request]]

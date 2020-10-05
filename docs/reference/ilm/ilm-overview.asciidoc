@@ -23,7 +23,7 @@ include::../glossary.asciidoc[tag=freeze-def-short]
 * **Delete**: Permanently remove an index, including all of its data and metadata.
 
 {ilm-init} makes it easier to manage indices in hot-warm-cold architectures,
-which are common when you're working with time-series data such as logs and metrics.
+which are common when you're working with time series data such as logs and metrics.
 
 You can specify:
 

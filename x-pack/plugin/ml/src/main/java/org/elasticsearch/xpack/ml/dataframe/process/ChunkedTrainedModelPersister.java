@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -22,8 +23,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
@@ -34,6 +38,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +77,7 @@ public class ChunkedTrainedModelPersister {
     }
 
     public void createAndIndexInferenceModelDoc(TrainedModelDefinitionChunk trainedModelDefinitionChunk) {
-        if (Strings.isNullOrEmpty(this.currentModelId.get())) {
+        if (readyToStoreNewModel.get()) {
             failureHandler.accept(ExceptionsHelper.serverError(
                 "chunked inference model definition is attempting to be stored before trained model configuration"
             ));
@@ -95,7 +100,7 @@ public class ChunkedTrainedModelPersister {
         }
     }
 
-    public String createAndIndexInferenceModelMetadata(ModelSizeInfo inferenceModelSize) {
+    public String createAndIndexInferenceModelConfig(ModelSizeInfo inferenceModelSize) {
         if (readyToStoreNewModel.compareAndSet(true, false) == false) {
             failureHandler.accept(ExceptionsHelper.serverError(
                 "new inference model is attempting to be stored before completion previous model storage"
@@ -103,17 +108,39 @@ public class ChunkedTrainedModelPersister {
             return null;
         }
         TrainedModelConfig trainedModelConfig = createTrainedModelConfig(inferenceModelSize);
-        CountDownLatch latch = storeTrainedModelMetadata(trainedModelConfig);
+        CountDownLatch latch = storeTrainedModelConfig(trainedModelConfig);
+        try {
+            if (latch.await(STORE_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
+                LOGGER.error("[{}] Timed out (30s) waiting for inference model config to be stored", analytics.getId());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            this.readyToStoreNewModel.set(true);
+            failureHandler.accept(ExceptionsHelper.serverError("interrupted waiting for inference model config to be stored"));
+        }
+        return trainedModelConfig.getModelId();
+    }
+
+    public void createAndIndexInferenceModelMetadata(ModelMetadata modelMetadata) {
+        if (Strings.isNullOrEmpty(this.currentModelId.get())) {
+            failureHandler.accept(ExceptionsHelper.serverError(
+                "inference model metadata is attempting to be stored before trained model configuration"
+            ));
+            return;
+        }
+        TrainedModelMetadata trainedModelMetadata = new TrainedModelMetadata(this.currentModelId.get(),
+            modelMetadata.getFeatureImportances());
+
+
+        CountDownLatch latch = storeTrainedModelMetadata(trainedModelMetadata);
         try {
             if (latch.await(STORE_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                 LOGGER.error("[{}] Timed out (30s) waiting for inference model metadata to be stored", analytics.getId());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            this.readyToStoreNewModel.set(true);
             failureHandler.accept(ExceptionsHelper.serverError("interrupted waiting for inference model metadata to be stored"));
         }
-        return trainedModelConfig.getModelId();
     }
 
     private CountDownLatch storeTrainedModelDoc(TrainedModelDefinitionDoc trainedModelDefinitionDoc) {
@@ -151,7 +178,6 @@ public class ChunkedTrainedModelPersister {
                     analytics.getId(),
                     this.currentModelId.get());
                 auditor.info(analytics.getId(), "Stored trained model with id [" + this.currentModelId.get() + "]");
-                this.currentModelId.set("");
                 readyToStoreNewModel.set(true);
                 provider.refreshInferenceIndex(refreshListener);
             },
@@ -168,31 +194,86 @@ public class ChunkedTrainedModelPersister {
         provider.storeTrainedModelDefinitionDoc(trainedModelDefinitionDoc, storeListener);
         return latch;
     }
-    private CountDownLatch storeTrainedModelMetadata(TrainedModelConfig trainedModelConfig) {
+
+    private CountDownLatch storeTrainedModelMetadata(TrainedModelMetadata trainedModelMetadata) {
+        CountDownLatch latch = new CountDownLatch(1);
+
+        // Latch is attached to this action as it is the last one to execute.
+        ActionListener<RefreshResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(
+            refreshed -> {
+                if (refreshed != null) {
+                    LOGGER.debug(() -> new ParameterizedMessage(
+                        "[{}] refreshed inference index after model metadata store",
+                        analytics.getId()
+                    ));
+                }
+            },
+            e -> LOGGER.warn(
+                new ParameterizedMessage("[{}] failed to refresh inference index after model metadata store", analytics.getId()),
+                e)
+        ), latch);
+
+        // First, store the model and refresh is necessary
+        ActionListener<Void> storeListener = ActionListener.wrap(
+            r -> {
+                LOGGER.debug(
+                    "[{}] stored trained model metadata with id [{}]",
+                    analytics.getId(),
+                    this.currentModelId.get());
+                readyToStoreNewModel.set(true);
+                provider.refreshInferenceIndex(refreshListener);
+            },
+            e -> {
+                this.readyToStoreNewModel.set(true);
+                failureHandler.accept(ExceptionsHelper.serverError(
+                    "error storing trained model metadata with id [{}]",
+                    e,
+                    trainedModelMetadata.getModelId()));
+                refreshListener.onResponse(null);
+            }
+        );
+        provider.storeTrainedModelMetadata(trainedModelMetadata, storeListener);
+        return latch;
+    }
+
+    private CountDownLatch storeTrainedModelConfig(TrainedModelConfig trainedModelConfig) {
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Boolean> storeListener = ActionListener.wrap(
             aBoolean -> {
                 if (aBoolean == false) {
-                    LOGGER.error("[{}] Storing trained model metadata responded false", analytics.getId());
+                    LOGGER.error("[{}] Storing trained model config responded false", analytics.getId());
                     readyToStoreNewModel.set(true);
-                    failureHandler.accept(ExceptionsHelper.serverError("storing trained model responded false"));
+                    failureHandler.accept(ExceptionsHelper.serverError("storing trained model config false"));
                 } else {
-                    LOGGER.debug("[{}] Stored trained model metadata with id [{}]", analytics.getId(), trainedModelConfig.getModelId());
+                    LOGGER.debug("[{}] Stored trained model config with id [{}]", analytics.getId(), trainedModelConfig.getModelId());
                 }
             },
             e -> {
                 readyToStoreNewModel.set(true);
-                failureHandler.accept(ExceptionsHelper.serverError("error storing trained model metadata with id [{}]",
+                failureHandler.accept(ExceptionsHelper.serverError("error storing trained model config with id [{}]",
                     e,
                     trainedModelConfig.getModelId()));
             }
         );
-        provider.storeTrainedModelMetadata(trainedModelConfig, new LatchedActionListener<>(storeListener, latch));
+        provider.storeTrainedModelConfig(trainedModelConfig, new LatchedActionListener<>(storeListener, latch));
         return latch;
+    }
+
+    private long customProcessorSize() {
+        List<PreProcessor> preProcessors = new ArrayList<>();
+        if (analytics.getAnalysis() instanceof Classification) {
+            preProcessors = ((Classification) analytics.getAnalysis()).getFeatureProcessors();
+        } else if (analytics.getAnalysis() instanceof Regression) {
+            preProcessors = ((Regression) analytics.getAnalysis()).getFeatureProcessors();
+        }
+        return preProcessors.stream().mapToLong(PreProcessor::ramBytesUsed).sum()
+            + RamUsageEstimator.NUM_BYTES_OBJECT_REF * preProcessors.size();
     }
 
     private TrainedModelConfig createTrainedModelConfig(ModelSizeInfo modelSize) {
         Instant createTime = Instant.now();
+        // The native process does not provide estimates for the custom feature_processor objects
+        long customProcessorSize = customProcessorSize();
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
         currentModelId.set(modelId);
         List<ExtractedField> fieldNames = extractedFields.getAllFields();
@@ -214,7 +295,7 @@ public class ChunkedTrainedModelPersister {
             .setDescription(analytics.getDescription())
             .setMetadata(Collections.singletonMap("analytics_config",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
-            .setEstimatedHeapMemory(modelSize.ramBytesUsed())
+            .setEstimatedHeapMemory(modelSize.ramBytesUsed() + customProcessorSize)
             .setEstimatedOperations(modelSize.numOperations())
             .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())

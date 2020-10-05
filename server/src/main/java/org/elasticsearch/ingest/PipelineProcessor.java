@@ -55,8 +55,11 @@ public class PipelineProcessor extends AbstractProcessor {
     }
 
     Pipeline getPipeline(IngestDocument ingestDocument) {
-        String pipelineName = ingestDocument.renderTemplate(this.pipelineTemplate);
-        return ingestService.getPipeline(pipelineName);
+        return ingestService.getPipeline(getPipelineToCallName(ingestDocument));
+    }
+
+    String getPipelineToCallName(IngestDocument ingestDocument){
+        return ingestDocument.renderTemplate(this.pipelineTemplate);
     }
 
     @Override

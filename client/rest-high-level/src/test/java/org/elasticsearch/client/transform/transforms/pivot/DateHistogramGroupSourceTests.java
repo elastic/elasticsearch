@@ -41,7 +41,13 @@ public class DateHistogramGroupSourceTests extends AbstractXContentTestCase<Date
         String field = randomAlphaOfLengthBetween(1, 20);
         Script script = randomBoolean() ? new Script(randomAlphaOfLengthBetween(1, 10)) : null;
 
-        return new DateHistogramGroupSource(field, script, randomDateHistogramInterval(), randomBoolean() ? randomZone() : null);
+        return new DateHistogramGroupSource(
+            field,
+            script,
+            randomBoolean(),
+            randomDateHistogramInterval(),
+            randomBoolean() ? randomZone() : null
+        );
     }
 
     @Override

@@ -203,8 +203,8 @@ public class ForEachProcessorTests extends ESTestCase {
 
         ForEachProcessor processor = new ForEachProcessor(
                 "_tag", null, "values", new CompoundProcessor(false,
-                Collections.singletonList(new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")),
-                Collections.singletonList(new AppendProcessor("_tag", null, template, (model) -> (Collections.singletonList("added"))))
+                List.of(new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")),
+                List.of(new AppendProcessor("_tag", null, template, (model) -> (Collections.singletonList("added")), true))
         ), false);
         processor.execute(ingestDocument, (result, e) -> {});
 
@@ -287,6 +287,28 @@ public class ForEachProcessorTests extends ESTestCase {
         processor.execute(ingestDocument, (result, e) -> {});
         assertIngestDocument(originalIngestDocument, ingestDocument);
         assertThat(testProcessor.getInvokedCounter(), equalTo(0));
+    }
+
+    public void testAppendingToTheSameField() {
+        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", List.of("a", "b")));
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        TestProcessor testProcessor = new TestProcessor(id->id.appendFieldValue("field", "a"));
+        ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
+        processor.execute(ingestDocument, (result, e) -> {});
+        assertThat(testProcessor.getInvokedCounter(), equalTo(2));
+        ingestDocument.removeField("_ingest._value");
+        assertThat(ingestDocument, equalTo(originalIngestDocument));
+    }
+
+    public void testRemovingFromTheSameField() {
+        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", List.of("a", "b")));
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        TestProcessor testProcessor = new TestProcessor(id -> id.removeField("field.0"));
+        ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
+        processor.execute(ingestDocument, (result, e) -> {});
+        assertThat(testProcessor.getInvokedCounter(), equalTo(2));
+        ingestDocument.removeField("_ingest._value");
+        assertThat(ingestDocument, equalTo(originalIngestDocument));
     }
 
     private class AsyncUpperCaseProcessor implements Processor {

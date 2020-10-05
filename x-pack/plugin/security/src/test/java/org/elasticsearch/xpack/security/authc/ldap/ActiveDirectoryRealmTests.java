@@ -487,7 +487,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     public void testBuildUrlFromDomainNameAndDefaultPort() throws Exception {
         final RealmConfig.RealmIdentifier realmId = realmId("testBuildUrlFromDomainNameAndDefaultPort");
         Settings settings = Settings.builder()
-            .put(getFullSettingKey(realmId.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                 "ad.test.elasticsearch.com")
             .build();
         RealmConfig config = setupRealm(realmId, settings);
@@ -498,7 +498,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     public void testBuildUrlFromDomainNameAndCustomPort() throws Exception {
         final RealmConfig.RealmIdentifier realmId = realmId("testBuildUrlFromDomainNameAndCustomPort");
         Settings settings = Settings.builder()
-            .put(getFullSettingKey(realmId.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                 "ad.test.elasticsearch.com")
             .put(getFullSettingKey(realmId.getName(), ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), 10389)
             .build();
@@ -510,13 +510,26 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     public void testUrlConfiguredInSettings() throws Exception {
         final RealmConfig.RealmIdentifier realmId = realmId("testBuildUrlFromDomainNameAndCustomPort");
         Settings settings = Settings.builder()
-            .put(getFullSettingKey(realmId.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                 "ad.test.elasticsearch.com")
             .put(getFullSettingKey(realmId, SessionFactorySettings.URLS_SETTING), "ldap://ad01.testing.elastic.co:20389/")
             .build();
         RealmConfig config = setupRealm(realmId, settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         assertSingleLdapServer(sessionFactory, "ad01.testing.elastic.co", 20389);
+    }
+
+    public void testMandatorySettings() throws Exception {
+        final RealmConfig.RealmIdentifier realmId = realmId("testMandatorySettingsTestRealm");
+        Settings settings = Settings.builder()
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+                randomBoolean() ? null : "")
+            .build();
+        RealmConfig config = setupRealm(realmId, settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new ActiveDirectorySessionFactory(config, sslService, threadPool));
+        assertThat(e.getMessage(), containsString(getFullSettingKey(realmId,
+            ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING)));
     }
 
     private void assertSingleLdapServer(ActiveDirectorySessionFactory sessionFactory, String hostname, int port) {
@@ -532,7 +545,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     private Settings settings(RealmConfig.RealmIdentifier realmIdentifier, Settings extraSettings) throws Exception {
         Settings.Builder builder = Settings.builder()
                 .putList(getFullSettingKey(realmIdentifier, URLS_SETTING), ldapUrls())
-                .put(getFullSettingKey(realmIdentifier.getName(), ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
+                .put(getFullSettingKey(realmIdentifier, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING),
                         "ad.test.elasticsearch.com")
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true);
         if (inFipsJvm()) {

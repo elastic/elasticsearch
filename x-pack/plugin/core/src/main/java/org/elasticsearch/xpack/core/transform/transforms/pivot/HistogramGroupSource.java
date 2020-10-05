@@ -25,8 +25,8 @@ public class HistogramGroupSource extends SingleGroupSource {
     private static final ConstructingObjectParser<HistogramGroupSource, Void> LENIENT_PARSER = createParser(true);
     private final double interval;
 
-    public HistogramGroupSource(String field, ScriptConfig scriptConfig, double interval) {
-        super(field, scriptConfig);
+    public HistogramGroupSource(String field, ScriptConfig scriptConfig, boolean missingBucket, double interval) {
+        super(field, scriptConfig, missingBucket);
         if (interval <= 0) {
             throw new IllegalArgumentException("[interval] must be greater than 0.");
         }
@@ -42,8 +42,9 @@ public class HistogramGroupSource extends SingleGroupSource {
         ConstructingObjectParser<HistogramGroupSource, Void> parser = new ConstructingObjectParser<>(NAME, lenient, (args) -> {
             String field = (String) args[0];
             ScriptConfig scriptConfig = (ScriptConfig) args[1];
-            double interval = (double) args[2];
-            return new HistogramGroupSource(field, scriptConfig, interval);
+            boolean missingBucket = args[2] == null ? false : (boolean) args[2];
+            double interval = (double) args[3];
+            return new HistogramGroupSource(field, scriptConfig, missingBucket, interval);
         });
         declareValuesSourceFields(parser, lenient);
         parser.declareDouble(optionalConstructorArg(), INTERVAL);
@@ -90,12 +91,15 @@ public class HistogramGroupSource extends SingleGroupSource {
 
         final HistogramGroupSource that = (HistogramGroupSource) other;
 
-        return Objects.equals(this.field, that.field) && Objects.equals(this.interval, that.interval);
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
+            && Objects.equals(this.scriptConfig, that.scriptConfig)
+            && Objects.equals(this.interval, that.interval);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, interval);
+        return Objects.hash(field, scriptConfig, interval);
     }
 
     @Override

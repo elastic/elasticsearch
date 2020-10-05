@@ -36,6 +36,10 @@ import java.util.Map;
 
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
+    public static final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        RangeAggregatorSupplier.class
+    );
 
     public static final ObjectParser<RangeAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, RangeAggregationBuilder::new);
@@ -51,7 +55,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        AbstractRangeAggregatorFactory.registerAggregators(builder, NAME);
+        AbstractRangeAggregatorFactory.registerAggregators(builder, REGISTRY_KEY);
     }
 
     public RangeAggregationBuilder(String name) {
@@ -170,5 +174,10 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

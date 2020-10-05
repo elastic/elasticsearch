@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.ml.dataframe.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.utils.persistence.LimitAwareBulkIndexer;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.util.Deque;
@@ -40,8 +43,8 @@ public class InferenceRunner {
     private static final Logger LOGGER = LogManager.getLogger(InferenceRunner.class);
 
     private static final int MAX_PROGRESS_BEFORE_COMPLETION = 98;
-    private static final int RESULTS_BATCH_SIZE = 1000;
 
+    private final Settings settings;
     private final Client client;
     private final ModelLoadingService modelLoadingService;
     private final ResultsPersisterService resultsPersisterService;
@@ -52,9 +55,10 @@ public class InferenceRunner {
     private final DataCountsTracker dataCountsTracker;
     private volatile boolean isCancelled;
 
-    public InferenceRunner(Client client, ModelLoadingService modelLoadingService, ResultsPersisterService resultsPersisterService,
-                           TaskId parentTaskId, DataFrameAnalyticsConfig config, ExtractedFields extractedFields,
-                           ProgressTracker progressTracker, DataCountsTracker dataCountsTracker) {
+    public InferenceRunner(Settings settings, Client client, ModelLoadingService modelLoadingService,
+                           ResultsPersisterService resultsPersisterService, TaskId parentTaskId, DataFrameAnalyticsConfig config,
+                           ExtractedFields extractedFields, ProgressTracker progressTracker, DataCountsTracker dataCountsTracker) {
+        this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
@@ -81,10 +85,13 @@ public class InferenceRunner {
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config,
                 extractedFields);
             try (LocalModel localModel = localModelPlainActionFuture.actionGet()) {
+                LOGGER.debug("Loaded inference model [{}]", localModel);
                 inferTestDocs(localModel, testDocsIterator);
             }
         } catch (Exception e) {
-            throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]", e, config.getId(), modelId);
+            LOGGER.error(new ParameterizedMessage("[{}] Error during inference against model [{}]", config.getId(), modelId), e);
+            throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]; cause was [{}]", e, config.getId(), modelId,
+                e.getMessage());
         }
     }
 
@@ -92,36 +99,29 @@ public class InferenceRunner {
     void inferTestDocs(LocalModel model, TestDocsIterator testDocsIterator) {
         long totalDocCount = 0;
         long processedDocCount = 0;
-        BulkRequest bulkRequest = new BulkRequest();
 
-        while (testDocsIterator.hasNext()) {
-            if (isCancelled) {
-                break;
+        try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
+            while (testDocsIterator.hasNext()) {
+                if (isCancelled) {
+                    break;
+                }
+
+                Deque<SearchHit> batch = testDocsIterator.next();
+
+                if (totalDocCount == 0) {
+                    totalDocCount = testDocsIterator.getTotalHits();
+                }
+
+                for (SearchHit doc : batch) {
+                    dataCountsTracker.incrementTestDocsCount();
+                    InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc));
+                    bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
+
+                    processedDocCount++;
+                    int progressPercent = Math.min((int) (processedDocCount * 100.0 / totalDocCount), MAX_PROGRESS_BEFORE_COMPLETION);
+                    progressTracker.updateInferenceProgress(progressPercent);
+                }
             }
-
-            Deque<SearchHit> batch = testDocsIterator.next();
-
-            if (totalDocCount == 0) {
-                totalDocCount = testDocsIterator.getTotalHits();
-            }
-
-            for (SearchHit doc : batch) {
-                dataCountsTracker.incrementTestDocsCount();
-                InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc));
-                bulkRequest.add(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
-
-                processedDocCount++;
-                int progressPercent = Math.min((int) (processedDocCount * 100.0 / totalDocCount), MAX_PROGRESS_BEFORE_COMPLETION);
-                progressTracker.updateInferenceProgress(progressPercent);
-            }
-
-            if (bulkRequest.numberOfActions() == RESULTS_BATCH_SIZE) {
-                executeBulkRequest(bulkRequest);
-                bulkRequest = new BulkRequest();
-            }
-        }
-        if (bulkRequest.numberOfActions() > 0 && isCancelled == false) {
-            executeBulkRequest(bulkRequest);
         }
 
         if (isCancelled == false) {

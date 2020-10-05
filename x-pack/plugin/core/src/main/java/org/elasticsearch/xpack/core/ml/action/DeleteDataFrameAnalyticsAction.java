@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -25,6 +24,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
 
     public static final DeleteDataFrameAnalyticsAction INSTANCE = new DeleteDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/delete";
+    public static final String DELETION_TASK_DESCRIPTION_PREFIX = "delete-analytics-";
 
     private DeleteDataFrameAnalyticsAction() {
         super(NAME, AcknowledgedResponse::new);
@@ -44,11 +44,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-                force = in.readBoolean();
-            } else {
-                force = false;
-            }
+            force = in.readBoolean();
         }
 
         public Request() {
@@ -78,6 +74,11 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         }
 
         @Override
+        public String getDescription() {
+            return DELETION_TASK_DESCRIPTION_PREFIX + id;
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -91,9 +92,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-                out.writeBoolean(force);
-            }
+            out.writeBoolean(force);
         }
 
         @Override

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -129,9 +128,7 @@ public class FindFileStructureAction extends ActionType<FindFileStructureAction.
         public Request(StreamInput in) throws IOException {
             super(in);
             linesToSample = in.readOptionalVInt();
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                lineMergeSizeLimit = in.readOptionalVInt();
-            }
+            lineMergeSizeLimit = in.readOptionalVInt();
             timeout = in.readOptionalTimeValue();
             charset = in.readOptionalString();
             format = in.readBoolean() ? in.readEnum(FileStructure.Format.class) : null;
@@ -337,9 +334,7 @@ public class FindFileStructureAction extends ActionType<FindFileStructureAction.
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalVInt(linesToSample);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeOptionalVInt(lineMergeSizeLimit);
-            }
+            out.writeOptionalVInt(lineMergeSizeLimit);
             out.writeOptionalTimeValue(timeout);
             out.writeOptionalString(charset);
             if (format == null) {

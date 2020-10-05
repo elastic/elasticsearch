@@ -238,8 +238,8 @@ fixes to the model and validated that the fixed design behaved as expected.
 We have increased our test coverage to include scenarios tested by Jepsen that demonstrate loss of acknowledged writes, as described in
 the Elasticsearch related blogs. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce
 new error conditions.
-You can follow the work on the master branch of the
-https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsIT.java[`DiscoveryWithServiceDisruptionsIT` class],
+You can view these changes on the `5.0` branch of the
+https://github.com/elastic/elasticsearch/blob/5.0/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsIT.java[`DiscoveryWithServiceDisruptionsIT` class],
 where the `testAckedIndexing` test was specifically added to check that we don't lose acknowledged writes in various failure scenarios.
 
 
@@ -638,7 +638,7 @@ When using multiple data paths, an index could be falsely reported as corrupted.
 [discrete]
 === Randomized Testing (STATUS: DONE, v1.0.0)
 
-In order to best validate for resiliency in Elasticsearch, we rewrote the Elasticsearch test infrastructure to introduce the concept of http://berlinbuzzwords.de/sites/berlinbuzzwords.de/files/media/documents/dawidweiss-randomizedtesting-pub.pdf[randomized testing]. Randomized testing allows us to easily enhance the Elasticsearch testing infrastructure with predictably irrational conditions, making the resulting code base more resilient.
+In order to best validate for resiliency in Elasticsearch, we rewrote the Elasticsearch test infrastructure to introduce the concept of https://github.com/randomizedtesting/randomizedtesting[randomized testing]. Randomized testing allows us to easily enhance the Elasticsearch testing infrastructure with predictably irrational conditions, making the resulting code base more resilient.
 
 Each of our integration tests runs against a cluster with a random number of nodes, and indices have a random number of shards and replicas. Merge settings change for every run, indexing is done in serial or async fashion or even wrapped in a bulk operation and thread pool sizes vary to ensure that we don’t produce a deadlock no matter what happens. The list of places we use this randomization infrastructure is long, and growing every day, and has saved us headaches several times before we shipped a particular feature.
 

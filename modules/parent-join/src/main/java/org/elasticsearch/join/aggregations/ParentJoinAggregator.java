@@ -190,7 +190,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         private final BitArray ordsBits;
 
         public DenseCollectionStrategy(long maxOrd, BigArrays bigArrays) {
-            ordsBits = new BitArray((int) maxOrd, context.bigArrays());
+            ordsBits = new BitArray(maxOrd, context.bigArrays());
         }
 
         @Override

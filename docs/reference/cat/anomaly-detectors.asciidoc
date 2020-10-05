@@ -40,7 +40,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[cat-anomaly-detectors-query-params]]
 ==== {api-query-parms-title}
 
-`allow_no_jobs`::
+`allow_no_match`::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 

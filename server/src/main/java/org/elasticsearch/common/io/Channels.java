@@ -172,7 +172,6 @@ public final class Channels {
         writeToChannel(source, 0, source.length, channel);
     }
 
-
     /**
      * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel}
      *
@@ -190,6 +189,39 @@ public final class Channels {
             toWrite = Math.min(length, WRITE_CHUNK_SIZE);
             buffer.limit(buffer.position() + toWrite);
             written = channel.write(buffer);
+            length -= written;
+        }
+        assert length == 0 : "wrote more then expected bytes (length=" + length + ")";
+    }
+
+    /**
+     * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel} at the provided
+     * position.
+     *
+     * @param source          byte array to copy from
+     * @param channel         target WritableByteChannel
+     * @param channelPosition position to write at
+     */
+    public static void writeToChannel(byte[] source, FileChannel channel, long channelPosition) throws IOException {
+        writeToChannel(source, 0, source.length, channel, channelPosition);
+    }
+
+    /**
+     * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel} at the provided
+     * position.
+     *
+     * @param source          byte array to copy from
+     * @param offset          start copying from this offset
+     * @param length          how many bytes to copy
+     * @param channel         target WritableByteChannel
+     * @param channelPosition position to write at
+     */
+    public static void writeToChannel(byte[] source, int offset, int length, FileChannel channel, long channelPosition) throws IOException {
+        ByteBuffer buffer = ByteBuffer.wrap(source, offset, length);
+        int written = channel.write(buffer, channelPosition);
+        length -= written;
+        while (length > 0) {
+            written = channel.write(buffer, channelPosition + buffer.position());
             length -= written;
         }
         assert length == 0 : "wrote more then expected bytes (length=" + length + ")";

@@ -59,8 +59,8 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-//The default 20 minutes timeout isn't always enough, please do not increase further than 30 before analyzing what makes this suite so slow
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+//The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -104,7 +104,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void waitForRequirements() throws Exception {
-        if (isCcrTest()) {
+        if (isCcrTest() || isGetLicenseTest() || isXpackInfoTest()) {
             ESRestTestCase.waitForActiveLicense(adminClient());
         }
     }
@@ -173,6 +173,16 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected boolean isCcrTest() {
         String testName = getTestName();
         return testName != null && testName.contains("/ccr/");
+    }
+
+    protected boolean isGetLicenseTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/get-license/") || testName.contains("\\get-license\\"));
+    }
+
+    protected boolean isXpackInfoTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/info/") || testName.contains("\\info\\"));
     }
 
     /**

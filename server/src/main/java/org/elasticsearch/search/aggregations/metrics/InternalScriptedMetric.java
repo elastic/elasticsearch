@@ -74,7 +74,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
                 /*
                  * I *believe* that this situation can only happen in cross
                  * cluster search right now. Thus the message. But computers
-                 * are hard. 
+                 * are hard.
                  */
                 throw new IllegalArgumentException("scripted_metric doesn't support cross cluster search until 7.8.0");
             }
@@ -132,6 +132,11 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
             aggregation = aggregationObjects;
         }
         return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
     }
 
     @Override

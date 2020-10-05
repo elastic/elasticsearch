@@ -41,6 +41,8 @@ import java.util.Objects;
 
 public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<RareTermsAggregationBuilder> {
     public static final String NAME = "rare_terms";
+    public static final ValuesSourceRegistry.RegistryKey<RareTermsAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, RareTermsAggregatorSupplier.class);
 
     private static final ParseField MAX_DOC_COUNT_FIELD_NAME = new ParseField("max_doc_count");
     private static final ParseField PRECISION = new ParseField("precision");
@@ -210,4 +212,8 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         return NAME;
     }
 
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }

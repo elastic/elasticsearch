@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
@@ -141,11 +142,15 @@ public class AnalyticsResultProcessor {
         }
         ModelSizeInfo modelSize = result.getModelSizeInfo();
         if (modelSize != null) {
-            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelMetadata(modelSize);
+            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelConfig(modelSize);
         }
         TrainedModelDefinitionChunk trainedModelDefinitionChunk = result.getTrainedModelDefinitionChunk();
         if (trainedModelDefinitionChunk != null && isCancelled == false) {
             chunkedTrainedModelPersister.createAndIndexInferenceModelDoc(trainedModelDefinitionChunk);
+        }
+        ModelMetadata modelMetadata = result.getModelMetadata();
+        if (modelMetadata != null) {
+            chunkedTrainedModelPersister.createAndIndexInferenceModelMetadata(modelMetadata);
         }
         MemoryUsage memoryUsage = result.getMemoryUsage();
         if (memoryUsage != null) {

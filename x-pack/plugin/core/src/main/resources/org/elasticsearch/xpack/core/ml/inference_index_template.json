@@ -2,7 +2,7 @@
   "order" : 0,
   "version" : ${xpack.ml.version.id},
   "index_patterns" : [
-    ".ml-inference-000002"
+    ".ml-inference-000003"
   ],
   "settings" : {
     "index" : {
@@ -70,6 +70,50 @@
         },
         "inference_config": {
           "enabled": false
+        },
+        "total_feature_importance": {
+          "type": "nested",
+          "dynamic": "false",
+          "properties": {
+            "importance": {
+              "properties": {
+                "min": {
+                  "type": "double"
+                },
+                "max": {
+                  "type": "double"
+                },
+                "mean_magnitude": {
+                  "type": "double"
+                }
+              }
+            },
+            "feature_name": {
+              "type": "keyword"
+            },
+            "classes": {
+              "type": "nested",
+              "dynamic": "false",
+              "properties": {
+                "importance": {
+                  "properties": {
+                    "min": {
+                      "type": "double"
+                    },
+                    "max": {
+                      "type": "double"
+                    },
+                    "mean_magnitude": {
+                      "type": "double"
+                    }
+                  }
+                },
+                "class_name": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
         }
       }
     }

@@ -24,13 +24,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
-import java.util.Locale;
-import java.util.Objects;
+import java.util.Map;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
  */
-public enum XContentType {
+public enum XContentType implements MediaType {
 
     /**
      * A JSON based content type.
@@ -47,7 +46,7 @@ public enum XContentType {
         }
 
         @Override
-        public String shortName() {
+        public String subtype() {
             return "json";
         }
 
@@ -66,7 +65,7 @@ public enum XContentType {
         }
 
         @Override
-        public String shortName() {
+        public String subtype() {
             return "smile";
         }
 
@@ -85,7 +84,7 @@ public enum XContentType {
         }
 
         @Override
-        public String shortName() {
+        public String subtype() {
             return "yaml";
         }
 
@@ -104,7 +103,7 @@ public enum XContentType {
         }
 
         @Override
-        public String shortName() {
+        public String subtype() {
             return "cbor";
         }
 
@@ -114,54 +113,30 @@ public enum XContentType {
         }
     };
 
-    /**
-     * Accepts either a format string, which is equivalent to {@link XContentType#shortName()} or a media type that optionally has
-     * parameters and attempts to match the value to an {@link XContentType}. The comparisons are done in lower case format and this method
-     * also supports a wildcard accept for {@code application/*}. This method can be used to parse the {@code Accept} HTTP header or a
-     * format query string parameter. This method will return {@code null} if no match is found
-     */
-    public static XContentType fromMediaTypeOrFormat(String mediaType) {
-        if (mediaType == null) {
-            return null;
-        }
-        for (XContentType type : values()) {
-            if (isSameMediaTypeOrFormatAs(mediaType, type)) {
-                return type;
-            }
-        }
-        final String lowercaseMediaType = mediaType.toLowerCase(Locale.ROOT);
-        if (lowercaseMediaType.startsWith("application/*")) {
-            return JSON;
-        }
+    public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values(),
+        Map.of("application/*", JSON, "application/x-ndjson", JSON));
 
-        return null;
+
+    /**
+     * Accepts a format string, which is most of the time is equivalent to {@link XContentType#subtype()}
+     * and attempts to match the value to an {@link XContentType}.
+     * The comparisons are done in lower case format.
+     * This method will return {@code null} if no match is found
+     */
+    public static XContentType fromFormat(String mediaType) {
+        return mediaTypeParser.fromFormat(mediaType);
     }
 
     /**
      * Attempts to match the given media type with the known {@link XContentType} values. This match is done in a case-insensitive manner.
-     * The provided media type should not include any parameters. This method is suitable for parsing part of the {@code Content-Type}
-     * HTTP header. This method will return {@code null} if no match is found
+     * The provided media type can optionally has parameters.
+     * This method is suitable for parsing of the {@code Content-Type} and {@code Accept} HTTP headers.
+     * This method will return {@code null} if no match is found
      */
-    public static XContentType fromMediaType(String mediaType) {
-        final String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
-        for (XContentType type : values()) {
-            if (type.mediaTypeWithoutParameters().equals(lowercaseMediaType)) {
-                return type;
-            }
-        }
-        // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
-        if (lowercaseMediaType.toLowerCase(Locale.ROOT).equals("application/x-ndjson")) {
-            return XContentType.JSON;
-        }
-
-        return null;
+    public static XContentType fromMediaType(String mediaTypeHeaderValue) {
+        return mediaTypeParser.fromMediaType(mediaTypeHeaderValue);
     }
 
-    private static boolean isSameMediaTypeOrFormatAs(String stringType, XContentType type) {
-        return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType) ||
-                stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";") ||
-                type.shortName().equalsIgnoreCase(stringType);
-    }
 
     private int index;
 
@@ -177,10 +152,19 @@ public enum XContentType {
         return mediaTypeWithoutParameters();
     }
 
-    public abstract String shortName();
 
     public abstract XContent xContent();
 
     public abstract String mediaTypeWithoutParameters();
 
+
+    @Override
+    public String type() {
+        return "application";
+    }
+
+    @Override
+    public String format() {
+        return subtype();
+    }
 }

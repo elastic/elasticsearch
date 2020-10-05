@@ -34,15 +34,15 @@ public class ExternalMapperPlugin extends Plugin implements MapperPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Map.of(
-                EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"),
-                EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"),
-                EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"),
+                EXTERNAL, ExternalMapper.parser(EXTERNAL, "foo"),
+                EXTERNAL_BIS, ExternalMapper.parser(EXTERNAL_BIS, "bar"),
+                EXTERNAL_UPPER, ExternalMapper.parser(EXTERNAL_UPPER, "FOO BAR"),
                 FakeStringFieldMapper.CONTENT_TYPE, new FakeStringFieldMapper.TypeParser());
     }
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser());
+        return Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, ExternalMetadataMapper.PARSER);
     }
 
 }

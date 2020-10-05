@@ -196,9 +196,11 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final User user;
         if (randomBoolean()) {
-            user = new User("hulk", new String[] { "superuser" }, new User("authenticated_user", new String[] { "other" }));
+            user = new User(
+                new User("hulk", new String[]{"superuser"}, "Bruce Banner", "hulk@test.com", Map.of(), true),
+                new User("authenticated_user", new String[]{"other"}));
         } else {
-            user = new User("hulk", new String[] { "superuser" });
+            user = new User("hulk", new String[]{"superuser"}, "Bruce Banner", "hulk@test.com", Map.of(), true);
         }
         mockKeyDocument(service, id, key, user);
 
@@ -206,6 +208,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         assertThat(auth.getUser(), notNullValue());
         assertThat(auth.getUser().principal(), is("hulk"));
+        assertThat(auth.getUser().fullName(), is("Bruce Banner"));
+        assertThat(auth.getUser().email(), is("hulk@test.com"));
         assertThat(auth.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME), is("realm1"));
         assertThat(auth.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_TYPE), is("native"));
         assertThat(auth.getMetadata().get(ApiKeyService.API_KEY_ID_KEY), is(id));
@@ -377,6 +381,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
         assertThat(result.getUser().principal(), is("test_user"));
+        assertThat(result.getUser().fullName(), is("test user"));
+        assertThat(result.getUser().email(), is("test@user.com"));
         assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
@@ -391,6 +397,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
         assertThat(result.getUser().principal(), is("test_user"));
+        assertThat(result.getUser().fullName(), is("test user"));
+        assertThat(result.getUser().email(), is("test@user.com"));
         assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
@@ -923,6 +931,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
         Map<String, Object> creatorMap = new HashMap<>();
         creatorMap.put("principal", "test_user");
+        creatorMap.put("full_name", "test user");
+        creatorMap.put("email", "test@user.com");
         creatorMap.put("metadata", Collections.emptyMap());
         sourceMap.put("creator", creatorMap);
         sourceMap.put("api_key_invalidated", false);
@@ -953,7 +963,14 @@ public class ApiKeyServiceTests extends ESTestCase {
             0,
             new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}"),
-            Map.of("principal", "test_user", "realm", "realm1", "realm_type", "realm_type1", "metadata", Map.of())
+            Map.of(
+                "principal", "test_user",
+                "full_name", "test user",
+                "email", "test@user.com",
+                "realm", "realm1",
+                "realm_type", "realm_type1",
+                "metadata", Map.of()
+            )
         );
     }
 }

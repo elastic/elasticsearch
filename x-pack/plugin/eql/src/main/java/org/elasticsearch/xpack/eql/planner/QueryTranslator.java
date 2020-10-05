@@ -7,19 +7,30 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContains;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseSensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.LinkedHashSet;
@@ -32,15 +43,16 @@ import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.or;
 final class QueryTranslator {
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
+            new InsensitiveBinaryComparisons(),
             new ExpressionTranslators.BinaryComparisons(),
             new ExpressionTranslators.Ranges(),
             new BinaryLogic(),
+            new ExpressionTranslators.IsNotNulls(),
+            new ExpressionTranslators.IsNulls(),
             new ExpressionTranslators.Nots(),
             new ExpressionTranslators.Likes(),
             new ExpressionTranslators.InComparisons(),
-            new ExpressionTranslators.StringQueries(),
-            new ExpressionTranslators.Matches(),
-            new ExpressionTranslators.MultiMatches(),
+            new CaseSensitiveScalarFunctions(),
             new Scalars()
     );
 
@@ -58,6 +70,49 @@ final class QueryTranslator {
         }
 
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
+    }
+
+    public static class InsensitiveBinaryComparisons extends ExpressionTranslator<InsensitiveBinaryComparison> {
+
+        @Override
+        protected Query asQuery(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
+            return doTranslate(bc, handler);
+        }
+
+        public static Query doTranslate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
+            checkInsensitiveComparison(bc);
+            return handler.wrapFunctionQuery(bc, bc.left(), translate(bc, handler));
+        }
+
+        public static void checkInsensitiveComparison(InsensitiveBinaryComparison bc) {
+            Check.isTrue(bc.right().foldable(),
+                "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
+                bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
+                Expressions.name(bc.right()), bc.symbol());
+        }
+
+        private static Query translate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
+            Source source = bc.source();
+            String name = handler.nameOf(bc.left());
+            Object value = valueOf(bc.right());
+
+            if (bc instanceof InsensitiveEquals || bc instanceof InsensitiveNotEquals) {
+                if (bc.left() instanceof FieldAttribute) {
+                    // equality should always be against an exact match
+                    // (which is important for strings)
+                    name = ((FieldAttribute) bc.left()).exactAttribute().name();
+                }
+                Query query = new TermQuery(source, name, value);
+
+                if (bc instanceof InsensitiveNotEquals) {
+                    query = new NotQuery(source, query);
+                }
+
+                return query;
+            }
+
+            throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
+        }
     }
 
     public static class BinaryLogic extends ExpressionTranslator<org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic> {
@@ -110,6 +165,41 @@ final class QueryTranslator {
             }
 
             return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
+        }
+    }
+
+    public static class CaseSensitiveScalarFunctions extends ExpressionTranslator<CaseSensitiveScalarFunction> {
+
+        @Override
+        protected Query asQuery(CaseSensitiveScalarFunction f, TranslatorHandler handler) {
+            return f.isCaseSensitive() ? doTranslate(f, handler) : null;
+        }
+
+        public static Query doTranslate(CaseSensitiveScalarFunction f, TranslatorHandler handler) {
+            Expression field = null;
+            Expression constant = null;
+
+            if (f instanceof StringContains) {
+                StringContains sc = (StringContains) f;
+                field = sc.string();
+                constant = sc.substring();
+            } else if (f instanceof EndsWith) {
+                EndsWith ew = (EndsWith) f;
+                field = ew.input();
+                constant = ew.pattern();
+            } else {
+                return null;
+            }
+
+            if (field instanceof FieldAttribute && constant.foldable()) {
+                String targetFieldName = handler.nameOf(((FieldAttribute) field).exactAttribute());
+                String substring = (String) constant.fold();
+                String query = "*" + substring + (f instanceof StringContains ? "*" : "");
+
+                return new WildcardQuery(f.source(), targetFieldName, query);
+            }
+
+            return null;
         }
     }
 }

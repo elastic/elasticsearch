@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 
@@ -344,8 +345,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         SnapshotsInProgress inProgress = SnapshotsInProgress.of(
             List.of(new SnapshotsInProgress.Entry(
                 snapshot, true, false, SnapshotsInProgress.State.INIT,
-                Collections.singletonList(new IndexId("name", "id")), 0, 0,
-                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), Collections.emptyMap(),
+                Collections.singletonList(new IndexId("name", "id")), Collections.emptyList(), 0, 0,
+                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), null, Collections.emptyMap(),
                 VersionUtils.randomVersion(random()))));
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotsInProgress.TYPE, inProgress)

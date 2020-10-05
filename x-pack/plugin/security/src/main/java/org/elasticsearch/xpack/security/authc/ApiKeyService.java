@@ -295,6 +295,8 @@ public class ApiKeyService {
             .field("version", version.id)
             .startObject("creator")
             .field("principal", authentication.getUser().principal())
+            .field("full_name", authentication.getUser().fullName())
+            .field("email", authentication.getUser().email())
             .field("metadata", authentication.getUser().metadata())
             .field("realm", authentication.getSourceRealm().getName())
             .field("realm_type", authentication.getSourceRealm().getType())
@@ -590,8 +592,10 @@ public class ApiKeyService {
                                   ActionListener<AuthenticationResult> listener) {
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
             final String principal = Objects.requireNonNull((String) apiKeyDoc.creator.get("principal"));
+            final String fullName = (String) apiKeyDoc.creator.get("full_name");
+            final String email = (String) apiKeyDoc.creator.get("email");
             Map<String, Object> metadata = (Map<String, Object>) apiKeyDoc.creator.get("metadata");
-            final User apiKeyUser = new User(principal, Strings.EMPTY_ARRAY, null, null, metadata, true);
+            final User apiKeyUser = new User(principal, Strings.EMPTY_ARRAY, fullName, email, metadata, true);
             final Map<String, Object> authResultMetadata = new HashMap<>();
             authResultMetadata.put(API_KEY_CREATOR_REALM_NAME, apiKeyDoc.creator.get("realm"));
             authResultMetadata.put(API_KEY_CREATOR_REALM_TYPE, apiKeyDoc.creator.get("realm_type"));

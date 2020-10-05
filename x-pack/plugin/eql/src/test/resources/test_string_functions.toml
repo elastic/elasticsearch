@@ -94,11 +94,11 @@ description = "Test the `concat` function"
 description = "Test the `endsWith` function with case matching"
 
     [[endswith.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'Baz')"
+    expression = 'endsWith("FooBarBaz", "Baz")'
     expected = true
 
     [[endswith.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'Foo')"
+    expression = 'endsWith("FooBarBaz", "Foo")'
     expected = false
 
 
@@ -107,7 +107,7 @@ description = "Test the `endsWith` function with case insensitivity"
 case_insensitive = true
 
     [[endswith_insensitive.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'baz')"
+    expression = 'endsWith("FooBarBaz", "baz")'
     expected = true
 
 
@@ -116,7 +116,7 @@ description = "Test the `endsWith` function with case sensitivity"
 case_sensitive = true
 
     [[endswith_sensitive.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'baz')"
+    expression = 'endsWith("FooBarBaz", "baz")'
     expected = false
 
 
@@ -295,37 +295,37 @@ description = "Test the `startsWith` function"
         expression = "startsWith()"
 
         [[startswith.verifier.failures]]
-        expression = "startsWith(1, 'FOO')"
+        expression = '''startsWith(1, "FOO")'''
 
         [[startswith.verifier.failures]]
-        expression = "startsWith('FOO', 123)"
+        expression = '''startsWith("FOO", 123)'''
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', null)"
+    expression = '''startsWith("FooBarBaz", null)'''
     # expected = null
 
     [[startswith.fold.tests]]
-    expression = "startsWith(null, 'Foo')"
+    expression = '''startsWith(null, "Foo")'''
     # expected = null
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', 'Foo')"
+    expression = '''startsWith("FooBarBaz", "Foo")'''
     expected = true
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', '')"
+    expression = '''startsWith("FooBarBaz", "")'''
     expected = true
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', 'FooBar')"
+    expression = '''startsWith("FooBarBaz", "FooBar")'''
     expected = true
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', 'Bar')"
+    expression = '''startsWith("FooBarBaz", "Bar")'''
     expected = false
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', 'Bar')"
+    expression = '''startsWith("FooBarBaz", "Bar")'''
     expected = false
 
 
@@ -334,31 +334,32 @@ description = "Test the `startsWith` function with case-sensitive matching"
 case_sensitive = true
 
     [[startswith_case_sensitive.tests]]
-    expression = "startsWith('FooBar', 'Foo')"
+    expression = '''startsWith("FooBar", "Foo")'''
     expected = true
 
     [[startswith_case_sensitive.tests]]
-    expression = "startsWith('FooBar', 'foo')"
+    expression = '''startsWith("FooBar", "foo")'''
     expected = false
 
 
 [startswith_case_insensitive]
 description = "Test the `startsWith` function with case-insensitive matching"
+case_insensitive = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'Foo')"
+    expression = '''startsWith("FooBar", "Foo")'''
     expected = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'FOO')"
+    expression = '''startsWith("FooBar", "FOO")'''
     expected = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'foo')"
+    expression = '''startsWith("FooBar", "foo")'''
     expected = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'Bar')"
+    expression = '''startsWith("FooBar", "Bar")'''
     expected = false
 
 
@@ -382,7 +383,7 @@ description = "Test the `string` function"
     expected = "2.1828"
 
     [[string.fold.tests]]
-    expression = "string('hello')"
+    expression = '''string("hello")'''
     expected = "hello"
 
 [substring]
@@ -397,55 +398,55 @@ description = "Test the `substring` function when the case already matches"
     # expected = null
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', null, null)"
+    expression = '''substring("hello world", null, null)'''
     expected = "hello world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 6, null)"
+    expression = '''substring("hello world", 6, null)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', null, 5)"
+    expression = '''substring("hello world", null, 5)'''
     expected = "hello"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 0, 5)"
+    expression = '''substring("hello world", 0, 5)'''
     expected = "hello"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 0, 500)"
+    expression = '''substring("hello world", 0, 500)'''
     expected = "hello world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 5, -1)"
+    expression = '''substring("hello world", 5, -1)'''
     expected = " worl"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 3, 9)"
+    expression = '''substring("hello world", 3, 9)'''
     expected = "lo wor"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5, null)"
+    expression = '''substring("hello world", -5, null)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5, 11)"
+    expression = '''substring("hello world", -5, 11)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5, 100)"
+    expression = '''substring("hello world", -5, 100)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -60, 5)"
+    expression = '''substring("hello world", -60, 5)'''
     expected = "hello"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5)"
+    expression = '''substring("hello world", -5)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5, -1)"
+    expression = '''substring("hello world", -5, -1)'''
     expected = "worl"
 
 [wildcard]

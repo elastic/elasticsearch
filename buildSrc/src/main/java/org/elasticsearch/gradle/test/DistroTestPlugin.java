@@ -73,7 +73,6 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
     private static final String BWC_DISTRIBUTION_SYSPROP = "tests.bwc-distribution";
     private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
-    private static final String IS_BUNDLED_JDK_SUPPORTED = "tests.is_bundled_jdk_supported";
 
     @Override
     public void apply(Project project) {
@@ -157,11 +156,11 @@ public class DistroTestPlugin implements Plugin<Project> {
             }
         }
 
-        project.getTasks()
-            .withType(
-                Test.class,
-                t -> addSysprop(t, IS_BUNDLED_JDK_SUPPORTED, () -> Boolean.toString(BuildParams.isBundledJdkSupported()))
-            );
+        // setup jdks used by no-jdk tests, and by gradle executing
+        TaskProvider<Copy> linuxGradleJdk = createJdk(project, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, "linux", "x64");
+        TaskProvider<Copy> linuxSystemJdk = createJdk(project, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, "linux", "x64");
+        TaskProvider<Copy> windowsGradleJdk = createJdk(project, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, "windows", "x64");
+        TaskProvider<Copy> windowsSystemJdk = createJdk(project, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, "windows", "x64");
 
         project.subprojects(vmProject -> {
             vmProject.getPluginManager().apply(VagrantBasePlugin.class);

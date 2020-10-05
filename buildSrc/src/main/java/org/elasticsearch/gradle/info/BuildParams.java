@@ -49,7 +49,6 @@ public class BuildParams {
     private static Integer defaultParallel;
     private static Boolean isSnapshotBuild;
     private static BwcVersions bwcVersions;
-    private static Boolean isBundledJdkSupported;
 
     /**
      * Initialize global build parameters. This method accepts and a initialization function which in turn accepts a
@@ -133,10 +132,6 @@ public class BuildParams {
 
     public static boolean isSnapshotBuild() {
         return value(BuildParams.isSnapshotBuild);
-    }
-
-    public static boolean isBundledJdkSupported() {
-        return value(BuildParams.isBundledJdkSupported);
     }
 
     private static <T> T value(T object) {
@@ -250,10 +245,6 @@ public class BuildParams {
 
         public void setBwcVersions(BwcVersions bwcVersions) {
             BuildParams.bwcVersions = requireNonNull(bwcVersions);
-        }
-
-        public void setIsBundledJdkSupported(boolean isBundledJdkSupported) {
-            BuildParams.isBundledJdkSupported = isBundledJdkSupported;
         }
     }
 }

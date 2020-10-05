@@ -234,10 +234,10 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         private static final String CURVE = "curve";
 
         private final double score;
-        private final Long docCount;
+        private final long docCount;
         private final List<AucRocPoint> curve;
 
-        public Result(double score, Long docCount, List<AucRocPoint> curve) {
+        public Result(double score, long docCount, List<AucRocPoint> curve) {
             this.score = score;
             this.docCount = docCount;
             this.curve = Objects.requireNonNull(curve);
@@ -245,7 +245,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
         public Result(StreamInput in) throws IOException {
             this.score = in.readDouble();
-            this.docCount = in.readOptionalLong();
+            this.docCount = in.readLong();
             this.curve = in.readList(AucRocPoint::new);
         }
 
@@ -253,7 +253,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
             return score;
         }
 
-        public Long getDocCount() {
+        public long getDocCount() {
             return docCount;
         }
 
@@ -274,7 +274,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeDouble(score);
-            out.writeOptionalLong(docCount);
+            out.writeLong(docCount);
             out.writeList(curve);
         }
 
@@ -282,9 +282,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(SCORE, score);
-            if (docCount != null) {
-                builder.field(DOC_COUNT, docCount);
-            }
+            builder.field(DOC_COUNT, docCount);
             if (curve.isEmpty() == false) {
                 builder.field(CURVE, curve);
             }
@@ -298,7 +296,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return score == that.score
-                && Objects.equals(docCount, that.docCount)
+                && docCount == that.docCount
                 && Objects.equals(curve, that.curve);
         }
 

@@ -20,7 +20,7 @@ public class AucRocResultTests extends AbstractWireSerializingTestCase<Result> {
 
     public static Result createRandom() {
         double score = randomDoubleBetween(0.0, 1.0, true);
-        Long docCount = randomBoolean() ? randomLong() : null;
+        long docCount = randomLong();
         List<AucRocPoint> curve =
             Stream
                 .generate(() -> new AucRocPoint(randomDouble(), randomDouble(), randomDouble()))

@@ -76,7 +76,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testClusterRequires() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"));
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, null,0);
+            null, null, 0);
         allocation.debugDecision(true);
         clusterSettings.applySettings(Settings.builder()
             .put(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE, "data_hot")
@@ -110,7 +110,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testClusterIncludes() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"));
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, null,0);
+            null, null, 0);
         allocation.debugDecision(true);
         clusterSettings.applySettings(Settings.builder()
             .put(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE, "data_warm,data_cold")
@@ -145,7 +145,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testClusterExcludes() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"));
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, null,0);
+            null, null, 0);
         allocation.debugDecision(true);
         clusterSettings.applySettings(Settings.builder()
             .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_warm")
@@ -183,7 +183,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, "data_hot")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, null,0);
+            null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;

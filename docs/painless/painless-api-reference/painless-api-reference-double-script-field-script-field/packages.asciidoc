@@ -1,11 +1,11 @@
 // This file is auto-generated. Do not edit.
 
 
-[role="exclude",id="painless-api-reference-watcher-transform-java-lang"]
-=== Watcher Transform API for package java.lang
-See the <<painless-api-reference-watcher-transform, Watcher Transform API>> for a high-level overview of all packages and classes.
+[role="exclude",id="painless-api-reference-double-script-field-script-field-java-lang"]
+=== Double Script Field Script Field API for package java.lang
+See the <<painless-api-reference-double-script-field-script-field, Double Script Field Script Field API>> for a high-level overview of all packages and classes.
 
-[[painless-api-reference-watcher-transform-String]]
+[[painless-api-reference-double-script-field-script-field-String]]
 ==== String
 * static String {java11-javadoc}/java.base/java/lang/String.html#copyValueOf(char%5B%5D)[copyValueOf](char[])
 * static String {java11-javadoc}/java.base/java/lang/String.html#copyValueOf(char%5B%5D,int,int)[copyValueOf](char[], int, int)
@@ -60,15 +60,19 @@ See the <<painless-api-reference-watcher-transform, Watcher Transform API>> for 
 * String {java11-javadoc}/java.base/java/lang/String.html#trim()[trim]()
 
 
-[role="exclude",id="painless-api-reference-watcher-transform-org-elasticsearch-painless-api"]
-=== Watcher Transform API for package org.elasticsearch.painless.api
-See the <<painless-api-reference-watcher-transform, Watcher Transform API>> for a high-level overview of all packages and classes.
+[role="exclude",id="painless-api-reference-double-script-field-script-field-org-elasticsearch-xpack-runtimefields-mapper"]
+=== Double Script Field Script Field API for package org.elasticsearch.xpack.runtimefields.mapper
+See the <<painless-api-reference-double-script-field-script-field, Double Script Field Script Field API>> for a high-level overview of all packages and classes.
 
-[[painless-api-reference-watcher-transform-Json]]
-==== Json
-* static String dump(def)
-* static String dump(def, boolean)
-* static def load(String)
+[[painless-api-reference-double-script-field-script-field-org-elasticsearch-xpack-runtimefields-mapper-DoubleFieldScript]]
+==== org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-double-script-field-script-field-org-elasticsearch-xpack-runtimefields-mapper-DoubleFieldScript-Factory]]
+==== org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript.Factory
 * boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
 * String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()

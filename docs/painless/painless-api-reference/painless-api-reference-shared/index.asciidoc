@@ -420,7 +420,6 @@ The following classes are available grouped by their respective packages. Click 
 <<painless-api-reference-shared-org-elasticsearch-painless-api, Expand details for org.elasticsearch.painless.api>>
 
 * <<painless-api-reference-shared-Debug, Debug>>
-* <<painless-api-reference-shared-Json, Json>>
 
 ==== org.elasticsearch.script
 <<painless-api-reference-shared-org-elasticsearch-script, Expand details for org.elasticsearch.script>>

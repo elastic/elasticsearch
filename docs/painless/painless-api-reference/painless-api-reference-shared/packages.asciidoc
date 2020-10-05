@@ -7605,11 +7605,11 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
 * int {java11-javadoc}/java.base/java/util/regex/Pattern.html#flags()[flags]()
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
-* Matcher {java11-javadoc}/java.base/java/util/regex/Pattern.html#matcher(java.lang.CharSequence)[matcher](CharSequence)
+* Matcher matcher(CharSequence)
 * null {java11-javadoc}/java.base/java/util/regex/Pattern.html#pattern()[pattern]()
-* null[] {java11-javadoc}/java.base/java/util/regex/Pattern.html#split(java.lang.CharSequence)[split](CharSequence)
-* null[] {java11-javadoc}/java.base/java/util/regex/Pattern.html#split(java.lang.CharSequence,int)[split](CharSequence, int)
-* Stream {java11-javadoc}/java.base/java/util/regex/Pattern.html#splitAsStream(java.lang.CharSequence)[splitAsStream](CharSequence)
+* null[] split(CharSequence)
+* null[] split(CharSequence, int)
+* Stream splitAsStream(CharSequence)
 * null {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
@@ -8508,12 +8508,6 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-script"]
 === Shared API for package org.elasticsearch.script
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
-
-[[painless-api-reference-shared-Json]]
-==== Json
-*  static def load(String)
-*  static String dump(Object)
-*  static String dump(Object, boolean)
 
 [[painless-api-reference-shared-JodaCompatibleZonedDateTime]]
 ==== JodaCompatibleZonedDateTime

@@ -27,5 +27,10 @@ The following classes are available grouped by their respective packages. Click 
 * <<painless-api-reference-aggregation-selector-IntervalDayTime, IntervalDayTime>>
 * <<painless-api-reference-aggregation-selector-IntervalYearMonth, IntervalYearMonth>>
 
+==== org.elasticsearch.xpack.unsignedlong
+<<painless-api-reference-aggregation-selector-org-elasticsearch-xpack-unsignedlong, Expand details for org.elasticsearch.xpack.unsignedlong>>
+
+* <<painless-api-reference-aggregation-selector-UnsignedLongScriptDocValues, UnsignedLongScriptDocValues>>
+
 include::packages.asciidoc[]
 

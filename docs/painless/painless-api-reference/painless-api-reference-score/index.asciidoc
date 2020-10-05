@@ -37,10 +37,20 @@ The following classes are available grouped by their respective packages. Click 
 
 * <<painless-api-reference-score-String, String>>
 
+==== org.elasticsearch.xpack.unsignedlong
+<<painless-api-reference-score-org-elasticsearch-xpack-unsignedlong, Expand details for org.elasticsearch.xpack.unsignedlong>>
+
+* <<painless-api-reference-score-UnsignedLongScriptDocValues, UnsignedLongScriptDocValues>>
+
 ==== org.elasticsearch.xpack.vectors.query
 <<painless-api-reference-score-org-elasticsearch-xpack-vectors-query, Expand details for org.elasticsearch.xpack.vectors.query>>
 
 * <<painless-api-reference-score-DenseVectorScriptDocValues, DenseVectorScriptDocValues>>
+
+==== org.elasticsearch.xpack.versionfield
+<<painless-api-reference-score-org-elasticsearch-xpack-versionfield, Expand details for org.elasticsearch.xpack.versionfield>>
+
+* <<painless-api-reference-score-VersionScriptDocValues, VersionScriptDocValues>>
 
 include::packages.asciidoc[]
 

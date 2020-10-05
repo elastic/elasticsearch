@@ -27,5 +27,15 @@ The following classes are available grouped by their respective packages. Click 
 * <<painless-api-reference-string-sort-IntervalDayTime, IntervalDayTime>>
 * <<painless-api-reference-string-sort-IntervalYearMonth, IntervalYearMonth>>
 
+==== org.elasticsearch.xpack.unsignedlong
+<<painless-api-reference-string-sort-org-elasticsearch-xpack-unsignedlong, Expand details for org.elasticsearch.xpack.unsignedlong>>
+
+* <<painless-api-reference-string-sort-UnsignedLongScriptDocValues, UnsignedLongScriptDocValues>>
+
+==== org.elasticsearch.xpack.versionfield
+<<painless-api-reference-string-sort-org-elasticsearch-xpack-versionfield, Expand details for org.elasticsearch.xpack.versionfield>>
+
+* <<painless-api-reference-string-sort-VersionScriptDocValues, VersionScriptDocValues>>
+
 include::packages.asciidoc[]
 

@@ -16,5 +16,10 @@ The following classes are available grouped by their respective packages. Click 
 
 * <<painless-api-reference-watcher-condition-String, String>>
 
+==== org.elasticsearch.painless.api
+<<painless-api-reference-watcher-condition-org-elasticsearch-painless-api, Expand details for org.elasticsearch.painless.api>>
+
+* <<painless-api-reference-watcher-condition-Json, Json>>
+
 include::packages.asciidoc[]
 

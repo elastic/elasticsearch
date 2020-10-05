@@ -1,0 +1,33 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-date-script-field]]
+=== Date Script Field API
+
+The following specialized API is available in the Date Script Field context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== Static Methods
+The following methods are directly callable without a class/instance qualifier. Note parameters denoted by a (*) are treated as read-only values.
+
+* void emit(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript *, long)
+* long parse(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript *, def)
+* long toEpochMilli(TemporalAccessor)
+
+==== Classes By Package
+The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
+
+
+==== java.lang
+<<painless-api-reference-date-script-field-java-lang, Expand details for java.lang>>
+
+* <<painless-api-reference-date-script-field-String, String>>
+
+==== org.elasticsearch.xpack.runtimefields.mapper
+<<painless-api-reference-date-script-field-org-elasticsearch-xpack-runtimefields-mapper, Expand details for org.elasticsearch.xpack.runtimefields.mapper>>
+
+* <<painless-api-reference-date-script-field-org-elasticsearch-xpack-runtimefields-mapper-DateFieldScript, org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript>>
+* <<painless-api-reference-date-script-field-org-elasticsearch-xpack-runtimefields-mapper-DateFieldScript-Factory, org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript.Factory>>
+
+include::packages.asciidoc[]
+

@@ -33,7 +33,6 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -50,7 +49,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
@@ -77,9 +75,6 @@ import java.util.function.Supplier;
  * Context object used to create lucene queries on the shard level.
  */
 public class QueryShardContext extends QueryRewriteContext {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(QueryShardContext.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
-        "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -233,9 +228,6 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public MappedFieldType fieldMapper(String name) {
-        if (name.equals(TypeFieldMapper.NAME)) {
-            deprecationLogger.deprecate("query_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
 

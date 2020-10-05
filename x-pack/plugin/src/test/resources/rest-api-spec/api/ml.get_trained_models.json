@@ -1,14 +1,14 @@
 {
   "ml.get_trained_models":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models.html",
       "description":"Retrieves configuration information for a trained inference model."
     },
     "stability":"experimental",
     "url":{
       "paths":[
         {
-          "path":"/_ml/inference/{model_id}",
+          "path":"/_ml/trained_models/{model_id}",
           "methods":[
             "GET"
           ],
@@ -20,7 +20,7 @@
           }
         },
         {
-          "path":"/_ml/inference",
+          "path":"/_ml/trained_models",
           "methods":[
             "GET"
           ]

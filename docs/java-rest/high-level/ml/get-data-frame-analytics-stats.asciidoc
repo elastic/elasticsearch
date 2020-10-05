@@ -7,6 +7,8 @@
 [id="{upid}-{api}"]
 === Get {dfanalytics-jobs} stats API
 
+experimental::[]
+
 Retrieves the operational statistics of one or more {dfanalytics-jobs}.
 The API accepts a +{request}+ object and returns a +{response}+.
 

@@ -21,11 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -54,6 +51,25 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "scaled_float").field("scaling_factor", 10.0);
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck(
+            "scaling_factor",
+            fieldMapping(this::minimalMapping),
+            fieldMapping(b -> {
+                b.field("type", "scaled_float");
+                b.field("scaling_factor", 5.0);
+            }));
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        checker.registerUpdateCheck(b -> b.field("coerce", false),
+            m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((ScaledFloatFieldMapper) m).ignoreMalformed()));
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -266,21 +282,4 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             containsString("Failed to parse mapping: unknown parameter [index_options] on mapper [field] of type [scaled_float]"));
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        ScaledFloatFieldMapper mapper = new ScaledFloatFieldMapper.Builder("field", false, false)
-            .scalingFactor(100)
-            .build(context);
-        assertEquals(List.of(3.14), fetchSourceValue(mapper, 3.1415926));
-        assertEquals(List.of(3.14), fetchSourceValue(mapper, "3.1415"));
-        assertEquals(List.of(), fetchSourceValue(mapper, ""));
-
-        ScaledFloatFieldMapper nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false)
-            .scalingFactor(100)
-            .nullValue(2.71)
-            .build(context);
-        assertEquals(List.of(2.71), fetchSourceValue(nullValueMapper, ""));
-    }
 }

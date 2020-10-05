@@ -41,7 +41,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -197,13 +196,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                         final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
 
                         logger.debug("fetching snapshot shard size for {}", snapshotShard);
-                        final IndexShardSnapshotStatus status = repository.getShardSnapshotStatus(
+                        final long snapshotShardSize = repository.getShardSnapshotStatus(
                             snapshotShard.snapshot().getSnapshotId(),
                             snapshotShard.index(),
                             snapshotShard.shardId()
-                        );
+                        ).asCopy().getTotalSize();
 
-                        final long snapshotShardSize = status.asCopy().getTotalSize();
                         logger.debug("snapshot shard size for {}: {} bytes", snapshotShard, snapshotShardSize);
 
                         boolean updated = false;

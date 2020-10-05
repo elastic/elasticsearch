@@ -132,6 +132,7 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
+        ensureStableCluster(3);
 
         final InternalClusterInfoService clusterInfoService
                 = (InternalClusterInfoService) internalCluster().getMasterNodeInstance(ClusterInfoService.class);
@@ -206,6 +207,13 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
     }
 
     private void refreshDiskUsage() {
+        assertFalse(client().admin().cluster().prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .get()
+            .isTimedOut());
+
         final ClusterInfoService clusterInfoService = internalCluster().getMasterNodeInstance(ClusterInfoService.class);
         ((InternalClusterInfoService) clusterInfoService).refresh();
         // if the nodes were all under the low watermark already (but unbalanced) then a change in the disk usage doesn't trigger a reroute
@@ -214,9 +222,13 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
             .allMatch(cur -> cur.value.getFreeBytes() > WATERMARK_BYTES)) {
             assertAcked(client().admin().cluster().prepareReroute());
         }
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-                .setWaitForNoRelocatingShards(true)
-                .setWaitForNoInitializingShards(true).get().isTimedOut());
+
+        assertFalse(client().admin().cluster().prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .get()
+            .isTimedOut());
     }
 
     private static class TestFileStore extends FilterFileStore {

@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -316,6 +317,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     if (sometimes()) {
                         Exception error = randomFrom(
                             new UnavailableShardsException(new ShardId("test", "test", 0), ""),
+                            new NoSeedNodeLeftException("cluster_a"),
                             new CircuitBreakingException("test", randomInt(), randomInt(), randomFrom(CircuitBreaker.Durability.values())),
                             new EsRejectedExecutionException("test"));
                         item.add(new TestResponse(error, mappingVersion, settingsVersion, null));

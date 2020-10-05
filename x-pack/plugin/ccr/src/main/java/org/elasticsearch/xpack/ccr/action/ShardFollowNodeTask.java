@@ -34,6 +34,7 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -568,6 +569,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof ConnectTransportException ||
             actual instanceof NodeClosedException ||
             actual instanceof NoSuchRemoteClusterException ||
+            actual instanceof NoSeedNodeLeftException ||
             actual instanceof EsRejectedExecutionException ||
             actual instanceof CircuitBreakingException;
     }

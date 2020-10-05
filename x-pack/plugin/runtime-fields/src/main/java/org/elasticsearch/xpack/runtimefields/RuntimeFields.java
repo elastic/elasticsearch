@@ -37,10 +37,10 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
             BooleanFieldScript.CONTEXT,
             DateFieldScript.CONTEXT,
             DoubleFieldScript.CONTEXT,
+            GeoPointFieldScript.CONTEXT,
             IpFieldScript.CONTEXT,
             LongFieldScript.CONTEXT,
-            StringFieldScript.CONTEXT,
-            GeoPointFieldScript.CONTEXT
+            StringFieldScript.CONTEXT
         );
     }
 }

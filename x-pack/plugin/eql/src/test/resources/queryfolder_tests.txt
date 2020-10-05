@@ -304,38 +304,37 @@ InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),p
 "params":{"v0":"source_address","v1":["10.6.48.157/8"],"v2":"true"}
 ;
 
-matchFunctionOne
-process where match(command_line, "^.*?net.exe")
-;
-"regexp":{"command_line":{"value":"^.*?net.exe"
-;
+//matchFunctionOne
+//process where match(command_line, "^.*?net.exe")
+//;
+//"regexp":{"command_line":{"value":"^.*?net.exe"
+//;
 
-matchFunctionTwo
-process where match(command_line, "^.*?net.exe", "net\\.exe")
-;
-"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe"
-;
-
-matchFunctionThree
-process where match(command_line, "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
-;
-"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
-;
+//matchFunctionTwo
+//process where match(command_line, "^.*?net.exe", "net\\.exe")
+//;
+//"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe"
+//;
+//
+//matchFunctionThree
+//process where match(command_line, "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+//;
+//"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
+//;
+//
+//matchFunctionScalar
+//process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+//;
+//"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalEqlScriptUtils.substring(
+//InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+//"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
+//;
 
 numberFunctionSingleArgument
 process where number(process_name) == 1;
 InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
 "params":{"v0":"process_name","v1":null,"v2":1}
 ;
-
-matchFunctionScalar
-process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
-;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalEqlScriptUtils.substring(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
-"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
-;
-
 
 numberFunctionTwoFieldArguments
 process where number(process_name, pid) != null;

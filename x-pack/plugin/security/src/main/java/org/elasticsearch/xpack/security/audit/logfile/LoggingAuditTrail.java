@@ -94,7 +94,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.CONNECTION_GRANT
 import static org.elasticsearch.xpack.security.audit.AuditLevel.REALM_AUTHENTICATION_FAILED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_GRANTED;
-import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_CHANGED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_CHANGE;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
@@ -155,7 +155,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             Property.NodeScope, Property.Dynamic);
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(ACCESS_DENIED.toString(), ACCESS_GRANTED.toString(),
             ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
-            RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString(), SECURITY_CONFIG_CHANGED.toString());
+            RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString(), SECURITY_CONFIG_CHANGE.toString());
     public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.include"),
             DEFAULT_EVENT_INCLUDES, Function.identity(), value -> AuditLevel.parse(value, List.of()),
             Property.NodeScope, Property.Dynamic);
@@ -505,7 +505,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         // The security changes here are the consequences of *user* requests,
         // so in a strict interpretation we should filter them out if there are ignore policies in place for the causing user,
         // but we don't because filtering out security changes by the causing user is trappy.
-        if (events.contains(SECURITY_CONFIG_CHANGED)) {
+        if (events.contains(SECURITY_CONFIG_CHANGE)) {
             String eventAction = null;
             if (msg instanceof PutUserRequest ||
                     msg instanceof PutRoleMappingRequest ||

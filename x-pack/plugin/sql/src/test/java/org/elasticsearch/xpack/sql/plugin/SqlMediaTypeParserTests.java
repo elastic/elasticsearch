@@ -37,6 +37,9 @@ public class SqlMediaTypeParserTests extends ESTestCase {
     public void testCsvDetection() {
         MediaType text = parser.getMediaType(reqWithAccept("text/csv"), createTestInstance(false, Mode.PLAIN, false));
         assertThat(text, is(CSV));
+
+        text = parser.getMediaType(reqWithAccept("text/csv; delimiter=x"), createTestInstance(false, Mode.PLAIN, false));
+        assertThat(text, is(CSV));
     }
 
     public void testTsvDetection() {
@@ -44,7 +47,7 @@ public class SqlMediaTypeParserTests extends ESTestCase {
         assertThat(text, is(TSV));
     }
 
-    public void testParametersParsing() {
+    public void testMediaTypeDetectionWithParameters() {
         assertThat(parser.getMediaType(reqWithAccept("text/plain; charset=utf-8"),
             createTestInstance(false, Mode.PLAIN, false)), is(PLAIN_TEXT));
         assertThat(parser.getMediaType(reqWithAccept("text/plain; header=present"),

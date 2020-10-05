@@ -24,7 +24,7 @@ public class SqlMediaTypeParser {
             Map.of("header", "present|absent", "charset", "utf-8"))
         .withMediaTypeAndParams(TextFormat.CSV.typeWithSubtype(), TextFormat.CSV,
             Map.of("header", "present|absent", "charset", "utf-8",
-                "delimiter", "[^\"\n\r\t]+"))
+                "delimiter", ".+"))// more detailed parsing is in TextFormat.CSV#delimiter
         .withMediaTypeAndParams(TextFormat.TSV.typeWithSubtype(), TextFormat.TSV,
             Map.of("header", "present|absent", "charset", "utf-8"))
         .build();
@@ -63,13 +63,12 @@ public class SqlMediaTypeParser {
         return validateColumnarRequest(sqlRequest.columnar(), parser.fromMediaType(contentType));
     }
 
-    private MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {
+    private static MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {
         if(requestIsColumnar && fromMediaType instanceof TextFormat){
             throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
                 + "txt, csv or tsv formats");
         }
         return fromMediaType;
-
     }
 
 }

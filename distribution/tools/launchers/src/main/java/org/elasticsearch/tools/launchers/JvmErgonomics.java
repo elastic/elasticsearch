@@ -62,16 +62,17 @@ final class JvmErgonomics {
 
         final boolean tuneG1GCForSmallHeap = tuneG1GCForSmallHeap(finalJvmOptions, heapSize);
         final boolean tuneG1GCHeapRegion = tuneG1GCHeapRegion(finalJvmOptions, tuneG1GCForSmallHeap);
+        final boolean tuneG1GCInitiatingHeapOccupancyPercent = tuneG1GCInitiatingHeapOccupancyPercent(finalJvmOptions);
         final int tuneG1GCReservePercent = tuneG1GCReservePercent(finalJvmOptions, tuneG1GCForSmallHeap);
-        final int tuneG1GCInitiatingHeapOccupancyPercent = tuneG1GCInitiatingHeapOccupancyPercent(finalJvmOptions, tuneG1GCForSmallHeap);
-        if (tuneG1GCHeapRegion) {
+
+        if (tuneG1GCHeapRegion == true) {
             ergonomicChoices.add("-XX:G1HeapRegionSize=4m");
+        }
+        if (tuneG1GCInitiatingHeapOccupancyPercent != true) {
+            ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=45");
         }
         if (tuneG1GCReservePercent != 0) {
             ergonomicChoices.add("-XX:G1ReservePercent=" + tuneG1GCReservePercent);
-        }
-        if (tuneG1GCInitiatingHeapOccupancyPercent != 0) {
-            ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=" + tuneG1GCInitiatingHeapOccupancyPercent);
         }
 
         return ergonomicChoices;
@@ -169,7 +170,6 @@ final class JvmErgonomics {
     static boolean tuneG1GCHeapRegion(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
         JvmOption g1GCHeapRegion = finalJvmOptions.get("G1HeapRegionSize");
         return (tuneG1GCForSmallHeap && g1GCHeapRegion.isCommandLineOrigin() == false);
-
     }
 
     static int tuneG1GCReservePercent(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
@@ -182,14 +182,10 @@ final class JvmErgonomics {
         return 0;
     }
 
-    static int tuneG1GCInitiatingHeapOccupancyPercent(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
+    static boolean tuneG1GCInitiatingHeapOccupancyPercent(final Map<String, JvmOption> finalJvmOptions) {
+        JvmOption g1GC = finalJvmOptions.get("UseG1GC");
         JvmOption g1GCInitiatingHeapOccupancyPercent = finalJvmOptions.get("InitiatingHeapOccupancyPercent");
-        if (g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap == true) {
-            return 45;
-        } else if (g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap == false) {
-            return 30;
-        }
-        return 0;
+        return g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false && g1GC.getMandatoryValue().equals("true");
     }
 
     private static final Pattern SYSTEM_PROPERTY = Pattern.compile("^-D(?<key>[\\w+].*?)=(?<value>.*)$");

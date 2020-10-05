@@ -90,7 +90,8 @@ teardown:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: "write_manage_alias"
 
   # rollover using alias
   - do:

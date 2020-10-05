@@ -969,8 +969,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 @Override
                 public IndexFieldData<?> build(
                     IndexFieldDataCache cache,
-                    CircuitBreakerService breakerService,
-                    MapperService mapperService
+                    CircuitBreakerService breakerService
                 ) {
                     return new StringBinaryIndexFieldData(name(), CoreValuesSourceType.BYTES);
                 }

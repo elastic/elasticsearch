@@ -879,4 +879,18 @@ public class Strings {
             return sb.toString();
         }
     }
+    
+    public static String toLowercaseAscii(String in) {
+        StringBuilder out = new StringBuilder();
+        Iterator<Integer> iter = in.codePoints().iterator();
+        while (iter.hasNext()) {
+            int codepoint = iter.next();
+            if (codepoint > 128) {
+                out.appendCodePoint(codepoint);
+            } else {
+                out.appendCodePoint(Character.toLowerCase(codepoint));
+            }
+        }
+        return out.toString();
+    }    
 }

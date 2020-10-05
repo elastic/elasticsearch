@@ -51,9 +51,7 @@ class FlatObjectFieldParser {
     }
 
     public List<IndexableField> parse(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT,
-            parser.currentToken(),
-            parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         ContentPath path = new ContentPath();
         List<IndexableField> fields = new ArrayList<>();

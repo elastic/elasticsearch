@@ -385,7 +385,7 @@ default rules of dynamic mappings. Of course if you do not need them because
 you don't need to perform exact search or aggregate on this field, you could
 remove it as described in the previous section.
 
-===== Time-series
+===== Time series
 
 When doing time series analysis with Elasticsearch, it is common to have many
 numeric fields that you will often aggregate on but never filter on. In such a

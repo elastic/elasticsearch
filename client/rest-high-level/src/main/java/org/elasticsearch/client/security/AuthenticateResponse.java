@@ -50,12 +50,13 @@ public final class AuthenticateResponse {
     static final ParseField LOOKUP_REALM = new ParseField("lookup_realm");
     static final ParseField REALM_NAME = new ParseField("name");
     static final ParseField REALM_TYPE = new ParseField("type");
+    static final ParseField AUTHENTICATION_TYPE = new ParseField("authentication_type");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AuthenticateResponse, Void> PARSER = new ConstructingObjectParser<>(
             "client_security_authenticate_response", true,
             a -> new AuthenticateResponse(new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2],
-                (String) a[3], (String) a[4]), (Boolean) a[5], (RealmInfo) a[6], (RealmInfo) a[7]));
+                (String) a[3], (String) a[4]), (Boolean) a[5], (RealmInfo) a[6], (RealmInfo) a[7], (String) a[8]));
     static {
         final ConstructingObjectParser<RealmInfo, Void> realmInfoParser = new ConstructingObjectParser<>("realm_info", true,
             a -> new RealmInfo((String) a[0], (String) a[1]));
@@ -69,20 +70,23 @@ public final class AuthenticateResponse {
         PARSER.declareBoolean(constructorArg(), ENABLED);
         PARSER.declareObject(constructorArg(), realmInfoParser, AUTHENTICATION_REALM);
         PARSER.declareObject(constructorArg(), realmInfoParser, LOOKUP_REALM);
+        PARSER.declareString(constructorArg(), AUTHENTICATION_TYPE);
     }
 
     private final User user;
     private final boolean enabled;
     private final RealmInfo authenticationRealm;
     private final RealmInfo lookupRealm;
+    private final String authenticationType;
 
 
     public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
-                                RealmInfo lookupRealm) {
+                                RealmInfo lookupRealm, String authenticationType) {
         this.user = user;
         this.enabled = enabled;
         this.authenticationRealm = authenticationRealm;
         this.lookupRealm = lookupRealm;
+        this.authenticationType = authenticationType;
     }
 
     /**
@@ -115,6 +119,10 @@ public final class AuthenticateResponse {
         return lookupRealm;
     }
 
+    public String getAuthenticationType() {
+        return authenticationType;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -123,12 +131,13 @@ public final class AuthenticateResponse {
         return enabled == that.enabled &&
             Objects.equals(user, that.user) &&
             Objects.equals(authenticationRealm, that.authenticationRealm) &&
-            Objects.equals(lookupRealm, that.lookupRealm);
+            Objects.equals(lookupRealm, that.lookupRealm) &&
+            Objects.equals(authenticationType, that.authenticationType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(user, enabled, authenticationRealm, lookupRealm);
+        return Objects.hash(user, enabled, authenticationRealm, lookupRealm, authenticationType);
     }
 
     public static AuthenticateResponse fromXContent(XContentParser parser) throws IOException {

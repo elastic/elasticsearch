@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -77,6 +78,12 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        // This would be called from the same thing that calls innerBuild, which also throws.  So it's "safe" to throw here.
+        throw new UnsupportedOperationException();
     }
 
     @Override

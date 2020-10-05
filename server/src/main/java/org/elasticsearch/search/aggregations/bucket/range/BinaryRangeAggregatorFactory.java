@@ -19,12 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -38,7 +36,7 @@ import java.util.Map;
 public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(IpRangeAggregationBuilder.NAME, CoreValuesSourceType.IP, (IpRangeAggregatorSupplier) BinaryRangeAggregator::new);
+        builder.register(IpRangeAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.IP, BinaryRangeAggregator::new, true);
     }
 
     private final List<BinaryRangeAggregator.Range> ranges;
@@ -63,18 +61,15 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            IpRangeAggregationBuilder.NAME);
-
-        if (aggregatorSupplier instanceof IpRangeAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected IpRangeAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        return ((IpRangeAggregatorSupplier) aggregatorSupplier).build(name, factories, config.getValuesSource(), config.format(),
-                ranges, keyed, searchContext, parent, cardinality, metadata);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(IpRangeAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, factories, config.getValuesSource(), config.format(), ranges, keyed, searchContext, parent, cardinality, metadata);
     }
 
 }

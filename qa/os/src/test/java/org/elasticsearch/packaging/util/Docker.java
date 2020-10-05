@@ -77,7 +77,7 @@ public class Docker {
      * @param distribution details about the docker image to potentially load.
      */
     public static void ensureImageIsLoaded(Distribution distribution) {
-        final long count = sh.run("docker image ls --format '{{.Repository}}' " + distribution.flavor.name).stdout.lines().count();
+        final long count = sh.run("docker image ls --format '{{.Repository}}' " + getImageName(distribution)).stdout.lines().count();
 
         if (count != 0) {
             return;
@@ -104,7 +104,26 @@ public class Docker {
      * @param envVars environment variables to set when running the container, or null
      */
     public static Installation runContainer(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
-        executeDockerRun(distribution, volumes, envVars);
+        return runContainer(distribution, volumes, envVars, null, null);
+    }
+
+    /**
+     * Runs an Elasticsearch Docker container, with options for overriding the config directory
+     * through a bind mount, and passing additional environment variables.
+     * @param distribution details about the docker image being tested.
+     * @param volumes a map that declares any volume mappings to apply, or null
+     * @param envVars environment variables to set when running the container, or null
+     * @param uid optional UID to run the container under
+     * @param gid optional GID to run the container under
+     */
+    public static Installation runContainer(
+        Distribution distribution,
+        Map<Path, Path> volumes,
+        Map<String, String> envVars,
+        Integer uid,
+        Integer gid
+    ) {
+        executeDockerRun(distribution, volumes, envVars, uid, gid);
 
         waitForElasticsearchToStart();
 
@@ -125,14 +144,20 @@ public class Docker {
         Map<Path, Path> volumes,
         Map<String, String> envVars
     ) {
-        executeDockerRun(distribution, volumes, envVars);
+        executeDockerRun(distribution, volumes, envVars, null, null);
 
         waitForElasticsearchToExit();
 
         return getContainerLogs();
     }
 
-    private static void executeDockerRun(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
+    private static void executeDockerRun(
+        Distribution distribution,
+        Map<Path, Path> volumes,
+        Map<String, String> envVars,
+        Integer uid,
+        Integer gid
+    ) {
         removeContainer();
 
         final List<String> args = new ArrayList<>();
@@ -158,17 +183,33 @@ public class Docker {
             volumes.forEach((localPath, containerPath) -> {
                 assertThat(localPath, fileExists());
 
-                if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root")) {
+                if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root") && uid == null) {
                     // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),
                     // so we need to ensure that the container process is able to read the bind-mounted files.
+                    //
+                    // NOTE that we don't do this if a UID is specified - in that case, we assume that the caller knows
+                    // what they're doing!
                     sh.run("chown -R 1000:0 " + localPath);
                 }
                 args.add("--volume \"" + localPath + ":" + containerPath + "\"");
             });
         }
 
+        if (uid == null) {
+            if (gid != null) {
+                throw new IllegalArgumentException("Cannot override GID without also overriding UID");
+            }
+        } else {
+            args.add("--user");
+            if (gid != null) {
+                args.add(uid + ":" + gid);
+            } else {
+                args.add(uid.toString());
+            }
+        }
+
         // Image name
-        args.add(distribution.flavor.name + ":test");
+        args.add(getImageName(distribution));
 
         final String command = String.join(" ", args);
         logger.info("Running command: " + command);
@@ -400,12 +441,30 @@ public class Docker {
      */
     public static void rmDirWithPrivilegeEscalation(Path localPath) {
         final Path containerBasePath = Paths.get("/mount");
-        final Path containerPath = containerBasePath.resolve(Paths.get("/").relativize(localPath));
+        final Path containerPath = containerBasePath.resolve(localPath.getParent().getFileName());
         final List<String> args = new ArrayList<>();
 
         args.add("cd " + containerBasePath.toAbsolutePath());
         args.add("&&");
         args.add("rm -rf " + localPath.getFileName());
+        final String command = String.join(" ", args);
+        executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
+    }
+
+    /**
+     * Change the ownership of a path using Docker backed privilege escalation.
+     * @param localPath The path to the file or directory to change.
+     * @param ownership the ownership to apply. Can either be just the user, or the user and group, separated by a colon (":"),
+     *                  or just the group if prefixed with a colon.
+     */
+    public static void chownWithPrivilegeEscalation(Path localPath, String ownership) {
+        final Path containerBasePath = Paths.get("/mount");
+        final Path containerPath = containerBasePath.resolve(localPath.getParent().getFileName());
+        final List<String> args = new ArrayList<>();
+
+        args.add("cd " + containerBasePath.toAbsolutePath());
+        args.add("&&");
+        args.add("chown -R " + ownership + " " + localPath.getFileName());
         final String command = String.join(" ", args);
         executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
     }
@@ -563,7 +622,7 @@ public class Docker {
     public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
         // The format below extracts the .Config.Labels value, and prints it as json. Without the json
         // modifier, a stringified Go map is printed instead, which isn't helpful.
-        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + distribution.flavor.name + ":test").stdout;
+        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + getImageName(distribution)).stdout;
 
         ObjectMapper mapper = new ObjectMapper();
 
@@ -578,5 +637,9 @@ public class Docker {
 
     public static Shell.Result getContainerLogs() {
         return sh.run("docker logs " + containerId);
+    }
+
+    public static String getImageName(Distribution distribution) {
+        return distribution.flavor.name + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
     }
 }

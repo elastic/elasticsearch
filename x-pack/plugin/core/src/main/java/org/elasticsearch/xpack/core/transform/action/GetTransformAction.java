@@ -62,8 +62,10 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         public ActionRequestValidationException validate() {
             ActionRequestValidationException exception = null;
             if (getPageParams() != null && getPageParams().getSize() > MAX_SIZE_RETURN) {
-                exception = addValidationError("Param [" + PageParams.SIZE.getPreferredName() +
-                    "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]", exception);
+                exception = addValidationError(
+                    "Param [" + PageParams.SIZE.getPreferredName() + "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]",
+                    exception
+                );
             }
             return exception;
         }
@@ -93,6 +95,10 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public List<TransformConfig> getTransformConfigurations() {
             return getResources().results();
+        }
+
+        public long getCount() {
+            return getResources().count();
         }
 
         @Override

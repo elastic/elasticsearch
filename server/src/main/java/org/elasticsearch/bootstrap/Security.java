@@ -118,7 +118,8 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = getCodebaseJarMap(JarHell.parseClassPath());
-        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
+        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment), getPluginPermissions(environment), filterBadDefaults,
+            createRecursiveDataPathPermission(environment)));
 
         // enable security manager
         final String[] classesThatCanExit =
@@ -254,6 +255,14 @@ final class Security {
         return policy;
     }
 
+    private static Permissions createRecursiveDataPathPermission(Environment environment) throws IOException {
+        Permissions policy = new Permissions();
+        for (Path path : environment.dataFiles()) {
+            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
+        }
+        return policy;
+    }
+
     /** Adds access to classpath jars/classes for jar hell scan, etc */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static void addClasspathPermissions(Permissions policy) throws IOException {
@@ -268,7 +277,7 @@ final class Security {
             }
             // resource itself
             if (Files.isDirectory(path)) {
-                addDirectoryPath(policy, "class.path", path, "read,readlink");
+                addDirectoryPath(policy, "class.path", path, "read,readlink", false);
             } else {
                 addSingleFilePath(policy, path, "read,readlink");
             }
@@ -280,21 +289,21 @@ final class Security {
      */
     static void addFilePermissions(Permissions policy, Environment environment) throws IOException {
         // read-only dirs
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink");
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
-        addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink");
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
+        addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink", false);
         // read-write dirs
-        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
-        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
+        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
+        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
         if (environment.sharedDataFile() != null) {
             addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),
-                "read,readlink,write,delete");
+                "read,readlink,write,delete", false);
         }
         final Set<Path> dataFilesPaths = new HashSet<>();
         for (Path path : environment.dataFiles()) {
-            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
+            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", false);
             /*
              * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
              * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
@@ -310,7 +319,7 @@ final class Security {
             }
         }
         for (Path path : environment.repoFiles()) {
-            addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
+            addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
         }
         if (environment.pidFile() != null) {
             // we just need permission to remove the file if its elsewhere.

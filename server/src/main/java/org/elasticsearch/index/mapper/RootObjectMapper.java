@@ -388,10 +388,11 @@ public class RootObjectMapper extends ObjectMapper {
                 continue;
             }
 
-            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
-            fieldTypeConfig.remove("type");
+            String templateName = "__dynamic__" + dynamicTemplate.name();
+            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, defaultDynamicType);
             try {
-                Mapper.Builder<?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                Mapper.Builder<?> dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
+                fieldTypeConfig.remove("type");
                 if (fieldTypeConfig.isEmpty()) {
                     Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
                     BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));

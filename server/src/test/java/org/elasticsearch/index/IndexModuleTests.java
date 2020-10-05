@@ -84,11 +84,10 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -288,9 +287,8 @@ public class IndexModuleTests extends ESTestCase {
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
         AtomicBoolean executed = new AtomicBoolean(false);
         SearchOperationListener listener = new SearchOperationListener() {
-
             @Override
-            public void onNewContext(SearchContext context) {
+            public void onNewReaderContext(ReaderContext readerContext) {
                 executed.set(true);
             }
         };
@@ -303,9 +301,8 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(2, indexService.getSearchOperationListener().size());
         assertEquals(SearchSlowLog.class, indexService.getSearchOperationListener().get(0).getClass());
         assertSame(listener, indexService.getSearchOperationListener().get(1));
-
         for (SearchOperationListener l : indexService.getSearchOperationListener()) {
-            l.onNewContext(new TestSearchContext(null));
+            l.onNewReaderContext(mock(ReaderContext.class));
         }
         assertTrue(executed.get());
         indexService.close("simon says", false);

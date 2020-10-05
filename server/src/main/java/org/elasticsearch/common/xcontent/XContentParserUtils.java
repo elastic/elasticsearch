@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * A set of static methods to get {@link Token} from {@link XContentParser}
@@ -43,7 +42,7 @@ public final class XContentParserUtils {
      * @throws ParsingException if the token is not of type {@link Token#FIELD_NAME} or is not equal to the given field name
      */
     public static void ensureFieldName(XContentParser parser, Token token, String fieldName) throws IOException {
-        ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(Token.FIELD_NAME, token, parser);
         String currentName = parser.currentName();
         if (currentName.equals(fieldName) == false) {
             String message = "Failed to parse object: expecting field with name [%s] but found [%s]";
@@ -72,11 +71,15 @@ public final class XContentParserUtils {
      *
      * @throws ParsingException if the token is not equal to the expected type
      */
-    public static void ensureExpectedToken(Token expected, Token actual, Supplier<XContentLocation> location) {
+    public static void ensureExpectedToken(Token expected, Token actual, XContentParser parser) {
         if (actual != expected) {
-            String message = "Failed to parse object: expecting token of type [%s] but found [%s]";
-            throw new ParsingException(location.get(), String.format(Locale.ROOT, message, expected, actual));
+            throw parsingException(parser, expected, actual);
         }
+    }
+
+    private static ParsingException parsingException(XContentParser parser, Token expected, Token actual) {
+        return new ParsingException(parser.getTokenLocation(),
+                String.format(Locale.ROOT, "Failed to parse object: expecting token of type [%s] but found [%s]", expected, actual));
     }
 
     /**

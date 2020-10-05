@@ -44,6 +44,8 @@ public final class CardinalityAggregationBuilder
     extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, CardinalityAggregationBuilder> {
 
     public static final String NAME = "cardinality";
+    public static final ValuesSourceRegistry.RegistryKey<CardinalityAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, CardinalityAggregatorSupplier.class);
 
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
@@ -161,5 +163,10 @@ public final class CardinalityAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

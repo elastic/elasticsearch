@@ -2452,7 +2452,9 @@ public class IndexShardTests extends IndexShardTestCase {
             new IndexFieldDataCache.Listener() {});
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(shard.indexSettings, indicesFieldDataCache,
             new NoneCircuitBreakerService(), shard.mapperService());
-        IndexFieldData.Global ifd = indexFieldDataService.getForField(foo);
+        IndexFieldData.Global ifd = indexFieldDataService.getForField(foo, "test", () -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        });
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
@@ -2855,7 +2857,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         assertThat(requestedMappingUpdates, hasKey("_doc"));
-        assertThat(requestedMappingUpdates.get("_doc").get().source().string(),
+        assertThat(requestedMappingUpdates.get("_doc").source().string(),
             equalTo("{\"properties\":{\"foo\":{\"type\":\"text\"}}}"));
 
         closeShards(sourceShard, targetShard);
@@ -4094,7 +4096,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     throw new AssertionError(e);
                 }
             };
-            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),

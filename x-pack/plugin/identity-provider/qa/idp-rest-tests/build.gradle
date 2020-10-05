@@ -1,14 +1,13 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('identity-provider'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  //TODO: update javaRestTests to not rely on any code that it is testing
+  javaRestTestImplementation project(path: xpackModule('identity-provider'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
 
   setting 'xpack.license.self_generated.type', 'trial'
@@ -35,12 +34,12 @@ testClusters.integTest {
   setting 'xpack.security.authc.realms.saml.cloud-saml.attributes.name', 'https://idp.test.es.elasticsearch.org/attribute/name'
   setting 'logger.org.elasticsearch.xpack.security.authc.saml', 'TRACE'
   setting 'logger.org.elasticsearch.xpack.idp', 'TRACE'
-  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
-  extraConfigFile 'idp-sign.crt', file('src/test/resources/idp-sign.crt')
-  extraConfigFile 'idp-sign.key', file('src/test/resources/idp-sign.key')
-  extraConfigFile 'wildcard_services.json', file('src/test/resources/wildcard_services.json')
+  extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
+  extraConfigFile 'idp-sign.crt', file('src/javaRestTest/resources/idp-sign.crt')
+  extraConfigFile 'idp-sign.key', file('src/javaRestTest/resources/idp-sign.key')
+  extraConfigFile 'wildcard_services.json', file('src/javaRestTest/resources/wildcard_services.json')
   // The SAML SP is preconfigured with the metadata of the IDP
-  extraConfigFile 'idp-metadata.xml', file('src/test/resources/idp-metadata.xml')
+  extraConfigFile 'idp-metadata.xml', file('src/javaRestTest/resources/idp-metadata.xml')
 
   user username: "admin_user", password: "admin-password"
   user username: "idp_admin", password: "idp-password", role: "idp_admin"

@@ -51,6 +51,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -125,12 +126,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
-                         Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled) {
+                         Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled,
+                         ScriptService scriptService) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
-                queryShardContextSupplier);
+                queryShardContextSupplier, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
         this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(),
             p -> p.getTextSearchInfo().getSearchAnalyzer());
@@ -389,6 +391,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
+        if (fullName.equals(TypeFieldType.NAME)) {
+            return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
+        }
         return this.mapper == null ? null : this.mapper.fieldTypes().get(fullName);
     }
 

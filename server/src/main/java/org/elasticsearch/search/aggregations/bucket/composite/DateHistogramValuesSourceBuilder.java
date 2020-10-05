@@ -60,7 +60,7 @@ import java.util.function.LongConsumer;
 public class DateHistogramValuesSourceBuilder
     extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
     @FunctionalInterface
-    public interface DateHistogramCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface DateHistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             Rounding rounding,
@@ -271,7 +271,7 @@ public class DateHistogramValuesSourceBuilder
     }
 
     public static void register(ValuesSourceRegistry.Builder builder) {
-        builder.registerComposite(
+        builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
@@ -310,8 +310,8 @@ public class DateHistogramValuesSourceBuilder
                         );
                     }
                 );
-            }
-        );
+            },
+            false);
     }
 
     @Override
@@ -323,7 +323,7 @@ public class DateHistogramValuesSourceBuilder
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
         return queryShardContext.getValuesSourceRegistry()
-            .getComposite(REGISTRY_KEY, config)
+            .getAggregator(REGISTRY_KEY, config)
             .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
     }
 }

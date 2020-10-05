@@ -74,7 +74,7 @@ Unique identifier for the cluster.
 
 `timestamp`::
 (integer)
-https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
+{wikipedia}/Unix_time[Unix timestamp], in milliseconds, of
 the last time the cluster statistics were refreshed.
 
 `status`::
@@ -447,7 +447,7 @@ assigned to selected nodes.
 
 `max_unsafe_auto_id_timestamp`::
 (integer)
-https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
+{wikipedia}/Unix_time[Unix timestamp], in milliseconds, of
 the most recently retried indexing request.
 
 `file_sizes`::

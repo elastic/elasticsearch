@@ -25,8 +25,10 @@ import org.junit.rules.TemporaryFolder
 import spock.lang.Specification
 
 import java.lang.management.ManagementFactory
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
 
-abstract class AbstractGradleFuncTest extends Specification{
+abstract class AbstractGradleFuncTest extends Specification {
 
     @Rule
     TemporaryFolder testProjectDir = new TemporaryFolder()
@@ -41,21 +43,29 @@ abstract class AbstractGradleFuncTest extends Specification{
     }
 
     GradleRunner gradleRunner(String... arguments) {
+        return gradleRunner(testProjectDir.root, arguments)
+    }
+
+    GradleRunner gradleRunner(File projectDir, String... arguments) {
         GradleRunner.create()
-            .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-            .withProjectDir(testProjectDir.root)
-            .withArguments(arguments)
-            .withPluginClasspath()
-            .forwardOutput()
+                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
+                .withProjectDir(projectDir)
+                .withArguments(arguments)
+                .withPluginClasspath()
+                .forwardOutput()
     }
 
     def assertOutputContains(String givenOutput, String expected) {
-        assert normalizedString(givenOutput).contains(normalizedString(expected))
+        assert normalizedOutput(givenOutput).contains(normalizedOutput(expected))
         true
     }
 
-    String normalizedString(String input) {
-        return input.readLines().join("\n")
+    String normalizedOutput(String input) {
+        String normalizedPathPrefix = testProjectDir.root.canonicalPath.replace('\\', '/')
+        return input.readLines()
+                .collect { it.replace('\\', '/') }
+                .collect {it.replace(normalizedPathPrefix , '.') }
+                .join("\n")
     }
 
     File file(String path) {
@@ -64,4 +74,46 @@ abstract class AbstractGradleFuncTest extends Specification{
         newFile
     }
 
+    File someJar(String fileName = 'some.jar') {
+        File jarFolder = new File(testProjectDir.root, "jars");
+        jarFolder.mkdirs()
+        File jarFile = new File(jarFolder, fileName)
+        JarEntry entry = new JarEntry("foo.txt");
+
+        jarFile.withOutputStream {
+            JarOutputStream target = new JarOutputStream(it)
+            target.putNextEntry(entry);
+            target.closeEntry();
+            target.close();
+        }
+
+        return jarFile;
+    }
+
+    File internalBuild(File buildScript = buildFile) {
+        buildScript << """plugins {
+          id 'elasticsearch.global-build-info'
+        }
+        import org.elasticsearch.gradle.Architecture
+        import org.elasticsearch.gradle.info.BuildParams
+
+        BuildParams.init { it.setIsInternal(true) }
+
+        import org.elasticsearch.gradle.BwcVersions
+        import org.elasticsearch.gradle.Version
+
+        Version currentVersion = Version.fromString("9.0.0")
+        BwcVersions versions = new BwcVersions(new TreeSet<>(
+        Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
+            currentVersion)
+
+        BuildParams.init { it.setBwcVersions(versions) }
+        """
+    }
+
+    void setupLocalGitRepo() {
+        "git init".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        "git add .".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        'git commit -m "Initial"'.execute(Collections.emptyList(), testProjectDir.root).waitFor()
+    }
 }

@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -23,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
@@ -207,7 +211,27 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
-        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(POLICY_NAME)).actionGet();
+        final ActionFuture<ExecuteEnrichPolicyAction.Response> policyExecuteFuture = client().execute(
+            ExecuteEnrichPolicyAction.INSTANCE,
+            new ExecuteEnrichPolicyAction.Request(POLICY_NAME)
+        );
+        // Make sure we can deserialize enrich policy execution task status
+        final List<TaskInfo> tasks = client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setActions(EnrichPolicyExecutor.TASK_ACTION)
+            .get()
+            .getTasks();
+        // Best effort, sometimes the enrich policy task will not be visible yet or will have already finished
+        if (tasks.isEmpty() == false) {
+            try {
+                final GetTaskResponse getTaskResponse = client().admin().cluster().prepareGetTask(tasks.get(0).getTaskId()).get();
+                assertEquals(getTaskResponse.getTask().getTask().getAction(), EnrichPolicyExecutor.TASK_ACTION);
+            } catch (ResourceNotFoundException e) {
+                // ignored, could be the task has already finished
+            }
+        }
+        policyExecuteFuture.actionGet();
     }
 
     private static void createPipeline() {

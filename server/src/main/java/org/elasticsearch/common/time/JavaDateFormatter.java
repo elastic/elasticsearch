@@ -105,18 +105,30 @@ class JavaDateFormatter implements DateFormatter {
         } else {
             this.parsers = Arrays.asList(parsers);
         }
-        //this is when the RoundUp Formatter is created. In further merges (with ||) it will only append this one to a list.
         List<DateTimeFormatter> roundUp = createRoundUpParser(format, roundupParserConsumer);
         this.roundupParser = new RoundUpFormatter(format, roundUp) ;
     }
 
+    /**
+     * This is when the RoundUp Formatters are created. In further merges (with ||) it will only append them to a list.
+     * || is not expected to be provided as format when a RoundUp formatter is created. It will be splitted before in
+     * <code>DateFormatter.forPattern</code>
+     * JavaDateFormatter created with a custom format like <code>DateFormatter.forPattern("YYYY")</code> will only have one parser
+     * It is however possible to have a JavaDateFormatter with multiple parsers. For instance see a "date_time" formatter in
+     * <code>DateFormatters</code>.
+     * This means that we need to also have multiple RoundUp parsers.
+     */
     private List<DateTimeFormatter> createRoundUpParser(String format,
                                                         Consumer<DateTimeFormatterBuilder> roundupParserConsumer) {
         if (format.contains("||") == false) {
-            DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-            builder.append(this.parsers.get(0));
-            roundupParserConsumer.accept(builder);
-            return Arrays.asList(builder.toFormatter(locale()));
+            List<DateTimeFormatter> roundUpParsers = new ArrayList<>();
+            for (DateTimeFormatter parser : this.parsers) {
+                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
+                builder.append(parser);
+                roundupParserConsumer.accept(builder);
+                roundUpParsers.add(builder.toFormatter(locale()));
+            }
+            return roundUpParsers;
         }
         return null;
     }

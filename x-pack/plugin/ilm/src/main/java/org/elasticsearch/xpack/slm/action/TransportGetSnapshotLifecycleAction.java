@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
 import java.io.IOException;
 import java.util.Arrays;

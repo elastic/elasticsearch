@@ -102,6 +102,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "mappings": {
       "properties": {
@@ -184,6 +185,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "mappings": {
       "properties": {
@@ -288,6 +290,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "settings": {
       "index.refresh_interval": "30s"             <1>
@@ -341,6 +344,7 @@ PUT /_index_template/my-data-stream-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "settings": {
       "sort.field": [ "@timestamp"],             <1>
@@ -378,7 +382,7 @@ index created by the new stream.
 
 Follow these steps:
 
-. Choose a name or wildcard (`*`) pattern for a new data stream. This new data
+. Choose a name or index pattern for a new data stream. This new data
 stream will contain data from your existing stream.
 +
 You can use the resolve index API to check if the name or pattern matches any
@@ -387,7 +391,7 @@ using another name or pattern.
 --
 The following resolve index API request checks for any existing indices, index
 aliases, or data streams that start with `new-data-stream`. If not, the
-`new-data-stream*` wildcard pattern can be used to create a new data stream.
+`new-data-stream*` index pattern can be used to create a new data stream.
 
 [source,console]
 ----
@@ -414,7 +418,7 @@ indices.
 +
 This index template must meet the
 <<create-a-data-stream-template,requirements for a data stream template>>. It
-should also contain your previously chosen name or wildcard pattern in the
+should also contain your previously chosen name or index pattern in the
 `index_patterns` property.
 +
 TIP: If you are only adding or changing a few things, we recommend you create a
@@ -429,7 +433,7 @@ index template, `new-data-stream-template`. `new-data-stream-template`
 uses `my-data-stream-template` as its basis, with the following
 changes:
 
-* The `index_patterns` wildcard pattern matches any index or data stream
+* The index pattern in `index_patterns` matches any index or data stream
   starting with `new-data-stream`.
 * The `@timestamp` field mapping uses the `date_nanos` field data type rather
   than the `date` data type.
@@ -442,6 +446,7 @@ PUT /_index_template/new-data-stream-template
 {
   "index_patterns": [ "new-data-stream*" ],
   "data_stream": { },
+  "priority": 200,
   "template": {
     "mappings": {
       "properties": {
@@ -463,8 +468,8 @@ PUT /_index_template/new-data-stream-template
 --
 
 . Use the <<indices-create-data-stream,create data stream API>> to manually
-create the new data stream. The name of the data stream must match the name or
-wildcard pattern defined in the new template's `index_patterns` property.
+create the new data stream. The name of the data stream must match the index
+pattern defined in the new template's `index_patterns` property.
 +
 We do not recommend <<index-documents-to-create-a-data-stream,indexing new data
 to create this data stream>>. Later, you will reindex older data from an
@@ -483,7 +488,7 @@ to retain such a backing index until you are ready to delete its newest data.
 +
 --
 The following create data stream API request targets `new-data-stream`, which
-matches the wildcard pattern for `new-data-stream-template`.
+matches the index pattern for `new-data-stream-template`.
 Because no existing index or data stream uses this name, this request creates
 the `new-data-stream` data stream.
 

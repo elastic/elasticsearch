@@ -24,6 +24,8 @@ import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.phase.DefaultConstantFoldingOptimizationPhase;
+import org.elasticsearch.painless.phase.DefaultStringConcatenationOptimizationPhase;
 import org.elasticsearch.painless.phase.DocFieldsPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticHeaderPhase;
@@ -218,10 +220,12 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
-        // TODO(stu): Make this phase optional #60156
+        // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         byte[] bytes = classNode.write();
 
         try {
@@ -251,10 +255,12 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
-        // TODO(stu): Make this phase optional #60156
+        // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         classNode.setDebugStream(debugStream);
 
         return classNode.write();

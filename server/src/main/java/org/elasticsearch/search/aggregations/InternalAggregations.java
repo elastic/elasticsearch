@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -161,9 +162,57 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             // If all aggs are unmapped, the agg that leads the reduction will just return itself
             aggregations.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            reducedAggregations.add(first.reduce(aggregations, context));
+            if (first.mustReduceOnSingleInternalAgg() || aggregations.size() > 1) {
+                reducedAggregations.add(first.reduce(aggregations, context));
+            } else {
+                // no need for reduce phase
+                reducedAggregations.add(first);
+            }
         }
 
         return from(reducedAggregations);
+    }
+
+    /**
+     * Returns the number of bytes required to serialize these aggregations in binary form.
+     */
+    public long getSerializedSize() {
+        try (CountingStreamOutput out = new CountingStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            writeTo(out);
+            return out.size;
+        } catch (IOException exc) {
+            // should never happen
+            throw new RuntimeException(exc);
+        }
+    }
+
+    private static class CountingStreamOutput extends StreamOutput {
+        long size = 0;
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            ++ size;
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) throws IOException {
+            size += length;
+        }
+
+        @Override
+        public void flush() throws IOException {}
+
+        @Override
+        public void close() throws IOException {}
+
+        @Override
+        public void reset() throws IOException {
+            size = 0;
+        }
+
+        public long length() {
+            return size;
+        }
     }
 }

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
+import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
@@ -49,7 +49,7 @@ public class ExecutionManager {
                                TimeValue maxSpan,
                                Limit limit) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
-        
+
         boolean descending = direction == OrderDirection.DESC;
 
         // fields
@@ -61,7 +61,7 @@ public class ExecutionManager {
 
         // secondary criteria
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
-        
+
         // build a criterion for each query
         for (int i = 0; i < plans.size(); i++) {
             List<Attribute> keys = listOfKeys.get(i);
@@ -85,11 +85,11 @@ public class ExecutionManager {
                 }
             }
         }
-        
+
         int completionStage = criteria.size() - 1;
         SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit);
 
-        TumblingWindow w = new TumblingWindow(new BasicQueryClient(session),
+        TumblingWindow w = new TumblingWindow(new PITAwareQueryClient(session),
                 criteria.subList(0, completionStage),
                 criteria.get(completionStage),
                 matcher);

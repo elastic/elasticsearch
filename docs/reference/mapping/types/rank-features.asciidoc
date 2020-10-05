@@ -1,5 +1,5 @@
 [[rank-features]]
-=== Rank features data type
+=== Rank features field type
 ++++
 <titleabbrev>Rank features</titleabbrev>
 ++++

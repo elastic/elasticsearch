@@ -1,5 +1,9 @@
 ---
 "Test calendar CRUD":
+  - do:
+      ml.get_calendars:
+        calendar_id: _all
+  - match: { count: 0 }
 
   - do:
       ml.put_job:

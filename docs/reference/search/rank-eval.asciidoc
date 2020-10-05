@@ -214,7 +214,7 @@ will be used. The following metrics are supported:
 
 This metric measures the proportion of relevant results in the top k search results.
 It's a form of the well-known
-https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Precision[Precision]
+{wikipedia}/Evaluation_measures_(information_retrieval)#Precision[Precision]
 metric that only looks at the top k documents. It is the fraction of relevant
 documents in those first k results. A precision at 10 (P@10) value of 0.6 then
 means 6 out of the 10 top hits are relevant with respect to the user's
@@ -269,7 +269,7 @@ If set to 'true', unlabeled documents are ignored and neither count as relevant 
 
 This metric measures the total number of relevant results in the top k search
 results. It's a form of the well-known
-https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Recall[Recall]
+{wikipedia}/Evaluation_measures_(information_retrieval)#Recall[Recall]
 metric. It is the fraction of relevant documents in those first k results
 relative to all possible relevant results. A recall at 10 (R@10) value of 0.5 then
 means 4 out of 8 relevant documents, with respect to the user's information
@@ -322,7 +322,7 @@ For every query in the test suite, this metric calculates the reciprocal of the
 rank of the first relevant document. For example, finding the first relevant 
 result in position 3 means the reciprocal rank is 1/3. The reciprocal rank for 
 each query is averaged across all queries in the test suite to give the 
-https://en.wikipedia.org/wiki/Mean_reciprocal_rank[mean reciprocal rank].
+{wikipedia}/Mean_reciprocal_rank[mean reciprocal rank].
 
 [source,console]
 --------------------------------
@@ -360,7 +360,7 @@ in the query. Defaults to 10.
 ===== Discounted cumulative gain (DCG)
 
 In contrast to the two metrics above, 
-https://en.wikipedia.org/wiki/Discounted_cumulative_gain[discounted cumulative gain] 
+{wikipedia}/Discounted_cumulative_gain[discounted cumulative gain] 
 takes both the rank and the rating of the search results into account.
 
 The assumption is that highly relevant documents are more useful for the user 
@@ -395,7 +395,7 @@ The `dcg` metric takes the following optional parameters:
 |Parameter |Description
 |`k` |sets the maximum number of documents retrieved per query. This value will act in place of the usual `size` parameter 
 in the query. Defaults to 10.
-|`normalize` | If set to `true`, this metric will calculate the https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG[Normalized DCG].
+|`normalize` | If set to `true`, this metric will calculate the {wikipedia}/Discounted_cumulative_gain#Normalized_DCG[Normalized DCG].
 |=======================================================================
 
 

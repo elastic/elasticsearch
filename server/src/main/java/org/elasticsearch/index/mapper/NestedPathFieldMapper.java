@@ -30,8 +30,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 
 public class NestedPathFieldMapper extends MetadataFieldMapper {
@@ -74,8 +74,8 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
     public static final class NestedPathFieldType extends StringFieldType {
 
-        NestedPathFieldType(Settings settings) {
-            super(NestedPathFieldMapper.name(settings), true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private NestedPathFieldType(Settings settings) {
+            super(NestedPathFieldMapper.name(settings), true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -87,6 +87,11 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException("Cannot run exists() query against the nested field path");
         }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
     }
 
     private NestedPathFieldMapper(Settings settings) {
@@ -94,23 +99,8 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // we parse in pre parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-    }
-
-    @Override
     protected String contentType() {
         return NAME;
     }
-
 
 }

@@ -51,7 +51,7 @@ public class EBrace extends AExpression {
     public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         userTreeVisitor.visitBrace(this, scope);
     }
-
+    
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         prefixNode.visit(userTreeVisitor, scope);

@@ -21,6 +21,9 @@ package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -31,6 +34,7 @@ import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -42,6 +46,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -51,17 +56,24 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
+
+    protected static final String CONFLICT_PIPELINE_ID = "conflict_pipeline";
 
     private static RestHighLevelClient restHighLevelClient;
     private static boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
@@ -216,6 +228,29 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync).isAcknowledged());
     }
 
+    protected void putConflictPipeline() throws IOException {
+        final XContentBuilder pipelineBuilder = jsonBuilder()
+            .startObject()
+                .startArray("processors")
+                    .startObject()
+                        .startObject("set")
+                            .field("field", "_version")
+                            .field("value", 1)
+                        .endObject()
+                    .endObject()
+                    .startObject()
+                        .startObject("set")
+                            .field("field", "_id")
+                            .field("value", "1")
+                        .endObject()
+                    .endObject()
+                .endArray()
+            .endObject();
+        final PutPipelineRequest putPipelineRequest = new PutPipelineRequest(CONFLICT_PIPELINE_ID, BytesReference.bytes(pipelineBuilder),
+            pipelineBuilder.contentType());
+        assertTrue(highLevelClient().ingest().putPipeline(putPipelineRequest, RequestOptions.DEFAULT).isAcknowledged());
+    }
+
     @Override
     protected Settings restClientSettings() {
         final String user = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username"));
@@ -279,5 +314,37 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     protected static Map<String, Object> toMap(Response response) throws IOException {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+    }
+
+    protected static TaskId findTaskToRethrottle(String actionName, String description) throws IOException {
+        long start = System.nanoTime();
+        ListTasksRequest request = new ListTasksRequest();
+        request.setActions(actionName);
+        request.setDetailed(true);
+        do {
+            ListTasksResponse list = highLevelClient().tasks().list(request, RequestOptions.DEFAULT);
+            list.rethrowFailures("Finding tasks to rethrottle");
+            List<TaskGroup> taskGroups =
+                list.getTaskGroups().stream()
+                    .filter(taskGroup -> taskGroup.getTaskInfo().getDescription().equals(description)).collect(Collectors.toList());
+            assertThat("tasks are left over from the last execution of this test",
+                taskGroups, hasSize(lessThan(2)));
+            if (0 == taskGroups.size()) {
+                // The parent task hasn't started yet
+                continue;
+            }
+            TaskGroup taskGroup = taskGroups.get(0);
+            assertThat(taskGroup.getChildTasks(), empty());
+            return taskGroup.getTaskInfo().getTaskId();
+        } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
+        throw new AssertionError("Couldn't find tasks to rethrottle. Here are the running tasks " +
+            highLevelClient().tasks().list(request, RequestOptions.DEFAULT));
+    }
+
+    protected static CheckedRunnable<Exception> checkTaskCompletionStatus(RestClient client, String taskId) {
+        return () -> {
+            Response response = client.performRequest(new Request("GET", "/_tasks/" + taskId));
+            assertTrue((boolean) entityAsMap(response).get("completed"));
+        };
     }
 }

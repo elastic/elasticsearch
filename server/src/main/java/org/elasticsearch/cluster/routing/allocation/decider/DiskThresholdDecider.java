@@ -275,8 +275,8 @@ public class DiskThresholdDecider extends AllocationDecider {
         double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
         long freeBytesAfterShard = freeBytes - shardSize;
         if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
-            logger.warn("after allocating, node [{}] would have less than the required threshold of " +
-                    "{} free (currently {} free, estimated shard size is {}), preventing allocation",
+            logger.warn("after allocating [{}] node [{}] would have less than the required threshold of " +
+                    "{} free (currently {} free, estimated shard size is {}), preventing allocation", shardRouting,
                     node.nodeId(), diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytesValue, new ByteSizeValue(shardSize));
             return allocation.decision(Decision.NO, NAME,
                 "allocating the shard to this node will bring the node above the high watermark cluster setting [%s=%s] " +
@@ -287,8 +287,8 @@ public class DiskThresholdDecider extends AllocationDecider {
                 freeBytesValue, new ByteSizeValue(shardSize));
         }
         if (freeSpaceAfterShard < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-            logger.warn("after allocating, node [{}] would have more than the allowed " +
-                            "{} free disk threshold ({} free), preventing allocation",
+            logger.warn("after allocating [{}] node [{}] would have more than the allowed " +
+                            "{} free disk threshold ({} free), preventing allocation", shardRouting,
                     node.nodeId(), Strings.format1Decimals(diskThresholdSettings.getFreeDiskThresholdHigh(), "%"),
                                                            Strings.format1Decimals(freeSpaceAfterShard, "%"));
             return allocation.decision(Decision.NO, NAME,

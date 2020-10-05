@@ -74,7 +74,7 @@ Defaults to `false`.
 fields, this mapping can include:
 
 * Field name
-* <<field-datatypes,Field data type>>
+* <<mapping-types,Field data type>>
 * <<mapping-params,Mapping parameters>>
 
 For existing fields, see <<updating-field-mappings>>.

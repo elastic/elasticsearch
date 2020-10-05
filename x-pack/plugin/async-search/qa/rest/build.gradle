@@ -1,8 +1,5 @@
-import org.elasticsearch.gradle.info.BuildParams
-
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Deprecated query plugin'
@@ -16,13 +13,9 @@ restResources {
   }
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
-  // add the deprecated query plugin
-  plugin file(project(':x-pack:plugin:async-search:qa:rest').tasks.bundlePlugin.archiveFile)
   setting 'xpack.security.enabled', 'false'
 }
 
 test.enabled = false
-
-check.dependsOn integTest

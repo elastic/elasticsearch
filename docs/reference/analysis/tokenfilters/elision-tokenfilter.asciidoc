@@ -4,7 +4,7 @@
 <titleabbrev>Elision</titleabbrev>
 ++++
 
-Removes specified https://en.wikipedia.org/wiki/Elision[elisions] from
+Removes specified {wikipedia}/Elision[elisions] from
 the beginning of tokens. For example, you can use this filter to change
 `l'avion` to `avion`.
 

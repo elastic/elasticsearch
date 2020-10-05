@@ -23,12 +23,9 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -52,20 +49,18 @@ public class TermVectorsFilter {
     private int minWordLength = DEFAULT_MIN_WORD_LENGTH;
     private int maxWordLength = DEFAULT_MAX_WORD_LENGTH;
 
-    private Fields fields;
-    private Fields topLevelFields;
+    private final Fields fields;
+    private final Fields topLevelFields;
     private final Set<String> selectedFields;
-    private AggregatedDfs dfs;
-    private Map<Term, ScoreTerm> scoreTerms;
-    private Map<String, Integer> sizes = new HashMap<>();
-    private TFIDFSimilarity similarity;
+    private final Map<Term, ScoreTerm> scoreTerms;
+    private final Map<String, Integer> sizes = new HashMap<>();
+    private final TFIDFSimilarity similarity;
 
-    public TermVectorsFilter(Fields termVectorsByField, Fields topLevelFields, Set<String> selectedFields, @Nullable AggregatedDfs dfs) {
+    public TermVectorsFilter(Fields termVectorsByField, Fields topLevelFields, Set<String> selectedFields) {
         this.fields = termVectorsByField;
         this.topLevelFields = topLevelFields;
         this.selectedFields = selectedFields;
 
-        this.dfs = dfs;
         this.scoreTerms = new HashMap<>();
         this.similarity = new ClassicSimilarity();
     }
@@ -196,7 +191,7 @@ public class TermVectorsFilter {
                 topLevelTerms = terms;
             }
 
-            long numDocs = getDocCount(fieldName, topLevelTerms);
+            long numDocs = topLevelTerms.getDocCount();
 
             // one queue per field name
             ScoreTermsQueue queue = new ScoreTermsQueue(Math.min(maxNumTerms, (int) terms.size()));
@@ -212,13 +207,15 @@ public class TermVectorsFilter {
                 Term term = new Term(fieldName, termBytesRef);
 
                 // remove noise words
-                int freq = getTermFreq(termsEnum, docsEnum);
+                docsEnum = termsEnum.postings(docsEnum);
+                docsEnum.nextDoc();
+                int freq = docsEnum.freq();
                 if (isNoise(term.bytes().utf8ToString(), freq)) {
                     continue;
                 }
 
                 // now call on docFreq
-                long docFreq = getTermStatistics(topLevelTermsEnum, term).docFreq();
+                long docFreq = topLevelTermsEnum.docFreq();
                 if (!isAccepted(docFreq)) {
                     continue;
                 }
@@ -273,26 +270,6 @@ public class TermVectorsFilter {
             return false;
         }
         return true;
-    }
-
-    private long getDocCount(String fieldName, Terms topLevelTerms) throws IOException {
-        if (dfs != null) {
-            return dfs.fieldStatistics().get(fieldName).docCount();
-        }
-        return topLevelTerms.getDocCount();
-    }
-
-    private TermStatistics getTermStatistics(TermsEnum termsEnum, Term term) throws IOException {
-        if (dfs != null) {
-            return dfs.termStatistics().get(term);
-        }
-        return new TermStatistics(termsEnum.term(), termsEnum.docFreq(), termsEnum.totalTermFreq());
-    }
-
-    private int getTermFreq(TermsEnum termsEnum, PostingsEnum docsEnum) throws IOException {
-        docsEnum = termsEnum.postings(docsEnum);
-        docsEnum.nextDoc();
-        return docsEnum.freq();
     }
 
     private float computeScore(long docFreq, int freq, long numDocs) {

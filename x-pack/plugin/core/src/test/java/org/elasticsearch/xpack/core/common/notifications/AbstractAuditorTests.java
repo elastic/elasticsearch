@@ -75,6 +75,7 @@ public class AbstractAuditorTests extends ESTestCase {
     public void setUpMocks() {
         client = mock(Client.class);
         ThreadPool mockPool = mock(ThreadPool.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
         when(client.threadPool()).thenReturn(mockPool);
         when(mockPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 

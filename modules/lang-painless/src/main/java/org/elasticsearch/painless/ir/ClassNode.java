@@ -107,9 +107,10 @@ public class ClassNode extends IRNode {
 
     /* ---- end visitor ---- */
 
-    public ClassNode() {
-        clinitBlockNode = new BlockNode();
-        clinitBlockNode.setLocation(new Location("internal$clinit$blocknode", 0));
+    public ClassNode(Location location) {
+        super(location);
+
+        clinitBlockNode = new BlockNode(new Location("internal$clinit$blocknode", 0));
         clinitBlockNode.setAllEscape(true);
     }
 

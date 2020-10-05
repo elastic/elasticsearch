@@ -634,7 +634,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             parser.nextToken();
         }
         XContentParser.Token token;
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         String currentFieldName = parser.currentName();
         if (SNAPSHOT.equals(currentFieldName)) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -108,7 +108,8 @@ my`field -> `my``field`
 ==== Conditions
 
 A condition consists of one or more criteria an event must match.
-You can specify and combine these criteria using the following operators:
+You can specify and combine these criteria using the following operators. Most
+EQL operators are case-sensitive by default.
 
 [discrete]
 [[eql-syntax-comparison-operators]]
@@ -217,11 +218,13 @@ user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
 user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
 ----
 
-`in`::
-Returns `true` if the value is contained in the provided list.
+`in` (case-sensitive)::
+Returns `true` if the value is contained in the provided list. For strings,
+matching is case-sensitive.
 
-`not in`::
-Returns `true` if the value is not contained in the provided list.
+`not in` (case-sensitive)::
+Returns `true` if the value is not contained in the provided list. For strings,
+matching is case-sensitive.
 
 [discrete]
 [[eql-syntax-math-operators]]
@@ -597,7 +600,8 @@ until [ process where event.type == "stop" ]
 === Functions
 
 {es} supports several of EQL's built-in functions. You can use these functions
-to convert data types, perform math, manipulate strings, and more.
+to convert data types, perform math, manipulate strings, and more. Most
+functions are case-sensitive by default.
 
 For a list of supported functions, see <<eql-function-ref>>.
 

@@ -450,8 +450,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
                 new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
                     @Override
-                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
-                        return new UpdateIndexShardSnapshotStatusResponse(in);
+                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) {
+                        return UpdateIndexShardSnapshotStatusResponse.INSTANCE;
                     }
 
                     @Override

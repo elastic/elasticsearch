@@ -389,6 +389,18 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
+     * Creates a new instance has a different name and zero incremental file counts but is identical to this instance in terms of the files
+     * it references.
+     *
+     * @param targetSnapshotName target snapshot name
+     * @param startTime          time the clone operation on the repository was started
+     * @param time               time it took to create the clone
+     */
+    public BlobStoreIndexShardSnapshot asClone(String targetSnapshotName, long startTime, long time) {
+        return new BlobStoreIndexShardSnapshot(targetSnapshotName, indexVersion, indexFiles, startTime, time, 0, 0);
+    }
+
+    /**
      * Returns snapshot name
      *
      * @return snapshot name
@@ -510,7 +522,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                 final String currentFieldName = parser.currentName();
                 token = parser.nextToken();
                 if (token.isValue()) {

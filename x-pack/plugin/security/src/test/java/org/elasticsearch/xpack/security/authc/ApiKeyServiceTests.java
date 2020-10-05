@@ -158,7 +158,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
         service.createApiKey(authentication, createApiKeyRequest, org.elasticsearch.common.collect.Set.of(), new PlainActionFuture<>());
-        verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
     }
 
     public void testGetCredentialsFromThreadContext() {

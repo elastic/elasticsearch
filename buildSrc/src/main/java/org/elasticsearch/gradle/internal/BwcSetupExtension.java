@@ -79,7 +79,8 @@ public class BwcSetupExtension {
                     "JAVA_HOME",
                     getJavaHome(
                         Integer.parseInt(
-                            javaVersionsString.lines()
+                            Arrays.asList(javaVersionsString.split("\n"))
+                                .stream()
                                 .filter(l -> l.trim().startsWith("ES_BUILD_JAVA="))
                                 .map(l -> l.replace("ES_BUILD_JAVA=java", "").trim())
                                 .map(l -> l.replace("ES_BUILD_JAVA=openjdk", "").trim())
@@ -91,7 +92,8 @@ public class BwcSetupExtension {
                     "RUNTIME_JAVA_HOME",
                     getJavaHome(
                         Integer.parseInt(
-                            javaVersionsString.lines()
+                            Arrays.asList(javaVersionsString.split("\n"))
+                                .stream()
                                 .filter(l -> l.trim().startsWith("ES_RUNTIME_JAVA="))
                                 .map(l -> l.replace("ES_RUNTIME_JAVA=java", "").trim())
                                 .map(l -> l.replace("ES_RUNTIME_JAVA=openjdk", "").trim())

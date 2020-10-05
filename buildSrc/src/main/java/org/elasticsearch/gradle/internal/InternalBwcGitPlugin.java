@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
@@ -40,10 +41,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-
-import static java.nio.file.StandardOpenOption.CREATE;
-import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.util.Arrays.asList;
 
 public class InternalBwcGitPlugin implements Plugin<Project> {
@@ -189,7 +186,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
     private void writeFile(File file, String content) {
         try {
-            Files.writeString(file.toPath(), content, CREATE, TRUNCATE_EXISTING);
+            FileUtils.writeStringToFile(file, content);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -207,6 +204,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
     }
 
     private static boolean isRemoteAvailable(Provider<String> remote, ByteArrayOutputStream output) {
-        return new String(output.toByteArray()).lines().anyMatch(l -> l.contains(remote.get() + "\t"));
+        return new String(output.toByteArray()).contains(remote.get() + "\t");
     }
 }

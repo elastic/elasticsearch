@@ -23,6 +23,8 @@ registry where not pid;
 
 process where process_name : "net.exe" and command_line : "* user*.exe";
 
+process where process_name : "net.EXE" and command_line : "* user*.EXE";
+
 process where command_line : "~!@#$%^&*();'[]{}\\|<>?,./:\"-= ' ";
 
 process where
@@ -32,6 +34,8 @@ process where
 process where process_name in ("net.exe", "cmd.exe", "at.exe");
 
 process where command_line : "*.exe *admin*" or command_line : "* a b*";
+
+process where command_line : "*.eXe *aDMin*" or command_line : "* a b*";
 
 process where pid in (1,2,3,4,5,6,7,8) and abc : 100 and def : 200 and ghi : 300 and jkl : x;
 

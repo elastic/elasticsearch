@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
@@ -36,7 +38,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
@@ -62,6 +63,8 @@ import java.util.concurrent.TimeUnit;
  * a comedy gold mine. If you like time zones. Or hate them.
  */
 public abstract class Rounding implements Writeable {
+    private static final Logger logger = LogManager.getLogger(Rounding.class);
+
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR(
             (byte) 1,
@@ -1119,12 +1122,65 @@ public abstract class Rounding implements Writeable {
             }
 
             @Override
-            public long nextRoundingValue(long time) {
-                int offsetSeconds = timeZone.getRules().getOffset(Instant.ofEpochMilli(time)).getTotalSeconds();
-                long millis = time + interval + offsetSeconds * 1000;
-                return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
-                    .withZoneSameLocal(timeZone)
-                    .toInstant().toEpochMilli();
+            public long nextRoundingValue(long utcMillis) {
+                /*
+                 * Ok. I'm not proud of this, but it gets the job done. So here is the deal:
+                 * its super important that nextRoundingValue be *exactly* the next rounding
+                 * value. And I can't come up with a nice way to use the java time API to figure
+                 * it out. Thus, we treat "round" like a black box here and run a kind of whacky
+                 * binary search, newton's method hybrid. We don't have a "slope" so we can't do
+                 * a "real" newton's method, so we just sort of cut the diff in half. As janky
+                 * as it looks, it tends to get the job done in under four iterations. Frankly,
+                 * `round(round(utcMillis) + interval)` is usually a good guess so we mostly get
+                 * it in a single iteration. But daylight savings time and other janky stuff can
+                 * make it less likely.
+                 */
+                long prevRound = round(utcMillis);
+                long increment = interval;
+                long from = prevRound;
+                int iterations = 0;
+                while (++iterations < 100) {
+                    from += increment;
+                    long rounded = round(from);
+                    boolean highEnough = rounded > prevRound;
+                    if (false == highEnough) {
+                        if (increment < 0) {
+                            increment = -increment / 2;
+                        }
+                        continue;
+                    }
+                    long roundedRoundedDown = round(rounded - 1);
+                    boolean tooHigh = roundedRoundedDown > prevRound;
+                    if (tooHigh) {
+                        if (increment > 0) {
+                            increment = -increment / 2;
+                        }
+                        continue;
+                    }
+                    assert highEnough && (false == tooHigh);
+                    assert roundedRoundedDown == prevRound;
+                    if (iterations > 3 && logger.isDebugEnabled()) {
+                        logger.debug("Iterated {} time for {} using {}", iterations, utcMillis, TimeIntervalRounding.this.toString());
+                    }
+                    return rounded;
+                }
+                /*
+                 * After 100 iterations we still couldn't settle on something! Crazy!
+                 * The most I've seen in tests is 20 and its usually 1 or 2. If we're
+                 * not in a test let's log something and round from our best guess.
+                 */
+                assert false : String.format(
+                    Locale.ROOT,
+                    "Expected to find the rounding in 100 iterations but didn't for [%d] with [%s]",
+                    utcMillis,
+                    TimeIntervalRounding.this.toString()
+                );
+                logger.debug(
+                    "Expected to find the rounding in 100 iterations but didn't for {} using {}",
+                    utcMillis,
+                    TimeIntervalRounding.this.toString()
+                );
+                return round(from);
             }
         }
     }

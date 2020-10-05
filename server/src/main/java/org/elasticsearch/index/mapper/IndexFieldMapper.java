@@ -69,7 +69,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(fullyQualifiedIndexName, name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

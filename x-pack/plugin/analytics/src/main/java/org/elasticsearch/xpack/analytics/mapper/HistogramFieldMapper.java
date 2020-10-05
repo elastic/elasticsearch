@@ -151,7 +151,7 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return (cache, breakerService, mapperService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
+            return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
                 public LeafHistogramFieldData load(LeafReaderContext context) {

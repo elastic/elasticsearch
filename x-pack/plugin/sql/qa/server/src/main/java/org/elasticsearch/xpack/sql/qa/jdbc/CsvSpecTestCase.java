@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
 import java.net.URL;
@@ -29,7 +30,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = JdbcTestUtils.classpathResources("/*.csv-spec");
+        List<URL> urls = TestUtils.classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found (" + urls.size() + ") " + urls.toString(), urls.size() >= 23);
         return readScriptSpec(urls, specParser());
     }

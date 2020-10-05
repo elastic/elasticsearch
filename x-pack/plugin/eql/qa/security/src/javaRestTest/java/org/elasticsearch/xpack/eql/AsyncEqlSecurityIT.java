@@ -7,16 +7,12 @@
 package org.elasticsearch.xpack.eql;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -24,33 +20,24 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.eql.SecurityUtils.secureClientSettings;
+import static org.elasticsearch.xpack.eql.SecurityUtils.setRunAsHeader;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AsyncEqlSecurityIT extends ESRestTestCase {
-
-    @BeforeClass
-    public static void checkForSnapshot() {
-        assumeTrue("Only works on snapshot builds for now", Build.CURRENT.isSnapshot());
-    }
 
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.
      */
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return secureClientSettings();
     }
 
     @Before
@@ -166,11 +153,4 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
     static Map<String, Object> toMap(String response) {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
-
-    static void setRunAsHeader(Request request, String user) {
-        final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-        builder.addHeader(RUN_AS_USER_HEADER, user);
-        request.setOptions(builder);
-    }
-
 }

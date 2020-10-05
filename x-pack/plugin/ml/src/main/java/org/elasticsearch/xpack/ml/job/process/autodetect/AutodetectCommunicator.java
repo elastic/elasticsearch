@@ -44,7 +44,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -225,8 +224,8 @@ public class AutodetectCommunicator implements Closeable {
             }
 
             // Filters have to be written before detectors
-            if (update.getFilter() != null) {
-                autodetectProcess.writeUpdateFiltersMessage(Collections.singletonList(update.getFilter()));
+            if (update.getFilters() != null) {
+                autodetectProcess.writeUpdateFiltersMessage(update.getFilters());
             }
 
             // Add detector rules

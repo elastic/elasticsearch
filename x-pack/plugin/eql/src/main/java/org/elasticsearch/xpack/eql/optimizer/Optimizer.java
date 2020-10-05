@@ -131,7 +131,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
 
                     if (target != null) {
-                        Expression like = new Like(e.source(), target, StringUtils.toLikePattern(wildString));
+                        Expression like = new Like(e.source(), target, StringUtils.toLikePattern(wildString), true);
                         if (e instanceof InsensitiveNotEquals) {
                             like = new Not(e.source(), like);
                         }

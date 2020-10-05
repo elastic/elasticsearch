@@ -91,15 +91,10 @@ public class PackageTests extends PackagingTestCase {
     }
 
     private void assertRunsWithJavaHome() throws Exception {
-        byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
-        try {
-            Files.write(installation.envFile, singletonList("JAVA_HOME=" + systemJavaHome), APPEND);
-            startElasticsearch();
-            runElasticsearchTests();
-            stopElasticsearch();
-        } finally {
-            Files.write(installation.envFile, originalEnvFile);
-        }
+        sh.getEnv().put("JAVA_HOME", systemJavaHome);
+        startElasticsearch();
+        runElasticsearchTests();
+        stopElasticsearch();
 
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "elasticsearch*.log.gz"), containsString(systemJavaHome));
     }

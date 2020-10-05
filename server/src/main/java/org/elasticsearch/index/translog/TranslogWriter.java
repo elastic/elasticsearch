@@ -85,9 +85,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> try(Releasable lock = writeLock.acquire()) -> synchronized(this)
     private final Object syncLock = new Object();
 
+    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
     private final int forceWriteThreshold;
     private final ArrayList<ReleasableBytesReference> bufferedOps = new ArrayList<>();
-    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
     private long bufferedBytes = 0L;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;

@@ -169,7 +169,9 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                     assert value >= 0 : "Unexpected value: " + value;
                 }
             }
-        } else {
+        } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
+            // TODO Maybe just clear out non-ongoing snapshot recoveries is the node is master eligible, so that we don't
+            // have to repopulate the data over and over in an unstable master situation?
             synchronized (this) {
                 // information only needed on current master
                 knownSnapshotShardSizes = ImmutableOpenMap.of();

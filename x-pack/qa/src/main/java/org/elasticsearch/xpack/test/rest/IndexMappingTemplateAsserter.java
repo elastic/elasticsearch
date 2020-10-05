@@ -87,7 +87,8 @@ public class IndexMappingTemplateAsserter {
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions);
         // the true parameter means the index may not have been created
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet());
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException);
+        // AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61908")
+//        assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet());
         // Depending on the order Full Cluster restart tests are run there may not be an notifications index yet
         // AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61908")

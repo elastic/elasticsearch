@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -195,16 +194,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.version = version;
         }
         this.attributes = Collections.unmodifiableMap(attributes);
-        //verify that no node roles are being provided as attributes
-        Predicate<Map<String, String>> predicate =  (attrs) -> {
-            boolean success = true;
-            for (final DiscoveryNodeRole role : DiscoveryNode.roleMap.values()) {
-                success &= attrs.containsKey(role.roleName()) == false;
-                assert success : role.roleName();
-            }
-            return success;
-        };
-        assert predicate.test(attributes) : attributes;
+        assert DiscoveryNode.roleMap.values().stream().noneMatch(role -> attributes.containsKey(role.roleName())) :
+                "Node roles must not be provided as attributes but saw attributes " + attributes;
         this.roles = roles.stream().collect(Sets.toUnmodifiableSortedSet());
     }
 

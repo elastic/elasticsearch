@@ -16,6 +16,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -101,7 +102,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         Supplier<Boolean> isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService);
 
-        if (Strings.isNullOrEmpty(request.getJobId()) || Strings.isAllOrWildcard(new String[]{request.getJobId()})) {
+        if (Strings.isNullOrEmpty(request.getJobId()) || Strings.isAllOrWildcard(request.getJobId())) {
             List<MlDataRemover> dataRemovers = createDataRemovers(client, taskId, auditor);
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
                 () -> deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier)
@@ -173,14 +174,15 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 logger.info("Completed deletion of expired ML data");
             } else {
                 if (isTimedOutSupplier.get()) {
+                    TimeValue timeoutPeriod = request.getTimeout() == null ? MlDataRemover.DEFAULT_MAX_DURATION :
+                        request.getTimeout();
                     String msg = "Deleting expired ML data was cancelled after the timeout period of [" +
-                        MlDataRemover.DEFAULT_MAX_DURATION  + "] was exceeded. " +
-                        "The setting [xpack.ml.nightly_maintenance_requests_per_second] " +
+                        timeoutPeriod  + "] was exceeded. The setting [xpack.ml.nightly_maintenance_requests_per_second] " +
                         "controls the deletion rate, consider increasing the value to assist in pruning old data";
                     logger.warn(msg);
 
                     if (Strings.isNullOrEmpty(request.getJobId())
-                        || Strings.isAllOrWildcard(new String[]{request.getJobId()})
+                        || Strings.isAllOrWildcard(request.getJobId())
                         || request.getExpandedJobIds() == null) {
                         auditor.warning(AbstractAuditor.All_RESOURCES_ID, msg);
                     } else {

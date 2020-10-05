@@ -122,7 +122,6 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         verifyNoMoreInteractions(auditor);
     }
 
-
     public void testDeleteExpiredDataIterationWithTimeout_GivenJobIds() {
 
         final int numRemovers = randomIntBetween(2, 5);
@@ -148,5 +147,4 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         verify(auditor, times(1)).warning(eq("foo2"), anyString());
         verifyNoMoreInteractions(auditor);
     }
-
 }

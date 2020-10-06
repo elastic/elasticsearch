@@ -124,12 +124,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
         this.bigArrays = bigArrays;
-        if (bufferSize.equals(TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE)) {
-            // If this is a writer for an empty translog, set an expected size of 0 to avoid allocating pages
-            this.buffer = new ReleasableBytesStreamOutput(0, bigArrays);
-        } else {
-            this.buffer = new ReleasableBytesStreamOutput(bigArrays);
-        }
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
     }
@@ -195,6 +189,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final long bytesBufferedAfterAdd;
         synchronized (this) {
             ensureOpen();
+            if (buffer == null) {
+                buffer = new ReleasableBytesStreamOutput(bigArrays);
+            }
             final long offset = totalOffset;
             totalOffset += data.length();
             data.writeTo(buffer);
@@ -342,7 +339,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         throw ex;
                     }
                     // If we reached this point, all of the buffered ops should have been flushed successfully.
-                    assert buffer.size() == 0;
+                    assert buffer == null;
                     assert checkChannelPositionWhileHandlingException(totalOffset);
                     assert totalOffset == lastSyncedCheckpoint.offset;
                     if (closed.compareAndSet(false, true)) {
@@ -381,7 +378,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
                     }
                     // If we reached this point, all of the buffered ops should have been flushed successfully.
-                    assert buffer.size() == 0;
+                    assert buffer == null;
                     assert checkChannelPositionWhileHandlingException(totalOffset);
                     assert totalOffset == lastSyncedCheckpoint.offset;
                     return super.newSnapshot();
@@ -460,13 +457,17 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private synchronized ReleasableBytesReference pollOpsToWrite() {
         ensureOpen();
-        ReleasableBytesStreamOutput toWrite = this.buffer;
-        this.buffer = new ReleasableBytesStreamOutput(bigArrays);
-        return new ReleasableBytesReference(toWrite.bytes(), toWrite);
+        if (this.buffer != null) {
+            ReleasableBytesStreamOutput toWrite = this.buffer;
+            this.buffer = null;
+            return new ReleasableBytesReference(toWrite.bytes(), toWrite);
+        } else {
+            return ReleasableBytesReference.wrap(BytesArray.EMPTY);
+        }
     }
 
     private void writeAndReleaseOps(ReleasableBytesReference toWrite) throws IOException {
-        try {
+        try (ReleasableBytesReference toClose = toWrite) {
             assert writeLock.isHeldByCurrentThread();
             ByteBuffer ioBuffer = DiskIoBufferPool.getIoBuffer();
 
@@ -487,8 +488,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             }
             ioBuffer.flip();
             writeToFile(ioBuffer);
-        } finally {
-            Releasables.close(toWrite);
         }
     }
 

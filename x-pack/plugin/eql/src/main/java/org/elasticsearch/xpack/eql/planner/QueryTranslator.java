@@ -102,7 +102,7 @@ final class QueryTranslator {
                     // (which is important for strings)
                     name = ((FieldAttribute) bc.left()).exactAttribute().name();
                 }
-                Query query = new TermQuery(source, name, value);
+                Query query = new TermQuery(source, name, value, true);
 
                 if (bc instanceof InsensitiveNotEquals) {
                     query = new NotQuery(source, query);

@@ -65,10 +65,6 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
         return RegexProcessor.RegexOperation.match(val, pattern().asJavaRegex());
     }
 
-    public boolean matchesAll() {
-        return pattern.matchesAll();
-    }
-
     @Override
     protected Processor makeProcessor() {
         return new RegexProcessor(pattern().asJavaRegex());

@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 
@@ -73,6 +74,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             // be too slow in practice since the number of unique terms in this
             // field is bounded by the number of fields in the mappings.
             return new TermRangeQuery(name(), null, null, true, true);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }
 

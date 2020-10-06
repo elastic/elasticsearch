@@ -466,7 +466,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final List<ParsedDocument> docs = new ArrayList<>();
         final DocumentMapper docMapper;
         final MapperService mapperService = context.getMapperService();
-        String type = mapperService.documentMapper().type();
         docMapper = mapperService.documentMapper();
         for (BytesReference document : documents) {
             docs.add(docMapper.parse(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
@@ -621,7 +620,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     shardContext::lookup);
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
-                return (IFD) builder.build(cache, circuitBreaker, shardContext.getMapperService());
+                return (IFD) builder.build(cache, circuitBreaker);
             }
         };
     }

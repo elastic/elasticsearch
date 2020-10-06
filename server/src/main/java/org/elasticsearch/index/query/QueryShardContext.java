@@ -243,7 +243,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (fieldType.getTextSearchInfo().getSearchAnalyzer() != null) {
             return fieldType.getTextSearchInfo().getSearchAnalyzer();
         }
-        return getMapperService().searchAnalyzer();
+        return mapperService.searchAnalyzer();
     }
 
     /**
@@ -254,7 +254,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (fieldType.getTextSearchInfo().getSearchQuoteAnalyzer() != null) {
             return fieldType.getTextSearchInfo().getSearchQuoteAnalyzer();
         }
-        return getMapperService().searchQuoteAnalyzer();
+        return mapperService.searchQuoteAnalyzer();
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
@@ -288,7 +288,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
-                getMapperService(),
+                mapperService,
                 (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
             );
         }
@@ -304,7 +304,7 @@ public class QueryShardContext extends QueryRewriteContext {
          * Real customization coming soon, I promise!
          */
         return new SearchLookup(
-            getMapperService(),
+            mapperService,
             (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
         );
     }

@@ -261,7 +261,9 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     // used in tests
     int numberOfUnknownSnapshotShardSizes() {
-        return unknownSnapshotShards.size();
+        synchronized (mutex) {
+            return unknownSnapshotShards.size();
+        }
     }
 
     // used in tests

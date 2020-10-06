@@ -121,7 +121,6 @@ public final class ReservedFieldNames {
             CategoryDefinition.EXAMPLES.getPreferredName(),
             CategoryDefinition.NUM_MATCHES.getPreferredName(),
             CategoryDefinition.PREFERRED_TO_CATEGORIES.getPreferredName(),
-            CategoryDefinition.MLCATEGORY.getPreferredName(),
 
             DataCounts.PROCESSED_RECORD_COUNT.getPreferredName(),
             DataCounts.PROCESSED_FIELD_COUNT.getPreferredName(),

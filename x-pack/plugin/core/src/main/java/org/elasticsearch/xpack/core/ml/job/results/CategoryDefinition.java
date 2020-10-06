@@ -64,7 +64,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         parser.declareLongArray(CategoryDefinition::setPreferredToCategories, PREFERRED_TO_CATEGORIES);
         parser.declareLong(CategoryDefinition::setNumMatches, NUM_MATCHES);
         parser.declareString((cd, rt) -> { /*Ignore as it is always category_definition*/ }, Result.RESULT_TYPE);
-        parser.declareLong((cd, mc) -> { /*Ignore as it is always equal to category_id*/ }, MLCATEGORY);
+        parser.declareString((cd, mc) -> { /*Ignore as it is always equal to category_id*/ }, MLCATEGORY);
         return parser;
     }
 
@@ -249,8 +249,10 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         if (partitionFieldName != null && partitionFieldValue != null && ReservedFieldNames.isValidFieldName(partitionFieldName)) {
             builder.field(partitionFieldName, partitionFieldValue);
         }
+        // Even though category_definitions now have a result type, queries need for category definition values
+        // still need to be done by looking for the category_id field. At least until 9.x
         builder.field(Result.RESULT_TYPE.getPreferredName(), TYPE.getPreferredName());
-        builder.field(MLCATEGORY.getPreferredName(), categoryId);
+        builder.field(MLCATEGORY.getPreferredName(), String.valueOf(categoryId));
 
         builder.endObject();
         return builder;

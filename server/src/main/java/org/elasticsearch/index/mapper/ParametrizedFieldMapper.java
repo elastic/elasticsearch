@@ -131,7 +131,17 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         void serialize(XContentBuilder builder, String name, T value) throws IOException;
     }
 
+    /**
+     * Check on whether or not a parameter should be serialized
+     */
     protected interface SerializerCheck<T> {
+        /**
+         * Check on whether or not a parameter should be serialized
+         * @param includeDefaults   if defaults have been requested
+         * @param isConfigured      if the parameter has a different value to the default
+         * @param value             the parameter value
+         * @return {@code true} if the value should be serialized
+         */
         boolean check(boolean includeDefaults, boolean isConfigured, T value);
     }
 
@@ -240,8 +250,27 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Configure a custom serialization check for this parameter
+         */
         public Parameter<T> setSerializerCheck(SerializerCheck<T> check) {
             this.serializerCheck = check;
+            return this;
+        }
+
+        /**
+         * Always serialize this parameter, no matter its value
+         */
+        public Parameter<T> alwaysSerialize() {
+            this.serializerCheck = (id, ic, v) -> true;
+            return this;
+        }
+
+        /**
+         * Never serialize this parameter, no matter its value
+         */
+        public Parameter<T> neverSerialize() {
+            this.serializerCheck = (id, ic, v) -> false;
             return this;
         }
 
@@ -559,10 +588,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     continue;
                 }
                 if (Objects.equals("copy_to", propName)) {
-                    if (parserContext.isWithinMultiField()) {
-                        throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field ["
-                            + name + "] which is within a multi field.");
-                    }
                     TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
                     iterator.remove();
                     continue;

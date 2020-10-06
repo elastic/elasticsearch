@@ -81,7 +81,6 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> builder(m).index.getValue(), true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
 
         final TextParams.Analyzers analyzers;
@@ -95,7 +94,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         final Parameter<Integer> positionIncrementGap = Parameter.intParam("position_increment_gap", false,
             m -> builder(m).positionIncrementGap.getValue(), POSITION_INCREMENT_GAP_USE_ANALYZER)
             .setValidator(v -> {
-                if (v < 0) {
+                if (v != POSITION_INCREMENT_GAP_USE_ANALYZER && v < 0) {
                     throw new MapperParsingException("[positions_increment_gap] must be positive, got [" + v + "]");
                 }
             });
@@ -109,7 +108,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, store, indexOptions, norms, termVectors,
+            return Arrays.asList(store, indexOptions, norms, termVectors, similarity,
                 analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, positionIncrementGap,
                 meta);
         }
@@ -137,7 +136,6 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer(), posGap));
             AnnotatedTextFieldType ft = new AnnotatedTextFieldType(
                 buildFullName(context),
-                index.getValue(),
                 store.getValue(),
                 tsi,
                 meta.getValue());
@@ -147,7 +145,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public AnnotatedTextFieldMapper build(BuilderContext context) {
-            FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
+            FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE ) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
             }
@@ -508,8 +506,8 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
-        private AnnotatedTextFieldType(String name, boolean index, boolean store, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, index, store, tsi, meta);
+        private AnnotatedTextFieldType(String name, boolean store, TextSearchInfo tsi, Map<String, String> meta) {
+            super(name, true, store, tsi, meta);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {

@@ -124,10 +124,10 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<NamedAnalyzer> searchAnalyzer;
         private final Parameter<Boolean> preserveSeparators = Parameter.boolParam("preserve_separators", false,
             m -> toType(m).preserveSeparators, Defaults.DEFAULT_PRESERVE_SEPARATORS)
-            .setSerializerCheck((id, ic, v) -> true);
+            .alwaysSerialize();
         private final Parameter<Boolean> preservePosInc = Parameter.boolParam("preserve_position_increments", false,
             m -> toType(m).preservePosInc, Defaults.DEFAULT_POSITION_INCREMENTS)
-            .setSerializerCheck((id, ic, v) -> true);
+            .alwaysSerialize();
         private final Parameter<ContextMappings> contexts = new Parameter<>("contexts", false, () -> null,
             (n, c, o) -> ContextMappings.load(o, c.indexVersionCreated()), m -> toType(m).contexts)
             .setSerializer((b, n, c) -> {
@@ -142,7 +142,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).maxInputLength, Defaults.DEFAULT_MAX_INPUT_LENGTH)
             .addDeprecatedName("max_input_len")
             .setValidator(Builder::validateInputLength)
-            .setSerializerCheck((id, ic, v) -> true);
+            .alwaysSerialize();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NamedAnalyzer defaultAnalyzer;
@@ -158,7 +158,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             this.defaultAnalyzer = defaultAnalyzer;
             this.indexVersionCreated = indexVersionCreated;
             this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> defaultAnalyzer)
-                .setSerializerCheck((id, ic, v) -> true);
+                .alwaysSerialize();
             this.searchAnalyzer
                 = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, analyzer::getValue);
         }

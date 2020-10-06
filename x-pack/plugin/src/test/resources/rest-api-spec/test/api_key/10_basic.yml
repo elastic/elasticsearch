@@ -111,6 +111,7 @@ teardown:
   - is_true: id
   - is_true: api_key
   - is_true: expiration
+  - set: { id: api_key_id }
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
 
   - do:
@@ -122,6 +123,13 @@ teardown:
   - length: { roles: 0 }
   - match: { authentication_realm.name: "_es_api_key" }
   - match: { authentication_realm.type: "_es_api_key" }
+
+  - do:
+      security.clear_api_key_cache:
+        ids: "${api_key_id}"
+
+  - match: { _nodes.failed: 0 }
+
 
 ---
 "Test get api key":
@@ -184,6 +192,13 @@ teardown:
   - match: { "api_keys.0.username": "api_key_user" }
   - match: { "api_keys.0.invalidated": false }
   - is_true: "api_keys.0.creation"
+
+  - do:
+      security.clear_api_key_cache:
+        ids: ""
+
+  - match: { _nodes.failed: 0 }
+
 
 ---
 "Test invalidate api key":

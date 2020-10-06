@@ -1076,7 +1076,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::clear-api-key-cache-execute-listener
             ClearApiKeyCacheRequest request = ClearApiKeyCacheRequest.clearById("yVGMr3QByxdh1MSaicYx");
-            ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<>() {
+            ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<ClearSecurityCacheResponse>() {
                 @Override
                 public void onResponse(ClearSecurityCacheResponse clearSecurityCacheResponse) {
                     // <1>

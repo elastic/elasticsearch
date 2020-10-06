@@ -125,7 +125,7 @@ public final class QueryParserHelper {
                 fieldName = fieldName + fieldSuffix;
             }
 
-            MappedFieldType fieldType = context.fieldMapper(fieldName);
+            MappedFieldType fieldType = context.fieldType(fieldName);
             if (fieldType == null) {
                 continue;
             }

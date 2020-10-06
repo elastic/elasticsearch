@@ -144,10 +144,10 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
 
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
-        MappedFieldType fieldType = context.fieldMapper(field);
+        MappedFieldType fieldType = context.fieldType(field);
         IndexNumericFieldData fieldData = null;
         if (fieldType == null) {
-            if(missing == null) {
+            if (missing == null) {
                 throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]. No 'missing' value defined.");
             }
         } else {

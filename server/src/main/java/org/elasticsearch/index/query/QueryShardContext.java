@@ -231,6 +231,10 @@ public class QueryShardContext extends QueryRewriteContext {
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
 
+    public MappedFieldType fieldType(String name) {
+        return mapperService.fieldType(name);
+    }
+
     public ObjectMapper getObjectMapper(String name) {
         return mapperService.getObjectMapper(name);
     }

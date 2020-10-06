@@ -254,7 +254,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
                         visitor.reset();
                         searcher.doc(scoreDoc.doc, visitor);
-                        visitor.postProcess(context::fieldMapper);
+                        visitor.postProcess(context::fieldType);
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), Map.of(), Map.of());
                         hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
                         hits[j] = hit;

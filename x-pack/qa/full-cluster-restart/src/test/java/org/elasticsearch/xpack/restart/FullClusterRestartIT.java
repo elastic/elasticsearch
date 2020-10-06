@@ -125,8 +125,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             waitForYellow(".security");
             final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
-            getSettingsRequest.setOptions(expectWarnings("this request accesses system indices: [.security-7], but in a future major " +
-                "version, direct access to system indices will be prevented by default"));
+            RequestOptions.Builder systemIndexWarningOptions = RequestOptions.DEFAULT.toBuilder();;
+            systemIndexWarningOptions.setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                } else {
+                    return warnings.get(0).contains("this request accesses system indices:") == false;
+                }
+            });
+            getSettingsRequest.setOptions(systemIndexWarningOptions);
             Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);

@@ -17,7 +17,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -36,7 +35,7 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
         }
 
         @Override
-        public IpScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+        public IpScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             return new IpScriptFieldData(name, leafFactory);
         }
     }

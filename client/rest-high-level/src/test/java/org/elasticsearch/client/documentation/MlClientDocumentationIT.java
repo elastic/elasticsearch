@@ -340,6 +340,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-job-request
             GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*"); // <1>
             request.setAllowNoMatch(true); // <2>
+            request.setForExport(false); // <3>
             // end::get-job-request
 
             // tag::get-job-execute
@@ -836,6 +837,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-datafeed-request
             GetDatafeedRequest request = new GetDatafeedRequest(datafeedId); // <1>
             request.setAllowNoMatch(true); // <2>
+            request.setForExport(false); // <3>
             // end::get-datafeed-request
 
             // tag::get-datafeed-execute
@@ -2861,6 +2863,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-data-frame-analytics-request
             GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            request.setForExport(false); // <2>
             // end::get-data-frame-analytics-request
 
             // tag::get-data-frame-analytics-execute
@@ -3718,10 +3721,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setPageParams(new PageParams(0, 1)) // <2>
                 .includeDefinition() // <3>
                 .includeTotalFeatureImportance() // <4>
-                .setDecompressDefinition(false) // <5>
-                .setAllowNoMatch(true) // <6>
-                .setTags("regression") // <7>
-                .setForExport(false); // <8>
+                .includeFeatureImportanceBaseline() // <5>
+                .setDecompressDefinition(false) // <6>
+                .setAllowNoMatch(true) // <7>
+                .setTags("regression") // <8>
+                .setForExport(false); // <9>
             // end::get-trained-models-request
             request.setTags((List<String>)null);
 

@@ -383,6 +383,12 @@ public class DateFormattersTests extends ESTestCase {
         }
     }
 
+    public void testWeek_yearDeprecation() {
+        DateFormatter.forPattern("week_year");
+        assertWarnings("Format name \"week_year\" is deprecated and will be removed in a future version. " +
+                "Use \"weekyear\" format instead");
+    }
+
     public void testCamelCaseDeprecation() {
         String[] deprecatedNames = new String[]{
             "basicDate", "basicDateTime", "basicDateTimeNoMillis", "basicOrdinalDate", "basicOrdinalDateTime",
@@ -391,7 +397,8 @@ public class DateFormattersTests extends ESTestCase {
             "dateHourMinuteSecond", "dateHourMinuteSecondFraction", "dateHourMinuteSecondMillis", "dateOptionalTime",
             "dateTime", "dateTimeNoMillis", "hourMinute", "hourMinuteSecond", "hourMinuteSecondFraction", "hourMinuteSecondMillis",
             "ordinalDate", "ordinalDateTime", "ordinalDateTimeNoMillis", "timeNoMillis",
-            "tTime", "tTimeNoMillis", "weekDate", "weekDateTime", "weekDateTimeNoMillis", "weekyear", "weekyearWeek", "weekyearWeekDay",
+            "tTime", "tTimeNoMillis", "weekDate", "weekDateTime", "weekDateTimeNoMillis",
+            "weekyearWeek", "weekyearWeekDay",
             "yearMonth", "yearMonthDay", "strictBasicWeekDate", "strictBasicWeekDateTime",
             "strictBasicWeekDateTimeNoMillis", "strictDate", "strictDateHour", "strictDateHourMinute", "strictDateHourMinuteSecond",
             "strictDateHourMinuteSecondFraction", "strictDateHourMinuteSecondMillis", "strictDateOptionalTime",
@@ -408,7 +415,7 @@ public class DateFormattersTests extends ESTestCase {
             DateFormatter dateFormatter = DateFormatter.forPattern(name);
             assertThat(dateFormatter.pattern(), equalTo(name));
             assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                "Use snake case name " + snakeCaseName + " instead.");
+                    "Use snake case name " + snakeCaseName + " instead.");
 
             dateFormatter = DateFormatter.forPattern(snakeCaseName);
             assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));

@@ -18,7 +18,7 @@ It can also clear the entire cache if no ID is specified.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> the IDs(s) for the API keys to be evicted
+<1> the IDs(s) for the API keys to be evicted from the cache
 
 include::../execution.asciidoc[]
 

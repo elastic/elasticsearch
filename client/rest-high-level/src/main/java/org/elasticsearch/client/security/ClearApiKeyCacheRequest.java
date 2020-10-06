@@ -19,32 +19,44 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.Validatable;
+
+import java.util.Arrays;
+
 /**
- * The request used to clear the specified cache.
+ * The request used to clear the API key cache.
  */
-public final class ClearApiKeyCacheRequest extends ClearSecurityCacheRequest {
+public final class ClearApiKeyCacheRequest implements Validatable {
 
-    private final String[] keys;
-
-    /**
-     * @param keys      An array of keys to be cleared from the specified cache.
-     *                  If not specified, all entries will be cleared for the given cache.
-     */
-    public ClearApiKeyCacheRequest(String... keys) {
-        this.keys = keys;
-    }
+    private final String[] ids;
 
     /**
-     * @return The name of the target cache to be invalidated
+     * @param ids      An array of API Key ids to be cleared from the specified cache.
+     *                 If not specified, all entries will be cleared.
      */
-    public String cacheName() {
-        return "api_key";
+    public ClearApiKeyCacheRequest(String... ids) {
+        this.ids = ids;
     }
 
     /**
      * @return an array of key names that will be evicted
      */
-    public String[] keys() {
-        return keys;
+    public String[] ids() {
+        return ids;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        ClearApiKeyCacheRequest that = (ClearApiKeyCacheRequest) o;
+        return Arrays.equals(ids, that.ids);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(ids);
     }
 }

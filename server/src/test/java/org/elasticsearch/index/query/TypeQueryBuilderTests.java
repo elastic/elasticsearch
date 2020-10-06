@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
         if (createShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
             assertEquals(new MatchNoDocsQuery(), query);
         } else {
-            assertThat(query, equalTo(new MatchAllDocsQuery()));
+            assertThat(query, equalTo(Queries.newNonNestedFilter(context.indexVersionCreated())));
         }
     }
 

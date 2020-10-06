@@ -389,6 +389,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices) {
+        logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
         final CreateSnapshotResponse response = client().admin()
                 .cluster()
                 .prepareCreateSnapshot(repositoryName, snapshot)

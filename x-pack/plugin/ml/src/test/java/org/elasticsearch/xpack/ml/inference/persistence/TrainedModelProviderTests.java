@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
@@ -57,14 +58,14 @@ public class TrainedModelProviderTests extends ESTestCase {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
         for(String modelId : TrainedModelProvider.MODELS_STORED_AS_RESOURCE) {
             PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
-            trainedModelProvider.getTrainedModel(modelId, true, false, future);
+            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(),future);
             TrainedModelConfig configWithDefinition = future.actionGet();
 
             assertThat(configWithDefinition.getModelId(), equalTo(modelId));
             assertThat(configWithDefinition.ensureParsedDefinition(xContentRegistry()).getModelDefinition(), is(not(nullValue())));
 
             PlainActionFuture<TrainedModelConfig> futureNoDefinition = new PlainActionFuture<>();
-            trainedModelProvider.getTrainedModel(modelId, false, false, futureNoDefinition);
+            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), futureNoDefinition);
             TrainedModelConfig configWithoutDefinition = futureNoDefinition.actionGet();
 
             assertThat(configWithoutDefinition.getModelId(), equalTo(modelId));

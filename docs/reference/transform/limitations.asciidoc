@@ -23,9 +23,9 @@ nodes have been upgraded to the newer version before using the {transforms} UI.
 == {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
 
 If your cluster contains mixed version nodes, for example during a rolling
-upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped will
-not be reassigned until the upgrade is complete. After the upgrade is done, {transforms}
-resume automatically; no action is required.
+upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped 
+will not be reassigned until the upgrade is complete. After the upgrade is done, 
+{transforms} resume automatically; no action is required.
 
 [discrete]
 [[transform-datatype-limitations]]
@@ -204,6 +204,7 @@ If your data uses the <<date_nanos,date nanosecond data type>>, aggregations
 are nonetheless on millisecond resolution. This limitation also affects the
 aggregations in your {transforms}.
 
+
 [discrete]
 [[transform-data-streams-destination]]
 == Data streams as destination indices are not supported
@@ -228,3 +229,22 @@ rollover.
 If you use ILM to have time-based indices, please consider using the 
 <<date-index-name-processor>> instead. The processor works without duplicated 
 documents if your {transform} contains a `group_by` based on `date_histogram`.
+
+
+[discrete]
+[[transform-painless-imitation]]
+== Using scripts in {transforms}
+
+{transforms-cap} support scripting in every case when aggregations support them. 
+However, there are certain factors you might want to consider when using scripts 
+in {transforms}:
+
+* {transforms-cap} cannot deduce index mappings for output fields when the 
+  fields are created by a script. In this case, you might want to create the 
+  mappings of the destination index yourself prior to creating the transform.
+
+* Scripted fields may increase the runtime of the {transform}.
+  
+* {transforms-cap} cannot optimize queries when you use scripts for all the 
+  groupings defined in `group_by`, you will receive a warning message when you 
+  use scripts this way.

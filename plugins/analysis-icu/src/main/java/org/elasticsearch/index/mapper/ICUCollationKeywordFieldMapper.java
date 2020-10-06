@@ -56,21 +56,47 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
+        private final String nullValue;
+        private final int ignoreAbove;
 
         public CollationFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                  Collator collator, Map<String, String> meta) {
+                                  Collator collator, String nullValue, int ignoreAbove, Map<String, String> meta) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.collator = collator;
+            this.nullValue = nullValue;
+            this.ignoreAbove = ignoreAbove;
+        }
+
+        public CollationFieldType(String name, boolean searchable, Collator collator) {
+            this(name, searchable, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
         public CollationFieldType(String name, Collator collator) {
-            this(name, true, false, true, collator, Collections.emptyMap());
+            this(name, true, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+                @Override
+                protected String parseSourceValue(Object value) {
+                    String keywordValue = value.toString();
+                    if (keywordValue.length() > ignoreAbove) {
+                        return null;
+                    }
+                    return keywordValue;
+                }
+            };
         }
 
         @Override
@@ -259,7 +285,8 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
             CollationFieldType ft = new CollationFieldType(buildFullName(context), indexed.getValue(),
-                stored.getValue(), hasDocValues.getValue(), collator, meta.getValue());
+                stored.getValue(), hasDocValues.getValue(), collator, nullValue.getValue(), ignoreAbove.getValue(),
+                meta.getValue());
             return new ICUCollationKeywordFieldMapper(name, buildFieldType(), ft,
                 multiFieldsBuilder.build(this, context), copyTo.build(), collator, this);
         }
@@ -449,24 +476,6 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             createFieldNamesField(context);
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                String keywordValue = value.toString();
-                if (keywordValue.length() > ignoreAbove) {
-                    return null;
-                }
-                return keywordValue;
-            }
-        };
     }
 
 }

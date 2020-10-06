@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -97,18 +96,14 @@ public class Classification implements Evaluation {
     }
 
     public Classification(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.fields =
-                new EvaluationFields(
-                    in.readString(),
-                    in.readOptionalString(),
-                    in.readOptionalString(),
-                    in.readOptionalString(),
-                    in.readOptionalString(),
-                    true);
-        } else {
-            this.fields = new EvaluationFields(in.readString(), in.readString(), null, null, null, true);
-        }
+        this.fields =
+            new EvaluationFields(
+                in.readString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                true);
         this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
     }
 
@@ -135,14 +130,10 @@ public class Classification implements Evaluation {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fields.getActualField());
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalString(fields.getPredictedField());
-            out.writeOptionalString(fields.getTopClassesField());
-            out.writeOptionalString(fields.getPredictedClassField());
-            out.writeOptionalString(fields.getPredictedProbabilityField());
-        } else {
-            out.writeString(fields.getPredictedField());
-        }
+        out.writeOptionalString(fields.getPredictedField());
+        out.writeOptionalString(fields.getTopClassesField());
+        out.writeOptionalString(fields.getPredictedClassField());
+        out.writeOptionalString(fields.getPredictedProbabilityField());
         out.writeNamedWriteableList(metrics);
     }
 

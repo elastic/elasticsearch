@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -1036,7 +1037,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
         ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), mock(SecurityIndexManager.class), mock(ClusterService.class),
-                mock(ThreadPool.class)));
+                mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener =
@@ -1089,7 +1090,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), mock(SecurityIndexManager.class), mock(ClusterService.class),
-                mock(ThreadPool.class)));
+                mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener =

@@ -1196,8 +1196,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String indexFast = "index-fast";
         createIndexWithContent(indexFast, dataNode2, dataNode);
 
-        final ActionFuture<CreateSnapshotResponse> createFastSnapshot =
-                client().admin().cluster().prepareCreateSnapshot(repoName, "fast-snapshot").setWaitForCompletion(true).execute();
+        final ActionFuture<CreateSnapshotResponse> createFastSnapshot = startFullSnapshot(repoName, "fast-snapshot");
 
         assertThat(createSlowFuture.isDone(), is(false));
         unblockNode(repoName, dataNode);
@@ -1292,11 +1291,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return internalCluster().masterClient().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                 .setWaitForCompletion(true).execute();
     }
-
-    // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
-    // threads so that blocking some threads on one repository doesn't block other repositories from doing work
-    private static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-        .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
 
     private void createIndexWithContent(String indexName, String nodeInclude, String nodeExclude) {
         createIndexWithContent(indexName, indexSettingsNoReplicas(1)

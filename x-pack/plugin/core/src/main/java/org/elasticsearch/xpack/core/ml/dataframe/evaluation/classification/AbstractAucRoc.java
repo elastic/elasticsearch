@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -246,11 +245,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
         public Result(StreamInput in) throws IOException {
             this.score = in.readDouble();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.docCount = in.readOptionalLong();
-            }  else {
-                this.docCount = null;
-            }
+            this.docCount = in.readOptionalLong();
             this.curve = in.readList(AucRocPoint::new);
         }
 
@@ -279,9 +274,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeDouble(score);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalLong(docCount);
-            }
+            out.writeOptionalLong(docCount);
             out.writeList(curve);
         }
 

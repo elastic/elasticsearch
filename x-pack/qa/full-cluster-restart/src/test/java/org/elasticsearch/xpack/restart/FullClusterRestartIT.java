@@ -33,7 +33,7 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -209,6 +209,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63088")
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
         final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");
@@ -216,7 +217,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster()) {
             final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
-            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\"}");
+            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\",\"role_descriptors\":" +
+                "{\"r\":{\"cluster\":[\"all\"],\"indices\":[{\"names\":[\"*\"],\"privileges\":[\"all\"]}]}}}");
             final Response response = client().performRequest(createApiKeyRequest);
             final Map<String, Object> createApiKeyResponse = entityAsMap(response);
 

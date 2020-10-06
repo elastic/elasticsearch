@@ -144,7 +144,7 @@ public class DocumentMapper implements ToXContentFragment {
         }
 
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,
-            TypeFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
+            SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
         this.deleteTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> deleteTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
         final Collection<String> noopTombstoneMetadataFields = Arrays.asList(

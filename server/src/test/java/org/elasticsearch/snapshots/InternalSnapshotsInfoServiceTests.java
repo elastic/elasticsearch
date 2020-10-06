@@ -148,6 +148,11 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         applyClusterState("add-unassigned-shards", clusterState -> addUnassignedShards(clusterState, indexName, numberOfShards));
         waitForMaxActiveGenericThreads(Math.min(numberOfShards, maxConcurrentFetches));
 
+        if (randomBoolean()) {
+            applyClusterState("reapply-last-cluster-state-to-check-deduplication-works",
+                state -> ClusterState.builder(state).incrementVersion().build());
+        }
+
         assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(numberOfShards));
         assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(0));
 

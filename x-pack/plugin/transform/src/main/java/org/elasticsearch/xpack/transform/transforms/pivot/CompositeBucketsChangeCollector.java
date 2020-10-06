@@ -10,7 +10,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -731,11 +730,6 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         for (Entry<String, SingleGroupSource> entry : groups.entrySet()) {
             // skip any fields that use scripts
             if (entry.getValue().getScriptConfig() != null) {
-                continue;
-            }
-
-            // TODO: workaround until gh#63313 got merged
-            if (Strings.isNullOrEmpty(entry.getValue().getField())) {
                 continue;
             }
 

@@ -47,7 +47,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Objects;
@@ -83,6 +82,9 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     /** a blocking queue used for concurrent fetching **/
     private final Queue<SnapshotShard> queue;
 
+    /** contains the snapshot shards for which the snapshot shard size retrieval failed **/
+    private final Set<SnapshotShard> failedSnapshotShards;
+
     private volatile int maxConcurrentFetches;
     private int activeFetches;
 
@@ -99,6 +101,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         this.rerouteService = rerouteServiceSupplier;
         this.knownSnapshotShardSizes = ImmutableOpenMap.of();
         this.unknownSnapshotShards  = new LinkedHashSet<>();
+        this.failedSnapshotShards  = new LinkedHashSet<>();
         this.queue = new LinkedList<>();
         this.mutex = new Object();
         this.activeFetches = 0;
@@ -116,7 +119,14 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     @Override
     public SnapshotShardSizeInfo snapshotShardSizes() {
-        return new SnapshotShardSizeInfo(knownSnapshotShardSizes);
+        synchronized (mutex){
+            final ImmutableOpenMap.Builder<SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.builder(knownSnapshotShardSizes);
+            for (SnapshotShard snapshotShard : failedSnapshotShards) {
+                Long previous = snapshotShardSizes.put(snapshotShard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                assert previous == null : "snapshot shard size already known for " + snapshotShard;
+            }
+            return new SnapshotShardSizeInfo(snapshotShardSizes.build());
+        }
     }
 
     @Override
@@ -132,6 +142,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                     if (knownSnapshotShardSizes.containsKey(snapshotShard) == false) {
                         // check if already fetching snapshot info in progress
                         if (unknownSnapshotShards.add(snapshotShard)) {
+                            failedSnapshotShards.remove(snapshotShard); // retry the failed shard
                             queue.add(snapshotShard);
                             unknownShards += 1;
                         }
@@ -145,20 +156,29 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             for (int i = 0; i < nbFetchers; i++) {
                 fetchNextSnapshotShard();
             }
+
         } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
             // TODO Maybe just clear out non-ongoing snapshot recoveries is the node is master eligible, so that we don't
             // have to repopulate the data over and over in an unstable master situation?
             synchronized (mutex) {
                 // information only needed on current master
                 knownSnapshotShardSizes = ImmutableOpenMap.of();
+                failedSnapshotShards.clear();
                 isMaster = false;
-                final Iterator<SnapshotShard> iterator = queue.iterator();
-                while (iterator.hasNext()) {
-                    final SnapshotShard snapshotShard = iterator.next();
+                SnapshotShard snapshotShard;
+                while ((snapshotShard = queue.poll()) != null) {
                     final boolean removed = unknownSnapshotShards.remove(snapshotShard);
                     assert removed : "snapshot shard to remove does not exist " + snapshotShard;
-                    iterator.remove();
                 }
+                assert invariant();
+            }
+        } else {
+            synchronized (mutex) {
+                assert unknownSnapshotShards.isEmpty() || unknownSnapshotShards.size() == activeFetches;
+                assert knownSnapshotShardSizes.isEmpty();
+                assert failedSnapshotShards.isEmpty();
+                assert isMaster == false;
+                assert queue.isEmpty();
             }
         }
     }
@@ -168,11 +188,11 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             if (activeFetches < maxConcurrentFetches) {
                 final SnapshotShard snapshotShard = queue.poll();
                 if (snapshotShard != null) {
-                    threadPool.generic().execute(new FetchingSnapshotShardSizeRunnable(snapshotShard));
                     activeFetches += 1;
+                    threadPool.generic().execute(new FetchingSnapshotShardSizeRunnable(snapshotShard));
                 }
             }
-            assert assertNumberOfConcurrentFetches();
+            assert invariant();
         }
     }
 
@@ -214,7 +234,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                     knownSnapshotShardSizes = newSnapshotShardSizes.build();
                 }
                 activeFetches -= 1;
-                assert assertNumberOfConcurrentFetches();
+                assert invariant();
             }
             if (updated) {
                 rerouteService.get().reroute("snapshot shard size updated", Priority.HIGH, REROUTE_LISTENER);
@@ -225,11 +245,15 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         public void onFailure(Exception e) {
             logger.warn(() -> new ParameterizedMessage("failed to retrieve shard size for {}", snapshotShard), e);
             synchronized (mutex) {
+                if (isMaster) {
+                    final boolean added = failedSnapshotShards.add(snapshotShard);
+                    assert added : "snapshot shard size already failed for " + snapshotShard;
+                }
                 if (removed == false) {
                     unknownSnapshotShards.remove(snapshotShard);
                 }
                 activeFetches -= 1;
-                assert assertNumberOfConcurrentFetches();
+                assert invariant();
             }
         }
 
@@ -255,9 +279,22 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         }
     }
 
-    private boolean assertNumberOfConcurrentFetches() {
+    private boolean invariant() {
+        assert Thread.holdsLock(mutex);
         assert activeFetches >= 0 : "active fetches should be greater than or equal to zero but got: " + activeFetches;
         assert activeFetches <= maxConcurrentFetches : activeFetches + " <= " + maxConcurrentFetches;
+        for (ObjectCursor<SnapshotShard> cursor : knownSnapshotShardSizes.keys()) {
+            assert unknownSnapshotShards.contains(cursor.value) == false : "cannot be known and unknown at same time: " + cursor.value;
+            assert failedSnapshotShards.contains(cursor.value) == false : "cannot be known and failed at same time: " + cursor.value;
+        }
+        for (SnapshotShard shard : unknownSnapshotShards) {
+            assert knownSnapshotShardSizes.keys().contains(shard) == false : "cannot be unknown and known at same time: " + shard;
+            assert failedSnapshotShards.contains(shard) == false : "cannot be unknown and failed at same time: " + shard;
+        }
+        for (SnapshotShard shard : failedSnapshotShards) {
+            assert knownSnapshotShardSizes.keys().contains(shard) == false : "cannot be failed and known at same time: " + shard;
+            assert unknownSnapshotShards.contains(shard) == false : "cannot be failed and unknown at same time: " + shard;
+        }
         return true;
     }
 
@@ -265,6 +302,13 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     int numberOfUnknownSnapshotShardSizes() {
         synchronized (mutex) {
             return unknownSnapshotShards.size();
+        }
+    }
+
+    // used in tests
+    int numberOfFailedSnapshotShardSizes() {
+        synchronized (mutex) {
+            return failedSnapshotShards.size();
         }
     }
 

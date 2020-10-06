@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -54,10 +53,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -90,6 +92,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     private RepositoriesService repositoriesService;
     private RerouteService rerouteService;
 
+    @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -105,6 +108,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         }).when(rerouteService).reroute(anyString(), any(Priority.class), any());
     }
 
+    @After
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
@@ -129,21 +133,21 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         final AtomicInteger getShardSnapshotStatusCount = new AtomicInteger(0);
         final CountDownLatch latch = new CountDownLatch(1);
-        when(repositoriesService.repository("_repo"))
-            .thenReturn(new FilterRepository(mock(Repository.class)) {
-                @Override
-                public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-                    try {
-                        assertThat(indexId.getName(), equalTo(indexName));
-                        assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
-                        latch.await();
-                        getShardSnapshotStatusCount.incrementAndGet();
-                        return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+        final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
+            @Override
+            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+                try {
+                    assertThat(indexId.getName(), equalTo(indexName));
+                    assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
+                    latch.await();
+                    getShardSnapshotStatusCount.incrementAndGet();
+                    return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
                 }
-            });
+            }
+        };
+        when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
 
         applyClusterState("add-unassigned-shards", clusterState -> addUnassignedShards(clusterState, indexName, numberOfShards));
         waitForMaxActiveGenericThreads(Math.min(numberOfShards, maxConcurrentFetches));
@@ -161,6 +165,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         assertBusy(() -> {
             assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(numberOfShards));
             assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
+            assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(), equalTo(0));
         });
         verify(rerouteService, times(numberOfShards)).reroute(anyString(), any(Priority.class), any());
         assertThat(getShardSnapshotStatusCount.get(), equalTo(numberOfShards));
@@ -177,30 +182,29 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10))
                 .build(), clusterService, () -> repositoriesService, () -> rerouteService);
 
-        final Set<InternalSnapshotsInfoService.SnapshotShard> succeed = Sets.newConcurrentHashSet();
-        final Set<InternalSnapshotsInfoService.SnapshotShard> failed = Sets.newConcurrentHashSet();
-        when(repositoriesService.repository("_repo"))
-            .thenReturn(new FilterRepository(mock(Repository.class)) {
-                @Override
-                public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-                    final InternalSnapshotsInfoService.SnapshotShard snapshotShard =
-                        new InternalSnapshotsInfoService.SnapshotShard(new Snapshot("_repo", snapshotId), indexId, shardId);
-                    if (randomBoolean()) {
-                        failed.add(snapshotShard);
-                        throw new SnapshotException(snapshotShard.snapshot(), "simulated");
-                    } else {
-                        succeed.add(snapshotShard);
-                        return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
-                    }
+        final Map<InternalSnapshotsInfoService.SnapshotShard, Boolean> results = new ConcurrentHashMap<>();
+        final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
+            @Override
+            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+                final InternalSnapshotsInfoService.SnapshotShard snapshotShard =
+                    new InternalSnapshotsInfoService.SnapshotShard(new Snapshot("_repo", snapshotId), indexId, shardId);
+                if (randomBoolean()) {
+                    results.put(snapshotShard, Boolean.FALSE);
+                    throw new SnapshotException(snapshotShard.snapshot(), "simulated");
+                } else {
+                    results.put(snapshotShard, Boolean.TRUE);
+                    return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
                 }
-            });
+            }
+        };
+        when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
 
         final int maxShardsToCreate = scaledRandomIntBetween(10, 500);
         final Thread addSnapshotRestoreIndicesThread = new Thread(() -> {
             int remainingShards = maxShardsToCreate;
             while (remainingShards > 0) {
                 final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-                final int numberOfShards = randomIntBetween(1, maxShardsToCreate);
+                final int numberOfShards = randomIntBetween(1, remainingShards);
                 try {
                     applyClusterState("add-more-unassigned-shards-for-" + indexName,
                         clusterState -> addUnassignedShards(clusterState, indexName, numberOfShards));
@@ -215,7 +219,10 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         addSnapshotRestoreIndicesThread.join();
 
         assertBusy(() -> {
-            assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(succeed.size()));
+            assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(),
+                equalTo((int) results.values().stream().filter(result -> result.equals(Boolean.TRUE)).count()));
+            assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(),
+                equalTo((int) results.values().stream().filter(result -> result.equals(Boolean.FALSE)).count()));
             assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
         });
     }
@@ -224,13 +231,13 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService =
             new InternalSnapshotsInfoService(Settings.EMPTY, clusterService, () -> repositoriesService, () -> rerouteService);
 
-        when(repositoriesService.repository("_repo"))
-            .thenReturn(new FilterRepository(mock(Repository.class)) {
-                @Override
-                public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-                    return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
-                }
-            });
+        final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
+            @Override
+            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+                return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
+            }
+        };
+        when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
 
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -251,6 +258,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         assertBusy(() -> {
             assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(0));
             assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
+            assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(), equalTo(0));
         });
     }
 
@@ -295,7 +303,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                     .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                     .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
                     .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
-                .build(), false)
+                .build(), true)
             .generateClusterUuidIfNeeded();
 
         final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(

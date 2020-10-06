@@ -27,7 +27,7 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.AbstractCopyTask;
-import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Compression;
@@ -72,7 +72,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
             var subProjectDir = archiveToSubprojectName(name);
             var copyDistributionTaskName = "build" + capitalize(name.substring(0, name.length() - 3));
             TaskContainer tasks = project.getTasks();
-            var explodedDist = tasks.register(copyDistributionTaskName, Copy.class, copy -> copy.into(subProjectDir + "/build/install/"));
+            var explodedDist = tasks.register(copyDistributionTaskName, Sync.class, sync -> sync.into(subProjectDir + "/build/install/"));
             var archiveTaskName = "build" + capitalize(name);
             return name.endsWith("Tar")
                 ? new DistributionArchive(tasks.register(archiveTaskName, SymbolicLinkPreservingTar.class), explodedDist, name)

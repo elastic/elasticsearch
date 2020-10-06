@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;

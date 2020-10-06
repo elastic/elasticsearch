@@ -33,7 +33,7 @@ more data streams and indices.
 By default,
 the returned statistics are index-level
 with `primaries` and `total` aggregations.
-`primaries` are the values for only the primary shards. 
+`primaries` are the values for only the primary shards.
 `total` are the accumulated values for both primary and replica shards.
 
 To get shard-level statistics,

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.junit.Before;
 
@@ -41,51 +43,53 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorInstance() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
-        factory.metadata = createMetadata("majestic", policy);
+        try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
+            EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService);
+            factory.metadata = createMetadata("majestic", policy);
 
-        Map<String, Object> config = new HashMap<>();
-        config.put("policy_name", "majestic");
-        config.put("field", "host");
-        config.put("target_field", "entry");
-        boolean keyIgnoreMissing = randomBoolean();
-        if (keyIgnoreMissing || randomBoolean()) {
-            config.put("ignore_missing", keyIgnoreMissing);
-        }
+            Map<String, Object> config = new HashMap<>();
+            config.put("policy_name", "majestic");
+            config.put("field", "host");
+            config.put("target_field", "entry");
+            boolean keyIgnoreMissing = randomBoolean();
+            if (keyIgnoreMissing || randomBoolean()) {
+                config.put("ignore_missing", keyIgnoreMissing);
+            }
 
-        Boolean overrideEnabled = randomBoolean() ? null : randomBoolean();
-        if (overrideEnabled != null) {
-            config.put("override", overrideEnabled);
-        }
+            Boolean overrideEnabled = randomBoolean() ? null : randomBoolean();
+            if (overrideEnabled != null) {
+                config.put("override", overrideEnabled);
+            }
 
-        Integer maxMatches = null;
-        if (randomBoolean()) {
-            maxMatches = randomIntBetween(1, 128);
-            config.put("max_matches", maxMatches);
-        }
+            Integer maxMatches = null;
+            if (randomBoolean()) {
+                maxMatches = randomIntBetween(1, 128);
+                config.put("max_matches", maxMatches);
+            }
 
-        int numRandomValues = randomIntBetween(1, 8);
-        List<Tuple<String, String>> randomValues = new ArrayList<>(numRandomValues);
-        for (int i = 0; i < numRandomValues; i++) {
-            randomValues.add(new Tuple<>(randomFrom(enrichValues), randomAlphaOfLength(4)));
-        }
+            int numRandomValues = randomIntBetween(1, 8);
+            List<Tuple<String, String>> randomValues = new ArrayList<>(numRandomValues);
+            for (int i = 0; i < numRandomValues; i++) {
+                randomValues.add(new Tuple<>(randomFrom(enrichValues), randomAlphaOfLength(4)));
+            }
 
-        MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
-        assertThat(result, notNullValue());
-        assertThat(result.getPolicyName(), equalTo("majestic"));
-        assertThat(result.getField(), equalTo("host"));
-        assertThat(result.getTargetField(), equalTo("entry"));
-        assertThat(result.getMatchField(), equalTo("my_key"));
-        assertThat(result.isIgnoreMissing(), is(keyIgnoreMissing));
-        if (overrideEnabled != null) {
-            assertThat(result.isOverrideEnabled(), is(overrideEnabled));
-        } else {
-            assertThat(result.isOverrideEnabled(), is(true));
-        }
-        if (maxMatches != null) {
-            assertThat(result.getMaxMatches(), equalTo(maxMatches));
-        } else {
-            assertThat(result.getMaxMatches(), equalTo(1));
+            MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
+            assertThat(result, notNullValue());
+            assertThat(result.getPolicyName(), equalTo("majestic"));
+            assertThat(result.getField(), equalTo("host"));
+            assertThat(result.getTargetField(), equalTo("entry"));
+            assertThat(result.getMatchField(), equalTo("my_key"));
+            assertThat(result.isIgnoreMissing(), is(keyIgnoreMissing));
+            if (overrideEnabled != null) {
+                assertThat(result.isOverrideEnabled(), is(overrideEnabled));
+            } else {
+                assertThat(result.isOverrideEnabled(), is(true));
+            }
+            if (maxMatches != null) {
+                assertThat(result.getMaxMatches(), equalTo(maxMatches));
+            } else {
+                assertThat(result.getMaxMatches(), equalTo(1));
+            }
         }
     }
 
@@ -167,19 +171,21 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testCompactEnrichValuesFormat() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
-        factory.metadata = createMetadata("majestic", policy);
+        try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
+            EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService);
+            factory.metadata = createMetadata("majestic", policy);
 
-        Map<String, Object> config = new HashMap<>();
-        config.put("policy_name", "majestic");
-        config.put("field", "host");
-        config.put("target_field", "entry");
+            Map<String, Object> config = new HashMap<>();
+            config.put("policy_name", "majestic");
+            config.put("field", "host");
+            config.put("target_field", "entry");
 
-        MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
-        assertThat(result, notNullValue());
-        assertThat(result.getPolicyName(), equalTo("majestic"));
-        assertThat(result.getField(), equalTo("host"));
-        assertThat(result.getTargetField(), equalTo("entry"));
+            MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
+            assertThat(result, notNullValue());
+            assertThat(result.getPolicyName(), equalTo("majestic"));
+            assertThat(result.getField(), equalTo("host"));
+            assertThat(result.getTargetField(), equalTo("entry"));
+        }
     }
 
     public void testNoTargetField() throws Exception {

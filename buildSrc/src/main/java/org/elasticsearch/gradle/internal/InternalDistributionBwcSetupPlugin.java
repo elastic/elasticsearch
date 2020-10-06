@@ -176,6 +176,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 } else if (name.contains("rpm")) {
                     classifier = "-x86_64";
                 }
+            } else if (name.contains("oss-")) {
+                extension = name.substring(4);
             }
             return new DistributionProject(name, baseDir, bwcVersion, classifier, extension, checkoutDir);
         }).collect(Collectors.toList());

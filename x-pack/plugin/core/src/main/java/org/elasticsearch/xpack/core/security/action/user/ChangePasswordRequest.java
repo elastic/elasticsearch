@@ -99,15 +99,13 @@ public class ChangePasswordRequest extends ActionRequest
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-                .startObject("change_password")
                 .field("username", username);
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, false)) {
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, true)) {
             builder.field("password_hash", passwordHash != null ? String.valueOf(passwordHash) : null);
         } else {
             builder.field("password_hash", passwordHash != null ? "<redacted>" : null);
         }
-        builder.endObject(); // change_password
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

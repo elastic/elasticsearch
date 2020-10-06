@@ -6,18 +6,20 @@
 
 package org.elasticsearch.xpack.core.security.action.user;
 
+import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.audit.AuditableRequestBody;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,7 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a native user.
  */
-public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest>, ToXContentObject {
+public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest>, AuditableRequestBody {
 
     private String username;
     private String[] roles;
@@ -199,24 +201,28 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     }
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-                .startObject("put_user")
-                .field("username", username)
-                .array("roles", roles())
-                .field("full_name", fullName())
-                .field("email", email())
-                .field("metadata", metadata())
-                .field("enabled", enabled());
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, false)) {
-            builder.field("password_hash", passwordHash != null ? String.valueOf(passwordHash) : null);
-        } else {
-            builder.field("password_hash", passwordHash != null ? "<redacted>" : null);
+    public void audit(StringMapMessage auditMessage) {
+        auditMessage.with(EVENT_ACTION_FIELD_NAME, "put_user");
+        try {
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                    .field("username", username)
+                    .array("roles", roles)
+                    .field("full_name", fullName)
+                    .field("email", email)
+                    .field("enabled", enabled)
+                    // TODO make exposing password hash configurable
+                    .field("password_hash", passwordHash != null ? "<redacted>" : null);
+            // isolate metadata serialisation failures
+            try {
+                builder.field("metadata", metadata);
+            } catch (Exception e) {
+                builder.field("error", e.getMessage());
+            }
+            builder.endObject();
+            auditMessage.with(EVENT_ACTION_DETAILS_FIELD_NAME, Strings.toString(builder));
+        } catch (IOException e) {
+            auditMessage.with(EVENT_ACTION_DETAILS_FIELD_NAME, "{\"error\":\"" + e.getMessage().replaceAll("\"", "\\\"") + "\"");
         }
-        builder.endObject(); // put_user
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
-            builder.field("refresh_policy", refreshPolicy.toString());
-        }
-        return builder.endObject();
     }
 }

@@ -93,9 +93,9 @@ public final class GrantApiKeyRequest extends ActionRequest implements ToXConten
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject()
-                    .field("type", type)
-                    .field("username", username);
-            if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, false)) {
+                   .field("type", type)
+                   .field("username", username);
+            if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, true)) {
                 builder.field("password", password != null ? password.toString() : null);
                 builder.field("access_token", accessToken != null ? accessToken.toString() : null);
             } else {
@@ -185,10 +185,8 @@ public final class GrantApiKeyRequest extends ActionRequest implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .startObject("grant_api_key")
-                .field("grant", grant, params)
-                .field("api_key", apiKey, params)
-                .endObject() // grant_api_key
-                .endObject();
+                      .field("grant", grant, params)
+                      .field("api_key", apiKey, params)
+                      .endObject();
     }
 }

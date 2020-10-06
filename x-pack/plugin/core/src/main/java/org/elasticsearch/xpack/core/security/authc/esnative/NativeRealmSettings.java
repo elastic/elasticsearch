@@ -14,6 +14,7 @@ import java.util.Set;
 
 public final class NativeRealmSettings {
     public static final String TYPE = "native";
+    public static final String NAME = "default_native";
 
     private NativeRealmSettings() {}
 

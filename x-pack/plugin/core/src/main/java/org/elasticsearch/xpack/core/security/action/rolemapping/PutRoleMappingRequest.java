@@ -174,15 +174,13 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-                .startObject("put_role_mapping")
-                .field("name", name)
-                .field("enabled", enabled)
-                .field("role_names", roles)
-                .field("role_templates", roleTemplates)
-                .field("rules", rules)
-                .field("metadata", metadata)
-                .endObject(); // put_role_mapping
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
+               .field("name", name)
+               .field("role_names", roles)
+               .field("role_templates", roleTemplates)
+               .field("rules", rules)
+               .field("enabled", enabled)
+               .field("metadata", metadata);
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

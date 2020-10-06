@@ -11,9 +11,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 
@@ -22,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for invalidating a token so that it can no longer be used
  */
-public final class InvalidateTokenRequest extends ActionRequest implements ToXContentObject {
+public final class InvalidateTokenRequest extends ActionRequest {
 
     public enum Type {
         ACCESS_TOKEN("token"),
@@ -152,25 +149,5 @@ public final class InvalidateTokenRequest extends ActionRequest implements ToXCo
         out.writeOptionalVInt(tokenType == null ? null : tokenType.ordinal());
         out.writeOptionalString(realmName);
         out.writeOptionalString(userName);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-                .startObject("invalidate_token")
-                .field("username", userName)
-                .startObject("realm")
-                    .field("name", realmName)
-                .endObject() //realm
-                .startObject("token")
-                    .field("type", tokenType != null ? tokenType.toString() : null);
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, false)) {
-            builder.field("value", tokenString);
-        } else {
-            builder.field("value", tokenString != null ? "<redacted>" : null);
-        }
-        builder.endObject(); // token
-        builder.endObject(); // invalidate_token
-        return builder.endObject();
     }
 }

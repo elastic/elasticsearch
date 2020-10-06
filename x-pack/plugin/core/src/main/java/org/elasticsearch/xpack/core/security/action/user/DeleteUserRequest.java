@@ -82,10 +82,8 @@ public class DeleteUserRequest extends ActionRequest implements UserRequest, Wri
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-               .startObject("delete_user")
-               .field("username", username)
-               .endObject(); // delete_user
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
+               .field("username", username);
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

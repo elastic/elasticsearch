@@ -44,8 +44,6 @@ import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
-import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
-import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
@@ -108,7 +106,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String IP_FILTER_ORIGIN_FIELD_VALUE = "ip_filter";
     public static final String SECURITY_CHANGE_ORIGIN_FIELD_VALUE = "security_config_change";
 
-    // changing any of this names requires changing the log4j2.properties file too
+    // changing any of these field names requires changing the log4j2.properties file too
     public static final String LOG_TYPE = "type";
     public static final String TIMESTAMP = "timestamp";
     public static final String ORIGIN_TYPE_FIELD_NAME = "origin.type";
@@ -119,6 +117,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String HOST_NAME_FIELD_NAME = "host.name";
     public static final String EVENT_TYPE_FIELD_NAME = "event.type";
     public static final String EVENT_ACTION_FIELD_NAME = "event.action";
+    public static final String EVENT_ACTION_DETAILS_FIELD_NAME = "event.action.details";
     public static final String PRINCIPAL_FIELD_NAME = "user.name";
     public static final String PRINCIPAL_RUN_BY_FIELD_NAME = "user.run_by.name";
     public static final String PRINCIPAL_RUN_AS_FIELD_NAME = "user.run_as.name";
@@ -138,7 +137,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String ACTION_FIELD_NAME = "action";
     public static final String INDICES_FIELD_NAME = "indices";
     public static final String REQUEST_NAME_FIELD_NAME = "request.name";
-    public static final String CONFIG_CHANGE_FIELD_NAME = "config_change";
     public static final String TRANSPORT_PROFILE_FIELD_NAME = "transport.profile";
     public static final String RULE_FIELD_NAME = "rule";
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
@@ -514,13 +512,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     msg instanceof ChangePasswordRequest ||
                     msg instanceof CreateApiKeyRequest ||
                     msg instanceof GrantApiKeyRequest ||
-                    msg instanceof CreateTokenRequest ||
                     msg instanceof PutPrivilegesRequest) {
                 eventAction = "put";
             } else if (msg instanceof DeleteUserRequest ||
                     msg instanceof DeleteRoleMappingRequest ||
                     msg instanceof DeleteRoleRequest ||
-                    msg instanceof InvalidateTokenRequest ||
                     msg instanceof InvalidateApiKeyRequest ||
                     msg instanceof DeletePrivilegesRequest) {
                 eventAction = "delete";
@@ -532,7 +528,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, eventAction)
                         .withRequestId(requestId)
-                        .with(CONFIG_CHANGE_FIELD_NAME, Strings.toString((ToXContentObject)msg))
+                        .with(EVENT_ACTION_DETAILS_FIELD_NAME, Strings.toString((ToXContentObject)msg))
                         .build();
                 logger.info(AUDIT_MARKER, logEntry);
             }

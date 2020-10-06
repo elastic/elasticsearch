@@ -131,10 +131,8 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-                .startObject("put_privileges")
-                .field("privileges", privileges)
-                .endObject(); // put_privileges
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
+               .field("privileges", privileges);
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

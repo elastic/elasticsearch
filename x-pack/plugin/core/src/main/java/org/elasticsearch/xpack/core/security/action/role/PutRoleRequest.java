@@ -227,20 +227,18 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-                .startObject("put_role")
-                .field("name", name())
-                .array("cluster_privileges", cluster())
-                .array("run_as", runAs())
+                .field("name", name)
+                .array("cluster_privileges", clusterPrivileges)
+                .array("run_as", runAs)
                 .field("indices_privileges", indicesPrivileges)
-                .field("application_privileges", applicationPrivileges())
-                .field("metadata", metadata());
+                .field("application_privileges", applicationPrivileges)
+                .field("metadata", metadata);
         builder.startObject("configurable_cluster_privileges");
         for (ConfigurableClusterPrivilege configurableClusterPrivilege : configurableClusterPrivileges) {
             configurableClusterPrivilege.toXContent(builder, params);
         }
         builder.endObject(); // configurable_cluster_privileges
-        builder.endObject(); // put_role
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
+        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
             builder.field("refresh_policy", refreshPolicy.toString());
         }
         return builder.endObject();

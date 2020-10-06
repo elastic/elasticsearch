@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Objects;
@@ -151,6 +152,13 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                 // information only needed on current master
                 knownSnapshotShardSizes = ImmutableOpenMap.of();
                 isMaster = false;
+                final Iterator<SnapshotShard> iterator = queue.iterator();
+                while (iterator.hasNext()) {
+                    final SnapshotShard snapshotShard = iterator.next();
+                    final boolean removed = unknownSnapshotShards.remove(snapshotShard);
+                    assert removed : "snapshot shard to remove does not exist " + snapshotShard;
+                    iterator.remove();
+                }
             }
         }
     }

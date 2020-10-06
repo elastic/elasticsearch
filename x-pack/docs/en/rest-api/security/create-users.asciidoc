@@ -73,7 +73,7 @@ The following parameters can be specified in the body of a POST or PUT request:
 (object) Arbitrary metadata that you want to associate with the user.
 
 `password`::
-(Required*, string) The user's password. Passwords must be at least 6 characters long.
+(Required<<not-always-required,*>>, string) The user's password. Passwords must be at least 6 characters long.
 +
 When adding a user, one of `password` or `password_hash` is required.
 When updating an existing user, the password is optional, so that other
@@ -98,6 +98,10 @@ used in the same request.
 access  permissions. To create a user without any roles, specify an empty list:
 `[]`.
 
+--
+[[not-always-required]]
+*Indicates that the setting is required in some, but not all situations.
+--
 
 [[security-api-put-user-example]]
 ==== {api-examples-title}

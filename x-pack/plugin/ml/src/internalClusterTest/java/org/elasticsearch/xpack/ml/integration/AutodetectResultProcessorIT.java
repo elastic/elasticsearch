@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -135,7 +136,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
-        jobResultsProvider = new JobResultsProvider(client(), builder.build(), new IndexNameExpressionResolver());
+        jobResultsProvider = new JobResultsProvider(client(), builder.build(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
@@ -175,7 +177,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // A a result they must create the index as part of the test setup. Do not
         // copy this setup to tests that run jobs in the way they are run in production.
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, new IndexNameExpressionResolver(), future);
+        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), future);
         future.get();
     }
 

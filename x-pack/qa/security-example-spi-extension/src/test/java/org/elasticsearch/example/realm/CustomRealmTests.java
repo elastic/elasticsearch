@@ -35,7 +35,7 @@ public class CustomRealmTests extends ESTestCase {
         realm.authenticate(token, plainActionFuture);
         User user = plainActionFuture.actionGet().getUser();
         assertThat(user, notNullValue());
-        assertThat(user.roles(), arrayContaining(CustomRealm.DEFAULT_ROLES));
+        assertThat(user.roles(), arrayContaining(CustomRealm.DEFAULT_ROLES.toArray()));
         assertThat(user.principal(), equalTo(CustomRealm.DEFAULT_KNOWN_USER));
     }
 

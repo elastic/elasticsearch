@@ -1032,4 +1032,28 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
         return spanQuery.build();
     }
+
+    @Override
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        // this is a pain, but we have to do this to maintain BWC
+        builder.field("type", contentType());
+        this.builder.index.toXContent(builder, includeDefaults);
+        this.builder.store.toXContent(builder, includeDefaults);
+        this.multiFields.toXContent(builder, params);
+        this.copyTo.toXContent(builder, params);
+        this.builder.meta.toXContent(builder, includeDefaults);
+        this.builder.indexOptions.toXContent(builder, includeDefaults);
+        this.builder.termVectors.toXContent(builder, includeDefaults);
+        this.builder.norms.toXContent(builder, includeDefaults);
+        this.builder.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
+        this.builder.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
+        this.builder.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
+        this.builder.similarity.toXContent(builder, includeDefaults);
+        this.builder.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
+        this.builder.positionIncrementGap.toXContent(builder, includeDefaults);
+        this.builder.fieldData.toXContent(builder, includeDefaults);
+        this.builder.freqFilter.toXContent(builder, includeDefaults);
+        this.builder.indexPrefixes.toXContent(builder, includeDefaults);
+        this.builder.indexPhrases.toXContent(builder, includeDefaults);
+    }
 }

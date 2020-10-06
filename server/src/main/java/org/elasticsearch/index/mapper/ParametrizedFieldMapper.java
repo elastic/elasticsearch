@@ -117,7 +117,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected final void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
         getMergeBuilder().toXContent(builder, includeDefaults);
         multiFields.toXContent(builder, params);
@@ -307,7 +307,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             }
         }
 
-        private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             if (serializerCheck.check(includeDefaults, isConfigured(), get())) {
                 serializer.serialize(builder, name, getValue());
             }

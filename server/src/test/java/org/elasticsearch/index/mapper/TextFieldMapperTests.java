@@ -250,6 +250,22 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
     }
 
+    public void testBWCSerialization() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("fielddata", true);
+            b.startObject("fields");
+            {
+                b.startObject("subfield").field("type", "long").endObject();
+            }
+            b.endObject();
+        }));
+
+        assertEquals(
+            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"fields\":{\"subfield\":{\"type\":\"long\"}},\"fielddata\":true}}}}",
+            Strings.toString(mapperService.documentMapper()));
+    }
+
     public void testEnableStore() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));

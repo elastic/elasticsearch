@@ -97,7 +97,8 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                     return;
                 }
                 if (invalidateApiKeyRequest.getName() != null && invalidateApiKeyRequest.getName().equals("api-key-name-1")
-                        || invalidateApiKeyRequest.getId() != null && invalidateApiKeyRequest.getId().equals("api-key-id-1")
+                        || invalidateApiKeyRequest.getIds() != null && Arrays.equals(
+                            invalidateApiKeyRequest.getIds(), new String[] {"api-key-id-1"})
                         || invalidateApiKeyRequest.getRealmName() != null && invalidateApiKeyRequest.getRealmName().equals("realm-1")
                         || invalidateApiKeyRequest.getUserName() != null && invalidateApiKeyRequest.getUserName().equals("user-x")) {
                     listener.onResponse((Response) invalidateApiKeyResponseExpected);

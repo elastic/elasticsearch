@@ -40,7 +40,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -206,10 +205,6 @@ public class DocumentMapper implements ToXContentFragment {
 
     public IndexFieldMapper IndexFieldMapper() {
         return metadataMapper(IndexFieldMapper.class);
-    }
-
-    public Query typeFilter(QueryShardContext context) {
-        return typeMapper().fieldType().termQuery(type, context);
     }
 
     public boolean hasNestedObjects() {

@@ -136,7 +136,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), "test_node");
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
         jobResultsProvider = new JobResultsProvider(client(), builder.build(),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
         renormalizer = mock(Renormalizer.class);
@@ -161,7 +161,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 auditor,
                 JOB_ID,
                 renormalizer,
-                new JobResultsPersister(originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node")),
+                new JobResultsPersister(originSettingClient, resultsPersisterService,
+                    new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class))),
                 new AnnotationPersister(resultsPersisterService, auditor),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),

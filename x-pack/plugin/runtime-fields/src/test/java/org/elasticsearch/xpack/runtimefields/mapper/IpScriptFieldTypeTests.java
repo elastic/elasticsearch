@@ -78,7 +78,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 IpScriptFieldType ft = build("append_param", org.elasticsearch.common.collect.Map.of("param", ".1"));
-                BinaryScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                BinaryScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 DocValueFormat format = ft.docValueFormat(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -123,7 +123,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(

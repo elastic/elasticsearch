@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
@@ -34,11 +33,10 @@ import org.elasticsearch.xpack.enrich.AbstractEnrichProcessor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction<DeleteEnrichPolicyAction.Request, AcknowledgedResponse> {
+public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMasterNodeAction<DeleteEnrichPolicyAction.Request> {
 
     private final EnrichPolicyLocks enrichPolicyLocks;
     private final IngestService ingestService;
@@ -75,15 +73,6 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -171,7 +160,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
     private void deletePolicy(String name, ActionListener<AcknowledgedResponse> listener) {
         EnrichStore.deletePolicy(name, clusterService, e -> {
             if (e == null) {
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 listener.onFailure(e);
             }

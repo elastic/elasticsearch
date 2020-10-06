@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -57,7 +56,6 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
-import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -69,7 +67,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * to delete.
  */
 public class TransportDeleteDataFrameAnalyticsAction
-    extends TransportMasterNodeAction<DeleteDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
+    extends AcknowledgedTransportMasterNodeAction<DeleteDataFrameAnalyticsAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteDataFrameAnalyticsAction.class);
 
@@ -95,11 +93,6 @@ public class TransportDeleteDataFrameAnalyticsAction
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -231,7 +224,7 @@ public class TransportDeleteDataFrameAnalyticsAction
                 assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
                 logger.info("[{}] Deleted", id);
                 auditor.info(id, Messages.DATA_FRAME_ANALYTICS_AUDIT_DELETED);
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             },
             listener::onFailure
         ));

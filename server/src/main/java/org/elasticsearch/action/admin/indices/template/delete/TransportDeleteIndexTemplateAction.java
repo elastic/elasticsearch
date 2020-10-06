@@ -24,7 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -32,18 +32,14 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexTemplateAction
-        extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
+public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<DeleteIndexTemplateRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexTemplateAction.class);
 
@@ -65,11 +61,6 @@ public class TransportDeleteIndexTemplateAction
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(DeleteIndexTemplateRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
@@ -84,7 +75,7 @@ public class TransportDeleteIndexTemplateAction
             new MetadataIndexTemplateService.RemoveListener() {
                 @Override
                 public void onResponse(MetadataIndexTemplateService.RemoveResponse response) {
-                    listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
+                    listener.onResponse(AcknowledgedResponse.of(response.acknowledged()));
                 }
 
                 @Override

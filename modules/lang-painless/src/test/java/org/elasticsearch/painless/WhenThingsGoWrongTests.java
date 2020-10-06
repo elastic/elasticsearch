@@ -262,12 +262,6 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         });
     }
 
-    public void testRegexDisabledByDefault() {
-        IllegalStateException e = expectScriptThrows(IllegalStateException.class, () -> exec("return 'foo' ==~ /foo/"));
-        assertEquals("Regexes are disabled. Set [script.painless.regex.enabled] to [true] in elasticsearch.yaml to allow them. "
-                + "Be careful though, regexes break out of Painless's protection against deep recursion and long loops.", e.getMessage());
-    }
-
     public void testCanNotOverrideRegexEnabled() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), false));
@@ -540,7 +534,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("while (test0) {int x = 1;}"));
         assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
     }
-    
+
     public void testPartialType() {
         int dots = randomIntBetween(1, 5);
         StringBuilder builder = new StringBuilder("test0");

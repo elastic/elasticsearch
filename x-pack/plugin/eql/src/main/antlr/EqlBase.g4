@@ -67,7 +67,7 @@ eventQuery
     ;
 
 eventFilter
-    : (ANY | event=identifier) WHERE expression
+    : (ANY | event=eventValue) WHERE expression
     ;
 
 expression
@@ -110,7 +110,11 @@ primaryExpression
     ;
 
 functionExpression
-    : name=IDENTIFIER LP (expression (COMMA expression)*)? RP
+    : name=functionName LP (expression (COMMA expression)*)? RP
+    ;
+
+functionName
+    : IDENTIFIER
     ;
 
 constant
@@ -134,7 +138,7 @@ qualifiedName
 
 identifier
     : IDENTIFIER
-    | ESCAPED_IDENTIFIER
+    | QUOTED_IDENTIFIER
     ;
 
 timeUnit
@@ -192,11 +196,6 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 
-
-ESCAPED_IDENTIFIER
-    : '`' ( ~'`' | '``' )* '`'
-    ;
-
 STRING
     : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
     | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
@@ -219,6 +218,15 @@ DECIMAL_VALUE
 // make @timestamp not require escaping, since @ has no other meaning
 IDENTIFIER
     : (LETTER | '_' | '@') (LETTER | DIGIT | '_')*
+    ;
+
+QUOTED_IDENTIFIER
+    : '`' ( ~'`' | '``' )* '`'
+    ;
+
+eventValue
+    : STRING
+    | IDENTIFIER
     ;
 
 fragment EXPONENT

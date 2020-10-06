@@ -1,4 +1,3 @@
-
 //
 // Pipes
 //
@@ -96,23 +95,23 @@ file where descendant of [registry where true];
 //sequence by unique_pid [process where true] [file where true] fork==true;
 
 
-sequence with maxspan=2.5m 
-    [process where x == x] by pid 
+sequence with maxspan=2.5m
+    [process where x == x] by pid
     [file where file_path == "*"] by ppid
 ;
 
-sequence by pid with maxspan=2.0h 
-    [process where process_name == "*"] 
+sequence by pid with maxspan=2.0h
+    [process where process_name == "*"]
     [file where file_path == "*"]
 ;
 
-sequence by pid with maxspan=2.0h 
-    [process where process_name == "*"] 
+sequence by pid with maxspan=2.0h
+    [process where process_name == "*"]
     [file where file_path == "*"]
 ;
 
-sequence by pid with maxspan=1.0075d 
-    [process where process_name == "*"] 
+sequence by pid with maxspan=1.0075d
+    [process where process_name == "*"]
     [file where file_path == "*"]
 ;
 

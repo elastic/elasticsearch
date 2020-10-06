@@ -231,7 +231,7 @@ public class TransformIndexerStateTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        auditor = new MockTransformAuditor();
+        auditor = MockTransformAuditor.createMockAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
         client = new NoOpClient(getTestName());
         threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);

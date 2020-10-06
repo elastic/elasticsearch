@@ -1,10 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-trained-models]]
-= Create trained model API
+= Create trained models API
 [subs="attributes"]
 ++++
-<titleabbrev>Create trained model</titleabbrev>
+<titleabbrev>Create trained models</titleabbrev>
 ++++
 
 Creates a trained model.
@@ -658,7 +658,7 @@ Example of an `exponent` object:
 
 
 [[ml-put-trained-models-json-schema]]
-=== {infer-cap} JSON schema
+=== Trained models JSON schema
 
-For the full JSON schema of model {infer},
+For the full JSON schema of trained models,
 https://github.com/elastic/ml-json-schemas[click here].

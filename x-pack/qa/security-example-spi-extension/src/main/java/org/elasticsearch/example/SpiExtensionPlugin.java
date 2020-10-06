@@ -35,6 +35,9 @@ public class SpiExtensionPlugin extends Plugin implements ActionPlugin {
         List<Setting<?>> list = new ArrayList<>(RealmSettings.getStandardSettings(CustomRealm.TYPE));
         list.add(RealmSettings.simpleString(CustomRealm.TYPE, "filtered_setting", Setting.Property.NodeScope, Setting.Property.Filtered));
         list.addAll(RealmSettings.getStandardSettings(CustomRoleMappingRealm.TYPE));
+        list.add(CustomRealm.USERNAME_SETTING);
+        list.add(CustomRealm.PASSWORD_SETTING);
+        list.add(CustomRealm.ROLES_SETTING);
         return list;
     }
 }

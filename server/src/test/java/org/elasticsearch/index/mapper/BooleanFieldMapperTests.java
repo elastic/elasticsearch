@@ -24,19 +24,13 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -178,21 +172,5 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         fields = doc.getFields("bool3");
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
         assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
-        assertEquals(List.of(true), fetchSourceValue(mapper, true));
-        assertEquals(List.of(false), fetchSourceValue(mapper, "false"));
-        assertEquals(List.of(false), fetchSourceValue(mapper, ""));
-
-        Map<String, Object> mapping = Map.of("type", "boolean", "null_value", true);
-        BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder("field");
-        builder.parse("field", null, new HashMap<>(mapping));
-        BooleanFieldMapper nullValueMapper = builder.build(context);
-        assertEquals(List.of(true), fetchSourceValue(nullValueMapper, null));
     }
 }

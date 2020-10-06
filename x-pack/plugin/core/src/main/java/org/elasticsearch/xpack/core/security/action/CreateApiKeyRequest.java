@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,12 +32,16 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public final class CreateApiKeyRequest extends ActionRequest {
     public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.WAIT_UNTIL;
 
+    private final String id;
     private String name;
     private TimeValue expiration;
     private List<RoleDescriptor> roleDescriptors = Collections.emptyList();
     private WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
 
-    public CreateApiKeyRequest() {}
+    public CreateApiKeyRequest() {
+        this.id = UUIDs.base64UUID(); // because auditing can currently only catch requests but not responses,
+        // we generate the API key id soonest so it's part of the request body so it is audited
+    }
 
     /**
      * Create API Key request constructor
@@ -45,6 +50,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
      * @param expiration to specify expiration for the API key
      */
     public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
+        this();
         this.name = name;
         this.roleDescriptors = (roleDescriptors == null) ? List.of() : List.copyOf(roleDescriptors);
         this.expiration = expiration;
@@ -52,6 +58,11 @@ public final class CreateApiKeyRequest extends ActionRequest {
 
     public CreateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            this.id = in.readString();
+        } else {
+            this.id = UUIDs.base64UUID();
+        }
         if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             this.name = in.readOptionalString();
         } else {
@@ -60,6 +71,14 @@ public final class CreateApiKeyRequest extends ActionRequest {
         this.expiration = in.readOptionalTimeValue();
         this.roleDescriptors = List.copyOf(in.readList(RoleDescriptor::new));
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId() {
+        throw new UnsupportedOperationException("The API Key Id cannot be set, it must be generated randomly");
     }
 
     public String getName() {
@@ -116,6 +135,9 @@ public final class CreateApiKeyRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeString(id);
+        }
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalString(name);
         } else {

@@ -241,10 +241,10 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns the {@link MappedFieldType} for the provided field name if the field is mapped, null otherwise.
+     * Returns true if the field identified by the provided name is mapped, false otherwise
      */
-    public MappedFieldType fieldType(String name) {
-        return mapperService.fieldType(name);
+    public boolean isFieldMapped(String name) {
+        return mapperService.fieldType(name) != null;
     }
 
     public ObjectMapper getObjectMapper(String name) {

@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -25,7 +27,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -454,15 +456,28 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
                 }
             }
         }
+        boolean isNullValue = false;
         if (numericValue == null) {
             numericValue = nullValueIndexed;
             if (numericValue == null) return;
+            isNullValue = true;
         } else {
             numericValue = unsignedToSortableSignedLong(numericValue);
         }
 
-        context.doc()
-            .addAll(NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored));
+        List<Field> fields = new ArrayList<>();
+        if (indexed) {
+            fields.add(new LongPoint(fieldType().name(), numericValue));
+        }
+        if (hasDocValues) {
+            fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
+        }
+        if (stored) {
+            // for stored field, keeping original unsigned_long value in the String form
+            String storedValued = isNullValue ? nullValue : Long.toUnsignedString(unsignedToSortableSignedLong(numericValue));
+            fields.add(new StoredField(fieldType().name(), storedValued));
+        }
+        context.doc().addAll(fields);
         if (hasDocValues == false && (stored || indexed)) {
             createFieldNamesField(context);
         }

@@ -44,6 +44,7 @@ import java.util.Map;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -103,12 +104,13 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
             createAnalyzerWithMode(mode)));
         indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+        fieldNode.put("analyzer", "my_analyzer");
         MapperException ex = expectThrows(MapperException.class, () -> {
             TextFieldMapper.Builder bad = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
             bad.parse("name", parserContext, fieldNode);
         });
-        assertEquals("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run in all mode.",
-            ex.getMessage());
+        assertThat(ex.getMessage(),
+            containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run"));
     }
 
     public void testParseTextFieldCheckSearchAnalyzerAnalysisMode() {
@@ -174,8 +176,8 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
             builder.parse("field", parserContext, fieldNode);
         });
-        assertEquals("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run in all mode.",
-            ex.getMessage());
+        assertThat(ex.getMessage(),
+            containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run"));
 
         // check AnalysisMode.INDEX_TIME is okay if search analyzer is also set
         fieldNode.put("analyzer", "my_analyzer");

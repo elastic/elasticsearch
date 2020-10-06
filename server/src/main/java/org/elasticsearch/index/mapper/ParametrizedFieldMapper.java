@@ -559,6 +559,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     continue;
                 }
                 if (Objects.equals("copy_to", propName)) {
+                    if (parserContext.isWithinMultiField()) {
+                        throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field ["
+                            + name + "] which is within a multi field.");
+                    }
                     TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
                     iterator.remove();
                     continue;

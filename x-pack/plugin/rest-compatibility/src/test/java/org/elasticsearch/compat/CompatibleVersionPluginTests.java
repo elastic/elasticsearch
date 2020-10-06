@@ -146,24 +146,24 @@ public class CompatibleVersionPluginTests extends ESTestCase {
         assertThat(requestWith(acceptHeader("text/csv"), contentTypeHeader("application/json"), bodyNotPresent()), not(isCompatible()));
 
         // versioned
-//        assertThat(
-//            requestWith(
-//                acceptHeader("text/vnd.elasticsearch+tab-separated-values;compatible-with=7"),
-//                contentTypeHeader(7),
-//                bodyNotPresent()
-//            ),
-//            isCompatible()
-//        );
-//
-//        assertThat(
-//            requestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
-//            isCompatible()
-//        );
-//
-//        assertThat(
-//            requestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
-//            isCompatible()
-//        );
+        // assertThat(
+        // requestWith(
+        // acceptHeader("text/vnd.elasticsearch+tab-separated-values;compatible-with=7"),
+        // contentTypeHeader(7),
+        // bodyNotPresent()
+        // ),
+        // isCompatible()
+        // );
+        //
+        // assertThat(
+        // requestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
+        // isCompatible()
+        // );
+        //
+        // assertThat(
+        // requestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
+        // isCompatible()
+        // );
     }
 
     private Matcher<Version> isCompatible() {

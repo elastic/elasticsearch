@@ -53,10 +53,6 @@ public abstract class SingleGroupSource implements ToXContentObject {
         this.field = field;
         this.script = script;
         this.missingBucket = missingBucket;
-        if (field == null && script == null) {
-            // same wording as {@link org.elasticsearch.common.xcontent.ObjectParser<Value, Context>}.
-            throw new IllegalArgumentException("Required one of fields [field, script], but none were specified.");
-        }
     }
 
     public abstract Type getType();

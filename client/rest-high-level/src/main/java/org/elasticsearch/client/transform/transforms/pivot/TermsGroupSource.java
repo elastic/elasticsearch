@@ -42,8 +42,6 @@ public class TermsGroupSource extends SingleGroupSource implements ToXContentObj
         PARSER.declareString(optionalConstructorArg(), FIELD);
         Script.declareScript(PARSER, optionalConstructorArg(), SCRIPT);
         PARSER.declareBoolean(optionalConstructorArg(), MISSING_BUCKET);
-        // either a script or a field must be declared, or both
-        PARSER.declareRequiredFieldSet(FIELD.getPreferredName(), SCRIPT.getPreferredName());
     }
 
     public static TermsGroupSource fromXContent(final XContentParser parser) {

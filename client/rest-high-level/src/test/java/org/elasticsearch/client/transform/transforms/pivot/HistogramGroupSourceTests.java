@@ -29,16 +29,8 @@ import java.util.function.Predicate;
 public class HistogramGroupSourceTests extends AbstractXContentTestCase<HistogramGroupSource> {
 
     public static HistogramGroupSource randomHistogramGroupSource() {
-        Script script = null;
-        String field;
-
-        // either a field or a script must be specified, it's possible to have both, but disallowed to have none
-        if (randomBoolean()) {
-            script = new Script(randomAlphaOfLengthBetween(1, 10));
-            field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
-        } else {
-            field = randomAlphaOfLengthBetween(1, 20);
-        }
+        String field = randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : null;
+        Script script = randomBoolean() ? new Script(randomAlphaOfLengthBetween(1, 10)) : null;
         boolean missingBucket = randomBoolean();
         double interval = randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false);
         return new HistogramGroupSource(field, script, missingBucket, interval);

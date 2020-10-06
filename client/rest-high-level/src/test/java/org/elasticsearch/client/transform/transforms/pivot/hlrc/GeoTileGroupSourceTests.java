@@ -38,7 +38,7 @@ public class GeoTileGroupSourceTests extends AbstractResponseTestCase<
     public static GeoTileGroupSource randomGeoTileGroupSource() {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
         return new GeoTileGroupSource(
-            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, GeoTileUtils.MAX_ZOOM),
             randomBoolean()

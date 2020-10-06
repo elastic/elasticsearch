@@ -34,16 +34,8 @@ public class HistogramGroupSourceTests extends AbstractResponseTestCase<
     org.elasticsearch.client.transform.transforms.pivot.HistogramGroupSource> {
 
     public static HistogramGroupSource randomHistogramGroupSource() {
-        ScriptConfig scriptConfig = null;
-        String field;
-
-        // either a field or a script must be specified, it's possible to have both, but disallowed to have none
-        if (randomBoolean()) {
-            scriptConfig = DateHistogramGroupSourceTests.randomScriptConfig();
-            field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
-        } else {
-            field = randomAlphaOfLengthBetween(1, 20);
-        }
+        String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        ScriptConfig scriptConfig = randomBoolean() ? null : DateHistogramGroupSourceTests.randomScriptConfig();
         boolean missingBucket = randomBoolean();
         double interval = randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false);
         return new HistogramGroupSource(field, scriptConfig, missingBucket, interval);

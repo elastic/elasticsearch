@@ -27,7 +27,8 @@
         body:   { location: "POINT(34.25 -21.76)" }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: new_locations
 
   - do:
       search:

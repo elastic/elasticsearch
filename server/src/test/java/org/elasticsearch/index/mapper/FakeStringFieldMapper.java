@@ -95,7 +95,7 @@ public class FakeStringFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return new SourceValueFetcher(name(), mapperService, false) {
+            return new SourceValueFetcher(name(), mapperService) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     return value.toString();

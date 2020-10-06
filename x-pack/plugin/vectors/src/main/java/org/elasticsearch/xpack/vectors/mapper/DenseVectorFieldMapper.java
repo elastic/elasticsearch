@@ -115,7 +115,7 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, true) {
+            return new SourceValueFetcher(name(), mapperService, null, true) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;

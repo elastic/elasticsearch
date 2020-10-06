@@ -38,16 +38,21 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     private final @Nullable Object nullValue;
     private final boolean parsesArrayValue;
 
-    public SourceValueFetcher(String fieldName, MapperService mapperService, boolean parsesArrayValue) {
-        this(fieldName, mapperService, parsesArrayValue, null);
+    public SourceValueFetcher(String fieldName, MapperService mapperService) {
+        this(fieldName, mapperService, null, false);
+    }
+
+    public SourceValueFetcher(String fieldName, MapperService mapperService, Object nullValue) {
+        this(fieldName, mapperService, nullValue, false);
     }
 
     /**
      * @param fieldName The name of the field.
-     * @param parsesArrayValue Whether the fetcher handles array values during document parsing.
+     * @param mapperService A mapper service.
      * @param nullValue A optional substitute value if the _source value is 'null'.
+     * @param parsesArrayValue Whether the fetcher handles array values during document parsing.
      */
-    public SourceValueFetcher(String fieldName, MapperService mapperService, boolean parsesArrayValue, Object nullValue) {
+    public SourceValueFetcher(String fieldName, MapperService mapperService, Object nullValue, boolean parsesArrayValue) {
         this.sourcePaths = mapperService.sourcePath(fieldName);
         this.nullValue = nullValue;
         this.parsesArrayValue = parsesArrayValue;

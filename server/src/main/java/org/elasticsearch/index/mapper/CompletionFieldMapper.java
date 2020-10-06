@@ -311,7 +311,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, true) {
+            return new SourceValueFetcher(name(), mapperService, null, true) {
                 @Override
                 protected List<?> parseSourceValue(Object value) {
                     if (value instanceof List) {

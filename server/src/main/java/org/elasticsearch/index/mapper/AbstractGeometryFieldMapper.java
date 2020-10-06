@@ -256,8 +256,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
             Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
-
-            return new SourceValueFetcher(name(), mapperService, parsesArrayValue) {
+            return new SourceValueFetcher(name(), mapperService, null, parsesArrayValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return valueParser.apply(value);

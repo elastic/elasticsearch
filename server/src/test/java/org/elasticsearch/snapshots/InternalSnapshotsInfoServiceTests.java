@@ -203,13 +203,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             }
         });
         addSnapshotRestoreIndicesThread.start();
+        addSnapshotRestoreIndicesThread.join();
 
         assertBusy(() -> {
             assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(succeed.size()));
             assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
         });
-
-        addSnapshotRestoreIndicesThread.join();
     }
 
     public void testNoLongerMaster() throws Exception {

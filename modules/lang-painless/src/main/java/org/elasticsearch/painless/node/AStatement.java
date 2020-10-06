@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * The superclass for all S* (statement) nodes.
@@ -32,12 +31,5 @@ public abstract class AStatement extends ANode {
      */
     AStatement(int identifier, Location location) {
         super(identifier, location);
-    }
-
-    /**
-     * Checks for errors and collects data for the writing phase.
-     */
-    void analyze(SemanticScope semanticScope) {
-        throw new UnsupportedOperationException();
     }
 }

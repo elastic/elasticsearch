@@ -9,7 +9,7 @@ nodes in the cluster while in the case of
 time, so the service remains uninterrupted.
 
 
-[float]
+[discrete]
 [[restart-cluster-full]]
 === Full-cluster restart
 
@@ -166,7 +166,7 @@ the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
 // end::restart_ml[]
 
 
-[float]
+[discrete]
 [[restart-cluster-rolling]]
 === Rolling restart
 

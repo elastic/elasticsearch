@@ -26,7 +26,7 @@ NOTE: Because pipeline aggregations only add to the output, when chaining pipeli
 will be included in the final output.
 
 [[buckets-path-syntax]]
-[float]
+[discrete]
 === `buckets_path` Syntax
 
 Most pipeline aggregations require another aggregation as their input.  The input aggregation is defined via the `buckets_path`
@@ -157,7 +157,7 @@ POST /_search
 <1> `buckets_path` selects the hats and bags buckets (via `['hat']`/`['bag']``) to use in the script specifically,
 instead of fetching all the buckets from `sale_type` aggregation
 
-[float]
+[discrete]
 === Special Paths
 
 Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path.  This instructs
@@ -228,7 +228,7 @@ POST /sales/_search
 for the `categories` aggregation
 
 [[dots-in-agg-names]]
-[float]
+[discrete]
 === Dealing with dots in agg names
 
 An alternate syntax is supported to cope with aggregations or metrics which
@@ -243,7 +243,7 @@ may be referred to as:
 // NOTCONSOLE
 
 [[gap-policy]]
-[float]
+[discrete]
 === Dealing with gaps in the data
 
 Data in the real world is often noisy and sometimes contains *gaps* -- places where data simply doesn't exist.  This can

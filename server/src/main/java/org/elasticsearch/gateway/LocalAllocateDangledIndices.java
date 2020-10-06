@@ -207,10 +207,7 @@ public class LocalAllocateDangledIndices {
         public AllocateDangledRequest(StreamInput in) throws IOException {
             super(in);
             fromNode = new DiscoveryNode(in);
-            indices = new IndexMetadata[in.readVInt()];
-            for (int i = 0; i < indices.length; i++) {
-                indices[i] = IndexMetadata.readFrom(in);
-            }
+            indices = in.readArray(IndexMetadata::readFrom, IndexMetadata[]::new);
         }
 
         AllocateDangledRequest(DiscoveryNode fromNode, IndexMetadata[] indices) {
@@ -222,10 +219,7 @@ public class LocalAllocateDangledIndices {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             fromNode.writeTo(out);
-            out.writeVInt(indices.length);
-            for (IndexMetadata indexMetadata : indices) {
-                indexMetadata.writeTo(out);
-            }
+            out.writeArray(indices);
         }
     }
 

@@ -260,7 +260,7 @@ public class RegexTests extends ScriptTestCase {
         ScriptException e = expectThrows(ScriptException.class, () -> {
             exec("/\\ujjjj/"); // Invalid unicode
         });
-        assertEquals("Error compiling regex: Illegal Unicode escape sequence", e.getCause().getMessage());
+        assertEquals("invalid regular expression: could not compile regex constant [\\ujjjj] with flags []", e.getCause().getMessage());
 
         // And make sure the location of the error points to the offset inside the pattern
         assertScriptStack(e,

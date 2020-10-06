@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A mapper for field aliases.
@@ -85,6 +86,37 @@ public final class FieldAliasMapper extends Mapper {
             .field("type", CONTENT_TYPE)
             .field(Names.PATH, path)
             .endObject();
+    }
+
+    @Override
+    public void validate(MappingLookup mappers) {
+        if (Objects.equals(this.path(), this.name())) {
+            throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
+                name() + "]: an alias cannot refer to itself.");
+        }
+        if (mappers.fieldTypes().get(path) == null) {
+            throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
+                name() + "]: an alias must refer to an existing field in the mappings.");
+        }
+        if (mappers.getMapper(path) instanceof FieldAliasMapper) {
+            throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
+                name() + "]: an alias cannot refer to another alias.");
+        }
+        String aliasScope = mappers.getNestedScope(name);
+        String pathScope = mappers.getNestedScope(path);
+
+        if (!Objects.equals(aliasScope, pathScope)) {
+            StringBuilder message = new StringBuilder("Invalid [path] value [" + path + "] for field alias [" +
+                name + "]: an alias must have the same nested scope as its target. ");
+            message.append(aliasScope == null
+                ? "The alias is not nested"
+                : "The alias's nested scope is [" + aliasScope + "]");
+            message.append(", but ");
+            message.append(pathScope == null
+                ? "the target is not nested."
+                : "the target's nested scope is [" + pathScope + "].");
+            throw new IllegalArgumentException(message.toString());
+        }
     }
 
     public static class TypeParser implements Mapper.TypeParser {

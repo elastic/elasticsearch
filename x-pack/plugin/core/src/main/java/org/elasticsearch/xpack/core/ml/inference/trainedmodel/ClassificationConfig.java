@@ -97,16 +97,8 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         this.numTopClasses = in.readInt();
         this.topClassesResultsField = in.readString();
         this.resultsField = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.numTopFeatureImportanceValues = in.readVInt();
-        } else {
-            this.numTopFeatureImportanceValues = 0;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.predictionFieldType = PredictionFieldType.fromStream(in);
-        } else {
-            this.predictionFieldType = PredictionFieldType.STRING;
-        }
+        this.numTopFeatureImportanceValues = in.readVInt();
+        this.predictionFieldType = PredictionFieldType.fromStream(in);
     }
 
     public int getNumTopClasses() {
@@ -139,12 +131,8 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         out.writeInt(numTopClasses);
         out.writeString(topClassesResultsField);
         out.writeString(resultsField);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeVInt(numTopFeatureImportanceValues);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            predictionFieldType.writeTo(out);
-        }
+        out.writeVInt(numTopFeatureImportanceValues);
+        predictionFieldType.writeTo(out);
     }
 
     @Override

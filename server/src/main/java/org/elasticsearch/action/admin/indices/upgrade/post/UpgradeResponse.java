@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,18 +38,11 @@ import java.util.Map;
  */
 public class UpgradeResponse extends BroadcastResponse {
 
-    private Map<String, Tuple<Version, String>> versions;
+    private final Map<String, Tuple<Version, String>> versions;
 
     UpgradeResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        versions = new HashMap<>();
-        for (int i=0; i<size; i++) {
-            String index = in.readString();
-            Version upgradeVersion = Version.readVersion(in);
-            String oldestLuceneSegment = in.readString();
-            versions.put(index, new Tuple<>(upgradeVersion, oldestLuceneSegment));
-        }
+        versions = in.readMap(StreamInput::readString, i -> Tuple.tuple(Version.readVersion(i), i.readString()));
     }
 
     UpgradeResponse(Map<String, Tuple<Version, String>> versions, int totalShards, int successfulShards, int failedShards,
@@ -62,12 +54,10 @@ public class UpgradeResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(versions.size());
-        for(Map.Entry<String, Tuple<Version, String>> entry : versions.entrySet()) {
-            out.writeString(entry.getKey());
-            Version.writeVersion(entry.getValue().v1(), out);
-            out.writeString(entry.getValue().v2());
-        }
+        out.writeMap(versions, StreamOutput::writeString, (o, v) -> {
+            Version.writeVersion(v.v1(), o);
+            o.writeString(v.v2());
+        });
     }
 
     @Override

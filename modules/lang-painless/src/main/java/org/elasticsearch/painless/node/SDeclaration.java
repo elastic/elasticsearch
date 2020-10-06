@@ -21,12 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
 
@@ -69,30 +63,5 @@ public class SDeclaration extends AStatement {
         if (valueNode != null) {
             valueNode.visit(userTreeVisitor, scope);
         }
-    }
-
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-
-        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
-            throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
-        }
-
-        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (type == null) {
-            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
-        }
-
-        if (valueNode != null) {
-            semanticScope.setCondition(valueNode, Read.class);
-            semanticScope.putDecoration(valueNode, new TargetType(type));
-            AExpression.analyze(valueNode, semanticScope);
-            valueNode.cast(semanticScope);
-        }
-
-        Variable variable = semanticScope.defineVariable(getLocation(), type, symbol, false);
-        semanticScope.putDecoration(this, new SemanticVariable(variable));
     }
 }

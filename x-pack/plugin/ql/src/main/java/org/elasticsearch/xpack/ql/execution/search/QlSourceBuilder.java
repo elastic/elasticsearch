@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ql.execution.search;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;

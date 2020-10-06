@@ -1,5 +1,5 @@
 [[geo-shape]]
-=== Geo-shape data type
+=== Geo-shape field type
 ++++
 <titleabbrev>Geo-shape</titleabbrev>
 ++++
@@ -13,7 +13,7 @@ You can query documents using this type using
 <<query-dsl-geo-shape-query,geo_shape Query>>.
 
 [[geo-shape-mapping-options]]
-[float]
+[discrete]
 ==== Mapping Options
 
 The geo_shape mapping maps geo_json geometry objects to the geo_shape
@@ -118,7 +118,7 @@ and reject the whole document.
 
 
 [[geoshape-indexing-approach]]
-[float]
+[discrete]
 ==== Indexing approach
 GeoShape types are indexed by decomposing the shape into a triangular mesh and
 indexing each triangle as a 7 dimension point in a BKD tree. This provides
@@ -140,7 +140,7 @@ ElasticSearch 7.5.0 or higher.
 
 
 [[prefix-trees]]
-[float]
+[discrete]
 ==== Prefix trees
 
 deprecated[6.6, PrefixTrees no longer used] To efficiently represent shapes in
@@ -156,7 +156,7 @@ triangular mesh (see <<geoshape-indexing-approach>>).
 Multiple PrefixTree implementations are provided:
 
 * GeohashPrefixTree - Uses
-http://en.wikipedia.org/wiki/Geohash[geohashes] for grid squares.
+{wikipedia}/Geohash[geohashes] for grid squares.
 Geohashes are base32 encoded strings of the bits of the latitude and
 longitude interleaved. So the longer the hash, the more precise it is.
 Each character added to the geohash represents another tree level and
@@ -164,14 +164,14 @@ adds 5 bits of precision to the geohash. A geohash represents a
 rectangular area and has 32 sub rectangles. The maximum number of levels
 in Elasticsearch is 24; the default is 9.
 * QuadPrefixTree - Uses a
-http://en.wikipedia.org/wiki/Quadtree[quadtree] for grid squares.
+{wikipedia}/Quadtree[quadtree] for grid squares.
 Similar to geohash, quad trees interleave the bits of the latitude and
 longitude the resulting hash is a bit set. A tree level in a quad tree
 represents 2 bits in this bit set, one for each coordinate. The maximum
 number of levels for the quad trees in Elasticsearch is 29; the default is 21.
 
 [[spatial-strategy]]
-[float]
+[discrete]
 ===== Spatial strategies
 deprecated[6.6, PrefixTrees no longer used]  The indexing implementation
 selected relies on a  SpatialStrategy for choosing how to decompose the shapes
@@ -194,7 +194,7 @@ are provided:
 
 |=======================================================================
 
-[float]
+[discrete]
 ===== Accuracy
 
 `Recursive` and `Term` strategies do not provide 100% accuracy and depending on
@@ -205,7 +205,7 @@ parameter and to adjust expectations accordingly. For example, a point may be ne
 the border of a particular grid cell and may thus not match a query that only matches
 the cell right next to it -- even though the shape is very close to the point.
 
-[float]
+[discrete]
 ===== Example
 
 [source,console]
@@ -227,7 +227,7 @@ This mapping definition maps the location field to the geo_shape
 type using the default vector implementation. It provides
 approximately 1e-7 decimal degree precision.
 
-[float]
+[discrete]
 ===== Performance considerations with Prefix Trees
 
 deprecated[6.6, PrefixTrees no longer used] With prefix trees,
@@ -251,11 +251,11 @@ Geo-shape queries on geo-shapes implemented with PrefixTrees will not be execute
 <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set to false.
 
 [[input-structure]]
-[float]
+[discrete]
 ==== Input Structure
 
-Shapes can be represented using either the http://www.geojson.org[GeoJSON]
-or http://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+Shapes can be represented using either the http://geojson.org[GeoJSON]
+or https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 (WKT) format. The following table provides a mapping of GeoJSON and WKT
 to Elasticsearch types:
 
@@ -293,7 +293,7 @@ use the colloquial latitude, longitude (Y, X).
 =============================================
 
 [[geo-point-type]]
-[float]
+[discrete]
 ===== http://geojson.org/geojson-spec.html#id2[Point]
 
 A point is a single geographic coordinate, such as the location of a
@@ -321,7 +321,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[geo-linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
@@ -354,9 +354,9 @@ POST /example/_doc
 The above `linestring` would draw a straight line starting at the White
 House to the US Capitol Building.
 
-[float]
+[discrete]
 [[geo-polygon]]
-===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
+===== http://geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
 points in each (outer) list must be the same (the polygon must be
@@ -418,7 +418,7 @@ ambiguous polygons around the dateline and poles are possible.
 https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON] mandates that the
 outer polygon must be counterclockwise and interior shapes must be clockwise,
 which agrees with the Open Geospatial Consortium (OGC)
-http://www.opengeospatial.org/standards/sfa[Simple Feature Access]
+https://www.opengeospatial.org/standards/sfa[Simple Feature Access]
 specification for vertex ordering.
 
 Elasticsearch accepts both clockwise and counterclockwise polygons if they
@@ -465,9 +465,9 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[geo-multipoint]]
-===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
+===== http://geojson.org/geojson-spec.html#id5[MultiPoint]
 
 The following is an example of a list of geojson points:
 
@@ -494,9 +494,9 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[geo-multilinestring]]
-===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
+===== http://geojson.org/geojson-spec.html#id6[MultiLineString]
 
 The following is an example of a list of geojson linestrings:
 
@@ -525,9 +525,9 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[geo-multipolygon]]
-===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
+===== http://geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
 
@@ -556,7 +556,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[geo-geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
@@ -593,7 +593,7 @@ POST /example/_doc
 --------------------------------------------------
 
 
-[float]
+[discrete]
 ===== Envelope
 
 Elasticsearch supports an `envelope` type, which consists of coordinates
@@ -623,7 +623,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Circle
 
 Elasticsearch supports a `circle` type, which consists of a center
@@ -650,7 +650,7 @@ the units of the `radius` will default to `METERS`.
 
 *NOTE:* Neither GeoJSON or WKT support a point-radius circle type.
 
-[float]
+[discrete]
 ==== Sorting and Retrieving index Shapes
 
 Due to the complex input structure and index representation of shapes,

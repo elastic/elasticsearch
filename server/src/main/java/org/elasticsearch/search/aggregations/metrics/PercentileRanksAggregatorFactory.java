@@ -20,15 +20,11 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -45,19 +41,12 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final boolean keyed;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(PercentileRanksAggregationBuilder.NAME,
+        builder.register(
+            PercentileRanksAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            new PercentilesAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
-                                        double[] percents, PercentilesConfig percentilesConfig, boolean keyed, DocValueFormat formatter,
-                                        Map<String, Object> metadata) throws IOException {
-
-                    return percentilesConfig.createPercentileRanksAggregator(name, valuesSource, context, parent, percents, keyed,
-                        formatter, metadata);
-                }
-            }
-        );
+            (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> percentilesConfig
+                .createPercentileRanksAggregator(name, valuesSource, context, parent, percents, keyed, formatter, metadata),
+                true);
     }
 
     PercentileRanksAggregatorFactory(String name,
@@ -85,28 +74,14 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound bucketCardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            PercentileRanksAggregationBuilder.NAME);
-
-        if (aggregatorSupplier instanceof PercentilesAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected PercentilesAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        PercentilesAggregatorSupplier percentilesAggregatorSupplier = (PercentilesAggregatorSupplier) aggregatorSupplier;
-        return percentilesAggregatorSupplier.build(
-            name,
-            config.getValuesSource(),
-            searchContext,
-            parent,
-            percents,
-            percentilesConfig,
-            keyed,
-            config.format(),
-            metadata
-        );
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound bucketCardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(PercentileRanksAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, config.getValuesSource(), searchContext, parent, percents, percentilesConfig, keyed, config.format(), metadata);
     }
 }

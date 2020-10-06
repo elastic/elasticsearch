@@ -37,7 +37,7 @@ To take {es} for a test drive, you can create a
 the {ess} or set up a multi-node {es} cluster on your own
 Linux, macOS, or Windows machine.
 
-[float]
+[discrete]
 [[run-elasticsearch-hosted]]
 === Run {es} on Elastic Cloud
 
@@ -53,7 +53,7 @@ and verify your email address.
 
 Once you've created a deployment, you're ready to <<getting-started-index>>.
 
-[float]
+[discrete]
 [[run-elasticsearch-local]]
 === Run {es} locally on Linux, macOS, or Windows
 
@@ -226,7 +226,7 @@ privileges are required to run each API, see <<rest-apis>>.
 {es} responds to each API request with an HTTP status code like `200 OK`. With
 the exception of `HEAD` requests, it also returns a JSON-encoded response body. 
 
-[float]
+[discrete]
 [[gs-other-install]]
 === Other installation options
 
@@ -312,7 +312,7 @@ and shows the original source fields that were indexed.
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ ]
 // TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
 
-[float]
+[discrete]
 [[getting-started-batch-processing]]
 === Indexing documents in bulk
 

@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -235,6 +236,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     indexNameExpressionResolver,
                     autoCreateIndex,
                     new IndexingPressure(Settings.EMPTY),
+                    new SystemIndices(Map.of()),
                     relativeTimeProvider);
         }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 
@@ -55,7 +56,8 @@ public final class InternalSettingsPlugin extends Plugin {
                 IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING,
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
                 IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
-                IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING
+                IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
+                FsService.ALWAYS_REFRESH_SETTING
             );
     }
 }

@@ -14,7 +14,7 @@ For instance the following example shows how to define a sort on a single field:
 
 [source,console]
 --------------------------------------------------
-PUT twitter
+PUT my-index-000001
 {
   "settings": {
     "index": {
@@ -39,7 +39,7 @@ It is also possible to sort the index by more than one field:
 
 [source,console]
 --------------------------------------------------
-PUT twitter
+PUT my-index-000001
 {
   "settings": {
     "index": {
@@ -100,7 +100,7 @@ a sort on an existing index. Index sorting also has a cost in terms of indexing 
 documents must be sorted at flush and merge time. You should test the impact on your application
 before activating this feature.
 
-[float]
+[discrete]
 [[early-terminate]]
 === Early termination of search request
 

@@ -51,7 +51,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     public UnmappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount, Map<String, Object> metadata) {
-        super(name, order, requiredSize, minDocCount, metadata);
+        super(name, order, order, requiredSize, minDocCount, metadata);
     }
 
     /**
@@ -92,7 +92,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    protected UnmappedTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
+    protected UnmappedTerms create(String name, List<Bucket> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount) {
         throw new UnsupportedOperationException("not supported for UnmappedTerms");
     }
 

@@ -41,11 +41,13 @@ import java.util.Objects;
 public class GetJobRequest implements Validatable, ToXContentObject {
 
     public static final ParseField JOB_IDS = new ParseField("job_ids");
-    public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final String FOR_EXPORT = "for_export";
 
     private static final String ALL_JOBS = "_all";
     private final List<String> jobIds;
-    private Boolean allowNoJobs;
+    private Boolean allowNoMatch;
+    private Boolean forExport;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetJobRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -54,7 +56,7 @@ public class GetJobRequest implements Validatable, ToXContentObject {
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), JOB_IDS);
-        PARSER.declareBoolean(GetJobRequest::setAllowNoJobs, ALLOW_NO_JOBS);
+        PARSER.declareBoolean(GetJobRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     /**
@@ -90,19 +92,35 @@ public class GetJobRequest implements Validatable, ToXContentObject {
     /**
      * Whether to ignore if a wildcard expression matches no jobs.
      *
-     * @param allowNoJobs If this is {@code false}, then an error is returned when a wildcard (or {@code _all}) does not match any jobs
+     * @param allowNoMatch If this is {@code false}, then an error is returned when a wildcard (or {@code _all}) does not match any jobs
      */
-    public void setAllowNoJobs(boolean allowNoJobs) {
-        this.allowNoJobs = allowNoJobs;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
-    public Boolean getAllowNoJobs() {
-        return allowNoJobs;
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
+    }
+
+    /**
+     * Setting this flag to `true` removes certain fields from the configuration on retrieval.
+     *
+     * This is useful when getting the configuration and wanting to put it in another cluster.
+     *
+     * Default value is false.
+     * @param forExport Boolean value indicating if certain fields should be removed
+     */
+    public void setForExport(boolean forExport) {
+        this.forExport = forExport;
+    }
+
+    public Boolean getForExport() {
+        return forExport;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobIds, allowNoJobs);
+        return Objects.hash(jobIds, forExport, allowNoMatch);
     }
 
     @Override
@@ -117,7 +135,8 @@ public class GetJobRequest implements Validatable, ToXContentObject {
 
         GetJobRequest that = (GetJobRequest) other;
         return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(allowNoJobs, that.allowNoJobs);
+            Objects.equals(forExport, that.forExport) &&
+            Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override
@@ -128,8 +147,8 @@ public class GetJobRequest implements Validatable, ToXContentObject {
             builder.field(JOB_IDS.getPreferredName(), jobIds);
         }
 
-        if (allowNoJobs != null) {
-            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
 
         builder.endObject();

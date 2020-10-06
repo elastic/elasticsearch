@@ -22,7 +22,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -157,7 +157,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
             super.onIndexModule(indexModule);
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
-                public void onNewContext(SearchContext context) {
+                public void onNewReaderContext(ReaderContext readerContext) {
                     contexts.incrementAndGet();
                     try {
                         logger.trace("blocking search on " + nodeId);

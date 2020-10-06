@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,12 +19,52 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class InvalidateApiKeyRequestTests extends ESTestCase {
+
+    public void testCannotSpecifyBothIdAndIds() {
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> new InvalidateApiKeyRequest(
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                randomAlphaOfLength(12),
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                false,
+                new String[] { randomAlphaOfLength(12) }));
+        assertThat(e.getMessage(), containsString("Must use either [id] or [ids], not both at the same time"));
+    }
+
+    public void testNonNullIdsCannotBeEmptyNorContainBlankId() {
+        InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
+            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+            null,
+            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+            false,
+            new String[] {});
+        ActionRequestValidationException validationException = invalidateApiKeyRequest.validate();
+        assertNotNull(validationException);
+        assertThat(validationException.getMessage(), containsString("Field [ids] cannot be an empty array"));
+
+        invalidateApiKeyRequest = new InvalidateApiKeyRequest(
+            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+            null,
+            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+            false,
+            new String[] {randomAlphaOfLength(12), null});
+        validationException = invalidateApiKeyRequest.validate();
+        assertNotNull(validationException);
+
+        assertThat(validationException.getMessage(), containsString("Field [ids] must not contain blank id, "
+            + "but got blank id at index position: [1]"));
+    }
 
     public void testRequestValidation() {
         InvalidateApiKeyRequest request = InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5), randomBoolean());
@@ -69,7 +110,15 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 super.writeTo(out);
                 out.writeOptionalString(realm);
                 out.writeOptionalString(user);
-                out.writeOptionalString(apiKeyId);
+                if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+                    if (Strings.hasText(apiKeyId)) {
+                        out.writeOptionalStringArray(new String[] { apiKeyId });
+                    } else {
+                        out.writeOptionalStringArray(null);
+                    }
+                } else {
+                    out.writeOptionalString(apiKeyId);
+                }
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
             }
@@ -86,13 +135,13 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             {randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true"},
         };
         String[][] expectedErrorMessages = new String[][]{
-            {"One of [api key id, api key name, username, realm name] must be specified if [owner] flag is false"},
-            {"username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id or api key name is specified"},
-            {"only one of [api key id, api key name] can be specified"},
+            {"One of [api key id(s), api key name, username, realm name] must be specified if [owner] flag is false"},
+            {"username or realm name must not be specified when the api key id(s) or api key name are specified",
+                "only one of [api key id(s), api key name] can be specified"},
+            {"username or realm name must not be specified when the api key id(s) or api key name are specified",
+                "only one of [api key id(s), api key name] can be specified"},
+            {"username or realm name must not be specified when the api key id(s) or api key name are specified"},
+            {"only one of [api key id(s), api key name] can be specified"},
             {"neither username nor realm-name may be specified when invalidating owned API keys"},
             {"neither username nor realm-name may be specified when invalidating owned API keys"}
         };
@@ -100,15 +149,18 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         for (int caseNo = 0; caseNo < inputs.length; caseNo++) {
             try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
                     OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
+                final Version streamVersion = randomVersionBetween(random(), Version.V_7_4_0, getPreviousVersion(Version.V_7_10_0));
                 Dummy d = new Dummy(inputs[caseNo]);
+                osso.setVersion(streamVersion);
                 d.writeTo(osso);
 
                 ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
                 InputStreamStreamInput issi = new InputStreamStreamInput(bis);
+                issi.setVersion(streamVersion);
 
                 InvalidateApiKeyRequest request = new InvalidateApiKeyRequest(issi);
                 ActionRequestValidationException ve = request.validate();
-                assertNotNull(ve);
+                assertNotNull(ve.getMessage(), ve);
                 assertEquals(expectedErrorMessages[caseNo].length, ve.validationErrors().size());
                 assertThat(ve.validationErrors(), containsInAnyOrder(expectedErrorMessages[caseNo]));
             }
@@ -129,22 +181,49 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
-            assertThat(requestFromInputStream.getId(), equalTo(invalidateApiKeyRequest.getId()));
+            assertThat(requestFromInputStream.getIds(), equalTo(invalidateApiKeyRequest.getIds()));
             // old version so the default for `ownedByAuthenticatedUser` is false
             assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(false));
         }
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
+            out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.V_7_9_0));
             invalidateApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
+            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.V_7_9_0));
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));
         }
+        {
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setVersion(randomVersionBetween(random(), Version.V_7_10_0, Version.CURRENT));
+            invalidateApiKeyRequest.writeTo(out);
+
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_10_0, Version.CURRENT));
+            InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
+
+            assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));
+        }
+    }
+
+    public void testSerializationWillThrowWhenMultipleIdsAndOldVersionStream() {
+        final InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
+            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+            null,
+            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+            false,
+            new String[] { randomAlphaOfLength(12), randomAlphaOfLength(12) });
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+        out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, getPreviousVersion(Version.V_7_10_0)));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> invalidateApiKeyRequest.writeTo(out));
+        assertThat(e.getMessage(), containsString("a request with multi-valued field [ids] cannot be sent to an older version"));
     }
 
     private static String randomNullOrEmptyString() {

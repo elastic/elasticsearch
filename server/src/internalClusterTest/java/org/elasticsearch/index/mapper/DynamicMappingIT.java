@@ -41,6 +41,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -153,9 +154,17 @@ public class DynamicMappingIT extends ESIntegTestCase {
         try {
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
-                Matchers.containsString("Limit of total fields [2] in index [index] has been exceeded"));
+                Matchers.containsString("Limit of total fields [2] has been exceeded"));
         } finally {
             indexingCompletedLatch.countDown();
         }
+    }
+
+    public void testMappingVersionAfterDynamicMappingUpdate() throws Exception {
+        createIndex("test");
+        final ClusterService clusterService = internalCluster().clusterService();
+        final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
+        client().prepareIndex("test").setId("1").setSource("field", "text").get();
+        assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
     }
 }

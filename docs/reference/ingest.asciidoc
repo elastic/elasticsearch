@@ -48,7 +48,7 @@ Index with defined pipeline
 
 [source,console]
 --------------------------------------------------
-PUT my-index/_doc/my-id?pipeline=my_pipeline_id
+PUT my-index-000001/_doc/my-id?pipeline=my_pipeline_id
 {
   "foo": "bar"
 }
@@ -60,7 +60,7 @@ Response：
 [source,console-result]
 --------------------------------------------------
 {
-  "_index" : "my-index",
+  "_index" : "my-index-000001",
   "_id" : "my-id",
   "_version" : 1,
   "result" : "created",

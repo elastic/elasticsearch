@@ -60,6 +60,8 @@ import java.util.stream.StreamSupport;
 
 public class IndexNameExpressionResolver {
 
+    public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
+
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
     private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
@@ -207,6 +209,7 @@ public class IndexNameExpressionResolver {
             }
         }
 
+        boolean excludedDataStreams = false;
         final Set<Index> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
@@ -231,6 +234,7 @@ public class IndexNameExpressionResolver {
                 }
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
                         context.includeDataStreams() == false) {
+                excludedDataStreams = true;
                 continue;
             }
 
@@ -272,6 +276,10 @@ public class IndexNameExpressionResolver {
         if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
             IndexNotFoundException infe = new IndexNotFoundException((String)null);
             infe.setResources("index_expression", indexExpressions);
+            if (excludedDataStreams) {
+                // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
+                infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
+            }
             throw infe;
         }
         return concreteIndices.toArray(new Index[concreteIndices.size()]);

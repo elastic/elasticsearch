@@ -19,17 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Explicit;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -72,59 +63,5 @@ public class EConditional extends AExpression {
         conditionNode.visit(userTreeVisitor, scope);
         trueNode.visit(userTreeVisitor, scope);
         falseNode.visit(userTreeVisitor, scope);
-    }
-
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to conditional operation [?:]"));
-        }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from conditional operation [?:]"));
-        }
-
-        semanticScope.setCondition(conditionNode, Read.class);
-        semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-        analyze(conditionNode, semanticScope);
-        conditionNode.cast(semanticScope);
-
-        semanticScope.setCondition(trueNode, Read.class);
-        semanticScope.copyDecoration(this, trueNode, TargetType.class);
-        semanticScope.replicateCondition(this, trueNode, Explicit.class);
-        semanticScope.replicateCondition(this, trueNode, Internal.class);
-        analyze(trueNode, semanticScope);
-        Class<?> leftValueType = semanticScope.getDecoration(trueNode, ValueType.class).getValueType();
-
-        semanticScope.setCondition(falseNode, Read.class);
-        semanticScope.copyDecoration(this, falseNode, TargetType.class);
-        semanticScope.replicateCondition(this, falseNode, Explicit.class);
-        semanticScope.replicateCondition(this, falseNode, Internal.class);
-        analyze(falseNode, semanticScope);
-        Class<?> rightValueType = semanticScope.getDecoration(falseNode, ValueType.class).getValueType();
-
-        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
-        Class<?> valueType;
-
-        if (targetType == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(leftValueType, rightValueType);
-
-            if (promote == null) {
-                throw createError(new ClassCastException("cannot apply the conditional operator [?:] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
-            }
-
-            semanticScope.putDecoration(trueNode, new TargetType(promote));
-            semanticScope.putDecoration(falseNode, new TargetType(promote));
-            valueType = promote;
-        } else {
-            valueType = targetType.getTargetType();
-        }
-
-        trueNode.cast(semanticScope);
-        falseNode.cast(semanticScope);
-
-        semanticScope.putDecoration(this, new ValueType(valueType));
     }
 }

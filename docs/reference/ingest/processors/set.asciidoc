@@ -1,5 +1,9 @@
 [[set-processor]]
-=== Set Processor
+=== Set processor
+++++
+<titleabbrev>Set</titleabbrev>
+++++
+
 Sets one field and associates it with the specified value. If the field already exists,
 its value will be replaced with the provided one.
 

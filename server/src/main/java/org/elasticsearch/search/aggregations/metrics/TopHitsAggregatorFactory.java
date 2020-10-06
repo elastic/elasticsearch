@@ -26,8 +26,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,6 +52,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
     private final HighlightBuilder highlightBuilder;
     private final StoredFieldsContext storedFieldsContext;
     private final List<FieldAndFormat> docValueFields;
+    private final List<FieldAndFormat> fetchFields;
     private final List<ScriptFieldsContext.ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
@@ -65,6 +67,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
                                 HighlightBuilder highlightBuilder,
                                 StoredFieldsContext storedFieldsContext,
                                 List<FieldAndFormat> docValueFields,
+                                List<FieldAndFormat> fetchFields,
                                 List<ScriptFieldsContext.ScriptField> scriptFields,
                                 FetchSourceContext fetchSourceContext,
                                 QueryShardContext queryShardContext,
@@ -82,6 +85,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         this.highlightBuilder = highlightBuilder;
         this.storedFieldsContext = storedFieldsContext;
         this.docValueFields = docValueFields;
+        this.fetchFields = fetchFields;
         this.scriptFields = scriptFields;
         this.fetchSourceContext = fetchSourceContext;
     }
@@ -106,7 +110,13 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            subSearchContext.docValuesContext(new FetchDocValuesContext(docValueFields));
+            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(searchContext.mapperService()::simpleMatchToFullName,
+                searchContext.mapperService().getIndexSettings().getMaxDocvalueFields(), docValueFields);
+            subSearchContext.docValuesContext(docValuesContext);
+        }
+        if (fetchFields != null) {
+            FetchFieldsContext fieldsContext = new FetchFieldsContext(fetchFields);
+            subSearchContext.fetchFieldsContext(fieldsContext);
         }
         for (ScriptFieldsContext.ScriptField field : scriptFields) {
             subSearchContext.scriptFields().add(field);

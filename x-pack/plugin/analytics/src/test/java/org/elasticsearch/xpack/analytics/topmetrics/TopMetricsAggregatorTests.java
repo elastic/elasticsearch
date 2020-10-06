@@ -531,7 +531,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                return search(indexSearcher, query, builder, fields);
+                return searchAndReduce(indexSearcher, query, builder, fields);
             }
         }
     }

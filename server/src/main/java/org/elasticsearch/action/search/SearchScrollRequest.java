@@ -83,6 +83,10 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
         return this;
     }
 
+    public ParsedScrollId parseScrollId() {
+        return TransportSearchHelper.parseScrollId(scrollId);
+    }
+
     /**
      * If set, will enable scrolling of the search request.
      */
@@ -114,7 +118,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new SearchTask(id, type, action, this::getDescription, parentTaskId, headers);
     }
 
     @Override

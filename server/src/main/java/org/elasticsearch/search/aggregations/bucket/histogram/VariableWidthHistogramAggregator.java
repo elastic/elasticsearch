@@ -51,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 public class VariableWidthHistogramAggregator extends DeferableBucketAggregator {
 
@@ -353,22 +354,23 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 clusterSizes.set(index, holdSize);
 
                 // Move the underlying buckets
-                long[] mergeMap = new long[numClusters];
-                for (int i = 0; i < index; i++) {
-                    // The clusters in range {0 ... idx - 1} don't move
-                    mergeMap[i] = i;
-                }
-                for (int i = index; i < numClusters - 1; i++) {
-                    // The clusters in range {index ... numClusters - 1} shift up
-                    mergeMap[i] = i + 1;
-                }
-                // Finally, the new cluster moves to index
-                mergeMap[numClusters - 1] = index;
+                LongUnaryOperator mergeMap = new LongUnaryOperator() {
+                    @Override
+                    public long applyAsLong(long i) {
+                        if(i < index) {
+                            // The clusters in range {0 ... idx - 1} don't move
+                            return i;
+                        }
+                        if(i == numClusters - 1) {
+                            // The new cluster moves to index
+                            return (long)index;
+                        }
+                        // The clusters in range {index ... numClusters - 1} shift forward
+                        return i + 1;
+                    }
+                };
 
-                // TODO: Create a moveLastCluster() method in BucketsAggregator which is like BucketsAggregator::mergeBuckets,
-                //  except it doesn't require a merge map. This would be more efficient as there would be no need to create a
-                //  merge map on every call.
-                mergeBuckets(mergeMap, numClusters);
+                mergeBuckets(numClusters, mergeMap);
                 if (deferringCollector != null) {
                     deferringCollector.mergeBuckets(mergeMap);
                 }

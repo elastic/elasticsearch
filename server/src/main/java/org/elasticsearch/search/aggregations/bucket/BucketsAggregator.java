@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
 public abstract class BucketsAggregator extends AggregatorBase {
@@ -105,17 +106,35 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * ordinals and doc ID deltas.
      *
      * Refer to that method for documentation about the merge map.
+     *
+     * @deprecated use {@link mergeBuckets(long, LongUnaryOperator)}
      */
+    @Deprecated
     public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
+        mergeBuckets(newNumBuckets, bucket -> mergeMap[Math.toIntExact(bucket)]);
+    }
+
+    /**
+     *
+     *  @param mergeMap a unary operator which maps a bucket's ordinal to the ordinal it should be merged with.
+     *  If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
+     *
+     * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(LongUnaryOperator)} to
+     * merge the actual ordinals and doc ID deltas.
+     */
+    public final void mergeBuckets(long newNumBuckets, LongUnaryOperator mergeMap){
         try (IntArray oldDocCounts = docCounts) {
             docCounts = bigArrays.newIntArray(newNumBuckets, true);
             docCounts.fill(0, newNumBuckets, 0);
-            for (int i = 0; i < oldDocCounts.size(); i++) {
+            for (long i = 0; i < oldDocCounts.size(); i++) {
                 int docCount = oldDocCounts.get(i);
 
+                if(docCount == 0) continue;
+
                 // Skip any in the map which have been "removed", signified with -1
-                if (docCount != 0 && mergeMap[i] != -1) {
-                    docCounts.increment(mergeMap[i], docCount);
+                long destinationOrdinal = mergeMap.applyAsLong(i);
+                if (destinationOrdinal != -1) {
+                    docCounts.increment(destinationOrdinal, docCount);
                 }
             }
         }

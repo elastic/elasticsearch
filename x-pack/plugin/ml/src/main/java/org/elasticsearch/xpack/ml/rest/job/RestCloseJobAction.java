@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -49,9 +50,14 @@ public class RestCloseJobAction extends BaseRestHandler {
             if (restRequest.hasParam(Request.FORCE.getPreferredName())) {
                 request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
             }
-            if (restRequest.hasParam(Request.ALLOW_NO_JOBS.getPreferredName())) {
-                request.setAllowNoJobs(restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS.getPreferredName(), request.allowNoJobs()));
+            if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
+                LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
+                    null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH.getPreferredName());
             }
+            request.setAllowNoMatch(
+                restRequest.paramAsBoolean(
+                    Request.ALLOW_NO_MATCH.getPreferredName(),
+                    restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
         }
         return channel -> client.execute(CloseJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

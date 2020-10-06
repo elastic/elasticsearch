@@ -151,6 +151,6 @@ setup:
     - match: { error.type: "search_phase_execution_exception" }
     - match: { error.reason: "all shards failed" }
     - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
-    - match: { error.failed_shards.0.reason.caused_by.reason: "While loop has no escape." }
+    - match: { error.failed_shards.0.reason.caused_by.reason: "no paths escape from while loop" }
     - match: { error.failed_shards.0.reason.type: "script_exception" }
     - match: { error.failed_shards.0.reason.reason: "compile error" }

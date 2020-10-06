@@ -55,11 +55,11 @@ public class IndexingPressure {
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
 
-    public Releasable markCoordinatingOperationStarted(long bytes) {
+    public Releasable markCoordinatingOperationStarted(long bytes, boolean forceExecution) {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
-        if (totalBytes > primaryAndCoordinatingLimits) {
+        if (forceExecution == false && totalBytes > primaryAndCoordinatingLimits) {
             long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
@@ -68,7 +68,7 @@ public class IndexingPressure {
                 "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
                 "replica_bytes=" + replicaWriteBytes + ", " +
                 "all_bytes=" + totalBytesWithoutOperation + ", " +
-                "operation_bytes=" + bytes + ", " +
+                "coordinating_operation_bytes=" + bytes + ", " +
                 "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
         }
         currentCoordinatingBytes.getAndAdd(bytes);
@@ -99,7 +99,7 @@ public class IndexingPressure {
                 "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
                 "replica_bytes=" + replicaWriteBytes + ", " +
                 "all_bytes=" + totalBytesWithoutOperation + ", " +
-                "operation_bytes=" + bytes + ", " +
+                "primary_operation_bytes=" + bytes + ", " +
                 "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
         }
         currentPrimaryBytes.getAndAdd(bytes);
@@ -112,7 +112,7 @@ public class IndexingPressure {
     }
 
     public Releasable markReplicaOperationStarted(long bytes, boolean forceExecution) {
-        long replicaWriteBytes = this.currentReplicaBytes.getAndAdd(bytes);
+        long replicaWriteBytes = this.currentReplicaBytes.addAndGet(bytes);
         if (forceExecution == false && replicaWriteBytes > replicaLimits) {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
             this.currentReplicaBytes.getAndAdd(-bytes);
@@ -146,6 +146,6 @@ public class IndexingPressure {
         return new IndexingPressureStats(totalCombinedCoordinatingAndPrimaryBytes.get(), totalCoordinatingBytes.get(),
             totalPrimaryBytes.get(), totalReplicaBytes.get(), currentCombinedCoordinatingAndPrimaryBytes.get(),
             currentCoordinatingBytes.get(), currentPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingRejections.get(),
-            primaryRejections.get(), replicaRejections.get());
+            primaryRejections.get(), replicaRejections.get(), primaryAndCoordinatingLimits);
     }
 }

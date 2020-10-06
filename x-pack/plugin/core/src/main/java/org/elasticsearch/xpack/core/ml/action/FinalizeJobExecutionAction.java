@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -33,9 +31,6 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
             this.jobIds = jobIds;
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             jobIds = in.readStringArray();
@@ -54,14 +49,6 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-    }
-
-    public static class RequestBuilder
-            extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, FinalizeJobExecutionAction action) {
-            super(client, action, new Request());
         }
     }
 }

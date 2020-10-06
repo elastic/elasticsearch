@@ -190,7 +190,7 @@ POST test/_update/1
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 ===== Update part of a document
 
 The following partial update adds a new field to the
@@ -210,7 +210,7 @@ POST test/_update/1
 If both `doc` and `script` are specified, then `doc` is ignored. If you
 specify a scripted update, include the fields you want to update in the script.
 
-[float]
+[discrete]
 ===== Detect noop updates
 
 By default updates that don't change anything detect that they don't change
@@ -262,7 +262,7 @@ POST test/_update/1
 // TEST[continued]
 
 [[upserts]]
-[float]
+[discrete]
 ===== Upsert
 
 If the document does not already exist, the contents of the `upsert` element
@@ -287,7 +287,7 @@ POST test/_update/1
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[scripted_upsert]]
 ===== Scripted upsert
 
@@ -315,7 +315,7 @@ POST sessions/_update/dh3sgudg8gsrgl
 // TEST[s/"id": "my_web_session_summariser"/"source": "ctx._source.page_view_event = params.pageViewEvent"/]
 // TEST[continued]
 
-[float]
+[discrete]
 [[doc_as_upsert]]
 ===== Doc as upsert
 

@@ -210,7 +210,7 @@ returns this response:
 // TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
 
-IMPORTANT: `_source` meta-field must be enabled, which is the default
+IMPORTANT: `_source` metadata field must be enabled, which is the default
 behavior, to enable returning `_source` with suggestions.
 
 The configured weight for a suggestion is returned as `_score`. The

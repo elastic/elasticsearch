@@ -14,7 +14,7 @@ view and manage snapshots, and restore data streams or indices.
 You can stop and restart SLM to temporarily pause automatic backups while performing
 upgrades or other maintenance.
 
-[float]
+[discrete]
 [[slm-and-security]]
 === Security and SLM
 

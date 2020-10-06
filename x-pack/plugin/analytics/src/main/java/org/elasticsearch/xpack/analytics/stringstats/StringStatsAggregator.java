@@ -101,7 +101,7 @@ public class StringStatsAggregator extends MetricsAggregator {
                     for (int i = 0; i < valuesCount; i++) {
                         BytesRef value = values.nextValue();
                         if (value.length > 0) {
-                            String valueStr = value.utf8ToString();
+                            String valueStr = (String) format.format(value);
                             int length = valueStr.length();
                             totalLength.increment(bucket, length);
 

@@ -1,0 +1,50 @@
+[role="xpack"]
+[[stack-management]]
+=== Granting access to Stack Management features
+You <<defining-roles,define roles>> and set user privileges at different levels
+to grant access to each of the Elastic Stack features.
+
+[[stack-management-ccr]]
+==== {ccr-cap}
+The {ccr} user requires different cluster and index privileges on the remote
+cluster and local cluster.
+
+[[stack-management-ccr-remote]]
+On the remote cluster that contains the leader index, the {ccr} user requires
+`read_ccr` cluster privilege and `monitor` and `read` privileges on the
+leader index.
+
+[source,yml]
+--------------------------------------------------
+ccr_user:
+  cluster:
+    - read_ccr
+  indices:
+    - names: [ 'leader-index' ]
+      privileges:
+        - monitor
+        - read
+--------------------------------------------------
+
+[[stack-management-ccr-local]]
+On the local cluster that contains the follower index, the {ccr} user requires the `manage_ccr` cluster privilege and `monitor`, `read`, `write` and
+`manage_follow_index` privileges on the follower index.
+
+[source,yml]
+--------------------------------------------------
+ccr_user:
+  cluster:
+    - manage_ccr
+  indices:
+    - names: [ 'follower-index' ]
+      privileges:
+        - monitor
+        - read
+        - write
+        - manage_follow_index
+--------------------------------------------------
+
+If you are managing
+<<ccr-getting-started-remote-cluster,connecting to the remote cluster>> using
+the cluster update settings API, you will also need a user with the `all`
+cluster privilege.

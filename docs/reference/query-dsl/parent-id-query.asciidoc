@@ -22,7 +22,7 @@ the following example.
 --
 [source,console]
 ----
-PUT /my-index
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
@@ -45,7 +45,7 @@ PUT /my-index
 --
 [source,console]
 ----
-PUT /my-index/_doc/1?refresh
+PUT /my-index-000001/_doc/1?refresh
 {
   "text": "This is a parent document.",
   "my-join-field": "my-parent"
@@ -58,7 +58,7 @@ PUT /my-index/_doc/1?refresh
 --
 [source,console]
 ----
-PUT /my-index/_doc/2?routing=1&refresh
+PUT /my-index-000001/_doc/2?routing=1&refresh
 {
   "text": "This is a child document.",
   "my_join_field": {
@@ -77,7 +77,7 @@ The following search returns child documents for a parent document with an ID of
 
 [source,console]
 ----
-GET /my-index/_search
+GET /my-index-000001/_search
 {
   "query": {
       "parent_id": {

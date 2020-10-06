@@ -43,6 +43,8 @@ import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTest
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -133,7 +135,17 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
-            repositoryMetadata));
+            repositoryMetadata)) {
+                @Override
+                public InputStream readBlob(String blobName) throws IOException {
+                    return new AssertingInputStream(super.readBlob(blobName), blobName);
+                }
+
+                @Override
+                public InputStream readBlob(String blobName, long position, long length) throws IOException {
+                    return new AssertingInputStream(super.readBlob(blobName, position, length), blobName, position, length);
+                }
+        };
     }
 
     public void testWriteBlobWithRetries() throws Exception {
@@ -291,5 +303,56 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(countDownInitiate.isCountedDown(), is(true));
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
+    }
+
+    /**
+     * Asserts that an InputStream is fully consumed, or aborted, when it is closed
+     */
+    private static class AssertingInputStream extends FilterInputStream {
+
+        private final String blobName;
+        private final boolean range;
+        private final long position;
+        private final long length;
+
+        AssertingInputStream(InputStream in, String blobName) {
+            super(in);
+            this.blobName = blobName;
+            this.position = 0L;
+            this.length = Long.MAX_VALUE;
+            this.range = false;
+        }
+
+        AssertingInputStream(InputStream in, String blobName, long position, long length) {
+            super(in);
+            this.blobName = blobName;
+            this.position = position;
+            this.length = length;
+            this.range = true;
+        }
+
+        @Override
+        public String toString() {
+            String description = "[blobName='" + blobName + "', range=" + range;
+            if (range) {
+                description += ", position=" + position;
+                description += ", length=" + length;
+            }
+            description += ']';
+            return description;
+        }
+
+        @Override
+        public void close() throws IOException {
+            super.close();
+            if (in instanceof S3RetryingInputStream) {
+                final S3RetryingInputStream s3Stream = (S3RetryingInputStream) in;
+                assertTrue("Stream " + toString() + " should have reached EOF or should have been aborted but got [eof=" + s3Stream.isEof()
+                    + ", aborted=" + s3Stream.isAborted() + ']', s3Stream.isEof() || s3Stream.isAborted());
+            } else {
+                assertThat(in, instanceOf(ByteArrayInputStream.class));
+                assertThat(((ByteArrayInputStream) in).available(), equalTo(0));
+            }
+        }
     }
 }

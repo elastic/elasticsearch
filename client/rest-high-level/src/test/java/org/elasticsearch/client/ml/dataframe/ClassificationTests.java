@@ -18,10 +18,20 @@
  */
 package org.elasticsearch.client.ml.dataframe;
 
+import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncodingTests;
+import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncodingTests;
+import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncodingTests;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ClassificationTests extends AbstractXContentTestCase<Classification> {
 
@@ -38,7 +48,18 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
             .setRandomizeSeed(randomBoolean() ? null : randomLong())
             .setClassAssignmentObjective(randomBoolean() ? null : randomFrom(Classification.ClassAssignmentObjective.values()))
             .setNumTopClasses(randomBoolean() ? null : randomIntBetween(0, 10))
+            .setFeatureProcessors(randomBoolean() ? null :
+                Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(),
+                    OneHotEncodingTests.createRandom(),
+                    TargetMeanEncodingTests.createRandom()))
+                    .limit(randomIntBetween(1, 10))
+                    .collect(Collectors.toList()))
             .build();
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.startsWith("feature_processors");
     }
 
     @Override
@@ -54,5 +75,12 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        return new NamedXContentRegistry(namedXContent);
     }
 }

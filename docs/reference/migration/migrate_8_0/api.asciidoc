@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_api_changes]]
 === REST API changes
 

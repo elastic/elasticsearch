@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -28,14 +26,6 @@ public class ValidateDetectorAction extends ActionType<AcknowledgedResponse> {
 
     protected ValidateDetectorAction() {
         super(NAME, AcknowledgedResponse::new);
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        protected RequestBuilder(ElasticsearchClient client, ValidateDetectorAction action) {
-            super(client, action, new Request());
-        }
-
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

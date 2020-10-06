@@ -21,11 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -54,49 +49,5 @@ public class EDecimal extends AExpression {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         // terminal node; no children
-    }
-
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        analyze(semanticScope, false);
-    }
-
-    void analyze(SemanticScope semanticScope, boolean negate) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to decimal constant [" + decimal + "]"));
-        }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + decimal + "] not used"));
-        }
-
-        Class<?> valueType;
-        Object constant;
-
-        String decimal = negate ? "-" + this.decimal : this.decimal;
-
-        if (decimal.endsWith("f") || decimal.endsWith("F")) {
-            try {
-                constant = Float.parseFloat(decimal.substring(0, decimal.length() - 1));
-                valueType = float.class;
-            } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid float constant [" + decimal + "]."));
-            }
-        } else {
-            String toParse = decimal;
-            if (toParse.endsWith("d") || decimal.endsWith("D")) {
-                toParse = toParse.substring(0, decimal.length() - 1);
-            }
-            try {
-                constant = Double.parseDouble(toParse);
-                valueType = double.class;
-            } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid double constant [" + decimal + "]."));
-            }
-        }
-
-        semanticScope.putDecoration(this, new ValueType(valueType));
-        semanticScope.putDecoration(this, new StandardConstant(constant));
     }
 }

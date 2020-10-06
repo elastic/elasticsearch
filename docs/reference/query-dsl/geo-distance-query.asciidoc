@@ -64,13 +64,13 @@ GET /my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Accepted Formats
 
 In much the same way the `geo_point` type can accept different
 representations of the geo point, the filter can accept it as well:
 
-[float]
+[discrete]
 ===== Lat Lon As Properties
 
 [source,console]
@@ -96,7 +96,7 @@ GET /my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Lat Lon As Array
 
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
@@ -123,7 +123,7 @@ GET /my_locations/_search
 --------------------------------------------------
 
 
-[float]
+[discrete]
 ===== Lat Lon As String
 
 Format in `lat,lon`.
@@ -148,7 +148,7 @@ GET /my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Geohash
 
 [source,console]
@@ -171,7 +171,7 @@ GET /my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Options
 
 The following are options allowed on the filter:
@@ -198,20 +198,20 @@ The following are options allowed on the filter:
     longitude, set to `COERCE` to additionally try and infer correct
     coordinates (default is `STRICT`).
 
-[float]
+[discrete]
 ==== geo_point Type
 
 The filter *requires* the `geo_point` type to be set on the relevant
 field.
 
-[float]
+[discrete]
 ==== Multi Location Per Document
 
 The `geo_distance` filter can work with multiple locations / points per
 document. Once a single location / point matches the filter, the
 document will be included in the filter.
 
-[float]
+[discrete]
 ==== Ignore Unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field

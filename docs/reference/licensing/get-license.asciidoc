@@ -8,12 +8,12 @@
 
 This API enables you to retrieve licensing information.
 
-[float]
+[discrete]
 ==== Request
 
 `GET /_license`
 
-[float]
+[discrete]
 ==== Description
 
 This API returns information about the type of license, when it was issued, and
@@ -23,7 +23,7 @@ For more information about the different types of licenses, see
 https://www.elastic.co/subscriptions.
 
 
-[float]
+[discrete]
 ==== Query Parameters
 
 `local`::
@@ -31,14 +31,14 @@ https://www.elastic.co/subscriptions.
   is `false`, which means the information is retrieved from the master node.
 
 
-[float]
+[discrete]
 ==== Authorization
 
 You must have `monitor` cluster privileges to use this API.
 For more information, see <<security-privileges>>.
 
 
-[float]
+[discrete]
 ==== Examples
 
 The following example provides information about a trial license:

@@ -23,7 +23,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -131,8 +130,8 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         testCase((NodeClient) client(), request, sortShards, false);
     }
 
-    private static void testCase(NodeClient client, SearchRequest request,
-                                 List<SearchShard> expectedShards, boolean hasFetchPhase) throws InterruptedException {
+    private void testCase(NodeClient client, SearchRequest request,
+                          List<SearchShard> expectedShards, boolean hasFetchPhase) throws InterruptedException {
         AtomicInteger numQueryResults = new AtomicInteger();
         AtomicInteger numQueryFailures = new AtomicInteger();
         AtomicInteger numFetchResults = new AtomicInteger();
@@ -174,8 +173,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-                    DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {
+            public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 
@@ -204,7 +202,6 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
         }, listener);
         latch.await();
-
         assertThat(shardsListener.get(), equalTo(expectedShards));
         assertThat(numQueryResults.get(), equalTo(searchResponse.get().getSuccessfulShards()));
         assertThat(numQueryFailures.get(), equalTo(searchResponse.get().getFailedShards()));

@@ -38,8 +38,9 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -65,8 +66,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public SortedNumericIndexFieldData build(
             IndexFieldDataCache cache,
-            CircuitBreakerService breakerService,
-            MapperService mapperService
+            CircuitBreakerService breakerService
         ) {
             return new SortedNumericIndexFieldData(name, numericType);
         }
@@ -93,11 +93,6 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
     protected boolean sortRequiresCustomComparator() {
         return numericType == NumericType.HALF_FLOAT;
     }
@@ -105,7 +100,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     @Override
     protected XFieldComparatorSource dateComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         if (numericType == NumericType.DATE_NANOSECONDS) {
-            // converts date values to nanosecond resolution
+            // converts date_nanos values to millisecond resolution
             return new LongValuesComparatorSource(this, missingValue,
                 sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds));
         }
@@ -115,7 +110,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     @Override
     protected XFieldComparatorSource dateNanosComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         if (numericType == NumericType.DATE) {
-            // converts date_nanos values to millisecond resolution
+            // converts date values to nanosecond resolution
             return new LongValuesComparatorSource(this, missingValue,
                 sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds));
         }
@@ -177,6 +172,28 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }
+        }
+
+        @Override
+        public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+            DocValueFormat nanosFormat = DocValueFormat.withNanosecondResolution(format);
+            SortedNumericDocValues values = getLongValuesAsNanos();
+            return new DocValueFetcher.Leaf() {
+                @Override
+                public boolean advanceExact(int docId) throws IOException {
+                    return values.advanceExact(docId);
+                }
+
+                @Override
+                public int docValueCount() throws IOException {
+                    return values.docValueCount();
+                }
+
+                @Override
+                public Object nextValue() throws IOException {
+                    return nanosFormat.format(values.nextValue());
+                }
+            };
         }
     }
 

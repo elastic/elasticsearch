@@ -79,7 +79,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     /**
      * {@link #provideMappedFieldType(String)} will return a
      */
-    private static String MAPPED_STRING_FIELDNAME = "_stringField";
+    private static final String MAPPED_STRING_FIELDNAME = "_stringField";
 
     @Override
     protected FieldSortBuilder createTestItem() {

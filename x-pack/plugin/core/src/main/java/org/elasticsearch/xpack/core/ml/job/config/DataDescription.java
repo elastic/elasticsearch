@@ -318,19 +318,22 @@ public class DataDescription implements ToXContentObject, Writeable {
         private Character fieldDelimiter;
         private Character quoteCharacter;
 
-        public void setFormat(DataFormat format) {
+        public Builder setFormat(DataFormat format) {
             dataFormat = ExceptionsHelper.requireNonNull(format, FORMAT_FIELD.getPreferredName() + " must not be null");
+            return this;
         }
 
-        private void setFormat(String format) {
+        private Builder setFormat(String format) {
             setFormat(DataFormat.forString(format));
+            return this;
         }
 
-        public void setTimeField(String fieldName) {
+        public Builder setTimeField(String fieldName) {
             timeFieldName = ExceptionsHelper.requireNonNull(fieldName, TIME_FIELD_NAME_FIELD.getPreferredName() + " must not be null");
+            return this;
         }
 
-        public void setTimeFormat(String format) {
+        public Builder setTimeFormat(String format) {
             ExceptionsHelper.requireNonNull(format, TIME_FORMAT_FIELD.getPreferredName() + " must not be null");
             switch (format) {
                 case EPOCH:
@@ -345,14 +348,17 @@ public class DataDescription implements ToXContentObject, Writeable {
                     }
             }
             timeFormat = format;
+            return this;
         }
 
-        public void setFieldDelimiter(Character delimiter) {
+        public Builder setFieldDelimiter(Character delimiter) {
             fieldDelimiter = delimiter;
+            return this;
         }
 
-        public void setQuoteCharacter(Character value) {
+        public Builder setQuoteCharacter(Character value) {
             quoteCharacter = value;
+            return this;
         }
 
         public DataDescription build() {

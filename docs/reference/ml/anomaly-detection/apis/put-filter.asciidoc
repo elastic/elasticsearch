@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-filter]]
-= Create filter API
+= Create filters API
 ++++
-<titleabbrev>Create filter</titleabbrev>
+<titleabbrev>Create filters</titleabbrev>
 ++++
 
 Instantiates a filter.
@@ -18,7 +18,7 @@ Instantiates a filter.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-<<security-privileges>>.
+<<security-privileges>> and {ml-docs-setup-privileges}.
 
 [[ml-put-filter-desc]]
 == {api-description-title}

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
@@ -50,7 +49,7 @@ public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgu
 
     @Override
     public boolean isCaseSensitive() {
-        return ((EqlConfiguration) configuration()).isCaseSensitive();
+        return true;
     }
 
     @Override

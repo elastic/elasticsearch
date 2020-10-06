@@ -483,6 +483,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return merge(mergeWith, MergeReason.MAPPING_UPDATE);
     }
 
+    @Override
+    public void validate(MappingLookup mappers) {
+        for (Mapper mapper : this.mappers.values()) {
+            mapper.validate(mappers);
+        }
+    }
+
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
         if (!(mergeWith instanceof ObjectMapper)) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");

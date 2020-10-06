@@ -10,11 +10,22 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.util.Map;
 
 public interface InferenceModel extends Accountable {
+
+    static double[] extractFeatures(String[] featureNames, Map<String, Object> fields) {
+        double[] features = new double[featureNames.length];
+        int i = 0;
+        for (String featureName : featureNames) {
+            Double val = InferenceHelpers.toDouble(fields.get(featureName));
+            features[i++] = val == null ? Double.NaN : val;
+        }
+        return features;
+    }
 
     /**
      * @return The feature names in their desired order

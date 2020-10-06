@@ -64,10 +64,10 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
             constructorArg(),
             (parser, context) -> {
                 Token token = parser.currentToken();
-                ensureExpectedToken(Token.START_OBJECT, token, parser::getTokenLocation);
+                ensureExpectedToken(Token.START_OBJECT, token, parser);
                 SimulateDocumentResult result = null;
                 while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                    ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+                    ensureExpectedToken(Token.FIELD_NAME, token, parser);
                     String fieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token == Token.START_ARRAY) {
@@ -76,7 +76,7 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
                             while ((token = parser.nextToken()) == Token.START_OBJECT) {
                                 results.add(SimulateProcessorResult.fromXContent(parser));
                             }
-                            ensureExpectedToken(Token.END_ARRAY, token, parser::getTokenLocation);
+                            ensureExpectedToken(Token.END_ARRAY, token, parser);
                             result = new SimulateDocumentVerboseResult(results);
                         } else {
                             parser.skipChildren();

@@ -24,7 +24,7 @@ Retrieves configuration information for {anomaly-jobs}.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>>.
+<<security-privileges>> and {ml-docs-setup-privileges}.
 
 [[ml-get-job-desc]]
 == {api-description-title}
@@ -46,10 +46,13 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-defaul
 [[ml-get-job-query-parms]]
 == {api-query-parms-title}
 
-`allow_no_jobs`::
+`allow_no_match`::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
+`for_export`::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=for-export]
 
 [[ml-get-job-results]]
 == {api-response-body-title}
@@ -80,7 +83,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-id]
 == {api-response-codes-title}
 
 `404` (Missing resources)::
-  If `allow_no_jobs` is `false`, this code indicates that there are no 
+  If `allow_no_match` is `false`, this code indicates that there are no 
   resources that match the request or only partial matches for the request.
 
 [[ml-get-job-example]]

@@ -40,13 +40,6 @@ public class DataFrameAnalyticsStateTests extends ESTestCase {
         assertThat(DataFrameAnalyticsState.FAILED.toString(), equalTo("failed"));
     }
 
-    public void testWriteStartingStateToPre75() throws IOException {
-        StreamOutput streamOutput = mock(StreamOutput.class);
-        when(streamOutput.getVersion()).thenReturn(Version.V_7_4_1);
-        DataFrameAnalyticsState.STARTING.writeTo(streamOutput);
-        verify(streamOutput, times(1)).writeEnum(DataFrameAnalyticsState.STOPPED);
-    }
-
     public void testWriteStartingStateToPost75() throws IOException {
         StreamOutput streamOutput = mock(StreamOutput.class);
         when(streamOutput.getVersion()).thenReturn(Version.V_7_5_0);

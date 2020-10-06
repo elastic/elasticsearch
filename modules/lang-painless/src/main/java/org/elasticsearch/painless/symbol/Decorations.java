@@ -336,10 +336,6 @@ public class Decorations {
         }
     }
 
-    public interface Concatenate extends Condition {
-
-    }
-
     public static class StandardPainlessField implements Decoration {
 
         private final PainlessField standardPainlessField;
@@ -569,6 +565,27 @@ public class Decorations {
         }
     }
 
+    public interface Negate extends Condition {
+
+    }
+
+    public interface Compound extends Condition {
+
+    }
+
+    public static class AccessDepth implements Decoration {
+
+        private final int accessDepth;
+
+        public AccessDepth(int accessDepth) {
+            this.accessDepth = accessDepth;
+        }
+
+        public int getAccessDepth() {
+            return accessDepth;
+        }
+    }
+
     // standard output for user tree to ir tree phase
 
     public static class IRNodeDecoration implements Decoration {
@@ -582,5 +599,22 @@ public class Decorations {
         public IRNode getIRNode() {
             return irNode;
         }
+    }
+
+    public static class Converter implements Decoration {
+        private final LocalFunction converter;
+        public Converter(LocalFunction converter) {
+            this.converter = converter;
+        }
+
+        public LocalFunction getConverter() {
+            return converter;
+        }
+    }
+
+    // collect additional information about where doc is used
+
+    public interface IsDocument extends Condition {
+
     }
 }

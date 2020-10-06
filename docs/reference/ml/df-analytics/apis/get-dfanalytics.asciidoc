@@ -32,7 +32,7 @@ privileges:
 
 * cluster: `monitor_ml`
   
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 
 [[ml-get-dfanalytics-desc]]
@@ -70,6 +70,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 `size`::
 (Optional, integer) 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
+
+`for_export`::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=for-export]
 
 [role="child_attributes"]
 [[ml-get-dfanalytics-results]]

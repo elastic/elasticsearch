@@ -10,7 +10,7 @@ The {ml-features} include the following information content functions:
 
 * `info_content`, `high_info_content`, `low_info_content`
 
-[float]
+[discrete]
 [[ml-info-content]]
 == Info_content, High_info_content, Low_info_content
 

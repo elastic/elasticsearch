@@ -22,9 +22,8 @@ Retrieves {anomaly-job} results for one or more buckets.
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
 need `read` index privilege on the index that stores the results. The
 `machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. For more information, see
-<<security-privileges>> and
-<<built-in-roles>>.
+privileges. For more information, see <<security-privileges>>,
+<<built-in-roles>>, and {ml-docs-setup-privileges}.
 
 [[ml-get-bucket-desc]]
 == {api-description-title}

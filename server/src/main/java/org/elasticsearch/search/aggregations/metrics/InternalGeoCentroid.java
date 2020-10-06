@@ -134,6 +134,11 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
+    }
+
+    @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;

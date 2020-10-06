@@ -27,7 +27,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -47,7 +46,7 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
         }
 
         @Override
-        public BinaryIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+        public BinaryIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             return new BinaryIndexFieldData(name, valuesSourceType);
         }
     }
@@ -69,10 +68,6 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
         return valuesSourceType;
     }
 
-    @Override
-    public final void clear() {
-        // can't do
-    }
 
     @Override
     public BinaryDVLeafFieldData load(LeafReaderContext context) {

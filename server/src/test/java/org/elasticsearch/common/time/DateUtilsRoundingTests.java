@@ -46,4 +46,14 @@ public class DateUtilsRoundingTests extends ESTestCase {
             }
         }
     }
+
+    public void testIsLeapYear() {
+        assertTrue(DateUtilsRounding.isLeapYear(2004));
+        assertTrue(DateUtilsRounding.isLeapYear(2000));
+        assertTrue(DateUtilsRounding.isLeapYear(1996));
+        assertFalse(DateUtilsRounding.isLeapYear(2001));
+        assertFalse(DateUtilsRounding.isLeapYear(1900));
+        assertFalse(DateUtilsRounding.isLeapYear(-1000));
+        assertTrue(DateUtilsRounding.isLeapYear(-996));
+    }
 }

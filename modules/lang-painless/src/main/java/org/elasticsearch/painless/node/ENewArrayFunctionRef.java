@@ -19,21 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
-import org.elasticsearch.painless.symbol.Decorations.MethodNameDecoration;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.ReferenceDecoration;
-import org.elasticsearch.painless.symbol.Decorations.ReturnType;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -49,6 +37,10 @@ public class ENewArrayFunctionRef extends AExpression {
         this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
     }
 
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
     @Override
     public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         userTreeVisitor.visitNewArrayFunctionRef(this, scope);
@@ -57,46 +49,5 @@ public class ENewArrayFunctionRef extends AExpression {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         // terminal node; no children
-    }
-
-    @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
-        }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: new array function reference with target type [" + canonicalTypeName + "] not used"));
-        }
-
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
-
-        Class<?> valueType;
-        Class<?> clazz = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-        semanticScope.putDecoration(this, new ReturnType(clazz));
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
-        }
-
-        String name = scriptScope.getNextSyntheticName("newarray");
-        scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
-        semanticScope.putDecoration(this, new MethodNameDecoration(name));
-
-        if (targetType == null) {
-            String defReferenceEncoding = "Sthis." + name + ",0";
-            valueType = String.class;
-            scriptScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
-        } else {
-            FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    getLocation(), targetType.getTargetType(), "this", name, 0);
-            valueType = targetType.getTargetType();
-            semanticScope.putDecoration(this, new ReferenceDecoration(ref));
-        }
-
-        semanticScope.putDecoration(this, new ValueType(valueType));
     }
 }

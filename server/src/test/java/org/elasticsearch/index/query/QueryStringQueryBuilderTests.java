@@ -526,6 +526,20 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             equalTo(new Term(KEYWORD_FIELD_NAME, "test")));
     }
 
+    /**
+     * Test that dissalowing leading wildcards causes exception
+     */
+    public void testAllowLeadingWildcard() throws Exception {
+        Query query = queryStringQuery("*test").field("mapped_string").allowLeadingWildcard(true).toQuery(createShardContext());
+        assertThat(query, instanceOf(WildcardQuery.class));
+        QueryShardException ex = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery("*test").field("mapped_string").allowLeadingWildcard(false).toQuery(createShardContext())
+        );
+        assertEquals("Failed to parse query [*test]", ex.getMessage());
+        assertEquals("Cannot parse '*test': '*' or '?' not allowed as first character in WildcardQuery", ex.getCause().getMessage());
+    }
+
     public void testToQueryDisMaxQuery() throws Exception {
         Query query = queryStringQuery("test").field(TEXT_FIELD_NAME, 2.2f)
             .field(KEYWORD_FIELD_NAME)
@@ -1042,7 +1056,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
-        if (context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
+        if (context.fieldMapper(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
             assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
@@ -1052,7 +1066,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             String value = (quoted ? "\"" : "") + TEXT_FIELD_NAME + (quoted ? "\"" : "");
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
-            if (context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
+            if (context.fieldMapper(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
                 assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));

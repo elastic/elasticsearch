@@ -67,7 +67,7 @@ GET my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Query Options
 
 [cols="<,<",options="header",]
@@ -85,13 +85,13 @@ Default is `memory`.
 |=======================================================================
 
 [[query-dsl-geo-bounding-box-query-accepted-formats]]
-[float]
+[discrete]
 ==== Accepted Formats
 
 In much the same way the geo_point type can accept different
 representations of the geo point, the filter can accept it as well:
 
-[float]
+[discrete]
 ===== Lat Lon As Properties
 
 [source,console]
@@ -122,7 +122,7 @@ GET my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Lat Lon As Array
 
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
@@ -150,7 +150,7 @@ GET my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Lat Lon As String
 
 Format in `lat,lon`.
@@ -177,7 +177,7 @@ GET my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Bounding Box as Well-Known Text (WKT)
 
 [source,console]
@@ -201,7 +201,7 @@ GET my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Geohash
 
 [source,console]
@@ -257,7 +257,7 @@ In this example, the geohash `dr` will produce the bounding box
 query with the top left corner at `45.0,-78.75` and the bottom right
 corner at `39.375,-67.5`.
 
-[float]
+[discrete]
 ==== Vertices
 
 The vertices of the bounding box can either be set by `top_left` and
@@ -292,20 +292,20 @@ GET my_locations/_search
 --------------------------------------------------
 
 
-[float]
+[discrete]
 ==== geo_point Type
 
 The filter *requires* the `geo_point` type to be set on the relevant
 field.
 
-[float]
+[discrete]
 ==== Multi Location Per Document
 
 The filter can work with multiple locations / points per document. Once
 a single location / point matches the filter, the document will be
 included in the filter
 
-[float]
+[discrete]
 [[geo-bbox-type]]
 ==== Type
 
@@ -345,7 +345,7 @@ GET my_locations/_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Ignore Unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field
@@ -354,7 +354,7 @@ querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the field
 is not mapped.
 
-[float]
+[discrete]
 ==== Notes on Precision
 
 Geopoints have limited precision and are always rounded down during index time.

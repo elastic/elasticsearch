@@ -34,6 +34,9 @@ public final class SecurityTransportExceptionHandler implements BiConsumer<TcpCh
         } else if (SSLExceptionHelper.isCloseDuringHandshakeException(e)) {
             logger.debug("connection {} closed during handshake", channel);
             CloseableChannel.closeChannel(channel);
+        } else if (SSLExceptionHelper.isInsufficientBufferRemainingException(e)) {
+            logger.debug("connection {} closed abruptly", channel);
+            CloseableChannel.closeChannel(channel);
         } else if (SSLExceptionHelper.isReceivedCertificateUnknownException(e)) {
             logger.warn("client did not trust this server's certificate, closing connection {}", channel);
             CloseableChannel.closeChannel(channel);

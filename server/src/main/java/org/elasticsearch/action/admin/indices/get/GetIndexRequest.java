@@ -74,11 +74,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     public GetIndexRequest(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        features = new Feature[size];
-        for (int i = 0; i < size; i++) {
-            features[i] = Feature.fromId(in.readByte());
-        }
+        features = in.readArray(i -> Feature.fromId(i.readByte()), Feature[]::new);
         humanReadable = in.readBoolean();
         includeDefaults = in.readBoolean();
     }
@@ -142,10 +138,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(features.length);
-        for (Feature feature : features) {
-            out.writeByte(feature.id);
-        }
+        out.writeArray((o, f) -> o.writeByte(f.id), features);
         out.writeBoolean(humanReadable);
         out.writeBoolean(includeDefaults);
     }

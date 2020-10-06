@@ -95,7 +95,7 @@ filter before the `porter_stem` filter in the analyzer configuration.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

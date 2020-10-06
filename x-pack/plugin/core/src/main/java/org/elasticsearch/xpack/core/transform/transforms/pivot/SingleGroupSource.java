@@ -66,18 +66,26 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
     protected static final ParseField FIELD = new ParseField("field");
     protected static final ParseField SCRIPT = new ParseField("script");
+    protected static final ParseField MISSING_BUCKET = new ParseField("missing_bucket");
 
     protected final String field;
     protected final ScriptConfig scriptConfig;
+    protected final boolean missingBucket;
 
     static <T> void declareValuesSourceFields(AbstractObjectParser<? extends SingleGroupSource, T> parser, boolean lenient) {
         parser.declareString(optionalConstructorArg(), FIELD);
         parser.declareObject(optionalConstructorArg(), (p, c) -> ScriptConfig.fromXContent(p, lenient), SCRIPT);
+        parser.declareBoolean(optionalConstructorArg(), MISSING_BUCKET);
+        if (lenient == false) {
+            // either a script or a field must be declared, or both
+            parser.declareRequiredFieldSet(FIELD.getPreferredName(), SCRIPT.getPreferredName());
+        }
     }
 
-    public SingleGroupSource(final String field, final ScriptConfig scriptConfig) {
+    public SingleGroupSource(final String field, final ScriptConfig scriptConfig, final boolean missingBucket) {
         this.field = field;
         this.scriptConfig = scriptConfig;
+        this.missingBucket = missingBucket;
     }
 
     public SingleGroupSource(StreamInput in) throws IOException {
@@ -87,6 +95,16 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         } else {
             scriptConfig = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            missingBucket = in.readBoolean();
+        } else {
+            missingBucket = false;
+        }
+    }
+
+    boolean isValid() {
+        // either a script or a field must be declared
+        return field != null || scriptConfig != null;
     }
 
     @Override
@@ -104,6 +122,9 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         if (scriptConfig != null) {
             builder.field(SCRIPT.getPreferredName(), scriptConfig);
         }
+        if (missingBucket) {
+            builder.field(MISSING_BUCKET.getPreferredName(), missingBucket);
+        }
     }
 
     @Override
@@ -111,6 +132,9 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         out.writeOptionalString(field);
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeOptionalWriteable(scriptConfig);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(missingBucket);
         }
     }
 
@@ -126,6 +150,10 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         return scriptConfig;
     }
 
+    public boolean getMissingBucket() {
+        return missingBucket;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -138,12 +166,14 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
         final SingleGroupSource that = (SingleGroupSource) other;
 
-        return Objects.equals(this.field, that.field) && Objects.equals(this.scriptConfig, that.scriptConfig);
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
+            && Objects.equals(this.scriptConfig, that.scriptConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, scriptConfig);
+        return Objects.hash(field, scriptConfig, missingBucket);
     }
 
     @Override

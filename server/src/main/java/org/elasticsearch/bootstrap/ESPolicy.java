@@ -31,7 +31,6 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
-import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;

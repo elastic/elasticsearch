@@ -263,12 +263,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         int max = randomIntBetween(1, 30);
         final Exception[] exceptions = new Exception[max];
         for (int i = 0; i < max; i++) {
-            final Exception exception;
-            if (randomBoolean()) {
-                exception = new ShardNotFoundException(new ShardId("leader_index", "", 0));
-            } else {
-                exception = new EsRejectedExecutionException("leader_index rejected");
-            }
+            final Exception exception = randomFrom(
+                new ShardNotFoundException(new ShardId("leader_index", "", 0)),
+                new EsRejectedExecutionException("leader_index rejected"),
+                new IllegalStateException("no seed node left")
+            );
             exceptions[i] = exception;
             readFailures.add(exception);
         }
@@ -286,16 +285,21 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry = status.readExceptions().entrySet().iterator().next();
                 assertThat(entry.getValue().v1(), equalTo(Math.toIntExact(retryCounter.get())));
                 assertThat(entry.getKey(), equalTo(0L));
-                if (exceptions[Math.toIntExact(retryCounter.get()) - 1] instanceof ShardNotFoundException) {
+                final Exception error = exceptions[Math.toIntExact(retryCounter.get()) - 1];
+                if (error instanceof ShardNotFoundException) {
                     assertThat(entry.getValue().v2(), instanceOf(ShardNotFoundException.class));
                     final ShardNotFoundException shardNotFoundException = (ShardNotFoundException) entry.getValue().v2();
                     assertThat(shardNotFoundException.getShardId().getIndexName(), equalTo("leader_index"));
                     assertThat(shardNotFoundException.getShardId().getId(), equalTo(0));
-                } else {
+                } else if (error instanceof EsRejectedExecutionException) {
                     assertThat(entry.getValue().v2().getCause(), instanceOf(EsRejectedExecutionException.class));
                     final EsRejectedExecutionException rejectedExecutionException =
                         (EsRejectedExecutionException) entry.getValue().v2().getCause();
                     assertThat(rejectedExecutionException.getMessage(), equalTo("leader_index rejected"));
+                } else {
+                    assertThat(entry.getValue().v2().getCause(), instanceOf(IllegalStateException.class));
+                    final IllegalStateException noSeedError = (IllegalStateException) entry.getValue().v2().getCause();
+                    assertThat(noSeedError.getMessage(), equalTo("no seed node left"));
                 }
             }
             retryCounter.incrementAndGet();

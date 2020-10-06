@@ -525,6 +525,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof NodeClosedException ||
             actual instanceof NoSuchRemoteClusterException ||
             (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed")) ||
+            (actual instanceof IllegalStateException && "no seed node left".equals(actual.getMessage())) ||
             actual instanceof EsRejectedExecutionException ||
             actual instanceof CircuitBreakingException;
     }

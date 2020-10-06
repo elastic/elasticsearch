@@ -50,7 +50,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private int size = RequestDefaults.SIZE;
     private int fetchSize = RequestDefaults.FETCH_SIZE;
     private String query;
-    private boolean isCaseSensitive = false;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -67,7 +66,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
     static final String KEY_KEEP_ALIVE = "keep_alive";
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
-    static final String KEY_CASE_SENSITIVE = "case_sensitive";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -79,7 +77,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField(KEY_WAIT_FOR_COMPLETION_TIMEOUT);
     static final ParseField KEEP_ALIVE = new ParseField(KEY_KEEP_ALIVE);
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEY_KEEP_ON_COMPLETION);
-    static final ParseField CASE_SENSITIVE = new ParseField(KEY_CASE_SENSITIVE);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -103,7 +100,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             this.keepAlive = in.readOptionalTimeValue();
             this.keepOnCompletion = in.readBoolean();
         }
-        isCaseSensitive = in.readBoolean();
     }
 
     @Override
@@ -178,7 +174,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             builder.field(KEY_KEEP_ALIVE, keepAlive);
         }
         builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
-        builder.field(KEY_CASE_SENSITIVE, isCaseSensitive);
 
         return builder;
     }
@@ -203,7 +198,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareField(EqlSearchRequest::keepAlive,
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
         parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
-        parser.declareBoolean(EqlSearchRequest::isCaseSensitive, CASE_SENSITIVE);
         return parser;
     }
 
@@ -293,13 +287,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public boolean isCaseSensitive() { return this.isCaseSensitive; }
-
-    public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
-        this.isCaseSensitive = isCaseSensitive;
-        return this;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -317,7 +304,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             out.writeOptionalTimeValue(keepAlive);
             out.writeBoolean(keepOnCompletion);
         }
-        out.writeBoolean(isCaseSensitive);
     }
 
     @Override
@@ -341,8 +327,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(query, that.query) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
-                Objects.equals(keepAlive, that.keepAlive) &&
-                Objects.equals(isCaseSensitive, that.isCaseSensitive);
+                Objects.equals(keepAlive, that.keepAlive);
     }
 
 
@@ -359,8 +344,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             eventCategoryField,
             query,
             waitForCompletionTimeout,
-            keepAlive,
-            isCaseSensitive);
+            keepAlive);
     }
 
     @Override

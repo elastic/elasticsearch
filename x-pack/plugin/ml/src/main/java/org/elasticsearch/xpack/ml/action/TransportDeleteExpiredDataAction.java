@@ -95,7 +95,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         Supplier<Boolean> isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService);
 
         if (Strings.isNullOrEmpty(request.getJobId()) || Strings.isAllOrWildcard(new String[]{request.getJobId()})) {
             List<MlDataRemover> dataRemovers = createDataRemovers(client, taskId, auditor);

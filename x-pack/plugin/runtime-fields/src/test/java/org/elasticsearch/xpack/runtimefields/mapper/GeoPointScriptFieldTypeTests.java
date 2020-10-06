@@ -71,7 +71,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 GeoPointScriptFieldType ft = build("fromLatLon", Map.of());
-                GeoPointScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+                GeoPointScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -104,7 +104,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     public void testSort() throws IOException {
-        GeoPointScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null, null);
+        GeoPointScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
         Exception e = expectThrows(IllegalArgumentException.class, () -> ifd.sortField(null, MultiValueMode.MIN, null, false));
         assertThat(e.getMessage(), equalTo("can't sort on geo_point field without using specific sorting feature, like geo_distance"));
     }

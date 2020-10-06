@@ -36,7 +36,7 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
         }
 
         @Override
-        public GeoPointScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+        public GeoPointScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             return new GeoPointScriptFieldData(name, leafFactory);
         }
     }

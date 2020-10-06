@@ -1901,16 +1901,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         createIndex(indexName, mappingForClassification());
         BulkRequest regressionBulk = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(docForClassification(indexName, "cat", "cat", 0.9))
-            .add(docForClassification(indexName, "cat", "cat", 0.85))
-            .add(docForClassification(indexName, "cat", "cat", 0.95))
-            .add(docForClassification(indexName, "cat", "dog", 0.4))
-            .add(docForClassification(indexName, "cat", "fish", 0.35))
-            .add(docForClassification(indexName, "dog", "cat", 0.5))
-            .add(docForClassification(indexName, "dog", "dog", 0.4))
-            .add(docForClassification(indexName, "dog", "dog", 0.35))
-            .add(docForClassification(indexName, "dog", "dog", 0.6))
-            .add(docForClassification(indexName, "ant", "cat", 0.1));
+            .add(docForClassification(indexName, "cat", "cat", 0.9, "dog"))
+            .add(docForClassification(indexName, "cat", "cat", 0.85, "dog"))
+            .add(docForClassification(indexName, "cat", "cat", 0.95, "horse"))
+            .add(docForClassification(indexName, "cat", "dog", 0.4, "cat"))
+            .add(docForClassification(indexName, "cat", "fish", 0.35, "cat"))
+            .add(docForClassification(indexName, "dog", "cat", 0.5, "dog"))
+            .add(docForClassification(indexName, "dog", "dog", 0.4, "cat"))
+            .add(docForClassification(indexName, "dog", "dog", 0.35, "cat"))
+            .add(docForClassification(indexName, "dog", "dog", 0.6, "cat"))
+            .add(docForClassification(indexName, "ant", "cat", 0.1, "ant"));
         highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
@@ -1928,7 +1928,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
             assertThat(aucRocResult.getScore(), closeTo(0.99995, 1e-9));
-            assertThat(aucRocResult.getDocCount(), equalTo(5L));
             assertNotNull(aucRocResult.getCurve());
         }
         {  // Accuracy
@@ -2143,7 +2142,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         .endObject();
     }
 
-    private static IndexRequest docForClassification(String indexName, String actualClass, String predictedClass, double p) {
+    private static IndexRequest docForClassification(String indexName,
+                                                     String actualClass,
+                                                     String predictedClass,
+                                                     double p,
+                                                     String otherClass) {
         return new IndexRequest()
             .index(indexName)
             .source(XContentType.JSON,
@@ -2151,7 +2154,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 predictedClassField, predictedClass,
                 topClassesField, List.of(
                     Map.of("class_name", predictedClass, "class_probability", p),
-                    Map.of("class_name", "other", "class_probability", 1 - p)));
+                    Map.of("class_name", otherClass, "class_probability", 1 - p)));
     }
 
     private static final String actualRegression = "regression_actual";

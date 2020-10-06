@@ -3466,28 +3466,28 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                         .endObject()
                     .endObject()
                     .endObject());
-        TriFunction<String, String, Double, IndexRequest> indexRequest = (actualClass, predictedClass, p) -> {
+        TriFunction<String, String, String, IndexRequest> indexRequest = (actualClass, predictedClass, otherClass) -> {
             return new IndexRequest()
                 .source(XContentType.JSON,
                     "actual_class", actualClass,
                     "predicted_class", predictedClass,
                     "ml.top_classes", List.of(
-                        Map.of("class_name", predictedClass, "class_probability", p),
-                        Map.of("class_name", "other", "class_probability", 1 - p)));
+                        Map.of("class_name", predictedClass, "class_probability", 0.9),
+                        Map.of("class_name", otherClass, "class_probability", 0.1)));
         };
         BulkRequest bulkRequest =
             new BulkRequest(indexName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(indexRequest.apply("cat", "cat", 0.9)) // #0
-                .add(indexRequest.apply("cat", "cat", 0.9)) // #1
-                .add(indexRequest.apply("cat", "cat", 0.9)) // #2
-                .add(indexRequest.apply("cat", "dog", 0.9)) // #3
-                .add(indexRequest.apply("cat", "fox", 0.9)) // #4
-                .add(indexRequest.apply("dog", "cat", 0.9)) // #5
-                .add(indexRequest.apply("dog", "dog", 0.9)) // #6
-                .add(indexRequest.apply("dog", "dog", 0.9)) // #7
-                .add(indexRequest.apply("dog", "dog", 0.9)) // #8
-                .add(indexRequest.apply("ant", "cat", 0.9)); // #9
+                .add(indexRequest.apply("cat", "cat", "dog")) // #0
+                .add(indexRequest.apply("cat", "cat", "dog")) // #1
+                .add(indexRequest.apply("cat", "cat", "dog")) // #2
+                .add(indexRequest.apply("cat", "dog", "cat")) // #3
+                .add(indexRequest.apply("cat", "fox", "cat")) // #4
+                .add(indexRequest.apply("dog", "cat", "dog")) // #5
+                .add(indexRequest.apply("dog", "dog", "cat")) // #6
+                .add(indexRequest.apply("dog", "dog", "cat")) // #7
+                .add(indexRequest.apply("dog", "dog", "cat")) // #8
+                .add(indexRequest.apply("ant", "cat", "ant")); // #9
         RestHighLevelClient client = highLevelClient();
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -3527,7 +3527,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             AucRocMetric.Result aucRocResult = response.getMetricByName(AucRocMetric.NAME); // <10>
             double aucRocScore = aucRocResult.getScore(); // <11>
-            Long aucRocDocCount = aucRocResult.getDocCount(); // <12>
             // end::evaluate-data-frame-results-classification
 
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
@@ -3563,7 +3562,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
             assertThat(aucRocScore, equalTo(0.2625));
-            assertThat(aucRocDocCount, equalTo(5L));
         }
     }
 

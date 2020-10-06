@@ -61,7 +61,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
         jobResultsProvider = new JobResultsProvider(client(), settings, new IndexNameExpressionResolver());
         jobResultsPersister = new JobResultsPersister(
-            originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node"));
+            originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), clusterService));
     }
 
     public void testEstablishedMem_givenNoResults() throws Exception {

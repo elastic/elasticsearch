@@ -182,6 +182,8 @@ public final class Def {
      * Otherwise it returns a handle to the matching method.
      * <p>
      * @param painlessLookup the whitelist
+     * @param functions user defined functions and lambdas
+     * @param constants available constants to be used if the method has the {@code InjectConstantAnnotation}
      * @param methodHandlesLookup caller's lookup
      * @param callSiteType callsite's type
      * @param receiverClass Class of the object to invoke the method on.
@@ -191,8 +193,8 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
-    static MethodHandle lookupMethod(PainlessLookup painlessLookup, FunctionTable functions,
-            MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType, Class<?> receiverClass, String name, Object args[])
+    static MethodHandle lookupMethod(PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> constants,
+            MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType, Class<?> receiverClass, String name, Object[] args)
             throws Throwable {
 
          String recipeString = (String) args[0];
@@ -206,7 +208,15 @@ public final class Def {
                          "[" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + (numArguments - 1) + "] not found");
              }
 
-             return painlessMethod.methodHandle;
+             MethodHandle handle = painlessMethod.methodHandle;
+             Object[] injections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
+
+             if (injections.length > 0) {
+                 // method handle contains the "this" pointer so start injections at 1
+                 handle = MethodHandles.insertArguments(handle, 1, injections);
+             }
+
+             return handle;
          }
 
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
@@ -236,7 +246,13 @@ public final class Def {
                     "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
         }
 
-         MethodHandle handle = method.methodHandle;
+        MethodHandle handle = method.methodHandle;
+        Object[] injections = PainlessLookupUtility.buildInjections(method, constants);
+
+        if (injections.length > 0) {
+            // method handle contains the "this" pointer so start injections at 1
+            handle = MethodHandles.insertArguments(handle, 1, injections);
+        }
 
          int replaced = 0;
          upTo = 1;
@@ -257,22 +273,25 @@ public final class Def {
                      // we have everything.
                      filter = lookupReferenceInternal(painlessLookup,
                                                       functions,
+                                                      constants,
                                                       methodHandlesLookup,
                                                       interfaceType,
                                                       type,
                                                       call,
-                                                      numCaptures);
+                                                      numCaptures
+                     );
                  } else if (signature.charAt(0) == 'D') {
                      // the interface type is now known, but we need to get the implementation.
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
-                     Class<?> captures[] = new Class<?>[numCaptures];
+                     Class<?>[] captures = new Class<?>[numCaptures];
                      for (int capture = 0; capture < captures.length; capture++) {
                          captures[capture] = callSiteType.parameterType(i + 1 + capture);
                      }
                      MethodType nestedType = MethodType.methodType(interfaceType, captures);
                      CallSite nested = DefBootstrap.bootstrap(painlessLookup,
                                                               functions,
+                                                              constants,
                                                               methodHandlesLookup,
                                                               call,
                                                               nestedType,
@@ -300,8 +319,10 @@ public final class Def {
       * This is just like LambdaMetaFactory, only with a dynamic type. The interface type is known,
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
-    static MethodHandle lookupReference(PainlessLookup painlessLookup, FunctionTable functions,
-            MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name) throws Throwable {
+    static MethodHandle lookupReference(PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> constants,
+            MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name)
+            throws Throwable {
+
         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
         if (interfaceType == null) {
             throw new IllegalArgumentException("type [" + interfaceClass + "] not found");
@@ -317,25 +338,30 @@ public final class Def {
                     "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
         }
 
-        return lookupReferenceInternal(painlessLookup, functions, methodHandlesLookup,
-            interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
-            implMethod.javaMethod.getName(), 1);
+        return lookupReferenceInternal(painlessLookup, functions, constants,
+                methodHandlesLookup, interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
+                implMethod.javaMethod.getName(), 1);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
-    private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, FunctionTable functions,
-            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures) throws Throwable {
-        final FunctionRef ref = FunctionRef.create(painlessLookup, functions, null, clazz, type, call, captures);
+    private static MethodHandle lookupReferenceInternal(
+            PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> constants,
+            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures
+            ) throws Throwable {
+
+        final FunctionRef ref = FunctionRef.create(painlessLookup, functions, null, clazz, type, call, captures, constants);
         final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
-            methodHandlesLookup,
-            ref.interfaceMethodName,
-            ref.factoryMethodType,
-            ref.interfaceMethodType,
-            ref.delegateClassName,
-            ref.delegateInvokeType,
-            ref.delegateMethodName,
-            ref.delegateMethodType,
-            ref.isDelegateInterface ? 1 : 0
+                methodHandlesLookup,
+                ref.interfaceMethodName,
+                ref.factoryMethodType,
+                ref.interfaceMethodType,
+                ref.delegateClassName,
+                ref.delegateInvokeType,
+                ref.delegateMethodName,
+                ref.delegateMethodType,
+                ref.isDelegateInterface ? 1 : 0,
+                ref.isDelegateAugmented ? 1 : 0,
+                ref.delegateInjections
         );
         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, ref.factoryMethodType.parameterArray()));
      }

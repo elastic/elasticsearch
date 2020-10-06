@@ -197,11 +197,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return (cache, breakerService, mapperService) -> {
+            return (cache, breakerService) -> {
                 final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
                     name(),
                     IndexNumericFieldData.NumericType.LONG
-                ).build(cache, breakerService, mapperService);
+                ).build(cache, breakerService);
                 return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
             };
         }

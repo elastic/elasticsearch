@@ -71,7 +71,6 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(anyString())).thenReturn(mappedFieldType);
         QueryShardContext context = mock(QueryShardContext.class);
-        when(context.getMapperService()).thenReturn(mapperService);
         if (mappedFieldType != null) {
             when(context.fieldMapper(anyString())).thenReturn(mappedFieldType);
             when(context.getSearchAnalyzer(any())).thenReturn(mappedFieldType.getTextSearchInfo().getSearchAnalyzer());
@@ -79,7 +78,7 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             mapperService,
-            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null, mapperService)
+            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);
         return context;

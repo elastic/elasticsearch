@@ -480,7 +480,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
             final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fieldType(FieldNamesFieldMapper.NAME);
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.fieldMapper(FieldNamesFieldMapper.NAME);
             if (fieldNamesFieldType == null) {
                 return new MatchNoDocsQuery("No mappings yet");
             }

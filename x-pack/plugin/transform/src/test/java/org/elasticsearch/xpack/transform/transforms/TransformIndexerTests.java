@@ -278,7 +278,7 @@ public class TransformIndexerTests extends ESTestCase {
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        TransformAuditor auditor = new TransformAuditor(client, "node_1");
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
         MockedTransformIndexer indexer = createMockIndexer(
@@ -419,7 +419,7 @@ public class TransformIndexerTests extends ESTestCase {
             failureMessage.compareAndSet(null, message);
         };
 
-        MockTransformAuditor auditor = new MockTransformAuditor();
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 

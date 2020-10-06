@@ -284,123 +284,143 @@ include::licensing/get-basic-status.asciidoc[]
 :upid: {mainid}-x-pack-ml
 :doc-tests-file: {doc-tests}/MlClientDocumentationIT.java
 
-The Java High Level REST Client supports the following Machine Learning APIs:
+The Java High Level REST Client supports the following {ml} APIs:
 
-* <<{upid}-put-job>>
-* <<{upid}-get-job>>
-* <<{upid}-delete-job>>
-* <<{upid}-open-job>>
 * <<{upid}-close-job>>
-* <<{upid}-flush-job>>
-* <<{upid}-update-job>>
-* <<{upid}-get-job-stats>>
-* <<{upid}-put-datafeed>>
-* <<{upid}-update-datafeed>>
-* <<{upid}-get-datafeed>>
-* <<{upid}-delete-datafeed>>
-* <<{upid}-preview-datafeed>>
-* <<{upid}-start-datafeed>>
-* <<{upid}-stop-datafeed>>
-* <<{upid}-get-datafeed-stats>>
-* <<{upid}-forecast-job>>
-* <<{upid}-delete-forecast>>
-* <<{upid}-get-buckets>>
-* <<{upid}-get-overall-buckets>>
-* <<{upid}-get-records>>
-* <<{upid}-post-data>>
-* <<{upid}-get-influencers>>
-* <<{upid}-get-categories>>
-* <<{upid}-get-calendars>>
-* <<{upid}-put-calendar>>
-* <<{upid}-get-calendar-events>>
-* <<{upid}-post-calendar-event>>
-* <<{upid}-delete-calendar-event>>
-* <<{upid}-put-calendar-job>>
+* <<{upid}-delete-job>>
 * <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
-* <<{upid}-estimate-model-memory>>
-* <<{upid}-get-data-frame-analytics>>
-* <<{upid}-get-data-frame-analytics-stats>>
-* <<{upid}-put-data-frame-analytics>>
-* <<{upid}-update-data-frame-analytics>>
+* <<{upid}-delete-calendar-event>>
 * <<{upid}-delete-data-frame-analytics>>
-* <<{upid}-start-data-frame-analytics>>
-* <<{upid}-stop-data-frame-analytics>>
+* <<{upid}-delete-datafeed>>
+* <<{upid}-delete-expired-data>>
+* <<{upid}-delete-filter>>
+* <<{upid}-delete-forecast>>
+* <<{upid}-delete-model-snapshot>>
+* <<{upid}-delete-trained-models>>
+* <<{upid}-estimate-model-memory>>
 * <<{upid}-evaluate-data-frame>>
 * <<{upid}-explain-data-frame-analytics>>
-* <<{upid}-get-trained-models>>
-* <<{upid}-put-trained-model>>
-* <<{upid}-get-trained-models-stats>>
-* <<{upid}-delete-trained-models>>
-* <<{upid}-put-filter>>
+* <<{upid}-find-file-structure>>
+* <<{upid}-flush-job>>
+* <<{upid}-forecast-job>>
+* <<{upid}-get-job>>
+* <<{upid}-get-job-stats>>
+* <<{upid}-get-buckets>>
+* <<{upid}-get-calendars>>
+* <<{upid}-get-calendar-events>>
+* <<{upid}-get-categories>>
+* <<{upid}-get-data-frame-analytics>>
+* <<{upid}-get-data-frame-analytics-stats>>
+* <<{upid}-get-datafeed>>
+* <<{upid}-get-datafeed-stats>>
 * <<{upid}-get-filters>>
-* <<{upid}-update-filter>>
-* <<{upid}-delete-filter>>
-* <<{upid}-get-model-snapshots>>
-* <<{upid}-delete-model-snapshot>>
-* <<{upid}-revert-model-snapshot>>
-* <<{upid}-update-model-snapshot>>
+* <<{upid}-get-influencers>>
 * <<{upid}-get-ml-info>>
-* <<{upid}-delete-expired-data>>
+* <<{upid}-get-model-snapshots>>
+* <<{upid}-get-overall-buckets>>
+* <<{upid}-get-records>>
+* <<{upid}-get-trained-models>>
+* <<{upid}-get-trained-models-stats>>
+* <<{upid}-open-job>>
+* <<{upid}-post-calendar-event>>
+* <<{upid}-post-data>>
+* <<{upid}-preview-datafeed>>
+* <<{upid}-put-job>>
+* <<{upid}-put-calendar-job>>
+* <<{upid}-put-calendar>>
+* <<{upid}-put-data-frame-analytics>>
+* <<{upid}-put-datafeed>>
+* <<{upid}-put-filter>>
+* <<{upid}-put-trained-model>>
+* <<{upid}-revert-model-snapshot>>
 * <<{upid}-set-upgrade-mode>>
+* <<{upid}-start-data-frame-analytics>>
+* <<{upid}-start-datafeed>>
+* <<{upid}-stop-data-frame-analytics>>
+* <<{upid}-stop-datafeed>>
+* <<{upid}-update-job>>
+* <<{upid}-update-data-frame-analytics>>
+* <<{upid}-update-datafeed>>
+* <<{upid}-update-filter>>
+* <<{upid}-update-model-snapshot>>
 
-include::ml/put-job.asciidoc[]
-include::ml/get-job.asciidoc[]
-include::ml/delete-job.asciidoc[]
-include::ml/open-job.asciidoc[]
+// CLOSE
 include::ml/close-job.asciidoc[]
-include::ml/update-job.asciidoc[]
-include::ml/flush-job.asciidoc[]
-include::ml/put-datafeed.asciidoc[]
-include::ml/update-datafeed.asciidoc[]
-include::ml/get-datafeed.asciidoc[]
-include::ml/delete-datafeed.asciidoc[]
-include::ml/preview-datafeed.asciidoc[]
-include::ml/start-datafeed.asciidoc[]
-include::ml/stop-datafeed.asciidoc[]
-include::ml/get-datafeed-stats.asciidoc[]
-include::ml/get-job-stats.asciidoc[]
-include::ml/forecast-job.asciidoc[]
-include::ml/delete-forecast.asciidoc[]
-include::ml/get-buckets.asciidoc[]
-include::ml/get-overall-buckets.asciidoc[]
-include::ml/get-records.asciidoc[]
-include::ml/post-data.asciidoc[]
-include::ml/get-influencers.asciidoc[]
-include::ml/get-categories.asciidoc[]
-include::ml/get-calendars.asciidoc[]
-include::ml/put-calendar.asciidoc[]
-include::ml/get-calendar-events.asciidoc[]
-include::ml/post-calendar-event.asciidoc[]
-include::ml/delete-calendar-event.asciidoc[]
-include::ml/put-calendar-job.asciidoc[]
+// DELETE
+include::ml/delete-job.asciidoc[]
 include::ml/delete-calendar-job.asciidoc[]
+include::ml/delete-calendar-event.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
+include::ml/delete-data-frame-analytics.asciidoc[]
+include::ml/delete-datafeed.asciidoc[]
+include::ml/delete-expired-data.asciidoc[]
+include::ml/delete-filter.asciidoc[]
+include::ml/delete-forecast.asciidoc[]
+include::ml/delete-model-snapshot.asciidoc[]
+include::ml/delete-trained-models.asciidoc[]
+// ESTIMATE
 include::ml/estimate-model-memory.asciidoc[]
+// EVALUATE
+include::ml/evaluate-data-frame.asciidoc[]
+// EXPLAIN
+include::ml/explain-data-frame-analytics.asciidoc[]
+// FIND
+include::ml/find-file-structure.asciidoc[]
+// FLUSH
+include::ml/flush-job.asciidoc[]
+// FORECAST
+include::ml/forecast-job.asciidoc[]
+// GET
+include::ml/get-job.asciidoc[]
+include::ml/get-job-stats.asciidoc[]
+include::ml/get-buckets.asciidoc[]
+include::ml/get-calendar-events.asciidoc[]
+include::ml/get-calendars.asciidoc[]
+include::ml/get-categories.asciidoc[]
 include::ml/get-data-frame-analytics.asciidoc[]
 include::ml/get-data-frame-analytics-stats.asciidoc[]
-include::ml/put-data-frame-analytics.asciidoc[]
-include::ml/update-data-frame-analytics.asciidoc[]
-include::ml/delete-data-frame-analytics.asciidoc[]
-include::ml/start-data-frame-analytics.asciidoc[]
-include::ml/stop-data-frame-analytics.asciidoc[]
-include::ml/evaluate-data-frame.asciidoc[]
-include::ml/explain-data-frame-analytics.asciidoc[]
-include::ml/get-trained-models.asciidoc[]
-include::ml/put-trained-model.asciidoc[]
-include::ml/get-trained-models-stats.asciidoc[]
-include::ml/delete-trained-models.asciidoc[]
-include::ml/put-filter.asciidoc[]
+include::ml/get-datafeed.asciidoc[]
+include::ml/get-datafeed-stats.asciidoc[]
 include::ml/get-filters.asciidoc[]
-include::ml/update-filter.asciidoc[]
-include::ml/delete-filter.asciidoc[]
-include::ml/get-model-snapshots.asciidoc[]
-include::ml/delete-model-snapshot.asciidoc[]
-include::ml/revert-model-snapshot.asciidoc[]
-include::ml/update-model-snapshot.asciidoc[]
+include::ml/get-influencers.asciidoc[]
 include::ml/get-info.asciidoc[]
-include::ml/delete-expired-data.asciidoc[]
+include::ml/get-model-snapshots.asciidoc[]
+include::ml/get-overall-buckets.asciidoc[]
+include::ml/get-records.asciidoc[]
+include::ml/get-trained-models.asciidoc[]
+include::ml/get-trained-models-stats.asciidoc[]
+// OPEN
+include::ml/open-job.asciidoc[]
+// POST
+include::ml/post-calendar-event.asciidoc[]
+include::ml/post-data.asciidoc[]
+// PREVIEW
+include::ml/preview-datafeed.asciidoc[]
+// PUT
+include::ml/put-job.asciidoc[]
+include::ml/put-calendar-job.asciidoc[]
+include::ml/put-calendar.asciidoc[]
+include::ml/put-data-frame-analytics.asciidoc[]
+include::ml/put-datafeed.asciidoc[]
+include::ml/put-filter.asciidoc[]
+include::ml/put-trained-model.asciidoc[]
+// REVERT
+include::ml/revert-model-snapshot.asciidoc[]
+// SET
 include::ml/set-upgrade-mode.asciidoc[]
+// START
+include::ml/start-data-frame-analytics.asciidoc[]
+include::ml/start-datafeed.asciidoc[]
+// STOP
+include::ml/stop-data-frame-analytics.asciidoc[]
+include::ml/stop-datafeed.asciidoc[]
+// UPDATE
+include::ml/update-job.asciidoc[]
+include::ml/update-data-frame-analytics.asciidoc[]
+include::ml/update-datafeed.asciidoc[]
+include::ml/update-filter.asciidoc[]
+include::ml/update-model-snapshot.asciidoc[]
 
 == Migration APIs
 

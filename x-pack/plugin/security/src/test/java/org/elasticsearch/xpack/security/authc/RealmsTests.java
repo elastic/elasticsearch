@@ -45,6 +45,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -587,6 +588,19 @@ public class RealmsTests extends ESTestCase {
                 "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured")));
     }
 
+    public void testInitMultipleRealms() throws Exception {
+        final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
+        builder.put("xpack.security.authc.realms.file.realm_1.order", 1);
+        builder.put("xpack.security.authc.realms.native.realm_2.order", 2);
+        builder.put("xpack.security.authc.realms.kerberos.realm_3.order", 3);
+
+        final Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+
+        assertThat(realms.asList(), hasSize(4)); // reserved + 3 configured realms
+    }
+
     private void checkUnlicensedRealmCount(Realms realms, int expectedSize) {
         List<Realm> unlicensedRealms = realms.getUnlicensedRealms();
         assertThat("Unlicensed realms are: " + unlicensedRealms.stream().map(Realm::name).collect(Collectors.joining(",")),
@@ -632,6 +646,13 @@ public class RealmsTests extends ESTestCase {
         @Override
         public void lookupUser(String username, ActionListener<User> listener) {
             listener.onResponse(null);
+        }
+
+        @Override
+        public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+            assertThat("Realms is null (but shouldn't be)", realms, notNullValue());
+            assertThat("Realms returned null iterator (but shouldn't)", realms.iterator(), notNullValue());
+            assertThat("Realms list does not contain this realm (but should)", realms, hasItem(this));
         }
     }
 }

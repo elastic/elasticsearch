@@ -70,10 +70,11 @@ public class Realms implements Iterable<Realm> {
         assert factories.get(ReservedRealm.TYPE) == null;
 
         this.allConfiguredRealms = initRealms();
-        this.allConfiguredRealms.forEach(r -> r.initialize(this, licenseState));
+        this.fallbackRealms = buildFallbackRealms(reservedRealm);
         this.activeRealms = allConfiguredRealms;
 
-        this.fallbackRealms = buildFallbackRealms(reservedRealm);
+        this.allConfiguredRealms.forEach(r -> r.initialize(allConfiguredRealms, licenseState));
+        this.fallbackRealms.stream().filter(r -> r != reservedRealm).forEach(r -> r.initialize(fallbackRealms, licenseState));
 
         licenseState.addListener(this::recomputeActiveRealms);
         recomputeActiveRealms();
@@ -138,6 +139,7 @@ public class Realms implements Iterable<Realm> {
         if (licenseState.isSecurityEnabled() == false) {
             return Collections.emptyList();
         }
+        assert activeRealms != null : "Active realms not configured";
         return activeRealms;
     }
 

@@ -25,8 +25,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -46,6 +46,9 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
             .withPath("/some_index/some_type/_mtermvectors")
             .build();
 
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
@@ -59,6 +62,9 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
             .withPath("/some_index/_mtermvectors")
             .withParams(params)
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
@@ -79,6 +85,9 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
             .withPath("/some_index/_mtermvectors")
             .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
         assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);

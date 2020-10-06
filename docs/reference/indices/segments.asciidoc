@@ -60,7 +60,7 @@ Defaults to `false`.
 ==== {api-response-body-title}
 
 `<segment>`::
-(String)       
+(String)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
 
 `generation`::
@@ -83,7 +83,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
 (Integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
 
-`committed`:: 
+`committed`::
 (Boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
 

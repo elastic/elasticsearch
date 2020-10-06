@@ -36,12 +36,12 @@ public class IndexAbstractionTests extends ESTestCase {
         final String hiddenAliasName = "hidden_alias";
         AliasMetadata hiddenAliasMetadata = new AliasMetadata.Builder(hiddenAliasName).isHidden(true).build();
 
-        IndexMetadata hidden1 = buildIndexWithAlias("hidden1", hiddenAliasName, true);
-        IndexMetadata hidden2 = buildIndexWithAlias("hidden2", hiddenAliasName, true);
-        IndexMetadata hidden3 = buildIndexWithAlias("hidden3", hiddenAliasName, true);
+        IndexMetadata hidden1 = buildIndexWithAlias("hidden1", hiddenAliasName, true, Version.CURRENT, false);
+        IndexMetadata hidden2 = buildIndexWithAlias("hidden2", hiddenAliasName, true, Version.CURRENT, false);
+        IndexMetadata hidden3 = buildIndexWithAlias("hidden3", hiddenAliasName, true, Version.CURRENT, false);
 
-        IndexMetadata indexWithNonHiddenAlias = buildIndexWithAlias("nonhidden1", hiddenAliasName, false);
-        IndexMetadata indexWithUnspecifiedAlias = buildIndexWithAlias("nonhidden2", hiddenAliasName, null);
+        IndexMetadata indexWithNonHiddenAlias = buildIndexWithAlias("nonhidden1", hiddenAliasName, false, Version.CURRENT, false);
+        IndexMetadata indexWithUnspecifiedAlias = buildIndexWithAlias("nonhidden2", hiddenAliasName, null, Version.CURRENT, false);
 
         {
             IndexAbstraction.Alias allHidden = new IndexAbstraction.Alias(hiddenAliasMetadata, hidden1);
@@ -116,13 +116,15 @@ public class IndexAbstractionTests extends ESTestCase {
         }
     }
 
-    private IndexMetadata buildIndexWithAlias(String indexName, String aliasName, @Nullable Boolean aliasIsHidden) {
+    private IndexMetadata buildIndexWithAlias(String indexName, String aliasName, @Nullable Boolean aliasIsHidden,
+                                              Version indexCreationVersion, boolean isSystem) {
         final AliasMetadata.Builder aliasMetadata = new AliasMetadata.Builder(aliasName);
         if (Objects.nonNull(aliasIsHidden) || randomBoolean()) {
             aliasMetadata.isHidden(aliasIsHidden);
         }
         return new IndexMetadata.Builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(indexCreationVersion))
+            .system(isSystem)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(aliasMetadata)

@@ -322,7 +322,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     public void testIllegalArguments() throws Exception {
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", RangeType.INTEGER.name).field("format", DATE_FORMAT)))
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", CoreRangeType.INTEGER.name).field("format", DATE_FORMAT)))
         );
         assertThat(e.getMessage(), containsString("should not define a dateTimeFormatter"));
     }

@@ -32,7 +32,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.CoreRangeType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class RangeHistogramAggregatorTests extends AggregatorTestCase {
     public void testDoubles() throws Exception {
-        RangeType rangeType = RangeType.DOUBLE;
+        CoreRangeType rangeType = CoreRangeType.DOUBLE;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {
@@ -100,7 +100,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testLongs() throws Exception {
-        RangeType rangeType = RangeType.LONG;
+        CoreRangeType rangeType = CoreRangeType.LONG;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {
@@ -150,7 +150,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMultipleRanges() throws Exception {
-        RangeType rangeType = RangeType.LONG;
+        CoreRangeType rangeType = CoreRangeType.LONG;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
@@ -199,7 +199,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMultipleRangesLotsOfOverlap() throws Exception {
-        RangeType rangeType = RangeType.LONG;
+        CoreRangeType rangeType = CoreRangeType.LONG;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
@@ -236,7 +236,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testLongsIrrationalInterval() throws Exception {
-        RangeType rangeType = RangeType.LONG;
+        CoreRangeType rangeType = CoreRangeType.LONG;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {
@@ -282,7 +282,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMinDocCount() throws Exception {
-        RangeType rangeType = RangeType.LONG;
+        CoreRangeType rangeType = CoreRangeType.LONG;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {
@@ -322,7 +322,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testOffset() throws Exception {
-        RangeType rangeType = RangeType.DOUBLE;
+        CoreRangeType rangeType = CoreRangeType.DOUBLE;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {
@@ -376,7 +376,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testOffsetGtInterval() throws Exception {
-        RangeType rangeType = RangeType.DOUBLE;
+        CoreRangeType rangeType = CoreRangeType.DOUBLE;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {
@@ -434,7 +434,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
 
     public void testIpRangesUnsupported() throws Exception {
-        RangeType rangeType = RangeType.IP;
+        CoreRangeType rangeType = CoreRangeType.IP;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
@@ -464,11 +464,11 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             List<List<IndexableField>> docs = new ArrayList<>();
             for (int n = 0; n < 10000; n++) {
-                BytesRef outerRange = RangeType.LONG.encodeRanges(Set.of(
-                    new RangeFieldMapper.Range(RangeType.LONG, n % 100, n % 100 + 10, true, true)
+                BytesRef outerRange = CoreRangeType.LONG.encodeRanges(Set.of(
+                    new RangeFieldMapper.Range(CoreRangeType.LONG, n % 100, n % 100 + 10, true, true)
                 ));
-                BytesRef innerRange = RangeType.LONG.encodeRanges(Set.of(
-                    new RangeFieldMapper.Range(RangeType.LONG, n / 100, n / 100 + 10, true, true)
+                BytesRef innerRange = CoreRangeType.LONG.encodeRanges(Set.of(
+                    new RangeFieldMapper.Range(CoreRangeType.LONG, n / 100, n / 100 + 10, true, true)
                 ));
 
                 docs.add(List.of(
@@ -502,8 +502,8 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             new MatchAllDocsQuery(),
             buildIndex,
             verify,
-            rangeField("outer", RangeType.LONG),
-            rangeField("inner", RangeType.LONG),
+            rangeField("outer", CoreRangeType.LONG),
+            rangeField("inner", CoreRangeType.LONG),
             longField("n")
         );
     }

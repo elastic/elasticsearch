@@ -55,7 +55,7 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeIPRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeType.IP, BinaryRangeUtil::decodeIP);
+        return decodeRanges(encodedRanges, CoreRangeType.IP, BinaryRangeUtil::decodeIP);
     }
 
     private static InetAddress decodeIP(byte[] bytes, int offset, int length) {
@@ -83,7 +83,7 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeType.LONG,
+        return decodeRanges(encodedRanges, CoreRangeType.LONG,
             BinaryRangeUtil::decodeLong);
     }
 
@@ -106,19 +106,19 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeType.DOUBLE,
+        return decodeRanges(encodedRanges, CoreRangeType.DOUBLE,
             BinaryRangeUtil::decodeDouble);
     }
 
     static List<RangeFieldMapper.Range> decodeFloatRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeType.FLOAT,
+        return decodeRanges(encodedRanges, CoreRangeType.FLOAT,
             BinaryRangeUtil::decodeFloat);
     }
 
     static List<RangeFieldMapper.Range> decodeRanges(BytesRef encodedRanges, RangeType rangeType,
                                                      TriFunction<byte[], Integer, Integer, Object> decodeBytes) {
 
-        RangeType.LengthType lengthType = rangeType.lengthType;
+        CoreRangeType.LengthType lengthType = rangeType.getLengthType();
         ByteArrayDataInput in = new ByteArrayDataInput();
         in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
         int numRanges = in.readVInt();
@@ -130,11 +130,11 @@ enum BinaryRangeUtil {
         for (int i = 0; i < numRanges; i++) {
             int length = lengthType.readLength(bytes, offset);
             Object from = decodeBytes.apply(bytes, offset, length);
-            offset += length;
+            offset += length + lengthType.advanceBy();
 
             length = lengthType.readLength(bytes, offset);
             Object to = decodeBytes.apply(bytes, offset, length);
-            offset += length;
+            offset += length + lengthType.advanceBy();
             // TODO: Support for exclusive ranges, pending resolution of #40601
             RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(rangeType, from, to, true, true);
             ranges.add(decodedRange);

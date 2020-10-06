@@ -49,7 +49,7 @@ public final class BinaryRange extends Field {
     }
 
     /**
-     * Create a query for matching indexed ip ranges that {@code INTERSECT} the defined range.
+     * Create a query for matching indexed ranges that {@code INTERSECT} the defined range.
      * @param field         field name. must not be null.
      * @param encodedRange  Encoded range
      * @return query for matching intersecting encoded ranges (overlap, within, crosses, or contains)
@@ -57,6 +57,14 @@ public final class BinaryRange extends Field {
      */
     public static Query newIntersectsQuery(String field, byte[] encodedRange) {
         return newRelationQuery(field, encodedRange, RangeFieldQuery.QueryType.INTERSECTS);
+    }
+
+    public static Query newContainsQuery(String field, byte[] encodedRange) {
+        return newRelationQuery(field, encodedRange, RangeFieldQuery.QueryType.CONTAINS);
+    }
+
+    public static Query newWithinQuery(String field, byte[] encodedRange) {
+        return newRelationQuery(field, encodedRange, RangeFieldQuery.QueryType.WITHIN);
     }
 
     static Query newRelationQuery(String field, byte[] encodedRange, RangeFieldQuery.QueryType relation) {

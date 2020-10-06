@@ -137,6 +137,13 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
     }
 
+    public void testG1GOptionsForSmallHeapWhenOtherGCSet() throws InterruptedException, IOException {
+        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseParallelGC"));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
+        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
+    }
+
     public void testG1GOptionsForLargeHeapWhenTuningSet() throws InterruptedException, IOException {
         List<String> jvmErgonomics = JvmErgonomics.choose(
             Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60", "-XX:G1ReservePercent=10")

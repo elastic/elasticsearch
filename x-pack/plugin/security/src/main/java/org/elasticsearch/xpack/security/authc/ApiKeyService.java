@@ -805,24 +805,24 @@ public class ApiKeyService {
      * @param realmName realm name
      * @param username user name
      * @param apiKeyName API key name
-     * @param apiKeyId API key id
+     * @param apiKeyIds API key id
      * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
-    public void invalidateApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
+    public void invalidateApiKeys(String realmName, String username, String apiKeyName, String[] apiKeyIds,
                                   ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
         if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
-            && Strings.hasText(apiKeyId) == false) {
+            && (apiKeyIds == null || apiKeyIds.length == 0)) {
             logger.trace("none of the parameters [api key id, api key name, username, realm name] were specified for invalidation");
             invalidateListener
                 .onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
         } else {
-            findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, true, false,
+            findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyIds, true, false,
                 ActionListener.wrap(apiKeys -> {
                     if (apiKeys.isEmpty()) {
                         logger.debug(
                             "No active api keys to invalidate for realm [{}], username [{}], api key name [{}] and api key id [{}]",
-                            realmName, username, apiKeyName, apiKeyId);
+                            realmName, username, apiKeyName, Arrays.toString(apiKeyIds));
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
                         invalidateAllApiKeys(apiKeys.stream().map(apiKey -> apiKey.getId()).collect(Collectors.toSet()),
@@ -873,7 +873,7 @@ public class ApiKeyService {
         }
     }
 
-    private void findApiKeysForUserRealmApiKeyIdAndNameCombination(String realmName, String userName, String apiKeyName, String apiKeyId,
+    private void findApiKeysForUserRealmApiKeyIdAndNameCombination(String realmName, String userName, String apiKeyName, String[] apiKeyIds,
                                                                    boolean filterOutInvalidatedKeys, boolean filterOutExpiredKeys,
                                                                    ActionListener<Collection<ApiKey>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
@@ -896,8 +896,8 @@ public class ApiKeyService {
                     boolQuery.filter(QueryBuilders.termQuery("name", apiKeyName));
                 }
             }
-            if (Strings.hasText(apiKeyId)) {
-                boolQuery.filter(QueryBuilders.termQuery("_id", apiKeyId));
+            if (apiKeyIds != null && apiKeyIds.length > 0) {
+                boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
             }
 
             findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener);
@@ -1056,7 +1056,8 @@ public class ApiKeyService {
     public void getApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
                            ActionListener<GetApiKeyResponse> listener) {
         ensureEnabled();
-        findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
+        final String[] apiKeyIds = Strings.hasText(apiKeyId) == false ? null : new String[] { apiKeyId };
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyIds, false, false,
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",

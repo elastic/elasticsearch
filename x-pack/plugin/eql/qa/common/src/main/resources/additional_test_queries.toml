@@ -131,48 +131,45 @@ name = "numberStringConversion5"
 query = 'any where number(string(serial_event_id), 16) == 17'
 expected_event_ids = [11]
 
-
-[[queries]]
-name = "matchWithCharacterClasses1"
-expected_event_ids  = [98]
-notes = "regexp doesn't support character classes"
-query = '''
-//
-//                                """.*?net1\s+localgroup.*?""")
-process where match(command_line, """.*?net1[ ]+localgroup.*?""")
-'''
-
-[[queries]]
-name = "matchLiteAdditional"
-expected_event_ids  = [98]
-query = '''
-process where matchLite(command_line, """.*?net1.*?""")
-'''
-
-[[queries]]
-name = "matchWithCharacterClasses2"
-expected_event_ids  = [98]
-notes = "regexp doesn't support predefined character classes (like \\s)"
-query = '''
-//                                """.*?net1\s+\w{4,15}\s+.*?"""
-process where match(command_line, """.*?net1[ ]+[a-z]{4,15}[ ]+.*?""")
-'''
-
-
-
-[[queries]]
-name = "multiPatternMatch"
-expected_event_ids  = [50, 97, 98]
-query = '''
-process where match(command_line, ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
-'''
-
-[[queries]]
-name = "matchWithSubstring"
-expected_event_ids  = [50, 98]
-query = '''
-process where match(substring(command_line, 5), ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
-'''
+# [[queries]]
+# name = "matchWithCharacterClasses1"
+# expected_event_ids  = [98]
+# notes = "regexp doesn't support character classes"
+# query = '''
+# //
+# //                                """.*?net1\s+localgroup.*?""")
+# process where match(command_line, """.*?net1[ ]+localgroup.*?""")
+# '''
+#
+# [[queries]]
+# name = "matchLiteAdditional"
+# expected_event_ids  = [98]
+# query = '''
+# process where matchLite(command_line, """.*?net1.*?""")
+# '''
+#
+# [[queries]]
+# name = "matchWithCharacterClasses2"
+# expected_event_ids  = [98]
+# notes = "regexp doesn't support predefined character classes (like \\s)"
+# query = '''
+# //                                """.*?net1\s+\w{4,15}\s+.*?"""
+# process where match(command_line, """.*?net1[ ]+[a-z]{4,15}[ ]+.*?""")
+# '''
+#
+# [[queries]]
+# name = "multiPatternMatch"
+# expected_event_ids  = [50, 97, 98]
+# query = '''
+# process where match(command_line, ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
+# '''
+#
+# [[queries]]
+# name = "matchWithSubstring"
+# expected_event_ids  = [50, 98]
+# query = '''
+# process where match(substring(command_line, 5), ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
+# '''
 
 [[queries]]
 name = "moduloEqualsField"

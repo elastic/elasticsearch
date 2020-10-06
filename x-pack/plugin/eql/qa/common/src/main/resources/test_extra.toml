@@ -6,7 +6,7 @@ query = '''
     [ ERROR where true ]
     [ STAT where true ]
 '''
-expected_event_ids  = [1,2,3,1,2,3]
+expected_event_ids  = [1,2,3]
 
 [[queries]]
 name = "basicWithFilter"

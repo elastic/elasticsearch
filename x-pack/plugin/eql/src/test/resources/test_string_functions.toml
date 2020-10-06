@@ -182,47 +182,6 @@ description = "Test the folding of the `length` function."
     expected = 3
 
 
-[match]
-description = "Test the `match` function"
-
-    [match.verifier]
-
-        [[match.verifier.failures]]
-        expression = 'match(1, "*")'
-
-        [[match.verifier.failures]]
-        expression = 'match(1, "*")'
-
-        [[match.verifier.failures]]
-        expression = 'match("eql", 1)'
-
-    [match.fold]
-
-        [[match.fold.tests]]
-        expression = 'match(null, "[a-z]{3}")'
-        # expected = null
-
-        [[match.fold.tests]]
-        expression = 'match("foo", "[a-z]{3}")'
-        expected = true
-
-        [[match.fold.tests]]
-        expression = 'match("foo\nbarbaz", "[a-z]{3}\n[a-z]{6}")'
-        expected = true
-
-        [[match.fold.tests]]
-        expression = 'match("999", "[a-z]{3}")'
-        expected = false
-
-        [[match.fold.tests]]
-        expression = 'match("999", "[a-z]{3}", "[0-9]{5}")'
-        expected = false
-
-        [[match.fold.tests]]
-        expression = 'match("999", "[a-z]{3}", "[0-9]{5}", "[9][9][9]")'
-        expected = true
-
-
 [number]
 description = "Test the `number` function"
 

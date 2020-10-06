@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -104,7 +105,6 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ApiKeyServiceTests extends ESTestCase {
@@ -138,7 +138,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
     }
 
-    public void testCreateApiKeyWillUseBulkAction() {
+    public void testCreateApiKeyUsesBulkIndexAction() {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
         final Authentication authentication = new Authentication(
@@ -148,8 +148,16 @@ public class ApiKeyServiceTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            BulkRequest bulkRequest = (BulkRequest) args[1];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+            assertThat(indexRequest.id(), is(createApiKeyRequest.getId()));
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
-        verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
     }
 
     public void testGetCredentialsFromThreadContext() {

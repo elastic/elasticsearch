@@ -53,4 +53,12 @@ public class IdFieldTypeTests extends ESTestCase {
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
     }
+
+    public void testIsAggregatable() {
+        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
+        assertFalse(ft.isAggregatable());
+
+        ft = new IdFieldMapper.IdFieldType(() -> true);
+        assertTrue(ft.isAggregatable());
+    }
 }

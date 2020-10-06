@@ -51,6 +51,8 @@ Dates::                 Date types, including <<date,`date`>> and
 <<range,Range>>::   Range types, such as `long_range`, `double_range`,
                     `date_range`, and `ip_range`.
 <<ip,`ip`>>::       IPv4 and IPv6 addresses.
+<<version,Version>>::  Software versions. Supports https://semver.org/[Semantic Versioning]
+precedence rules.
 {plugins}/mapper-murmur3.html[`murmur3`]:: Compute and stores hashes of
 values.
 
@@ -147,6 +149,8 @@ include::types/geo-point.asciidoc[]
 include::types/geo-shape.asciidoc[]
 
 include::types/ip.asciidoc[]
+
+include::types/version.asciidoc[]
 
 include::types/parent-join.asciidoc[]
 

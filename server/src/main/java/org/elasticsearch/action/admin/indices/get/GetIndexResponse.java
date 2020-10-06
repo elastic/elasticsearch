@@ -331,7 +331,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         List<AliasMetadata> indexAliases = new ArrayList<>();
         // We start at START_OBJECT since parseIndexEntry ensures that
         while (parser.nextToken() != Token.END_OBJECT) {
-            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
             indexAliases.add(AliasMetadata.Builder.fromXContent(parser));
         }
         return indexAliases;
@@ -341,7 +341,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         ImmutableOpenMap.Builder<String, MappingMetadata> indexMappings = ImmutableOpenMap.builder();
         // We start at START_OBJECT since parseIndexEntry ensures that
         while (parser.nextToken() != Token.END_OBJECT) {
-            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
             parser.nextToken();
             if (parser.currentToken() == Token.START_OBJECT) {
                 String mappingType = parser.currentName();
@@ -361,7 +361,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         String dataStream = null;
         // We start at START_OBJECT since fromXContent ensures that
         while (parser.nextToken() != Token.END_OBJECT) {
-            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
             parser.nextToken();
             if (parser.currentToken() == Token.START_OBJECT) {
                 switch (parser.currentName()) {
@@ -420,7 +420,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
         parser.nextToken();
 
         while (!parser.isClosed()) {

@@ -81,18 +81,18 @@ public class SearchContextIdTests extends ESTestCase {
         assertThat(node1.getClusterAlias(), equalTo("cluster_x"));
         assertThat(node1.getNode(), equalTo("node_1"));
         assertThat(node1.getSearchContextId().getId(), equalTo(1L));
-        assertThat(node1.getSearchContextId().getReaderId(), equalTo("a"));
+        assertThat(node1.getSearchContextId().getSessionId(), equalTo("a"));
 
         SearchContextIdForNode node2 = context.shards().get(new ShardId("idy", "uuid2", 42));
         assertThat(node2.getClusterAlias(), equalTo("cluster_y"));
         assertThat(node2.getNode(), equalTo("node_2"));
         assertThat(node2.getSearchContextId().getId(), equalTo(12L));
-        assertThat(node2.getSearchContextId().getReaderId(), equalTo("b"));
+        assertThat(node2.getSearchContextId().getSessionId(), equalTo("b"));
 
         SearchContextIdForNode node3 = context.shards().get(new ShardId("idy", "uuid2", 43));
         assertThat(node3.getClusterAlias(), nullValue());
         assertThat(node3.getNode(), equalTo("node_3"));
         assertThat(node3.getSearchContextId().getId(), equalTo(42L));
-        assertThat(node3.getSearchContextId().getReaderId(), equalTo("c"));
+        assertThat(node3.getSearchContextId().getSessionId(), equalTo("c"));
     }
 }

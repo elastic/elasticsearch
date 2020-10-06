@@ -100,7 +100,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         // We are cancelling during both mapping and searching but we cancel during mapping so we should never reach the second block
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
         org.elasticsearch.client.eql.EqlSearchRequest eqlSearchRequest =
-            new org.elasticsearch.client.eql.EqlSearchRequest("test", "my_event where val=1").eventCategoryField("event_type");
+            new org.elasticsearch.client.eql.EqlSearchRequest("test", "my_event where val==1").eventCategoryField("event_type");
         String id = randomAlphaOfLength(10);
 
         Request request = new Request("GET", "/test/_eql/search");

@@ -39,7 +39,6 @@ import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,9 +52,9 @@ import java.io.IOException;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.startsWith;
 
 public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMultiTermQueryBuilder> {
@@ -189,28 +188,18 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         assertThat(query, instanceOf(SpanQuery.class));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58199")
     public void testToQueryInnerTermQuery() throws IOException {
         String fieldName = randomFrom("prefix_field", "prefix_field_alias");
         final QueryShardContext context = createShardContext();
         {
             Query query = new SpanMultiTermQueryBuilder(new PrefixQueryBuilder(fieldName, "foo")).toQuery(context);
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
-                assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
-                FieldMaskingSpanQuery fieldQuery = (FieldMaskingSpanQuery) query;
-                assertThat(fieldQuery.getMaskedQuery(), instanceOf(SpanTermQuery.class));
-                assertThat(fieldQuery.getField(), equalTo("prefix_field"));
-                SpanTermQuery termQuery = (SpanTermQuery) fieldQuery.getMaskedQuery();
-                assertThat(termQuery.getTerm().field(), equalTo("prefix_field._index_prefix"));
-                assertThat(termQuery.getTerm().text(), equalTo("foo"));
-            } else {
-                assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
-                SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
-                assertThat(wrapper.getWrappedQuery(), instanceOf(PrefixQuery.class));
-                PrefixQuery prefixQuery = (PrefixQuery) wrapper.getWrappedQuery();
-                assertThat(prefixQuery.getField(), equalTo("prefix_field"));
-                assertThat(prefixQuery.getPrefix().text(), equalTo("foo"));
-            }
+            assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
+            FieldMaskingSpanQuery fieldQuery = (FieldMaskingSpanQuery) query;
+            assertThat(fieldQuery.getMaskedQuery(), instanceOf(SpanTermQuery.class));
+            assertThat(fieldQuery.getField(), equalTo("prefix_field"));
+            SpanTermQuery termQuery = (SpanTermQuery) fieldQuery.getMaskedQuery();
+            assertThat(termQuery.getTerm().field(), equalTo("prefix_field._index_prefix"));
+            assertThat(termQuery.getTerm().text(), equalTo("foo"));
         }
 
         {

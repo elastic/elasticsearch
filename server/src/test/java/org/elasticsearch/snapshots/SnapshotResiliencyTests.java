@@ -1552,7 +1552,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             threadPool,
                             shardStateAction,
                             actionFilters,
-                            new IndexingPressure(settings))),
+                            new IndexingPressure(settings),
+                            new SystemIndices(emptyMap()))),
                     new GlobalCheckpointSyncAction(
                         settings,
                         transportService,
@@ -1578,15 +1579,17 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 mappingUpdatedAction.setClient(client);
             final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, new IndexingPressure(settings));
+                actionFilters, new IndexingPressure(settings), new SystemIndices(emptyMap()));
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
                         new IngestService(
                             clusterService, threadPool, environment, scriptService,
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(), client),
-                    transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
-                        new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver), new IndexingPressure(settings)
+                        transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
+                        new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
+                        new IndexingPressure(settings),
+                        new SystemIndices(emptyMap())
                     ));
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
@@ -1614,7 +1617,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,
-                    new TransportSearchAction(client, threadPool, transportService, searchService,
+                    new TransportSearchAction(client, threadPool, new NoneCircuitBreakerService(), transportService, searchService,
                         searchTransportService, searchPhaseController, clusterService,
                         actionFilters, indexNameExpressionResolver, namedWriteableRegistry));
                 actions.put(RestoreSnapshotAction.INSTANCE,

@@ -25,6 +25,8 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -35,11 +37,20 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 
@@ -55,9 +66,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldType ft = new KeywordFieldType("field");
         // current impl ignores args and should always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
-                RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
-                RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
-                randomBoolean(), randomBoolean(), null, null, null));
+            RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
+            RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
+            randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testTermQuery() {
@@ -102,17 +113,20 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExistsQuery() {
-        KeywordFieldType ft = new KeywordFieldType("field");
-        ft.hasNorms = false;
-        assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
-
-        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        ft.hasNorms = true;
-        assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
-
-        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        ft.hasNorms = false;
-        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(null));
+        {
+            KeywordFieldType ft = new KeywordFieldType("field");
+            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
+        }
+        {
+            FieldType fieldType = new FieldType();
+            fieldType.setOmitNorms(false);
+            KeywordFieldType ft = new KeywordFieldType("field", fieldType);
+            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
+        }
+        {
+            KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
+            assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(null));
+        }
     }
 
     public void testRangeQuery() {
@@ -164,5 +178,74 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
         ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
         assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        MappedFieldType mapper = new KeywordFieldMapper.Builder("field").build(context).fieldType();
+        assertEquals(Collections.singletonList("value"), fetchSourceValue(mapper, "value"));
+        assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper, true));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
+        assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
+
+        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(context)
+            .fieldType();
+        assertEquals(Collections.emptyList(), fetchSourceValue(ignoreAboveMapper, "value"));
+        assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
+        assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper, true));
+
+        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers()).normalizer("lowercase")
+            .build(context)
+            .fieldType();
+        assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "VALUE"));
+        assertEquals(Collections.singletonList("42"), fetchSourceValue(normalizerMapper, 42L));
+        assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "value"));
+
+        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context)
+            .fieldType();
+        assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    private static IndexAnalyzers createIndexAnalyzers() {
+        return new IndexAnalyzers(
+            org.elasticsearch.common.collect.Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            org.elasticsearch.common.collect.Map.ofEntries(
+                org.elasticsearch.common.collect.Map.entry("lowercase",
+                    new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+                org.elasticsearch.common.collect.Map.entry("other_lowercase",
+                    new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
+            ),
+            org.elasticsearch.common.collect.Map.of(
+                "lowercase",
+                new NamedAnalyzer(
+                    "lowercase",
+                    AnalyzerScope.INDEX,
+                    new CustomAnalyzer(
+                        TokenizerFactory.newFactory("lowercase", WhitespaceTokenizer::new),
+                        new CharFilterFactory[0],
+                        new TokenFilterFactory[] { new TokenFilterFactory() {
+
+                            @Override
+                            public String name() {
+                                return "lowercase";
+                            }
+
+                            @Override
+                            public TokenStream create(TokenStream tokenStream) {
+                                return new org.apache.lucene.analysis.core.LowerCaseFilter(tokenStream);
+                            }
+                        } }
+                    )
+                )
+            )
+        );
     }
 }

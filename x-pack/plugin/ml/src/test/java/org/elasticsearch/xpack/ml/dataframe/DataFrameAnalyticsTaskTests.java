@@ -178,6 +178,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
+        assertThat(indexRequest.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
         assertThat(indexRequest.id(), equalTo("data_frame_analytics-task_id-progress"));
 
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(

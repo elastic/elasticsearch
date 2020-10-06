@@ -58,7 +58,7 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject().field("_routing", "foo").endObject()),XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), e.getMessage(),
+            assertThat(e.getCause().getMessage(), e.getCause().getMessage(),
                 containsString("Field [_routing] is a metadata field and cannot be added inside a document"));
         }
     }

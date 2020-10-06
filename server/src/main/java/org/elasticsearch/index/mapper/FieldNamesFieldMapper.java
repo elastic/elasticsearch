@@ -28,6 +28,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +45,6 @@ import java.util.List;
 public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldNamesFieldMapper.class);
-
 
     public static final String NAME = "_field_names";
 
@@ -91,6 +91,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             this.indexVersionCreated = indexVersionCreated;
         }
 
+        @Override
         protected List<Parameter<?>> getParameters() {
             return Collections.singletonList(enabled);
         }
@@ -115,7 +116,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private final boolean enabled;
 
         public FieldNamesFieldType(boolean enabled) {
-            super(Defaults.NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(Defaults.NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.enabled = enabled;
         }
 
@@ -126,6 +127,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         public boolean isEnabled() {
             return enabled;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -159,19 +165,33 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) {
-    }
-
-    @Override
     public void postParse(ParseContext context) throws IOException {
         if (context.indexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
-            super.parse(context);
+            if (fieldType().isEnabled() == false) {
+                return;
+            }
+            for (ParseContext.Document document : context) {
+                final List<String> paths = new ArrayList<>(document.getFields().size());
+                String previousPath = ""; // used as a sentinel - field names can't be empty
+                for (IndexableField field : document.getFields()) {
+                    final String path = field.name();
+                    if (path.equals(previousPath)) {
+                        // Sometimes mappers create multiple Lucene fields, eg. one for indexing,
+                        // one for doc values and one for storing. Deduplicating is not required
+                        // for correctness but this simple check helps save utf-8 conversions and
+                        // gives Lucene fewer values to deal with.
+                        continue;
+                    }
+                    paths.add(path);
+                    previousPath = path;
+                }
+                for (String path : paths) {
+                    for (String fieldName : extractFieldNames(path)) {
+                        document.add(new Field(fieldType().name(), fieldName, Defaults.FIELD_TYPE));
+                    }
+                }
+            }
         }
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // Adding values to the _field_names field is handled by the mappers for each field type
     }
 
     static Iterable<String> extractFieldNames(final String fullPath) {
@@ -179,7 +199,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             @Override
             public Iterator<String> iterator() {
                 return new Iterator<String>() {
-
                     int endIndex = nextEndIndex(0);
 
                     private int nextEndIndex(int index) {
@@ -209,34 +228,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 };
             }
         };
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        if (fieldType().isEnabled() == false) {
-            return;
-        }
-        for (ParseContext.Document document : context) {
-            final List<String> paths = new ArrayList<>(document.getFields().size());
-            String previousPath = ""; // used as a sentinel - field names can't be empty
-            for (IndexableField field : document.getFields()) {
-                final String path = field.name();
-                if (path.equals(previousPath)) {
-                    // Sometimes mappers create multiple Lucene fields, eg. one for indexing,
-                    // one for doc values and one for storing. Deduplicating is not required
-                    // for correctness but this simple check helps save utf-8 conversions and
-                    // gives Lucene fewer values to deal with.
-                    continue;
-                }
-                paths.add(path);
-                previousPath = path;
-            }
-            for (String path : paths) {
-                for (String fieldName : extractFieldNames(path)) {
-                    document.add(new Field(fieldType().name(), fieldName, Defaults.FIELD_TYPE));
-                }
-            }
-        }
     }
 
     @Override

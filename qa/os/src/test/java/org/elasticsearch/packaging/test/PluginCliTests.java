@@ -69,7 +69,6 @@ public class PluginCliTests extends PackagingTestCase {
         install();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58605")
     public void test20SymlinkPluginsDir() throws Exception {
         Path pluginsDir = installation.plugins;
         Path stashedPluginsDir = createTempDir("stashed-plugins");

@@ -102,7 +102,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public static final IdFieldType INSTANCE = new IdFieldType();
 
         private IdFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
@@ -115,6 +115,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public boolean isSearchable() {
             // The _id field is always searchable.
             return true;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -256,11 +261,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         BytesRef id = Uid.encodeId(context.sourceToParse().id());
         context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
     }

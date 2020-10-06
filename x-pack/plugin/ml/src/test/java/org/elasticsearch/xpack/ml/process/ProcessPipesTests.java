@@ -60,12 +60,13 @@ public class ProcessPipesTests extends ESTestCase {
         when(namedPipeHelper.openNamedPipeInputStream(contains("persist"), any(Duration.class)))
                 .thenReturn(new ByteArrayInputStream(PERSIST_BYTES));
 
-        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
-                false, true, true, true, true);
+        int timeoutSeconds = randomIntBetween(5, 100);
+        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, Duration.ofSeconds(timeoutSeconds), AutodetectBuilder.AUTODETECT,
+            "my_job", false, true, true, true, true);
 
         List<String> command = new ArrayList<>();
         processPipes.addArgs(command);
-        assertEquals(9, command.size());
+        assertEquals(10, command.size());
         assertEquals(ProcessPipes.LOG_PIPE_ARG, command.get(0).substring(0, ProcessPipes.LOG_PIPE_ARG.length()));
         assertEquals(ProcessPipes.INPUT_ARG, command.get(1).substring(0, ProcessPipes.INPUT_ARG.length()));
         assertEquals(ProcessPipes.INPUT_IS_PIPE_ARG, command.get(2));
@@ -75,15 +76,16 @@ public class ProcessPipesTests extends ESTestCase {
         assertEquals(ProcessPipes.RESTORE_IS_PIPE_ARG, command.get(6));
         assertEquals(ProcessPipes.PERSIST_ARG, command.get(7).substring(0, ProcessPipes.PERSIST_ARG.length()));
         assertEquals(ProcessPipes.PERSIST_IS_PIPE_ARG, command.get(8));
+        assertEquals(ProcessPipes.TIMEOUT_ARG + timeoutSeconds, command.get(9));
 
-        processPipes.connectLogStream(Duration.ofSeconds(2));
+        processPipes.connectLogStream();
 
         CppLogMessageHandler logMessageHandler = processPipes.getLogStreamHandler();
         assertNotNull(logMessageHandler);
         logMessageHandler.tailStream();
         assertEquals(42, logMessageHandler.getPid(Duration.ZERO));
 
-        processPipes.connectOtherStreams(Duration.ofSeconds(2));
+        processPipes.connectOtherStreams();
 
         assertFalse(processPipes.getCommandStream().isPresent());
         assertTrue(processPipes.getProcessInStream().isPresent());
@@ -108,7 +110,7 @@ public class ProcessPipesTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
 
-        new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
+        new ProcessPipes(env, namedPipeHelper, Duration.ofSeconds(2), AutodetectBuilder.AUTODETECT, "my_job",
                 true, true, true, true, true);
     }
 
@@ -135,11 +137,11 @@ public class ProcessPipesTests extends ESTestCase {
 
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
+        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, Duration.ofSeconds(2), AutodetectBuilder.AUTODETECT, "my_job",
                 true, true, true, true, true);
 
-        processPipes.connectLogStream(Duration.ofSeconds(2));
-        expectThrows(IOException.class, () -> processPipes.connectOtherStreams(Duration.ofSeconds(2)));
+        processPipes.connectLogStream();
+        expectThrows(IOException.class, processPipes::connectOtherStreams);
 
         // check the pipes successfully opened were then closed
         verify(logStream, times(1)).close();

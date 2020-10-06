@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,14 +74,15 @@ public class RetentionLeaseSyncAction extends
 
     @Inject
     public RetentionLeaseSyncAction(
-            final Settings settings,
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final IndicesService indicesService,
-            final ThreadPool threadPool,
-            final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters,
-            final IndexingPressure indexingPressure) {
+        final Settings settings,
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final ThreadPool threadPool,
+        final ShardStateAction shardStateAction,
+        final ActionFilters actionFilters,
+        final IndexingPressure indexingPressure,
+        final SystemIndices systemIndices) {
         super(
                 settings,
                 ACTION_NAME,
@@ -92,7 +94,7 @@ public class RetentionLeaseSyncAction extends
                 actionFilters,
                 RetentionLeaseSyncAction.Request::new,
                 RetentionLeaseSyncAction.Request::new,
-                ThreadPool.Names.MANAGEMENT, false, indexingPressure);
+                ignore -> ThreadPool.Names.MANAGEMENT, false, indexingPressure, systemIndices);
     }
 
     @Override

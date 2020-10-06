@@ -155,19 +155,21 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, new HistogramFieldMapper.TypeParser());
+        return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
     }
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return org.elasticsearch.common.collect.List.of(
-            AnalyticsAggregatorFactory::registerPercentilesAggregator,
-            AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator
-        );
+            return org.elasticsearch.common.collect.List.of(
+                AnalyticsAggregatorFactory::registerPercentilesAggregator,
+                AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedMinggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedMaxggregator
+            );
     }
 
     @Override

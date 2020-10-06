@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -257,7 +257,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private final SortedSetDocValues values;
         private final int maxOrd;
         private final HyperLogLogPlusPlus counts;
-        private ObjectArray<FixedBitSet> visitedOrds;  // Danger! This is not tracked by BigArrays!
+        private ObjectArray<BitArray> visitedOrds;
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values,
                 BigArrays bigArrays) {
@@ -274,9 +274,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         @Override
         public void collect(int doc, long bucketOrd) throws IOException {
             visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
-            FixedBitSet bits = visitedOrds.get(bucketOrd);
+            BitArray bits = visitedOrds.get(bucketOrd);
             if (bits == null) {
-                bits = new FixedBitSet(maxOrd);
+                bits = new BitArray(maxOrd, bigArrays);
                 visitedOrds.set(bucketOrd, bits);
             }
             if (values.advanceExact(doc)) {
@@ -288,29 +288,30 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public void postCollect() throws IOException {
-            final FixedBitSet allVisitedOrds = new FixedBitSet(maxOrd);
-            for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
-                final FixedBitSet bits = visitedOrds.get(bucket);
-                if (bits != null) {
-                    allVisitedOrds.or(bits);
-                }
-            }
-
-            final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-            try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
-                for (int ord = allVisitedOrds.nextSetBit(0); ord < DocIdSetIterator.NO_MORE_DOCS;
-                        ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : DocIdSetIterator.NO_MORE_DOCS) {
-                    final BytesRef value = values.lookupOrd(ord);
-                    MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
-                    hashes.set(ord, hash.h1);
-                }
-
+            try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
-                    final FixedBitSet bits = visitedOrds.get(bucket);
+                    final BitArray bits = visitedOrds.get(bucket);
                     if (bits != null) {
-                        for (int ord = bits.nextSetBit(0); ord < DocIdSetIterator.NO_MORE_DOCS;
-                                ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : DocIdSetIterator.NO_MORE_DOCS) {
-                            counts.collect(bucket, hashes.get(ord));
+                        allVisitedOrds.or(bits);
+                    }
+                }
+
+                try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
+                    final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+                    for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE;
+                         ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                        final BytesRef value = values.lookupOrd(ord);
+                        MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
+                        hashes.set(ord, hash.h1);
+                    }
+
+                    for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
+                        final BitArray bits = visitedOrds.get(bucket);
+                        if (bits != null) {
+                            for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
+                                 ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                                counts.collect(bucket, hashes.get(ord));
+                            }
                         }
                     }
                 }
@@ -319,6 +320,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public void close() {
+            for (int i = 0; i < visitedOrds.size(); i++) {
+                Releasables.close(visitedOrds.get(i));
+            }
             Releasables.close(visitedOrds);
         }
     }

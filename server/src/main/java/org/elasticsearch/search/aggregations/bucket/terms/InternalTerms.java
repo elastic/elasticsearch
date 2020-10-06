@@ -426,7 +426,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         } else {
             docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
         }
-        return create(name, Arrays.asList(list), thisReduceOrder, docCountError, otherDocCount);
+        return create(name, Arrays.asList(list), reduceContext.isFinalReduce() ? order : thisReduceOrder, docCountError, otherDocCount);
     }
 
     @Override

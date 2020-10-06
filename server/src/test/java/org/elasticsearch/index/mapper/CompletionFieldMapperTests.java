@@ -33,11 +33,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,7 +51,6 @@ import org.hamcrest.core.CombinableMatcher;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -69,6 +65,11 @@ import static org.hamcrest.Matchers.is;
 public class CompletionFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("value");
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "completion");
     }
@@ -80,6 +81,31 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         b.field("preserve_separators", true);
         b.field("preserve_position_increments", true);
         b.field("max_input_length", 50);
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
+        checker.registerConflictCheck("preserve_separators", b -> b.field("preserve_separators", false));
+        checker.registerConflictCheck("preserve_position_increments", b -> b.field("preserve_position_increments", false));
+        checker.registerConflictCheck("contexts", b -> {
+            b.startArray("contexts");
+            {
+                b.startObject();
+                b.field("name", "place_type");
+                b.field("type", "category");
+                b.field("path", "cat");
+                b.endObject();
+            }
+            b.endArray();
+        });
+
+        checker.registerUpdateCheck(b -> b.field("search_analyzer", "standard"),
+            m -> assertEquals("standard", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
+                CompletionFieldMapper cfm = (CompletionFieldMapper) m;
+                assertEquals(30, cfm.getMaxInputLength());
+            });
     }
 
     @Override
@@ -719,22 +745,6 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         }));
         assertWarnings("You have defined more than [10] completion contexts in the mapping for index [null]. " +
             "The maximum allowed number of completion contexts in a mapping will be limited to [10] starting in version [8.0].");
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
-        CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("completion", defaultAnalyzer, Version.CURRENT).build(context);
-
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(mapper, "value"));
-
-        List<String> list = org.elasticsearch.common.collect.List.of("first", "second");
-        assertEquals(list, fetchSourceValue(mapper, list));
-
-        Map<String, Object> object = org.elasticsearch.common.collect.Map.of(
-            "input", org.elasticsearch.common.collect.List.of("first", "second"), "weight", "2.718");
-        assertEquals(org.elasticsearch.common.collect.List.of(object), fetchSourceValue(mapper, object));
     }
 
     private Matcher<IndexableField> suggestField(String value) {

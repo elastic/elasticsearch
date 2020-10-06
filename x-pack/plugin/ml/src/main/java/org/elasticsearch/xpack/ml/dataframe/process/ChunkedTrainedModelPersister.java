@@ -129,7 +129,8 @@ public class ChunkedTrainedModelPersister {
             return;
         }
         TrainedModelMetadata trainedModelMetadata = new TrainedModelMetadata(this.currentModelId.get(),
-            modelMetadata.getFeatureImportances());
+            modelMetadata.getFeatureImportances(),
+            modelMetadata.getFeatureImportanceBaseline());
 
 
         CountDownLatch latch = storeTrainedModelMetadata(trainedModelMetadata);

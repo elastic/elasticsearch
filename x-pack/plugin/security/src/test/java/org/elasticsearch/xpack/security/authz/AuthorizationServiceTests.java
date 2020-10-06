@@ -56,6 +56,7 @@ import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.ParsedScrollId;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -85,6 +86,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -96,6 +98,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -469,6 +475,32 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    public void testUserWithNoRolesPerformsRemoteSearchWithScroll() {
+        final ParsedScrollId parsedScrollId = mock(ParsedScrollId.class);
+        final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
+        when(searchScrollRequest.parseScrollId()).thenReturn(parsedScrollId);
+        final Authentication authentication = createAuthentication(new User("test user"));
+        mockEmptyMetadata();
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        for (final boolean hasLocalIndices: org.elasticsearch.common.collect.List.of(true, false)) {
+            when(parsedScrollId.hasLocalIndices()).thenReturn(hasLocalIndices);
+            if (hasLocalIndices) {
+                assertThrowsAuthorizationException(
+                    () -> authorize(authentication, SearchScrollAction.NAME, searchScrollRequest),
+                    "indices:data/read/scroll", "test user"
+                );
+                verify(auditTrail).accessDenied(eq(requestId), eq(authentication),
+                                                eq("indices:data/read/scroll"), eq(searchScrollRequest),
+                                                authzInfoRoles(Role.EMPTY.names()));
+            } else {
+                authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
+                verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
+                                                 authzInfoRoles(Role.EMPTY.names()));
+            }
+            verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
     /**
      * This test mimics {@link #testUserWithNoRolesCanPerformRemoteSearch()} except that
      * while the referenced index _looks_ like a remote index, the remote cluster name has not
@@ -533,6 +565,51 @@ public class AuthorizationServiceTests extends ESTestCase {
             DeleteIndexAction.NAME, "test user");
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(DeleteIndexAction.NAME), eq(request),
             authzInfoRoles(Role.EMPTY.names()));
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testUserWithNoRolesOpenPointInTimeWithRemoteIndices() {
+        final Authentication authentication = createAuthentication(new User("test user"));
+        mockEmptyMetadata();
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        for (final boolean hasLocalIndices: org.elasticsearch.common.collect.List.of(true, false)) {
+            final String[] indices = new String[] {
+                hasLocalIndices ?
+                    randomAlphaOfLength(5) :
+                    "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*"),
+                "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*")
+            };
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(
+                indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, TimeValue.timeValueMinutes(randomLongBetween(1, 10)),
+                randomAlphaOfLength(5), randomAlphaOfLength(5)
+            );
+            if (hasLocalIndices) {
+                assertThrowsAuthorizationException(
+                    () -> authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest),
+                    "indices:data/read/open_point_in_time", "test user"
+                );
+                verify(auditTrail).accessDenied(eq(requestId), eq(authentication),
+                                                eq("indices:data/read/open_point_in_time"), eq(openPointInTimeRequest),
+                                                authzInfoRoles(Role.EMPTY.names()));
+            } else {
+                authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest);
+                verify(auditTrail).accessGranted(eq(requestId), eq(authentication),
+                                                 eq("indices:data/read/open_point_in_time"), eq(openPointInTimeRequest),
+                                                 authzInfoRoles(Role.EMPTY.names()));
+            }
+            verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
+    public void testUserWithNoRolesCanClosePointInTime() {
+        final ClosePointInTimeRequest closePointInTimeRequest = new ClosePointInTimeRequest(randomAlphaOfLength(8));
+        final Authentication authentication = createAuthentication(new User("test user"));
+        mockEmptyMetadata();
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        authorize(authentication, ClosePointInTimeAction.NAME, closePointInTimeRequest);
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication),
+                                         eq("indices:data/read/close_point_in_time"), eq(closePointInTimeRequest),
+                                         authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -659,7 +736,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(ClearScrollAction.NAME), eq(clearScrollRequest),
             authzInfoRoles(new String[]{role.getName()}));
 
-        final SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        final ParsedScrollId parsedScrollId = mock(ParsedScrollId.class);
+        when(parsedScrollId.hasLocalIndices()).thenReturn(true);
+        final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
+        when(searchScrollRequest.parseScrollId()).thenReturn(parsedScrollId);
         authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchScrollAction.NAME), eq(searchScrollRequest),
             authzInfoRoles(new String[]{role.getName()}));

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
@@ -90,7 +91,10 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
+        blockingCall(
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            getConfigHolder,
+            exceptionHolder);
         getConfigHolder.get().ensureParsedDefinition(xContentRegistry());
         assertThat(getConfigHolder.get(), is(not(nullValue())));
         assertThat(getConfigHolder.get(), equalTo(config));
@@ -121,7 +125,10 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, false, listener), getConfigHolder, exceptionHolder);
+        blockingCall(listener ->
+            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), listener),
+            getConfigHolder,
+            exceptionHolder);
         getConfigHolder.get().ensureParsedDefinition(xContentRegistry());
         assertThat(getConfigHolder.get(), is(not(nullValue())));
         assertThat(getConfigHolder.get(), equalTo(copyWithoutDefinition));
@@ -132,7 +139,10 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         String modelId = "test-get-missing-trained-model-config";
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
+        blockingCall(
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            getConfigHolder,
+            exceptionHolder);
         assertThat(exceptionHolder.get(), is(not(nullValue())));
         assertThat(exceptionHolder.get().getMessage(),
             equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
@@ -154,7 +164,10 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .actionGet();
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
+        blockingCall(
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            getConfigHolder,
+            exceptionHolder);
         assertThat(exceptionHolder.get(), is(not(nullValue())));
         assertThat(exceptionHolder.get().getMessage(),
             equalTo(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
@@ -193,7 +206,10 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         }
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
+        blockingCall(
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            getConfigHolder,
+            exceptionHolder);
         assertThat(getConfigHolder.get(), is(nullValue()));
         assertThat(exceptionHolder.get(), is(not(nullValue())));
         assertThat(exceptionHolder.get().getMessage(), equalTo(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
@@ -238,7 +254,10 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             }
         }
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
-        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
+        blockingCall(
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            getConfigHolder,
+            exceptionHolder);
         assertThat(getConfigHolder.get(), is(nullValue()));
         assertThat(exceptionHolder.get(), is(not(nullValue())));
         assertThat(exceptionHolder.get().getMessage(), equalTo(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));

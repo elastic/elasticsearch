@@ -9,8 +9,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -136,9 +137,11 @@ public class InferenceProcessorTests extends ESTestCase {
         classes.add(new TopClassEntry("foo", 0.6, 0.6));
         classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
-        List<FeatureImportance> featureInfluence = new ArrayList<>();
-        featureInfluence.add(FeatureImportance.forRegression("feature_1", 1.13));
-        featureInfluence.add(FeatureImportance.forRegression("feature_2", -42.0));
+        List<ClassificationFeatureImportance> featureInfluence = new ArrayList<>();
+        featureInfluence.add(new ClassificationFeatureImportance("feature_1",
+            Collections.singletonList(new ClassificationFeatureImportance.ClassImportance("class_a", 1.13))));
+        featureInfluence.add(new ClassificationFeatureImportance("feature_2",
+            Collections.singletonList(new ClassificationFeatureImportance.ClassImportance("class_b", -42.0))));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
             Collections.singletonList(new ClassificationInferenceResults(1.0,
@@ -153,10 +156,12 @@ public class InferenceProcessorTests extends ESTestCase {
 
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
         assertThat(document.getFieldValue("ml.my_processor.predicted_value", String.class), equalTo("foo"));
-        assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.importance", Double.class), equalTo(-42.0));
         assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.feature_name", String.class), equalTo("feature_2"));
-        assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.importance", Double.class), equalTo(1.13));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.classes.0.class_name", String.class), equalTo("class_b"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.classes.0.importance", Double.class), equalTo(-42.0));
         assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.feature_name", String.class), equalTo("feature_1"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.classes.0.class_name", String.class), equalTo("class_a"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.classes.0.importance", Double.class), equalTo(1.13));
     }
 
     @SuppressWarnings("unchecked")
@@ -234,9 +239,9 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        List<FeatureImportance> featureInfluence = new ArrayList<>();
-        featureInfluence.add(FeatureImportance.forRegression("feature_1", 1.13));
-        featureInfluence.add(FeatureImportance.forRegression("feature_2", -42.0));
+        List<RegressionFeatureImportance> featureInfluence = new ArrayList<>();
+        featureInfluence.add(new RegressionFeatureImportance("feature_1", 1.13));
+        featureInfluence.add(new RegressionFeatureImportance("feature_2", -42.0));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig, featureInfluence)), true);

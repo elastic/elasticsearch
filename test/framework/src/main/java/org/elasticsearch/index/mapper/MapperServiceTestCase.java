@@ -49,6 +49,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -95,13 +96,17 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return createMapperService(mappings).documentMapper();
     }
 
+    protected final DocumentMapper createDocumentMapper(Version version, XContentBuilder mappings) throws IOException {
+        return createMapperService(version, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createDocumentMapper(String type, String mappings) throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(type, mapperService, mappings);
         return mapperService.documentMapper();
     }
 
-    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
+    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(Version.CURRENT, mappings);
     }
 
@@ -231,6 +236,13 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
+        when(queryShardContext.lookup()).thenReturn(new SearchLookup(
+            mapperService,
+            (ft, s) -> {
+                throw new UnsupportedOperationException("search lookup not available");
+            },
+            null));
         return queryShardContext;
     }
 }

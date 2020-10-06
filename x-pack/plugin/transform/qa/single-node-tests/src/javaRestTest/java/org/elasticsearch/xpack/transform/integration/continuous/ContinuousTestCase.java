@@ -86,7 +86,8 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
 
     protected AggregatorFactories.Builder addCommonAggregations(AggregatorFactories.Builder builder) {
         builder.addAggregator(AggregationBuilders.max(MAX_RUN_FIELD).field("run"))
-            .addAggregator(AggregationBuilders.count("count").field("run"));
+            .addAggregator(AggregationBuilders.count("count").field("run"))
+            .addAggregator(AggregationBuilders.max("time.max").field("timestamp"));
         return builder;
     }
 

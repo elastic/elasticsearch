@@ -28,20 +28,20 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class ShardSearchContextId implements Writeable {
-    private final String readerId;
+    private final String sessionId;
     private final long id;
 
-    public ShardSearchContextId(String readerId, long id) {
-        this.readerId = Objects.requireNonNull(readerId);
+    public ShardSearchContextId(String sessionId, long id) {
+        this.sessionId = Objects.requireNonNull(sessionId);
         this.id = id;
     }
 
     public ShardSearchContextId(StreamInput in) throws IOException {
         this.id = in.readLong();
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.readerId = in.readString();
+            this.sessionId = in.readString();
         } else {
-            this.readerId = "";
+            this.sessionId = "";
         }
     }
 
@@ -49,12 +49,12 @@ public final class ShardSearchContextId implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeString(readerId);
+            out.writeString(sessionId);
         }
     }
 
-    public String getReaderId() {
-        return readerId;
+    public String getSessionId() {
+        return sessionId;
     }
 
     public long getId() {
@@ -66,16 +66,16 @@ public final class ShardSearchContextId implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShardSearchContextId other = (ShardSearchContextId) o;
-        return id == other.id && readerId.equals(other.readerId);
+        return id == other.id && sessionId.equals(other.sessionId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(readerId, id);
+        return Objects.hash(sessionId, id);
     }
 
     @Override
     public String toString() {
-        return "[" + readerId + "][" + id + "]";
+        return "[" + sessionId + "][" + id + "]";
     }
 }

@@ -300,7 +300,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
         }
 
         MappedFieldType fieldType
-            = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType(FIELD_NAME, true, true, Collections.emptyMap());
+            = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType(FIELD_NAME, true, false, true, Collections.emptyMap());
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();

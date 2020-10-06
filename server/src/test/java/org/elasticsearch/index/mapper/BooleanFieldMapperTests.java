@@ -27,31 +27,51 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(true);
+    }
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "boolean");
     }
 
-    public void testDefaults() throws IOException {
+    @Override
+    protected void assertParseMaximalWarnings() {
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    }
 
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", true));
+        checker.registerUpdateCheck(b -> b.field("boost", 2.0), m -> assertEquals(m.fieldType().boost(), 2.0, 0));
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public void testDefaults() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", true)));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(this::writeField));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             final LeafReader leaf = reader.leaves().get(0).reader();
@@ -170,21 +190,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
         MappedFieldType ft = mapperService.fieldType("field");
         assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
-        assertEquals(List.of(true), fetchSourceValue(mapper, true));
-        assertEquals(List.of(false), fetchSourceValue(mapper, "false"));
-        assertEquals(List.of(false), fetchSourceValue(mapper, ""));
-
-        Map<String, Object> mapping = org.elasticsearch.common.collect.Map.of("type", "boolean", "null_value", true);
-        BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder("field");
-        builder.parse("field", null, new HashMap<>(mapping));
-        BooleanFieldMapper nullValueMapper = builder.build(context);
-        assertEquals(List.of(true), fetchSourceValue(nullValueMapper, null));
+        assertParseMaximalWarnings();
     }
 }

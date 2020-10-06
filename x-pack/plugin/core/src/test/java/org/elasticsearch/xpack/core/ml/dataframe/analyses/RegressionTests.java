@@ -331,7 +331,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         Regression regression = createRandom();
         assertThat(regression.persistsState(), is(true));
         String randomId = randomAlphaOfLength(10);
-        assertThat(regression.getStateDocId(randomId), equalTo(randomId + "_regression_state#1"));
+        assertThat(regression.getStateDocIdPrefix(randomId), equalTo(randomId + "_regression_state#"));
     }
 
     public void testExtractJobIdFromStateDoc() {

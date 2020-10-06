@@ -26,8 +26,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -42,7 +40,13 @@ import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
+import java.util.HashSet;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
@@ -78,9 +82,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteSnapshotting() {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
-        SnapshotsInProgress snaps = SnapshotsInProgress.of(List.of(new SnapshotsInProgress.Entry(snapshot, true, false,
+        SnapshotsInProgress snaps = SnapshotsInProgress.of(
+            org.elasticsearch.common.collect.List.of(new SnapshotsInProgress.Entry(snapshot, true, false,
                 SnapshotsInProgress.State.INIT, singletonList(new IndexId(index, "doesn't matter")),
-                System.currentTimeMillis(), (long) randomIntBetween(0, 1000), ImmutableOpenMap.of(),
+                Collections.emptyList(), System.currentTimeMillis(), (long) randomIntBetween(0, 1000), ImmutableOpenMap.of(), null,
                 SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()))));
         ClusterState state = ClusterState.builder(clusterState(index))
                 .putCustom(SnapshotsInProgress.TYPE, snaps)
@@ -115,12 +120,13 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndices = randomIntBetween(2, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
+            org.elasticsearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            org.elasticsearch.common.collect.List.of());
 
         int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
-        ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
+        ClusterState after = service.deleteIndices(before, org.elasticsearch.common.collect.Set.of(indexToDelete));
 
         assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
@@ -128,14 +134,43 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
     }
 
+    public void testDeleteMultipleBackingIndexForDataStream() {
+        int numBackingIndices = randomIntBetween(3, 5);
+        int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            org.elasticsearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            org.elasticsearch.common.collect.List.of());
+
+        List<Integer> indexNumbersToDelete =
+            randomSubsetOf(numBackingIndicesToDelete, IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList()));
+
+        Set<Index> indicesToDelete = new HashSet<>();
+        for (int k : indexNumbersToDelete) {
+            indicesToDelete.add(before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, k)).getIndex());
+        }
+        ClusterState after = service.deleteIndices(before, indicesToDelete);
+
+        DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
+        assertThat(dataStream, IsNull.notNullValue());
+        assertThat(dataStream.getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
+        for (Index i : indicesToDelete) {
+            assertThat(after.metadata().getIndices().get(i.getName()), IsNull.nullValue());
+            assertFalse(dataStream.getIndices().contains(i));
+        }
+        assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
+    }
+
     public void testDeleteCurrentWriteIndexForDataStream() {
         int numBackingIndices = randomIntBetween(1, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
+            org.elasticsearch.common.collect.List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            org.elasticsearch.common.collect.List.of());
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> service.deleteIndices(before, Set.of(indexToDelete)));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> service.deleteIndices(before, org.elasticsearch.common.collect.Set.of(indexToDelete)));
 
         assertThat(e.getMessage(), containsString("index [" + indexToDelete.getName() + "] is the write index for data stream [" +
             dataStreamName + "] and cannot be deleted"));

@@ -63,27 +63,27 @@ public class TransportSearchHelperTests extends ESTestCase {
         assertEquals("cluster_x", parseScrollId.getContext()[0].getClusterAlias());
         assertEquals(1, parseScrollId.getContext()[0].getSearchContextId().getId());
         if (includeUUID) {
-            assertThat(parseScrollId.getContext()[0].getSearchContextId().getReaderId(), equalTo("a"));
+            assertThat(parseScrollId.getContext()[0].getSearchContextId().getSessionId(), equalTo("a"));
         } else {
-            assertThat(parseScrollId.getContext()[0].getSearchContextId().getReaderId(), equalTo(""));
+            assertThat(parseScrollId.getContext()[0].getSearchContextId().getSessionId(), equalTo(""));
         }
 
         assertEquals("node_2", parseScrollId.getContext()[1].getNode());
         assertEquals("cluster_y", parseScrollId.getContext()[1].getClusterAlias());
         assertEquals(12, parseScrollId.getContext()[1].getSearchContextId().getId());
         if (includeUUID) {
-            assertThat(parseScrollId.getContext()[1].getSearchContextId().getReaderId(), equalTo("b"));
+            assertThat(parseScrollId.getContext()[1].getSearchContextId().getSessionId(), equalTo("b"));
         } else {
-            assertThat(parseScrollId.getContext()[1].getSearchContextId().getReaderId(), equalTo(""));
+            assertThat(parseScrollId.getContext()[1].getSearchContextId().getSessionId(), equalTo(""));
         }
 
         assertEquals("node_3", parseScrollId.getContext()[2].getNode());
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
         assertEquals(42, parseScrollId.getContext()[2].getSearchContextId().getId());
         if (includeUUID) {
-            assertThat(parseScrollId.getContext()[2].getSearchContextId().getReaderId(), equalTo("c"));
+            assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo("c"));
         } else {
-            assertThat(parseScrollId.getContext()[2].getSearchContextId().getReaderId(), equalTo(""));
+            assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo(""));
         }
     }
 }

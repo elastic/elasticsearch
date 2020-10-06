@@ -22,13 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -89,7 +85,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         static RoutingFieldType INSTANCE = new RoutingFieldType();
 
         private RoutingFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
@@ -99,8 +95,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }
 
@@ -116,19 +112,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // no need ot parse here, we either get the routing in the sourceToParse
-        // or we don't have routing, if we get it in sourceToParse, we process it in preParse
-        // which will always be called
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
         String routing = context.sourceToParse().routing();
         if (routing != null) {
             context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));

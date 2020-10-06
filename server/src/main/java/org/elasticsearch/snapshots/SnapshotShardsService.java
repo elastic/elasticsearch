@@ -197,6 +197,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final String localNodeId = clusterService.localNode().getId();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
             final State entryState = entry.state();
+            if (entry.isClone()) {
+                // This is a snapshot clone, it will be executed on the current master
+                continue;
+            }
             if (entryState == State.STARTED) {
                 Map<ShardId, IndexShardSnapshotStatus> startedShards = null;
                 final Snapshot snapshot = entry.snapshot();
@@ -450,8 +454,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
                 new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
                     @Override
-                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
-                        return new UpdateIndexShardSnapshotStatusResponse(in);
+                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) {
+                        return UpdateIndexShardSnapshotStatusResponse.INSTANCE;
                     }
 
                     @Override

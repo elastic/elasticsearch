@@ -16,6 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -33,6 +35,8 @@ public class DataTier {
     public static final String DATA_HOT = "data_hot";
     public static final String DATA_WARM = "data_warm";
     public static final String DATA_COLD = "data_cold";
+
+    public static final Set<String> ALL_DATA_TIERS = new HashSet<>(Arrays.asList(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD));
 
     /**
      * Returns true if the given tier name is a valid tier
@@ -156,9 +160,9 @@ public class DataTier {
         @Override
         public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
-            if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE)) {
+            if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER)) {
                 // It's okay to put it, it will be removed or overridden by the template/request settings
-                return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT).build();
+                return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_HOT).build();
             } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
@@ -170,9 +174,9 @@ public class DataTier {
                 // tier if the index is part of a data stream, the "content"
                 // tier if it is not.
                 if (isDataStreamIndex) {
-                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT).build();
+                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_HOT).build();
                 } else {
-                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_CONTENT).build();
+                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_CONTENT).build();
                 }
             }
         }

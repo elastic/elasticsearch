@@ -10,22 +10,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningFailureException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
@@ -33,7 +22,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -63,7 +51,6 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54415")
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
         assumeTrue("This test only makes sense in version 6.6.0 and above", getOldClusterVersion().onOrAfter(Version.V_6_6_0));
         if (isRunningAgainstOldCluster()) {
@@ -82,16 +69,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
 
             // assert that the mappings are updated
-            Map<String, Object> dataFrameAnalysisMappings = getDataFrameAnalysisMappings();
-
-            // Remove renamed fields
-            if (getOldClusterVersion().before(Version.V_7_7_0)) {
-                dataFrameAnalysisMappings = XContentMapValues.filter(dataFrameAnalysisMappings, null, new String[] {
-                    "*.properties.maximum_number_trees" // This was renamed to max_trees
-                });
-            }
-
-            assertThat(dataFrameAnalysisMappings, equalTo(loadDataFrameAnalysisMappings()));
+            IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
         }
     }
 
@@ -102,15 +80,21 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {
-        Detector.Builder detector = new Detector.Builder("metric", "responsetime");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()))
-            .setBucketSpan(TimeValue.timeValueMinutes(10));
-        Job.Builder job = new Job.Builder(jobId)
-            .setAnalysisConfig(analysisConfig)
-            .setDataDescription(new DataDescription.Builder());
+        String jobConfig =
+            "{\n" +
+            "    \"job_id\": \"" + jobId + "\",\n" +
+            "    \"analysis_config\": {\n" +
+            "        \"bucket_span\": \"10m\",\n" +
+            "        \"detectors\": [{\n" +
+            "            \"function\": \"metric\",\n" +
+            "            \"field_name\": \"responsetime\"\n" +
+            "        }]\n" +
+            "    },\n" +
+            "    \"data_description\": {}\n" +
+            "}";
 
         Request putJobRequest = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
-        putJobRequest.setJsonEntity(Strings.toString(job));
+        putJobRequest.setJsonEntity(jobConfig);
         Response putJobResponse = client().performRequest(putJobRequest);
         assertThat(putJobResponse.getStatusLine().getStatusCode(), equalTo(200));
     }
@@ -140,16 +124,5 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         Map<String, Object> mappings = getConfigIndexMappings();
         mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "analysis", "properties");
         return mappings;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> loadDataFrameAnalysisMappings() throws IOException {
-        String mapping = MlConfigIndex.mapping();
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, new BytesArray(mapping).streamInput())) {
-            Map<String, Object> mappings = parser.map();
-            mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "_doc", "properties", "analysis", "properties");
-            return mappings;
-        }
     }
 }

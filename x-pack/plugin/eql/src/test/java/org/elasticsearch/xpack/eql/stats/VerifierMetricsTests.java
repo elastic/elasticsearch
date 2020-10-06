@@ -55,8 +55,8 @@ public class VerifierMetricsTests extends ESTestCase {
     
     public void testSequenceQuery() {
         Counters c = eql("sequence\r\n" +
-            "  [process where serial_event_id = 1]\r\n" +
-            "  [process where serial_event_id = 2]");
+            "  [process where serial_event_id == 1]\r\n" +
+            "  [process where serial_event_id == 2]");
         assertCounters(c, unmodifiableSet(new HashSet<>(Arrays.asList(SEQUENCE, PIPE_HEAD, SEQUENCE_QUERIES_TWO))));
     }
 
@@ -86,7 +86,7 @@ public class VerifierMetricsTests extends ESTestCase {
             "  [process where opcode == 1] by user\r\n" +
             "  [process where opcode == 2] by user\r\n" +
             "  [file where parent_process_name == \"file_delete_event\"] by exit_code\r\n" +
-            "until [process where opcode=1] by ppid\r\n" +
+            "until [process where opcode==1] by ppid\r\n" +
             "| head 4\r\n" +
             "| tail 2");
         assertCounters(c, unmodifiableSet(new HashSet<>(Arrays.asList(SEQUENCE, PIPE_HEAD, PIPE_TAIL, SEQUENCE_MAXSPAN, SEQUENCE_UNTIL,
@@ -97,7 +97,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Counters c = eql("sequence with maxspan=1d\r\n" +
             "  [process where serial_event_id < 4] by exit_code\r\n" +
             "  [process where opcode == 1] by user\r\n" +
-            "until [process where opcode=1] by ppid\r\n" +
+            "until [process where opcode==1] by ppid\r\n" +
             "| head 4\r\n" +
             "| tail 2");
         assertCounters(c, unmodifiableSet(new HashSet<>(Arrays.asList(SEQUENCE, PIPE_HEAD, PIPE_TAIL, SEQUENCE_MAXSPAN, SEQUENCE_UNTIL,

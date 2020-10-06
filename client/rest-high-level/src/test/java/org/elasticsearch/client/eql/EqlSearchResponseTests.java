@@ -106,7 +106,7 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
     public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomEventsResponse(TotalHits totalHits, XContentType xType) {
         org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits hits = null;
         if (randomBoolean()) {
-            hits = new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits(randomEvents(xType), null, null, totalHits);
+            hits = new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits(randomEvents(xType), null, totalHits);
         }
         if (randomBoolean()) {
             return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
@@ -133,7 +133,7 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         }
         org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits hits = null;
         if (randomBoolean()) {
-            hits = new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits(null, seq, null, totalHits);
+            hits = new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits(null, seq, totalHits);
         }
         if (randomBoolean()) {
             return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
@@ -153,41 +153,13 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         return randoms;
     }
 
-    public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomCountResponse(TotalHits totalHits) {
-        int size = randomIntBetween(1, 10);
-        List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Count> cn = null;
-        if (randomBoolean()) {
-            List<Supplier<Object[]>> randoms = getKeysGenerators();
-            cn = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                List<Object> keys = null;
-                if (randomBoolean()) {
-                    keys = Arrays.asList(randomFrom(randoms).get());
-                }
-                cn.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Count(randomIntBetween(0, 41), keys, randomFloat()));
-            }
-        }
-        org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits hits = null;
-        if (randomBoolean()) {
-            hits = new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits(null, null, cn, totalHits);
-        }
-        if (randomBoolean()) {
-            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
-        } else {
-            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
-                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
-        }
-    }
-
     public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomInstance(TotalHits totalHits, XContentType xType) {
-        int type = between(0, 2);
+        int type = between(0, 1);
         switch (type) {
             case 0:
                 return createRandomEventsResponse(totalHits, xType);
             case 1:
                 return createRandomSequencesResponse(totalHits, xType);
-            case 2:
-                return createRandomCountResponse(totalHits);
             default:
                 return null;
         }
@@ -213,16 +185,6 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         assertThat(serverTestInstance.took(), is(clientInstance.took()));
         assertThat(serverTestInstance.isTimeout(), is(clientInstance.isTimeout()));
         assertThat(serverTestInstance.hits().totalHits(), is(clientInstance.hits().totalHits()));
-        if (serverTestInstance.hits().counts() == null) {
-            assertNull(clientInstance.hits().counts());
-        } else {
-            assertThat(serverTestInstance.hits().counts().size(), equalTo(clientInstance.hits().counts().size()));
-            for (int i = 0; i < serverTestInstance.hits().counts().size(); i++) {
-                assertThat(serverTestInstance.hits().counts().get(i).count(), is(clientInstance.hits().counts().get(i).count()));
-                assertThat(serverTestInstance.hits().counts().get(i).keys(), is(clientInstance.hits().counts().get(i).keys()));
-                assertThat(serverTestInstance.hits().counts().get(i).percent(), is(clientInstance.hits().counts().get(i).percent()));
-            }
-        }
         if (serverTestInstance.hits().events() == null) {
             assertNull(clientInstance.hits().events());
         } else {

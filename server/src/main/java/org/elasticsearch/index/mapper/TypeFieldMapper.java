@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
+  import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -38,6 +39,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
@@ -83,7 +85,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         public static final TypeFieldType INSTANCE = new TypeFieldType();
 
         private TypeFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -95,6 +97,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
             return new ConstantIndexFieldData.Builder(typeFunction, name(), CoreValuesSourceType.BYTES);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -156,7 +163,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             Query termQuery = termQuery(value, context);
             if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
                 return termQuery;
@@ -168,11 +175,16 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             }
             Term term = MappedFieldType.extractTerm(termQuery);
 
+            if (caseInsensitive) {
+                AutomatonQuery query = AutomatonQueries.caseInsensitiveWildcardQuery(term);
+                QueryParsers.setRewriteMethod(query, method);
+                return query;
+            }
+
             WildcardQuery query = new WildcardQuery(term);
             QueryParsers.setRewriteMethod(query, method);
             return query;
         }
-
     }
 
     /**
@@ -263,16 +275,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // we parse in pre parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
             return;
         }

@@ -35,7 +35,7 @@ public class NotSerializableTransportException extends TransportException {
 
     @Override
     public Throwable fillInStackTrace() {
-        return null;
+        return this;
     }
 
     private static String buildMessage(Throwable t) {

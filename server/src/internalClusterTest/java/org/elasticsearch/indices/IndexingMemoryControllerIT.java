@@ -64,7 +64,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             Settings settings = Settings.builder().put(config.getIndexSettings().getSettings())
                 .put("indices.memory.index_buffer_size", "10mb").build();
             IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetadata(), settings);
-            return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+            return new EngineConfig(config.getShardId(), config.getThreadPool(),
                 indexSettings, config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)),
                 config.getEventListener(), config.getQueryCache(),

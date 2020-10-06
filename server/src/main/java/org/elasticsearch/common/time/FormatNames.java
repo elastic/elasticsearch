@@ -64,6 +64,7 @@ public enum FormatNames {
     WEEK_DATE_TIME("weekDateTime", "week_date_time"),
     WEEK_DATE_TIME_NO_MILLIS("weekDateTimeNoMillis", "week_date_time_no_millis"),
     WEEK_YEAR("weekyear", "week_year"),
+    WEEKYEAR(null, "weekyear"),
     WEEK_YEAR_WEEK("weekyearWeek", "weekyear_week"),
     WEEKYEAR_WEEK_DAY("weekyearWeekDay", "weekyear_week_day"),
     YEAR(null, "year"),

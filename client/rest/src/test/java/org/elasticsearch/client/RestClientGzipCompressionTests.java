@@ -105,7 +105,9 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
         byte[] buffer = new byte[1024];
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         int len = 0;
-        while ((len = in.read(buffer)) > 0) bos.write(buffer, 0, len);
+        while ((len = in.read(buffer)) > 0) {
+            bos.write(buffer, 0, len);
+        }
         in.close();
         return bos.toByteArray();
     }

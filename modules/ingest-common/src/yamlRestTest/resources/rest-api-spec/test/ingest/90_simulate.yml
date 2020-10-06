@@ -418,7 +418,7 @@ teardown:
               {
                 "rename" : {
                   "field" : "does_not_exist",
-                  "value" : "_value"
+                  "target_field" : "_value"
                 }
               }
             ]
@@ -451,21 +451,16 @@ teardown:
               }
             ]
           }
-  - length: { docs: 2 }
-  - length: { docs.0.processor_results: 1 }
-  - match: { docs.0.processor_results.0.error.type: "illegal_argument_exception" }
-  - length: { docs.1.processor_results: 2 }
-  - match: { docs.1.processor_results.0.doc._index: "index" }
-  - match: { docs.1.processor_results.0.doc._source.foo: 5 }
-  - match: { docs.1.processor_results.0.doc._source.bar: "hello" }
-  - length: { docs.1.processor_results.0.doc._ingest: 2 }
-  - is_true: docs.1.processor_results.0.doc._ingest.timestamp
-  - is_true: docs.1.processor_results.0.doc._ingest.pipeline
-  - match: { docs.1.processor_results.1.doc._source.foo: 5 }
-  - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }
-  - length: { docs.1.processor_results.1.doc._ingest: 2 }
-  - is_true: docs.1.processor_results.1.doc._ingest.timestamp
-  - is_true: docs.1.processor_results.1.doc._ingest.pipeline
+  - length: { docs: 1 }
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.processor_type: "pipeline" }
+  - match: { docs.0.processor_results.0.status: "success" }
+  - match: { docs.0.processor_results.1.processor_type: "rename" }
+  - match: { docs.0.processor_results.1.status: "error" }
+  - match: { docs.0.processor_results.1.error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.1.error.root_cause.0.reason: "field [does_not_exist] doesn't exist" }
+  - match: { docs.0.processor_results.1.error.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.1.error.reason: "field [does_not_exist] doesn't exist" }
 
 ---
 "Test verbose simulate with on_failure":

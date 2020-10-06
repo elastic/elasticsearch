@@ -22,24 +22,23 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.lookup.SourceLookup;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
 import java.util.Set;
 
 /**
  * An implementation of {@link ValueFetcher} that knows how to extract values
- * from the document source. Most standard field mappers will use this class
- * to implement value fetching.
+ * from the document source.
  *
- * Field types that handle arrays directly should instead use {@link ArraySourceValueFetcher}.
+ * This class differs from {@link SourceValueFetcher} in that it directly handles
+ * array values in parsing. Field types should use this class if their corresponding
+ * mapper returns true for {@link FieldMapper#parsesArrayValue()}.
  */
-public abstract class SourceValueFetcher implements ValueFetcher {
+public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
 
-    public SourceValueFetcher(String fieldName, MapperService mapperService) {
+    public ArraySourceValueFetcher(String fieldName, MapperService mapperService) {
         this(fieldName, mapperService, null);
     }
 
@@ -48,7 +47,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * @param mapperService A mapper service.
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
-    public SourceValueFetcher(String fieldName, MapperService mapperService, Object nullValue) {
+    public ArraySourceValueFetcher(String fieldName, MapperService mapperService, Object nullValue) {
         this.sourcePaths = mapperService.sourcePath(fieldName);
         this.nullValue = nullValue;
     }
@@ -61,22 +60,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             if (sourceValue == null) {
                 return List.of();
             }
-
-            // We allow source values to contain multiple levels of arrays, such as `"field": [[1, 2]]`.
-            // So we need to unwrap these arrays before passing them on to be parsed.
-            Queue<Object> queue = new ArrayDeque<>();
-            queue.add(sourceValue);
-            while (queue.isEmpty() == false) {
-                Object value = queue.poll();
-                if (value instanceof List) {
-                    queue.addAll((List<?>) value);
-                } else {
-                    Object parsedValue = parseSourceValue(value);
-                    if (parsedValue != null) {
-                        values.add(parsedValue);
-                    }
-                }
-            }
+            values.addAll((List<?>) parseSourceValue(sourceValue));
         }
         return values;
     }

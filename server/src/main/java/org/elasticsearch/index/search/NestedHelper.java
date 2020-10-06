@@ -106,7 +106,7 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (isMappedFieldFunction.apply(field)) {
+        if (isMappedFieldFunction.apply(field) == false) {
             // field does not exist
             return false;
         }
@@ -175,7 +175,7 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (isMappedFieldFunction.apply(field)) {
+        if (isMappedFieldFunction.apply(field) == false) {
             return false;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {

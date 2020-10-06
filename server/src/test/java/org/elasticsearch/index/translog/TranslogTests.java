@@ -1253,7 +1253,7 @@ public class TranslogTests extends ESTestCase {
         final TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1);
         final Set<Long> persistedSeqNos = new HashSet<>();
         persistedSeqNoConsumer.set(persistedSeqNos::add);
-        final int numOps = randomIntBetween(8, 128);
+        final int numOps = scaledRandomIntBetween(8, 250000);
         final Set<Long> seenSeqNos = new HashSet<>();
         boolean opsHaveValidSequenceNumbers = randomBoolean();
         for (int i = 0; i < numOps; i++) {

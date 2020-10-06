@@ -83,6 +83,8 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -383,6 +385,22 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        return snapshotInfo;
+    }
+
+    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices) {
+        logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
+        final CreateSnapshotResponse response = client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repositoryName, snapshot)
+                .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
+                .setWaitForCompletion(true)
+                .get();
+
+        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
         return snapshotInfo;
     }
 

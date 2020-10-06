@@ -82,7 +82,7 @@ options are:
  - `feature_importance_baseline`: Includes the baseline for {feat-imp} values.
  - `total_feature_importance`: Includes the total {feat-imp} for the training
    data set.
-The baseline and total {feature-imp} values are returned in the `metadata` field
+The baseline and total {feat-imp} values are returned in the `metadata` field
 in the response body.
 
 `size`::

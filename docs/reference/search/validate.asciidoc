@@ -20,7 +20,7 @@ GET my-index-000001/_validate/query?q=user.id:kimchy
 ==== {api-description-title}
 
 The validate API allows you to validate a potentially expensive query
-without executing it. The query can be sent either as a path parameter or in the 
+without executing it. The query can be sent either as a path parameter or in the
 request body.
 
 
@@ -36,13 +36,13 @@ To search all data streams or indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
-  
+
 
 [[search-validate-api-query-params]]
 ==== {api-query-parms-title}
 
 `all_shards`::
-  (Optional, boolean) If `true`, the validation is executed on all shards 
+  (Optional, boolean) If `true`, the validation is executed on all shards
   instead of one random shard per index. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
@@ -60,7 +60,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 `explain`::
-  (Optional, boolean) If `true`, the response returns detailed information if an 
+  (Optional, boolean) If `true`, the response returns detailed information if an
   error has occurred. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
@@ -68,7 +68,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
 `rewrite`::
-  (Optional, boolean) If `true`, returns a more detailed explanation showing the 
+  (Optional, boolean) If `true`, returns a more detailed explanation showing the
   actual Lucene query that will be executed. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
@@ -129,8 +129,8 @@ GET my-index-000001/_validate/query
 NOTE: The query being sent in the body must be nested in a `query` key, same as
 the <<search-search,search api>> works
 
-If the query is invalid, `valid` will be `false`. Here the query is invalid 
-because {es} knows the `post_date` field should be a date due to dynamic 
+If the query is invalid, `valid` will be `false`. Here the query is invalid
+because {es} knows the `post_date` field should be a date due to dynamic
 mapping, and 'foo' does not correctly parse into a date:
 
 [source,console]
@@ -154,7 +154,7 @@ GET my-index-000001/_validate/query
 
 ===== The explain parameter
 
-An `explain` parameter can be specified to get more detailed information about 
+An `explain` parameter can be specified to get more detailed information about
 why a query failed:
 
 [source,console]
@@ -194,8 +194,8 @@ The API returns the following response:
 
 ===== The rewrite parameter
 
-When the query is valid, the explanation defaults to the string representation 
-of that query. With `rewrite` set to `true`, the explanation is more detailed 
+When the query is valid, the explanation defaults to the string representation
+of that query. With `rewrite` set to `true`, the explanation is more detailed
 showing the actual Lucene query that will be executed.
 
 [source,console]

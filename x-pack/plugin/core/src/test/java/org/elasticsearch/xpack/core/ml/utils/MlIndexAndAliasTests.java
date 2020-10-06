@@ -280,7 +280,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
-            client, clusterState, new IndexNameExpressionResolver(), TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, listener);
+            client, clusterState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, listener);
     }
 
     @SuppressWarnings("unchecked")

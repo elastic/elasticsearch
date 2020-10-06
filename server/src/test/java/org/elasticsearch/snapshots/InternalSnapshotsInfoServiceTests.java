@@ -149,7 +149,6 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(0));
 
         latch.countDown();
-        waitForMaxActiveGenericThreads(0);
 
         assertBusy(() -> {
             assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(numberOfShards));

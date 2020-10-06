@@ -1042,6 +1042,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
                 org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
                 159,
+                Version.V_8_0_0),
+        NO_SEED_NODE_LEFT_EXCEPTION(
+                org.elasticsearch.transport.NoSeedNodeLeftException.class,
+                org.elasticsearch.transport.NoSeedNodeLeftException::new,
+                160,
                 Version.V_8_0_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;

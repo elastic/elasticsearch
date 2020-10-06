@@ -103,6 +103,9 @@ Similarly to sort values, script values of an `unsigned_long` field
 return a `Number` representing a `Long` or `BigInteger`.
 The same values: `Long` or `BigInteger` are used for `terms` aggregations.
 
+==== Stored fields
+A stored field of `unsigned_long` is stored and returned as `String`.
+
 ==== Queries with mixed numeric types
 
 Searches with mixed numeric types one of which is `unsigned_long` are

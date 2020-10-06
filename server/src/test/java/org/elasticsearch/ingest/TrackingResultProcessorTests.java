@@ -520,7 +520,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
-        IllegalArgumentException exception = new IllegalArgumentException("Not an IllegalStateException");
+        IllegalStateException exception = new IllegalStateException("Not a pipeline cycle error");
 
         Pipeline pipeline = new Pipeline(
             pipelineId, null, null, new CompoundProcessor(

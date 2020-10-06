@@ -37,13 +37,17 @@ import static org.hamcrest.Matchers.is;
  */
 public class CustomRealmIT extends ESIntegTestCase {
 
+    // These are configured in build.gradle
+    public static final String USERNAME= "test_user";
+    public static final String PASSWORD = "secret_password";
+
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
-                .build();
+            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, USERNAME)
+            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, PASSWORD)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
+            .build();
     }
 
     @Override
@@ -66,8 +70,8 @@ public class CustomRealmIT extends ESIntegTestCase {
     public void testHttpAuthentication() throws Exception {
         Request request = new Request("GET", "/");
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER);
-        options.addHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString());
+        options.addHeader(CustomRealm.USER_HEADER, USERNAME);
+        options.addHeader(CustomRealm.PW_HEADER, PASSWORD);
         request.setOptions(options);
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -83,8 +87,8 @@ public class CustomRealmIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
                 .put("cluster.name", clusterName)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
+                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.DEFAULT_KNOWN_USER)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.DEFAULT_KNOWN_PW.toString())
                 .build();
         try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
@@ -100,11 +104,12 @@ public class CustomRealmIT extends ESIntegTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
+        String wrongUsername = CustomRealm.DEFAULT_KNOWN_USER + randomAlphaOfLength(1);
         Settings settings = Settings.builder()
                 .put("cluster.name", clusterName)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAlphaOfLength(1))
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
+                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, wrongUsername)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.DEFAULT_KNOWN_PW.toString())
                 .build();
         try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
@@ -116,12 +121,13 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testSettingsFiltering() throws Exception {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().addMetric(Metric.SETTINGS.metricName()).get();
+        NodesInfoResponse nodeInfos = client().admin()
+            .cluster().prepareNodesInfo().clear().addMetric(Metric.SETTINGS.metricName()).get();
         for(NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);
-            assertNull(settings.get("xpack.security.authc.realms.custom.custom.filtered_setting"));
-            assertEquals("0", settings.get("xpack.security.authc.realms.custom.custom.order"));
+            assertNull(settings.get("xpack.security.authc.realms.custom.my_realm.filtered_setting"));
+            assertEquals("0", settings.get("xpack.security.authc.realms.custom.my_realm.order"));
         }
     }
 }

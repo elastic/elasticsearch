@@ -73,7 +73,7 @@ The following parameters can be specified in the body of a POST or PUT request:
 (object) Arbitrary metadata that you want to associate with the user.
 
 `password`::
-(Required, string) The user's password. Passwords must be at least 6 characters long.
+(Required*, string) The user's password. Passwords must be at least 6 characters long.
 +
 When adding a user, one of `password` or `password_hash` is required.
 When updating an existing user, the password is optional, so that other

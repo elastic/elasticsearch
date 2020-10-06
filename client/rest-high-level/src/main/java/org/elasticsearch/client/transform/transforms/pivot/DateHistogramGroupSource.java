@@ -223,6 +223,8 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
                 return ZoneOffset.ofHours(p.intValue());
             }
         }, TIME_ZONE, ObjectParser.ValueType.LONG);
+        // either a script or a field must be declared, or both
+        PARSER.declareRequiredFieldSet(FIELD.getPreferredName(), SCRIPT.getPreferredName());
     }
 
     public static DateHistogramGroupSource fromXContent(final XContentParser parser) {

@@ -49,6 +49,8 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
         Script.declareScript(PARSER, optionalConstructorArg(), SCRIPT);
         PARSER.declareBoolean(optionalConstructorArg(), MISSING_BUCKET);
         PARSER.declareDouble(optionalConstructorArg(), INTERVAL);
+        // either a script or a field must be declared, or both
+        PARSER.declareRequiredFieldSet(FIELD.getPreferredName(), SCRIPT.getPreferredName());
     }
 
     public static HistogramGroupSource fromXContent(final XContentParser parser) {

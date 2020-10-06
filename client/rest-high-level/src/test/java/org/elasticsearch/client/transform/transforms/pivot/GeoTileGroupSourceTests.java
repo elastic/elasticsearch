@@ -35,7 +35,7 @@ public class GeoTileGroupSourceTests extends AbstractXContentTestCase<GeoTileGro
     public static GeoTileGroupSource randomGeoTileGroupSource() {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
         return new GeoTileGroupSource(
-            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
             randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, GeoTileUtils.MAX_ZOOM),
             randomBoolean()

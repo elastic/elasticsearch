@@ -34,8 +34,16 @@ public class TermsGroupSourceTests extends AbstractResponseTestCase<
     org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource> {
 
     public static TermsGroupSource randomTermsGroupSource() {
-        String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
-        ScriptConfig scriptConfig = randomBoolean() ? null : DateHistogramGroupSourceTests.randomScriptConfig();
+        ScriptConfig scriptConfig = null;
+        String field;
+
+        // either a field or a script must be specified, it's possible to have both, but disallowed to have none
+        if (randomBoolean()) {
+            scriptConfig = DateHistogramGroupSourceTests.randomScriptConfig();
+            field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        } else {
+            field = randomAlphaOfLengthBetween(1, 20);
+        }
         boolean missingBucket = randomBoolean();
         return new TermsGroupSource(field, scriptConfig, missingBucket);
     }

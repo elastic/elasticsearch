@@ -29,8 +29,17 @@ import java.util.function.Predicate;
 public class TermsGroupSourceTests extends AbstractXContentTestCase<TermsGroupSource> {
 
     public static TermsGroupSource randomTermsGroupSource() {
-        Script script = randomBoolean() ? new Script(randomAlphaOfLengthBetween(1, 10)) : null;
-        return new TermsGroupSource(randomAlphaOfLengthBetween(1, 20), script, randomBoolean());
+        Script script = null;
+        String field;
+
+        // either a field or a script must be specified, it's possible to have both, but disallowed to have none
+        if (randomBoolean()) {
+            script = new Script(randomAlphaOfLengthBetween(1, 10));
+            field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        } else {
+            field = randomAlphaOfLengthBetween(1, 20);
+        }
+        return new TermsGroupSource(field, script, randomBoolean());
     }
 
     @Override

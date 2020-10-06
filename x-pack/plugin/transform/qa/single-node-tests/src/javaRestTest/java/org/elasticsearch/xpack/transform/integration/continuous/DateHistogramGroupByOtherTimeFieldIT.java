@@ -131,7 +131,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
                     + XContentMapValues.extractValue(MAX_RUN_FIELD, source)
                     + ", iteration: "
                     + iteration,
-                // we use a fixed_interval of `1s`, the transform runs every `1s` so it the bucket might be recalculated at the next run
+                // we use a fixed_interval of `1s`, the transform runs every `1s`, a bucket might be recalculated at the next run
                 // but should NOT be recalculated for the 2nd/3rd/... run
                 Double.valueOf((Integer) XContentMapValues.extractValue(INGEST_RUN_FIELD, source)) - (Double) XContentMapValues
                     .extractValue(MAX_RUN_FIELD, source),

@@ -48,11 +48,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
@@ -81,7 +80,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     private final Set<SnapshotShard> unknownSnapshotShards;
 
     /** a blocking queue used for concurrent fetching **/
-    private final BlockingQueue<SnapshotShard> queue;
+    private final Queue<SnapshotShard> queue;
 
     private volatile int maxConcurrentFetches;
     private volatile int activeFetches;
@@ -99,7 +98,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         this.rerouteService = rerouteServiceSupplier;
         this.knownSnapshotShardSizes = ImmutableOpenMap.of();
         this.unknownSnapshotShards  = new LinkedHashSet<>();
-        this.queue = new LinkedBlockingQueue<>();
+        this.queue = new LinkedList<>();
         this.mutex = new Object();
         this.activeFetches = 0;
         this.maxConcurrentFetches = INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.get(settings);
@@ -159,15 +158,10 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     private void fetchNextSnapshotShard() {
         synchronized (mutex) {
             if (activeFetches < maxConcurrentFetches) {
-                try {
-                    final SnapshotShard snapshotShard = queue.poll(0L, TimeUnit.MILLISECONDS);
-                    if (snapshotShard != null) {
-                        threadPool.generic().execute(new FetchingSnapshotShardSizeRunnable(snapshotShard));
-                        activeFetches += 1;
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    logger.warn("snapshot shard size fetcher has been interrupted", e);
+                final SnapshotShard snapshotShard = queue.poll();
+                if (snapshotShard != null) {
+                    threadPool.generic().execute(new FetchingSnapshotShardSizeRunnable(snapshotShard));
+                    activeFetches += 1;
                 }
             }
             assert assertNumberOfConcurrentFetches();

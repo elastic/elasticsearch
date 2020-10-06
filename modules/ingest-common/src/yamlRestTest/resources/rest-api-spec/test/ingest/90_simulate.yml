@@ -407,6 +407,67 @@ teardown:
   - is_true: docs.1.processor_results.1.doc._ingest.pipeline
 
 ---
+"Test verbose simulate with error in pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "does_not_exist",
+                  "value" : "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "pipeline" : {
+                    "name" : "my_pipeline"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar",
+                  "bar": "hello"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - length: { docs.0.processor_results: 1 }
+  - match: { docs.0.processor_results.0.error.type: "illegal_argument_exception" }
+  - length: { docs.1.processor_results: 2 }
+  - match: { docs.1.processor_results.0.doc._index: "index" }
+  - match: { docs.1.processor_results.0.doc._source.foo: 5 }
+  - match: { docs.1.processor_results.0.doc._source.bar: "hello" }
+  - length: { docs.1.processor_results.0.doc._ingest: 2 }
+  - is_true: docs.1.processor_results.0.doc._ingest.timestamp
+  - is_true: docs.1.processor_results.0.doc._ingest.pipeline
+  - match: { docs.1.processor_results.1.doc._source.foo: 5 }
+  - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }
+  - length: { docs.1.processor_results.1.doc._ingest: 2 }
+  - is_true: docs.1.processor_results.1.doc._ingest.timestamp
+  - is_true: docs.1.processor_results.1.doc._ingest.pipeline
+
+---
 "Test verbose simulate with on_failure":
   - do:
       ingest.simulate:

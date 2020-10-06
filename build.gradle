@@ -174,8 +174,8 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = false
-final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/issues/63358"
+boolean bwc_tests_enabled = true
+final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")

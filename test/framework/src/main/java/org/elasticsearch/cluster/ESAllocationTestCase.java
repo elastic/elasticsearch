@@ -96,10 +96,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
-        return new MockAllocationService(
-                randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-                gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
+        return createAllocationService(settings, gatewayAllocator, SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
+    }
+
+    public static MockAllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
+        return createAllocationService(settings, new TestGatewayAllocator(), snapshotsInfoService);
     }
 
     public static MockAllocationService createAllocationService(

@@ -71,6 +71,10 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
+            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
+                v.current(systemIndexWarning);
+                v.compatible(systemIndexWarning);
+            }));
             getTasksIndex.addParameter("allow_no_indices", "false");
 
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {

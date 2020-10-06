@@ -551,32 +551,32 @@ public class RestClient implements Closeable {
         }
     }
 
-    private HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity) {
+    private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity, boolean compressionEnabled) {
         switch(method.toUpperCase(Locale.ROOT)) {
             case HttpDeleteWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpDeleteWithEntity(uri), entity);
+                return addRequestBody(new HttpDeleteWithEntity(uri), entity, compressionEnabled);
             case HttpGetWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpGetWithEntity(uri), entity);
+                return addRequestBody(new HttpGetWithEntity(uri), entity, compressionEnabled);
             case HttpHead.METHOD_NAME:
-                return addRequestBody(new HttpHead(uri), entity);
+                return addRequestBody(new HttpHead(uri), entity, compressionEnabled);
             case HttpOptions.METHOD_NAME:
-                return addRequestBody(new HttpOptions(uri), entity);
+                return addRequestBody(new HttpOptions(uri), entity, compressionEnabled);
             case HttpPatch.METHOD_NAME:
-                return addRequestBody(new HttpPatch(uri), entity);
+                return addRequestBody(new HttpPatch(uri), entity, compressionEnabled);
             case HttpPost.METHOD_NAME:
                 HttpPost httpPost = new HttpPost(uri);
-                addRequestBody(httpPost, entity);
+                addRequestBody(httpPost, entity, compressionEnabled);
                 return httpPost;
             case HttpPut.METHOD_NAME:
-                return addRequestBody(new HttpPut(uri), entity);
+                return addRequestBody(new HttpPut(uri), entity, compressionEnabled);
             case HttpTrace.METHOD_NAME:
-                return addRequestBody(new HttpTrace(uri), entity);
+                return addRequestBody(new HttpTrace(uri), entity, compressionEnabled);
             default:
                 throw new UnsupportedOperationException("http method not supported: " + method);
         }
     }
 
-    private HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity) {
+    private static HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity, boolean compressionEnabled) {
         if (entity != null) {
             if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
                 if (compressionEnabled) {
@@ -743,7 +743,7 @@ public class RestClient implements Closeable {
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
-            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
+            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled);
             this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
             setRequestConfig(httpRequest, request.getOptions().getRequestConfig());

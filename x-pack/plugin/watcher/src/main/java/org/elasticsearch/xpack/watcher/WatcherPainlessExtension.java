@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.watcher.condition.WatcherConditionScript;
 import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;

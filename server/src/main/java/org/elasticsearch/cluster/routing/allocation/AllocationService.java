@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
+import org.elasticsearch.snapshots.SnapshotsInfoService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -74,19 +75,22 @@ public class AllocationService {
     private Map<String, ExistingShardsAllocator> existingShardsAllocators;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
+    private SnapshotsInfoService snapshotsInfoService;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
-                             ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService);
+                             ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService,
+                             SnapshotsInfoService snapshotsInfoService) {
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
     public AllocationService(AllocationDeciders allocationDeciders, ShardsAllocator shardsAllocator,
-                             ClusterInfoService clusterInfoService) {
+                             ClusterInfoService clusterInfoService, SnapshotsInfoService snapshotsInfoService) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
+        this.snapshotsInfoService = snapshotsInfoService;
     }
 
     /**
@@ -113,7 +117,7 @@ public class AllocationService {
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
-            clusterInfoService.getClusterInfo(), currentNanoTime());
+            clusterInfoService.getClusterInfo(), snapshotsInfoService.snapshotShardSizes(), currentNanoTime());
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
         startedShards = new ArrayList<>(startedShards);
         startedShards.sort(Comparator.comparing(ShardRouting::primary));
@@ -192,7 +196,7 @@ public class AllocationService {
         routingNodes.unassigned().shuffle();
         long currentNanoTime = currentNanoTime();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, tmpState,
-            clusterInfoService.getClusterInfo(), currentNanoTime);
+            clusterInfoService.getClusterInfo(), snapshotsInfoService.snapshotShardSizes(), currentNanoTime);
 
         for (FailedShard failedShardEntry : failedShards) {
             ShardRouting shardToFail = failedShardEntry.getRoutingEntry();
@@ -246,7 +250,7 @@ public class AllocationService {
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
-            clusterInfoService.getClusterInfo(), currentNanoTime());
+            clusterInfoService.getClusterInfo(), snapshotsInfoService.snapshotShardSizes(), currentNanoTime());
 
         // first, clear from the shards any node id they used to belong to that is now dead
         disassociateDeadNodes(allocation);
@@ -267,7 +271,7 @@ public class AllocationService {
      */
     public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState.getRoutingNodes(), clusterState,
-            clusterInfoService.getClusterInfo(), currentNanoTime());
+            clusterInfoService.getClusterInfo(), snapshotsInfoService.snapshotShardSizes(), currentNanoTime());
         final Map<Integer, List<String>> autoExpandReplicaChanges =
             AutoExpandReplicas.getAutoExpandReplicaChanges(clusterState.metadata(), allocation);
         if (autoExpandReplicaChanges.isEmpty()) {
@@ -361,7 +365,7 @@ public class AllocationService {
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
-            clusterInfoService.getClusterInfo(), currentNanoTime());
+            clusterInfoService.getClusterInfo(), snapshotsInfoService.snapshotShardSizes(), currentNanoTime());
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
@@ -392,7 +396,7 @@ public class AllocationService {
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, fixedClusterState,
-            clusterInfoService.getClusterInfo(), currentNanoTime());
+            clusterInfoService.getClusterInfo(), snapshotsInfoService.snapshotShardSizes(), currentNanoTime());
         reroute(allocation);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;

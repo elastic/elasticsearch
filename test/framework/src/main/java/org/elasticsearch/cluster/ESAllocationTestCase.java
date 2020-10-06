@@ -59,7 +59,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     private static final ClusterSettings EMPTY_CLUSTER_SETTINGS =
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-    public static final SnapshotsInfoService SNAPSHOT_INFO_SERVICE_WITH_SHARD_SIZES = () ->
+    public static final SnapshotsInfoService SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES = () ->
         new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
             @Override
             public Long getShardSize(ShardRouting shardRouting) {
@@ -85,21 +85,21 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, clusterSettings, random),
                 new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
-                SNAPSHOT_INFO_SERVICE_WITH_SHARD_SIZES);
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
             new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService,
-            SNAPSHOT_INFO_SERVICE_WITH_SHARD_SIZES);
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
                 gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
-                SNAPSHOT_INFO_SERVICE_WITH_SHARD_SIZES);
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
     }
 
     public static MockAllocationService createAllocationService(

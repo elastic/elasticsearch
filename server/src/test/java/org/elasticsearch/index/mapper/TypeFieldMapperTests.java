@@ -54,6 +54,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDocValuesSingleType() throws Exception {
         testDocValues(this::createIndex);
+        assertWarnings("[types removal] Using the _type field in queries and aggregations is deprecated, prefer to use a field instead.");
     }
 
     public static void testDocValues(Function<String, IndexService> createIndex) throws IOException {

@@ -2,9 +2,9 @@
 [[data-tiers]]
 === Data tiers
 
-Common data lifecycle management patterns revolve around transitioning the indices
+Common data lifecycle management patterns revolve around transitioning indices
 through multiple collections of nodes with different hardware characteristics in order
-to fulfil evolving CRUD, search, and aggregation needs as the indices age. The concept
+to fulfil evolving CRUD, search, and aggregation needs as indices age. The concept
 of a tiered hardware architecture is not new in {es}.
 <<index-lifecycle-management, Index Lifecycle Management>> is instrumental in
 implementing tiered architectures by automating the managemnt of indices according to
@@ -42,7 +42,7 @@ prioritises high IO.
 The content data has very long data retention characteristics and from a resiliency perspective
 the indices in this tier should be configured to use one or more replicas.
 
-NOTE: new indices that are not part of <<data-streams, data streams>> will be allocated to the
+NOTE: new indices that are not part of <<data-streams, data streams>> will be automatically allocated to the
 <<content-tier>>
 
 [[hot-tier]]
@@ -54,15 +54,15 @@ and writes, requiring more hardware resources such as SSD drives. The hot tier i
 hosting the data from recent days. From a resiliency perspective the indices in this
 tier should be configured to use one or more replicas.
 
-NOTE: new indices that are part of a <<data-streams, data stream>> will be allocated to the
+NOTE: new indices that are part of a <<data-streams, data stream>> will be automatically allocated to the
 <<hot-tier>>
 
 [[warm-tier]]
 ==== Warm tier
 
 The warm tier is made of one or more nodes that have the <<data-warm-node, data_warm>> role.
-This tier is where data goes once it is not queried very frequently in the <<hot-tier, hot tier>>
-anymore. It is a medium-fast tier that still allows data updates. The warm tier is usually
+This tier is where data goes once it is not queried as frequently as in the <<hot-tier, hot tier>>.
+It is a medium-fast tier that still allows data updates. The warm tier is usually
 hosting the data from recent weeks. From a resiliency perspective the indices in this
 tier should be configured to use one or more replicas.
 
@@ -72,9 +72,9 @@ tier should be configured to use one or more replicas.
 The cold tier is made of one or more nodes that have the <<data-cold-node, data_cold>> role.
 Once the data in the <<warm-tier, warm tier>> is not updated anymore it can transition to the
 cold tier. The cold tier is still a responsive query tier but as the data transitions into this
-tier it can be compressed, shrunken, configured to have zero replicas and be backed by
+tier it can be compressed, shrunken, or configured to have zero replicas and be backed by
 a <<ilm-searchable-snapshot, snapshot>>. The cold tier is usually hosting the data from recent
-months.
+months or years.
 [discrete]
 [[data-tier-allocation]]
 === Data tier index allocation

@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -107,8 +108,8 @@ public class RestControllerTests extends ESTestCase {
     }
 
     @After
-    public void teardown() {
-        client.close();
+    public void teardown() throws IOException {
+        IOUtils.close(client);
     }
 
     public void testApplyRelevantHeaders() throws Exception {

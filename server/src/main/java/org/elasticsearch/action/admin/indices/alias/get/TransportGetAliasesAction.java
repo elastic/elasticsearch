@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
-    private static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
 
     private final SystemIndices systemIndices;
 

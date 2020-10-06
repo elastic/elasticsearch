@@ -7,10 +7,13 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -22,6 +25,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
@@ -37,6 +41,10 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
@@ -61,6 +69,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -71,6 +80,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -290,6 +300,61 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyName(responses.get(0).getName(), false), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         verifyInvalidateResponse(1, responses, invalidateResponse);
+    }
+
+    public void testInvalidateApiKeyWillClearApiKeyCache() throws IOException, ExecutionException, InterruptedException {
+        final List<ApiKeyService> services = Arrays.stream(internalCluster().getNodeNames())
+            .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
+            .collect(Collectors.toList());
+
+        // Create two API keys and authenticate with them
+        Tuple<String, String> apiKey1 = createApiKeyAndAuthenticateWithIt();
+        Tuple<String, String> apiKey2 = createApiKeyAndAuthenticateWithIt();
+
+        // Find out which nodes handled the above authentication requests
+        final ApiKeyService serviceForDoc1 =
+            services.stream().filter(s -> s.getDocCache().get(apiKey1.v1()) != null).findFirst()
+                .orElseThrow(() -> new NoSuchElementException("No value present"));
+        final ApiKeyService serviceForDoc2 =
+            services.stream().filter(s -> s.getDocCache().get(apiKey2.v1()) != null).findFirst()
+                .orElseThrow(() -> new NoSuchElementException("No value present"));
+        assertNotNull(serviceForDoc1.getFromCache(apiKey1.v1()));
+        assertNotNull(serviceForDoc2.getFromCache(apiKey2.v1()));
+        final boolean sameServiceNode = serviceForDoc1 == serviceForDoc2;
+        if (sameServiceNode) {
+            assertEquals(2, serviceForDoc1.getDocCache().count());
+        } else {
+            assertEquals(1, serviceForDoc1.getDocCache().count());
+            assertEquals(1, serviceForDoc2.getDocCache().count());
+        }
+
+        // Invalidate the first key
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
+            .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
+        securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(apiKey1.v1(), false), listener);
+        InvalidateApiKeyResponse invalidateResponse = listener.get();
+        assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
+        // The cache entry should be gone for the first key
+        if (sameServiceNode) {
+            assertEquals(1, serviceForDoc1.getDocCache().count());
+            assertNull(serviceForDoc1.getDocCache().get(apiKey1.v1()));
+            assertNotNull(serviceForDoc1.getDocCache().get(apiKey2.v1()));
+        } else {
+            assertEquals(0, serviceForDoc1.getDocCache().count());
+            assertEquals(1, serviceForDoc2.getDocCache().count());
+        }
+
+        // Authentication with the first key should fail
+        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
+            (apiKey1.v1() + ":" + apiKey1.v2()).getBytes(StandardCharsets.UTF_8));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> new TestRestHighLevelClient().security()
+                .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
+                    "ApiKey " + base64ApiKeyKeyValue).build()));
+        assertThat(e.getMessage(), containsString("security_exception"));
+        assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
     }
 
     private void verifyInvalidateResponse(int noOfApiKeys, List<CreateApiKeyResponse> responses,
@@ -968,6 +1033,119 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 lastTaskFuture.get();
             }
         }
+    }
+
+    public void testCacheInvalidationViaApiCalls() throws Exception {
+        final List<ApiKeyService> services = Arrays.stream(internalCluster().getNodeNames())
+            .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
+            .collect(Collectors.toList());
+
+        // Create two API keys and authenticate with them
+        String docId1 = createApiKeyAndAuthenticateWithIt().v1();
+        String docId2 = createApiKeyAndAuthenticateWithIt().v1();
+
+        // Find out which nodes handled the above authentication requests
+        final ApiKeyService serviceForDoc1 =
+            services.stream().filter(s -> s.getDocCache().get(docId1) != null).findFirst()
+                .orElseThrow(() -> new NoSuchElementException("No value present"));
+        final ApiKeyService serviceForDoc2 =
+            services.stream().filter(s -> s.getDocCache().get(docId2) != null).findFirst()
+                .orElseThrow(() -> new NoSuchElementException("No value present"));
+        assertNotNull(serviceForDoc1.getFromCache(docId1));
+        assertNotNull(serviceForDoc2.getFromCache(docId2));
+        final boolean sameServiceNode = serviceForDoc1 == serviceForDoc2;
+        if (sameServiceNode) {
+            assertEquals(2, serviceForDoc1.getDocCache().count());
+            assertEquals(2, serviceForDoc1.getRoleDescriptorsBytesCache().count());
+        } else {
+            assertEquals(1, serviceForDoc1.getDocCache().count());
+            assertEquals(2, serviceForDoc1.getRoleDescriptorsBytesCache().count());
+            assertEquals(1, serviceForDoc2.getDocCache().count());
+            assertEquals(2, serviceForDoc2.getRoleDescriptorsBytesCache().count());
+        }
+
+        // Invalidate cache for only the first key
+        ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest();
+        clearSecurityCacheRequest.cacheName("api_key");
+        clearSecurityCacheRequest.keys(docId1);
+        ClearSecurityCacheResponse clearSecurityCacheResponse =
+            client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest).get();
+        assertFalse(clearSecurityCacheResponse.hasFailures());
+
+        assertBusy(() -> {
+            expectThrows(NullPointerException.class, () -> serviceForDoc1.getFromCache(docId1));
+            if (sameServiceNode) {
+                assertEquals(1, serviceForDoc1.getDocCache().count());
+                assertNotNull(serviceForDoc1.getFromCache(docId2));
+            } else {
+                assertEquals(0, serviceForDoc1.getDocCache().count());
+                assertEquals(1, serviceForDoc2.getDocCache().count());
+                assertNotNull(serviceForDoc2.getFromCache(docId2));
+            }
+            // Role descriptors are not invalidated when invalidation is for specific API keys
+            assertEquals(2, serviceForDoc1.getRoleDescriptorsBytesCache().count());
+            assertEquals(2, serviceForDoc2.getRoleDescriptorsBytesCache().count());
+        });
+
+        // Invalidate all cache entries by setting keys to an empty array
+        clearSecurityCacheRequest.keys(new String[0]);
+        clearSecurityCacheResponse =
+            client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest).get();
+        assertFalse(clearSecurityCacheResponse.hasFailures());
+        assertBusy(() -> {
+            assertEquals(0, serviceForDoc1.getDocCache().count());
+            assertEquals(0, serviceForDoc1.getRoleDescriptorsBytesCache().count());
+            if (sameServiceNode) {
+                expectThrows(NullPointerException.class, () -> serviceForDoc1.getFromCache(docId2));
+            } else {
+                expectThrows(NullPointerException.class, () -> serviceForDoc2.getFromCache(docId2));
+                assertEquals(0, serviceForDoc2.getDocCache().count());
+                assertEquals(0, serviceForDoc2.getRoleDescriptorsBytesCache().count());
+            }
+        });
+    }
+
+    public void testSecurityIndexStateChangeWillInvalidateApiKeyCaches() throws Exception {
+        final List<ApiKeyService> services = Arrays.stream(internalCluster().getNodeNames())
+            .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
+            .collect(Collectors.toList());
+
+        String docId = createApiKeyAndAuthenticateWithIt().v1();
+
+        // The API key is cached by one of the node that the above request hits, find out which one
+        final ApiKeyService apiKeyService =
+            services.stream().filter(s -> s.getDocCache().count() > 0).findFirst()
+                .orElseThrow(() -> new NoSuchElementException("No value present"));
+        assertNotNull(apiKeyService.getFromCache(docId));
+        assertEquals(1, apiKeyService.getDocCache().count());
+        assertEquals(2, apiKeyService.getRoleDescriptorsBytesCache().count());
+
+        // Close security index to trigger invalidation
+        final CloseIndexResponse closeIndexResponse = client().admin().indices().close(
+            new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
+        assertTrue(closeIndexResponse.isAcknowledged());
+        assertBusy(() -> {
+            expectThrows(NullPointerException.class, () -> apiKeyService.getFromCache(docId));
+            assertEquals(0, apiKeyService.getDocCache().count());
+            assertEquals(0, apiKeyService.getRoleDescriptorsBytesCache().count());
+        });
+    }
+
+    private Tuple<String, String> createApiKeyAndAuthenticateWithIt() throws IOException {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+
+        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client)
+            .setName("test key")
+            .get();
+        final String docId = createApiKeyResponse.getId();
+        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
+            (docId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final AuthenticateResponse authResponse = new TestRestHighLevelClient().security()
+            .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
+        assertEquals("api_key", authResponse.getAuthenticationType());
+        return Tuple.tuple(docId, createApiKeyResponse.getKey().toString());
     }
 
     private void assertApiKeyNotCreated(Client client, String keyName) throws ExecutionException, InterruptedException {

@@ -45,6 +45,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
@@ -121,7 +122,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
                 .build();
 
-        indexNameExpressionResolver = new IndexNameExpressionResolver();
+        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
         final boolean withAlias = randomBoolean();
         final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
@@ -266,7 +267,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService, new IndexNameExpressionResolver());
+        defaultIndicesResolver =
+            new IndicesAndAliasesResolver(settings, clusterService, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {

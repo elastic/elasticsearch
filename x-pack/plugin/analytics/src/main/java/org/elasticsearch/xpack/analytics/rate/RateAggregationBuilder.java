@@ -11,12 +11,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -99,13 +99,12 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
 
     @Override
     protected RateAggregatorFactory innerBuild(
-        QueryShardContext queryShardContext,
+        AggregationContext context,
         ValuesSourceConfig config,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-
-        return new RateAggregatorFactory(name, config, rateUnit, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new RateAggregatorFactory(name, config, rateUnit, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -139,7 +138,7 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
     }
 
     @Override
-    protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
+    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         if (field() == null && script() == null) {
             return new ValuesSourceConfig(
                 CoreValuesSourceType.NUMERIC,
@@ -150,10 +149,10 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
                 1.0,
                 null,
                 DocValueFormat.RAW,
-                queryShardContext::nowInMillis
+                context
             );
         } else {
-            return super.resolveConfig(queryShardContext);
+            return super.resolveConfig(context);
         }
     }
 

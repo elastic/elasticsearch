@@ -3721,10 +3721,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setPageParams(new PageParams(0, 1)) // <2>
                 .includeDefinition() // <3>
                 .includeTotalFeatureImportance() // <4>
-                .setDecompressDefinition(false) // <5>
-                .setAllowNoMatch(true) // <6>
-                .setTags("regression") // <7>
-                .setForExport(false); // <8>
+                .includeFeatureImportanceBaseline() // <5>
+                .setDecompressDefinition(false) // <6>
+                .setAllowNoMatch(true) // <7>
+                .setTags("regression") // <8>
+                .setForExport(false); // <9>
             // end::get-trained-models-request
             request.setTags((List<String>)null);
 

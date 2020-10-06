@@ -23,12 +23,16 @@ import static org.hamcrest.Matchers.not;
  */
 public class CustomRealmIT extends ESRestTestCase {
 
+    // These are configured in build.gradle
+    public static final String USERNAME= "test_user";
+    public static final String PASSWORD = "secret_password";
+
     @Override
     protected Settings restClientSettings() {
         return Settings.builder()
-                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
-                .build();
+            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, USERNAME)
+            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, PASSWORD)
+            .build();
     }
 
     public void testHttpConnectionWithNoAuthentication() {
@@ -47,8 +51,8 @@ public class CustomRealmIT extends ESRestTestCase {
     public void testHttpAuthentication() throws Exception {
         Request request = new Request("GET", "/");
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER);
-        options.addHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString());
+        options.addHeader(CustomRealm.USER_HEADER, USERNAME);
+        options.addHeader(CustomRealm.PW_HEADER, PASSWORD);
         request.setOptions(options);
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -59,7 +63,7 @@ public class CustomRealmIT extends ESRestTestCase {
         request.addParameter("flat_settings", "true");
         Response response = client().performRequest(request);
         String responseString = EntityUtils.toString(response.getEntity());
-        assertThat(responseString, not(containsString("xpack.security.authc.realms.custom.custom.filtered_setting")));
-        assertThat(responseString, containsString("xpack.security.authc.realms.custom.custom.order"));
+        assertThat(responseString, not(containsString("xpack.security.authc.realms.custom.my_realm.filtered_setting")));
+        assertThat(responseString, containsString("xpack.security.authc.realms.custom.my_realm.order"));
     }
 }

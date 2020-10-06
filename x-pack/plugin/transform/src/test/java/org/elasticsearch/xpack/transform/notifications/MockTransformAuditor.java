@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
@@ -46,13 +47,15 @@ public class MockTransformAuditor extends TransformAuditor {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
 
-        return new MockTransformAuditor(clusterService);
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        return new MockTransformAuditor(client, clusterService);
     }
 
     private final List<AuditExpectation> expectations;
 
-    public MockTransformAuditor(ClusterService clusterService) {
-        super(mock(Client.class), MOCK_NODE_NAME, clusterService);
+    private MockTransformAuditor(Client client, ClusterService clusterService) {
+        super(client, MOCK_NODE_NAME, clusterService);
         expectations = new CopyOnWriteArrayList<>();
     }
 

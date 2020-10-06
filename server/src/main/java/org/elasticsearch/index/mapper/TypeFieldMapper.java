@@ -39,7 +39,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class TypeFieldMapper extends MetadataFieldMapper {

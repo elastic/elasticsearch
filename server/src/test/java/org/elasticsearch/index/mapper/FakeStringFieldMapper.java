@@ -36,6 +36,8 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
 
     public static final FieldType FIELD_TYPE = new FieldType();
     static {
+        FIELD_TYPE.setTokenized(true);
+        FIELD_TYPE.setStored(true);
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
     }
 

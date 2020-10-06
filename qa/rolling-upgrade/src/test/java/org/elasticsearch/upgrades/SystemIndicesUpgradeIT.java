@@ -71,6 +71,10 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
+            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
+                v.current(systemIndexWarning);
+                v.compatible(systemIndexWarning);
+            }));
             getTasksIndex.addParameter("allow_no_indices", "false");
 
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
@@ -96,6 +100,10 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                     "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
                     "  ]\n" +
                     "}");
+                putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
+                    v.current(systemIndexWarning);
+                    v.compatible(systemIndexWarning);
+                }));
                 assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
             }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {

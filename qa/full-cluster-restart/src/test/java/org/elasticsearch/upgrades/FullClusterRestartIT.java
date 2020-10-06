@@ -143,7 +143,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                             .field("binary", Base64.getEncoder().encodeToString(randomByteArray))
                             .endObject()
             );
-            refresh();
+            refreshAllIndices();
         } else {
             count = countOfIndexedRandomDocuments();
         }
@@ -708,7 +708,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Count the documents in the index to make sure we have as many as we put there
         Request countRequest = new Request("GET", "/" + index + "/_search");
         countRequest.addParameter("size", "0");
-        refresh();
+        refreshAllIndices();
         Map<String, Object> countResponse = entityAsMap(client().performRequest(countRequest));
         assertTotalHits(count, countResponse);
 
@@ -795,7 +795,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
 
         // Refresh the index so the count doesn't fail
-        refresh();
+        refreshAllIndices();
 
         // Count the documents in the index to make sure we have as many as we put there
         Request countRequest = new Request("GET", "/" + index + "/_search");
@@ -935,7 +935,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 Request request = new Request("POST", "/" + index + "/_doc/" + i);
                 request.setJsonEntity(doc);
                 client().performRequest(request);
-                refresh();
+                refreshAllIndices();
             }
             client().performRequest(new Request("POST", "/" + index + "/_flush"));
             int liveDocs = numDocs;
@@ -951,7 +951,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     liveDocs--;
                 }
             }
-            refresh();
+            refreshAllIndices();
             assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
             saveInfoDocument(index + "_doc_count", Integer.toString(liveDocs));
         } else {
@@ -979,10 +979,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject()));
                     assertOK(client().performRequest(request));
                     if (rarely()) {
-                        refresh();
+                        refreshAllIndices();
                     }
                 }
-                refresh();
+                refreshAllIndices();
             }
 
             assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
@@ -1163,7 +1163,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createDocument.setJsonEntity(Strings.toString(docSupplier.apply(i)));
             client().performRequest(createDocument);
             if (rarely()) {
-                refresh();
+                refreshAllIndices();
             }
             if (flushAllowed && rarely()) {
                 logger.debug("Flushing [{}]", index);
@@ -1203,11 +1203,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Matcher m = Pattern.compile("\"value\":\"(.+)\"").matcher(doc);
         assertTrue(doc, m.find());
         return m.group(1);
-    }
-
-    private void refresh() throws IOException {
-        logger.debug("Refreshing [{}]", index);
-        client().performRequest(new Request("POST", "/" + index + "/_refresh"));
     }
 
     private List<String> dataNodes(String index, RestClient client) throws IOException {
@@ -1427,6 +1422,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
+            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
+                v.current(systemIndexWarning);
+                v.compatible(systemIndexWarning);
+            }));
             getTasksIndex.addParameter("allow_no_indices", "false");
 
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
@@ -1452,6 +1451,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
                     "  ]\n" +
                     "}");
+                putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
+                    v.current(systemIndexWarning);
+                    v.compatible(systemIndexWarning);
+                }));
                 assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
             }
         } else {

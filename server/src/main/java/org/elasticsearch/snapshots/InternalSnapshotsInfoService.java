@@ -84,7 +84,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     private final Queue<SnapshotShard> queue;
 
     private volatile int maxConcurrentFetches;
-    private volatile int activeFetches;
+    private int activeFetches;
 
     private final Object mutex;
 

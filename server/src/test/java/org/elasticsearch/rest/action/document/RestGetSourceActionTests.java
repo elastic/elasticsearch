@@ -23,6 +23,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
@@ -68,13 +69,16 @@ public class RestGetSourceActionTests extends RestActionTestCase {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            // Ensure we have a fresh context for each request so we don't get duplicate headers
+            try (ThreadContext.StoredContext ignore = verifyingClient.threadPool().getThreadContext().stashContext()) {
+                RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                     .withMethod(method)
                     .withPath("/some_index/some_type/id/_source")
                     .build();
 
-            dispatchRequest(request);
-            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+                dispatchRequest(request);
+                assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+            }
         }
     }
 
@@ -87,6 +91,8 @@ public class RestGetSourceActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
+            // Ensure we have a fresh context for each request so we don't get duplicate headers
+            try (ThreadContext.StoredContext ignore = verifyingClient.threadPool().getThreadContext().stashContext()) {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                     .withMethod(method)
                     .withPath("/some_index/_source/id")
@@ -94,6 +100,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
                     .build();
             dispatchRequest(request);
             assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+            }
         }
     }
 

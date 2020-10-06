@@ -240,7 +240,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns the {@link MappedFieldType} for the provided field name
+     * Returns the {@link MappedFieldType} for the provided field name if the field is mapped, null otherwise.
      */
     public MappedFieldType fieldType(String name) {
         return mapperService.fieldType(name);

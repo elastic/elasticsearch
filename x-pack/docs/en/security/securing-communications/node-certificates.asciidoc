@@ -94,9 +94,9 @@ directory] varies depending on your {es} installation.
 .. Copy the node certificates into the `certs` directory that you created in the
 previous step.
 
-.. Copy the `.p12` keystore into the {es} configuration directory. If this file
-does not exist in the location that {es} expects, permission checks will fail
-when {es} starts.
+.. Copy the `.p12` keystore file into the {es} configuration directory. {es}
+will fail to start if the keystore file is located anywhere except this
+directory.
 
 .. For each additional Elastic product that you want to configure, copy the
 certificates to the relevant configuration directory.

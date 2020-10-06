@@ -55,7 +55,7 @@ public class GeometryDocValueReader {
     /**
      * returns the {@link Extent} of this geometry.
      */
-    public Extent getExtent() {
+    protected Extent getExtent() {
         if (treeOffset == 0) {
             getSumCentroidWeight(); // skip CENTROID_HEADER + var-long sum-weight
             Extent.readFromCompressed(input, extent);
@@ -69,7 +69,7 @@ public class GeometryDocValueReader {
     /**
      * returns the encoded X coordinate of the centroid.
      */
-    public int getCentroidX() {
+    protected int getCentroidX() {
         input.setPosition(docValueOffset + 0);
         return input.readInt();
     }
@@ -77,17 +77,17 @@ public class GeometryDocValueReader {
     /**
      * returns the encoded Y coordinate of the centroid.
      */
-    public int getCentroidY() {
+    protected int getCentroidY() {
         input.setPosition(docValueOffset + 4);
         return input.readInt();
     }
 
-    public DimensionalShapeType getDimensionalShapeType() {
+    protected DimensionalShapeType getDimensionalShapeType() {
         input.setPosition(docValueOffset + 8);
         return DimensionalShapeType.readFrom(input);
     }
 
-    public double getSumCentroidWeight() {
+    protected double getSumCentroidWeight() {
         input.setPosition(docValueOffset + 9);
         return Double.longBitsToDouble(input.readVLong());
     }
@@ -95,7 +95,7 @@ public class GeometryDocValueReader {
     /**
      * Visit the triangle tree with the provided visitor
      */
-    public void visit(TriangleTreeReader.Visitor visitor) {
+    protected void visit(TriangleTreeReader.Visitor visitor) {
         Extent extent = getExtent();
         int thisMaxX = extent.maxX();
         int thisMinX = extent.minX();

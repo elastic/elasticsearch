@@ -75,6 +75,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -156,12 +157,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertAcked(client().admin().indices().prepareClose(indicesToSnapshot).setWaitForActiveShards(ActiveShardCount.ALL).get());
         }
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices(indicesToSnapshot).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test-snap", Arrays.asList(indicesToSnapshot));
 
         List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots("test-repo")
                 .setSnapshots(randomFrom("test-snap", "_all", "*", "*-snap", "test*")).get().getSnapshots("test-repo");
@@ -256,16 +252,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         indexDoc(indexName, docId, "value", expectedValue);
 
         createRepository(repoName, "fs", absolutePath);
-
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
-                .setWaitForCompletion(true)
-                .setIndices(indexName)
-                .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
 
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)
                 .setWaitForCompletion(true)
@@ -286,11 +273,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertTrue(originalIndexUUID, originalIndexUUID != null);
         assertFalse(originalIndexUUID, originalIndexUUID.equals(IndexMetadata.INDEX_UUID_NA_VALUE));
         ensureGreen();
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test"));
         NumShards numShards = getNumShards("test");
 
         cluster().wipeIndices("test");
@@ -453,12 +436,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         indexRandomDocs("test-idx", 100);
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices("test-idx").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         createRepository("test-repo", "mock",
             Settings.builder().put("location", repositoryLocation).put("random", randomAlphaOfLength(10))
@@ -503,12 +481,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createIndexWithRandomDocs("test-idx", 100);
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         createRepository("test-repo", "mock",
             Settings.builder().put("location", repositoryLocation).put("random", randomAlphaOfLength(10))
@@ -600,14 +573,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // create a snapshot
         final NumShards numShards = getNumShards(indexName);
-        CreateSnapshotResponse snapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
-                                                                            .setWaitForCompletion(true)
-                                                                            .setIndices(indexName)
-                                                                            .get();
-
-        assertThat(snapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotResponse.getSnapshotInfo().successfulShards(), equalTo(numShards.numPrimaries));
-        assertThat(snapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
+        final SnapshotInfo snapshotInfo = createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        assertThat(snapshotInfo.successfulShards(), equalTo(numShards.numPrimaries));
 
         // delete the test index
         assertAcked(client().admin().indices().prepareDelete(indexName));
@@ -679,12 +646,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createIndexWithRandomDocs("test-idx", 100);
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices("test-idx").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         logger.info("-->  update repository with mock version");
         createRepository("test-repo", "mock", Settings.builder()
@@ -758,12 +720,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 indexDoc("test-idx", Integer.toString(i * 10 + j), "foo", "bar" + i * 10 + j);
             }
             refresh();
-            logger.info("--> snapshot {}", i);
-            CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-" + i)
-                .setWaitForCompletion(true).setIndices("test-idx").get();
-            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+            createSnapshot("test-repo", "test-snap-" + i, Collections.singletonList("test-idx"));
             // Store number of files after each snapshot
             numberOfFiles[i] = numberOfFiles(repo);
         }
@@ -814,11 +771,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(stateResponse.getState().metadata().index("test-idx-closed").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), notNullValue());
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices("test-idx*").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(2));
-        assertThat(createSnapshotResponse.getSnapshotInfo().shardFailures().size(), equalTo(0));
+        final SnapshotInfo snapshotInfo = createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx*"));
+        assertThat(snapshotInfo.indices().size(), equalTo(2));
     }
 
     public void testMoveShardWhileSnapshotting() throws Exception {
@@ -946,12 +900,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createIndexWithRandomDocs("test-idx", 100);
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices("test-idx").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
 
@@ -1000,13 +949,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "10k" : "0"));
 
         createIndexWithRandomDocs("test-idx", 100);
-
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices("test-idx").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
@@ -1193,11 +1136,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         indexRandomDocs("test", randomIntBetween(10, 100));
         assertNoFailures(client().admin().indices().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).get());
 
-        CreateSnapshotResponse createSnapshotResponseFirst = client.admin().cluster().prepareCreateSnapshot("test-repo", "test")
-            .setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponseFirst.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test", Collections.singletonList("test"));
         assertThat(getSnapshot("test-repo", "test").state(), equalTo(SnapshotState.SUCCESS));
         {
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo")
@@ -1208,11 +1147,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        CreateSnapshotResponse createSnapshotResponseSecond = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-1")
-            .setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponseSecond.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test-1", Collections.singletonList("test"));
         assertThat(getSnapshot("test-repo", "test-1").state(), equalTo(SnapshotState.SUCCESS));
         {
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo")
@@ -1224,11 +1159,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
 
         client().prepareDelete("test", "1").get();
-        CreateSnapshotResponse createSnapshotResponseThird = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-2")
-            .setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponseThird.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponseThird.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponseThird.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test-2", Collections.singletonList("test"));
         assertThat(getSnapshot("test-repo", "test-2").state(), equalTo(SnapshotState.SUCCESS));
         {
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo")
@@ -1785,11 +1716,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
             final String snapshotName = "test-snap-" + i;
             indicesPerSnapshot.put(snapshotName, indices);
-            client.admin().cluster()
-                .prepareCreateSnapshot("test-repo", snapshotName)
-                .setWaitForCompletion(true)
-                .setIndices(indices.toArray(new String[indices.size()]))
-                .get();
+            createSnapshot("test-repo", snapshotName, indices);
         }
 
         logger.info("--> verify _all returns snapshot info");
@@ -1849,12 +1776,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         refresh();
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName)
-            .setWaitForCompletion(true).setIndices(indexName).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createSnapshot(repositoryName, snapshotName, Collections.singletonList(indexName));
 
         logger.info("--> delete indices");
         assertAcked(client.admin().indices().prepareDelete(indexName));

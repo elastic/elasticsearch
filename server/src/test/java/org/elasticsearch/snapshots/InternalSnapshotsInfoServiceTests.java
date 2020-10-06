@@ -60,6 +60,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -126,6 +127,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             expectedShardSizes[i] = randomNonNegativeLong();
         }
 
+        final AtomicInteger getShardSnapshotStatusCount = new AtomicInteger(0);
         final CountDownLatch latch = new CountDownLatch(1);
         when(repositoriesService.repository("_repo"))
             .thenReturn(new FilterRepository(mock(Repository.class)) {
@@ -135,6 +137,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                         assertThat(indexId.getName(), equalTo(indexName));
                         assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
                         latch.await();
+                        getShardSnapshotStatusCount.incrementAndGet();
                         return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
                     } catch (InterruptedException e) {
                         throw new AssertionError(e);
@@ -155,6 +158,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
         });
         verify(rerouteService, times(numberOfShards)).reroute(anyString(), any(Priority.class), any());
+        assertThat(getShardSnapshotStatusCount.get(), equalTo(numberOfShards));
 
         for (int i = 0; i < numberOfShards; i++) {
             final ShardRouting shardRouting = clusterService.state().routingTable().index(indexName).shard(i).primaryShard();

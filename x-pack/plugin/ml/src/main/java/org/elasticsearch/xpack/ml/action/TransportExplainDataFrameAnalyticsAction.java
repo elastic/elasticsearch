@@ -106,7 +106,8 @@ public class TransportExplainDataFrameAnalyticsAction
         );
         if (licenseState.isSecurityEnabled()) {
             useSecondaryAuthIfAvailable(this.securityContext, () -> {
-                // Use secondary auth headers for the request always
+                // Set the auth headers (preferring the secondary headers) to the caller's. 
+                // Regardless if the config was previously stored or not.
                 DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(request.getConfig())
                     .setHeaders(filterSecurityHeaders(threadPool.getThreadContext().getHeaders()))
                     .build();

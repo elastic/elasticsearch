@@ -30,6 +30,7 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
     private static String basicAuth(String user) {
         return UsernamePasswordToken.basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
     }
+
     private static final String SUPER_USER = "x_pack_rest_user";
     private static final String ML_ADMIN = "ml_admin";
     private static final String BASIC_AUTH_VALUE_SUPER_USER = basicAuth(SUPER_USER);
@@ -171,7 +172,6 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
             // Should not throw
             client().performRequest(explain);
         }
-
     }
 
     private static Request explainRequestViaConfig(String config) {

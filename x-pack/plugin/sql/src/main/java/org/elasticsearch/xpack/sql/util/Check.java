@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 /**
  * Utility class used for checking various conditions at runtime, inside SQL (hence the specific exception) with
- * minimum amount of code 
+ * minimum amount of code
  */
 public abstract class Check {
 
@@ -36,14 +36,15 @@ public abstract class Check {
             throw new SqlIllegalArgumentException(message, values);
         }
     }
-    
+
     public static void isFixedNumberAndInRange(Object object, String objectName, Long from, Long to) {
-        if ((object instanceof Number) == false) {
-            throw new SqlIllegalArgumentException("A number is required for [{}]; received [{}]", objectName, object.getClass());
+        if ((object instanceof Number) == false || object instanceof Float || object instanceof Double) {
+            throw new SqlIllegalArgumentException("A fixed point number is required for [{}]; received [{}]", objectName,
+                object.getClass().getTypeName());
         }
-        if (((Number) object).longValue() > to || ((Number) object).longValue() < from) {
-            throw new SqlIllegalArgumentException("[{}] has the value [{}] out of allowed range [{}..{}]", 
-                    objectName, ((Number) object).longValue(), from, to);
+        Long longValue = ((Number) object).longValue();
+        if (longValue < from || longValue > to) {
+            throw new SqlIllegalArgumentException("[{}] equals [{}], out of the allowed range [{}..{}]", objectName, longValue, from, to);
         }
     }
 }

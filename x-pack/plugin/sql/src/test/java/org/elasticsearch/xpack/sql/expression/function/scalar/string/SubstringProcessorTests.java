@@ -17,11 +17,11 @@ import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTest
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class SubstringProcessorTests extends AbstractWireSerializingTestCase<SubstringFunctionProcessor> {
-    
+
     @Override
     protected SubstringFunctionProcessor createTestInstance() {
         return new SubstringFunctionProcessor(
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 256)), 
+                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 256)),
                 new ConstantProcessor(randomInt(256)),
                 new ConstantProcessor(randomInt(256)));
     }
@@ -30,12 +30,12 @@ public class SubstringProcessorTests extends AbstractWireSerializingTestCase<Sub
     protected Reader<SubstringFunctionProcessor> instanceReader() {
         return SubstringFunctionProcessor::new;
     }
-    
+
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Processors.getNamedWriteables());
     }
-    
+
     public void testSubstringFunctionWithValidInput() {
         assertEquals("bar", new Substring(EMPTY, l("foobarbar"), l(4), l(3)).makePipe().asProcessor().process(null));
         assertEquals("foo", new Substring(EMPTY, l("foobarbar"), l(1), l(3)).makePipe().asProcessor().process(null));
@@ -62,36 +62,33 @@ public class SubstringProcessorTests extends AbstractWireSerializingTestCase<Sub
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Substring(EMPTY, l(5), l(1), l(3)).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [5]", siae.getMessage());
+
         siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Substring(EMPTY, l("foobarbar"), l(1), l("baz")).makePipe().asProcessor().process(null));
-        assertEquals("A number is required for [length]; received [class java.lang.String]", siae.getMessage());
+        assertEquals("A fixed point number is required for [length]; received [java.lang.String]", siae.getMessage());
+
         siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Substring(EMPTY, l("foobarbar"), l("bar"), l(3)).makePipe().asProcessor().process(null));
-        assertEquals("A number is required for [start]; received [class java.lang.String]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Substring(EMPTY, l("foobarbar"), l(1), l(-3)).makePipe().asProcessor().process(null));
-        assertEquals("[length] has the value [-3] out of allowed range [0..2147483647]", siae.getMessage());
-    }
-    
-    public void testSubstringFunctionInputsOutOfRange() {
+        assertEquals("A fixed point number is required for [start]; received [java.lang.String]", siae.getMessage());
+
         assertEquals("f", new Substring(EMPTY, l("foobarbar"), l(-2147483647), l(1)).makePipe().asProcessor().process(null));
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Substring(EMPTY, l("foobarbar"), l(-2147483648), l(1)).makePipe().asProcessor().process(null));
-        assertEquals("[start] has the value [-2147483648] out of allowed range [-2147483647..2147483647]", siae.getMessage());
-    
+        siae = expectThrows(SqlIllegalArgumentException.class,
+            () -> new Substring(EMPTY, l("foobarbar"), l(-2147483648), l(1)).makePipe().asProcessor().process(null));
+        assertEquals("[start] equals [-2147483648], out of the allowed range [-2147483647..2147483647]", siae.getMessage());
+
         assertEquals("", new Substring(EMPTY, l("foobarbar"), l(2147483647), l(1)).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Substring(EMPTY, l("foobarbar"), l(2147483648L), l(1)).makePipe().asProcessor().process(null));
-        assertEquals("[start] has the value [2147483648] out of allowed range [-2147483647..2147483647]", siae.getMessage());
-    
+            () -> new Substring(EMPTY, l("foobarbar"), l(2147483648L), l(1)).makePipe().asProcessor().process(null));
+        assertEquals("[start] equals [2147483648], out of the allowed range [-2147483647..2147483647]", siae.getMessage());
+
         assertEquals("", new Substring(EMPTY, l("foobarbar"), l(1), l(0)).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Substring(EMPTY, l("foobarbar"), l(1), l(-1)).makePipe().asProcessor().process(null));
-        assertEquals("[length] has the value [-1] out of allowed range [0..2147483647]", siae.getMessage());
-    
+            () -> new Substring(EMPTY, l("foobarbar"), l(1), l(-1)).makePipe().asProcessor().process(null));
+        assertEquals("[length] equals [-1], out of the allowed range [0..2147483647]", siae.getMessage());
+
         assertEquals("foobarbar", new Substring(EMPTY, l("foobarbar"), l(1), l(2147483647)).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Substring(EMPTY, l("foobarbar"), l(1), l(2147483648L)).makePipe().asProcessor().process(null));
-        assertEquals("[length] has the value [2147483648] out of allowed range [0..2147483647]", siae.getMessage());
+            () -> new Substring(EMPTY, l("foobarbar"), l(1), l(2147483648L)).makePipe().asProcessor().process(null));
+        assertEquals("[length] equals [2147483648], out of the allowed range [0..2147483647]", siae.getMessage());
     }
 }

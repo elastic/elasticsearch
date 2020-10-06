@@ -62,17 +62,17 @@ public class InsertFunctionProcessor implements Processor {
         if (start == null || length == null) {
             return input;
         }
-    
-        Check.isFixedNumberAndInRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
+
+        Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);
         Check.isFixedNumberAndInRange(length, "length", 0L, (long) Integer.MAX_VALUE);
 
         int startInt = ((Number) start).intValue() - 1;
         int realStart = startInt < 0 ? 0 : startInt;
-        
+
         if (startInt > input.toString().length()) {
             return input;
         }
-        
+
         StringBuilder sb = new StringBuilder(input.toString());
         String replString = (replacement.toString());
 
@@ -80,41 +80,41 @@ public class InsertFunctionProcessor implements Processor {
                 realStart + ((Number) length).intValue(),
                 replString).toString();
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         InsertFunctionProcessor other = (InsertFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
                 && Objects.equals(start(), other.start())
                 && Objects.equals(length(), other.length())
                 && Objects.equals(replacement(), other.replacement());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input(), start(), length(), replacement());
     }
-    
+
     public Processor input() {
         return input;
     }
-    
+
     public Processor start() {
         return start;
     }
-    
+
     public Processor length() {
         return length;
     }
-    
+
     public Processor replacement() {
         return replacement;
     }

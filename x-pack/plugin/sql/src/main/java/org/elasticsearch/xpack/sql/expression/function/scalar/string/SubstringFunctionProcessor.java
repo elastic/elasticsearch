@@ -54,48 +54,48 @@ public class SubstringFunctionProcessor implements Processor {
         if (start == null || length == null) {
             return input;
         }
-        
-        Check.isFixedNumberAndInRange(start, "start", (long) (Integer.MIN_VALUE + 1), (long) Integer.MAX_VALUE);
+
+        Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);
         Check.isFixedNumberAndInRange(length, "length", 0L, (long) Integer.MAX_VALUE);
 
         return StringFunctionUtils.substring(input instanceof Character ? input.toString() : (String) input,
                 ((Number) start).intValue() - 1, // SQL is 1-based when it comes to string manipulation
                 ((Number) length).intValue());
     }
-    
+
     protected Processor input() {
         return input;
     }
-    
+
     protected Processor start() {
         return start;
     }
-    
+
     protected Processor length() {
         return length;
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         SubstringFunctionProcessor other = (SubstringFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
                 && Objects.equals(start(), other.start())
                 && Objects.equals(length(), other.length());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input(), start(), length());
     }
-    
+
 
     @Override
     public String getWriteableName() {

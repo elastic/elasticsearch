@@ -116,6 +116,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
@@ -254,6 +255,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING,
             InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
             InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
+            InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
             DestructiveOperations.REQUIRES_NAME_SETTING,
             DiscoverySettings.PUBLISH_TIMEOUT_SETTING,
             DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING,

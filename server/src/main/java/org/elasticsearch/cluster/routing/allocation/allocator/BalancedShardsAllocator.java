@@ -810,7 +810,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                         final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard,
                             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                            allocation.clusterInfo(), allocation.metadata(), allocation.routingTable());
+                            allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(), allocation.routingTable());
                         shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
                         minNode.addShard(shard);
                         if (!shard.primary()) {
@@ -832,7 +832,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
                             final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard,
                                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                                allocation.clusterInfo(), allocation.metadata(), allocation.routingTable());
+                                allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(),
+                                allocation.routingTable());
                             minNode.addShard(shard.initialize(minNode.getNodeId(), null, shardSize));
                         } else {
                             if (logger.isTraceEnabled()) {

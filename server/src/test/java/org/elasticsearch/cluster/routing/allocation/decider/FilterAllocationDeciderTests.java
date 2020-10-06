@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -58,7 +59,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
                 new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                 new ReplicaAfterPrimaryActiveAllocationDecider()));
         AllocationService service = new AllocationService(allocationDeciders,
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE);
         ClusterState state = createInitialClusterState(service, Settings.builder().put("index.routing.allocation.initial_recovery._id",
             "node2").build());
         RoutingTable routingTable = state.routingTable();
@@ -73,7 +75,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
         // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+            null, null, 0);
         allocation.debugDecision(true);
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).primaryShard(),
@@ -124,7 +126,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node1");
 
         allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+            null, null, 0);
         allocation.debugDecision(true);
         decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).shards().get(0),

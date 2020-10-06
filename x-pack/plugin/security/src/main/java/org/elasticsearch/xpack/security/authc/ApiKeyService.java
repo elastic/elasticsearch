@@ -169,7 +169,7 @@ public class ApiKeyService {
     public static final Setting<Integer> CACHE_MAX_KEYS_SETTING = Setting.intSetting("xpack.security.authc.api_key.cache.max_keys",
         10000, Property.NodeScope);
     public static final Setting<TimeValue> DOC_CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.api_key.doc_cache.ttl",
-        TimeValue.timeValueMinutes(5), TimeValue.timeValueMinutes(0), TimeValue.timeValueMinutes(5), Property.NodeScope);
+        TimeValue.timeValueMinutes(5), TimeValue.timeValueMinutes(0), TimeValue.timeValueMinutes(15), Property.NodeScope);
 
     private final Clock clock;
     private final Client client;
@@ -979,7 +979,7 @@ public class ApiKeyService {
                 public void onFailure(Exception e) {
                     logger.error("unable to clear API key cache", e);
                     listener.onFailure(new ElasticsearchException(
-                        "clearing the API key cache failed. " + "please clear the caches manually", e));
+                        "clearing the API key cache failed; please clear the caches manually", e));
                 }
             });
     }
@@ -1194,7 +1194,8 @@ public class ApiKeyService {
 
     /**
      * A cached version of the {@link ApiKeyDoc}. The main difference is that the role descriptors
-     * are replaced by their hashes. The actual values are stored in a separate role descriptor cache.
+     * are replaced by their hashes. The actual values are stored in a separate role descriptor cache,
+     * so that duplicate role descriptors are cached only once (and therefore consume less memory).
      */
     public static final class CachedApiKeyDoc {
         final long creationTime;
@@ -1251,6 +1252,9 @@ public class ApiKeyService {
                     .setExpireAfterWrite(ttl)
                     .build()
             );
+            // We don't use the doc TTL because that TTL is very low to avoid the risk of
+            // caching an invalidated API key. But role descriptors are immutable and may be shared between
+            // multiple API keys, so we cache for longer and rely on the weight to manage the cache size.
             this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
                 .setExpireAfterAccess(TimeValue.timeValueHours(1))
                 .setMaximumWeight(maximumWeight * 2)

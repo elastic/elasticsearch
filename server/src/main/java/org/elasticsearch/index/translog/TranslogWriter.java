@@ -184,7 +184,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * @return the location the bytes were written to
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
-    public Translog.Location add(final ReleasableBytesReference data, final long seqNo) throws IOException {
+    public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
         final Translog.Location location;
         final long bytesBufferedAfterAdd;
         synchronized (this) {
@@ -344,8 +344,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     assert totalOffset == lastSyncedCheckpoint.offset;
                     if (closed.compareAndSet(false, true)) {
                         try {
-                            Releasables.closeWhileHandlingException(buffer);
-                            buffer = null;
                             checkpointChannel.close();
                         } catch (final Exception ex) {
                             closeWithTragicEvent(ex);

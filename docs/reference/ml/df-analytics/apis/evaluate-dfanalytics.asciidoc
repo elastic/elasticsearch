@@ -138,7 +138,7 @@ which outputs a prediction of values.
     
     `offset`::::
       (Optional, double) Defines the transition point at which you switch from 
-      minimizing quadratic error to minimizing quardatic log error. Defaults to 
+      minimizing quadratic error to minimizing quadratic log error. Defaults to 
       `1`.
 
   `huber`:::

@@ -10,7 +10,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 public class InvalidationCountingCacheWrapperTests extends ESTestCase {

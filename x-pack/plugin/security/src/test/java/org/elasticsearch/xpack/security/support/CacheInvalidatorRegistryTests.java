@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry.CacheIn
 import org.junit.Before;
 
 import java.time.Instant;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Matchers.any;

@@ -34,9 +34,20 @@ public final class ClearApiKeyCacheRequest implements Validatable {
      * @param ids      An array of API Key ids to be cleared from the specified cache.
      *                 If not specified, all entries will be cleared.
      */
-    public ClearApiKeyCacheRequest(String... ids) {
+    private ClearApiKeyCacheRequest(String... ids) {
         this.ids = ids;
     }
+    
+    public static ClearApiKeyCacheRequest clearAll() {
+        return new ClearApiKeyCacheRequest();
+    }
+    
+    public static ClearApiKeyCacheRequest clearById(String ... ids) { 
+        if (ids.length == 0) {
+            throw new IllegalArgumentException("Ids cannot be empty");
+        }  
+        return new ClearApiKeyCacheRequest(ids);
+     }
 
     /**
      * @return an array of key names that will be evicted

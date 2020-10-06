@@ -23,6 +23,10 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Clears a security cache by name (with optional keys).
+ * @see CacheInvalidatorRegistry
+ */
 public class TransportClearSecurityCacheAction extends TransportNodesAction<ClearSecurityCacheRequest, ClearSecurityCacheResponse,
     ClearSecurityCacheRequest.Node, ClearSecurityCacheResponse.Node> {
 

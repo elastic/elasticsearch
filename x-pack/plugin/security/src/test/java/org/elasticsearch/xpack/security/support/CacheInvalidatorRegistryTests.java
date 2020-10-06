@@ -55,7 +55,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         verify(invalidator2).invalidateAll();
     }
 
-    public void testInvalidateByKey() {
+    public void testInvalidateByKeyCallsCorrectInvalidatorObject() {
         final CacheInvalidator invalidator1 = mock(CacheInvalidator.class);
         cacheInvalidatorRegistry.registerCacheInvalidator("service1", invalidator1);
         final CacheInvalidator invalidator2 = mock(CacheInvalidator.class);

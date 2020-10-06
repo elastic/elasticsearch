@@ -196,8 +196,7 @@ final class SecurityRequestConverters {
 
     static Request clearApiKeyCache(ClearApiKeyCacheRequest clearApiKeyCacheRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security")
-            .addPathPart("api_key")
+            .addPathPartAsIs("_security/api_key")
             .addCommaSeparatedPathParts(clearApiKeyCacheRequest.ids())
             .addPathPart("_clear_cache")
             .build();

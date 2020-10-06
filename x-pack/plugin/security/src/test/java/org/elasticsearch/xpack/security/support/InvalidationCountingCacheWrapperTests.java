@@ -28,7 +28,7 @@ public class InvalidationCountingCacheWrapperTests extends ESTestCase {
         assertEquals("bar", invalidationCountingCacheWrapper.get("foo"));
     }
 
-    public void testItemWillNotBeCachedWhenInvalidationHappensBetweenCheckpointAndItsUsage() throws InterruptedException {
+    public void testItemWillNotBeCachedIfInvalidationCounterHasChanged() throws InterruptedException {
         final long invalidationCount = invalidationCountingCacheWrapper.getInvalidationCount();
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         new Thread(() -> {

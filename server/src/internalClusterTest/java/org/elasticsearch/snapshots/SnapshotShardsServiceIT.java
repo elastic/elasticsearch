@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.plugins.Plugin;
@@ -66,8 +65,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
             .get();
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
 
-        final SnapshotId snapshotId = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
-            .get().getSnapshots("test-repo").get(0).snapshotId();
+        final SnapshotId snapshotId = getSnapshot("test-repo", "test-snap").snapshotId();
 
         logger.info("--> start disrupting cluster");
         final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.NetworkDelay.random(random()));
@@ -92,10 +90,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         internalCluster().clearDisruptionScheme(true);
 
         assertBusy(() -> {
-            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                .prepareGetSnapshots("test-repo")
-                .setSnapshots("test-snap").get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
+            SnapshotInfo snapshotInfo = getSnapshot("test-repo", "test-snap");
             logger.info("Snapshot status [{}], successfulShards [{}]", snapshotInfo.state(), snapshotInfo.successfulShards());
             assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
             assertThat(snapshotInfo.successfulShards(), equalTo(shards));

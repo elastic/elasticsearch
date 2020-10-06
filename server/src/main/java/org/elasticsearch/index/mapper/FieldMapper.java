@@ -21,11 +21,9 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -35,8 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +61,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected boolean indexed = true;
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo = CopyTo.empty();
-        protected float boost = 1.0f;
         protected Map<String, String> meta = Collections.emptyMap();
         // TODO move to KeywordFieldMapper.Builder
         protected boolean eagerGlobalOrdinals;
@@ -126,11 +121,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 this.fieldType.setStoreTermVectors(termVectorPayloads);
             }
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
-            return builder;
-        }
-
-        public T boost(float boost) {
-            this.boost = boost;
             return builder;
         }
 
@@ -277,12 +267,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
-    /**
-     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
-     */
-    public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
-
-    protected void createFieldNamesField(ParseContext context) {
+    protected final void createFieldNamesField(ParseContext context) {
+        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
@@ -400,7 +386,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
         }
         if (fieldType.storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
+            conflicts.add("mapper [" + name() + "] has different [term_vector] values");
         }
         if (fieldType.storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
             conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
@@ -452,10 +438,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-
-        if (includeDefaults || fieldType().boost() != 1.0f) {
-            builder.field("boost", fieldType().boost());
-        }
 
         if (includeDefaults || mappedFieldType.isSearchable() != indexedByDefault()) {
             builder.field("index", mappedFieldType.isSearchable());

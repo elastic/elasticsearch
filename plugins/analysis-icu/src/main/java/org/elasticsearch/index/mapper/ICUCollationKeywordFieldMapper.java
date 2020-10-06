@@ -27,11 +27,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,21 +68,29 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.freeze();
         }
 
-        public static final String NULL_VALUE = null;
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
+        private final String nullValue;
+        private final int ignoreAbove;
 
-        public CollationFieldType(String name, boolean isSearchable, boolean hasDocValues, Collator collator, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public CollationFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                                  Collator collator, String nullValue, int ignoreAbove, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.collator = collator;
+            this.nullValue = nullValue;
+            this.ignoreAbove = ignoreAbove;
+        }
+
+        public CollationFieldType(String name, boolean searchable, Collator collator) {
+            this(name, searchable, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
         public CollationFieldType(String name, Collator collator) {
-            this(name, true, true, collator, Collections.emptyMap());
+            this(name, true, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
         @Override
@@ -93,17 +98,22 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        public Collator collator() {
-            return collator;
-        }
-
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
+
+            return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+                @Override
+                protected String parseSourceValue(Object value) {
+                    String keywordValue = value.toString();
+                    if (keywordValue.length() > ignoreAbove) {
+                        return null;
+                    }
+                    return keywordValue;
+                }
+            };
         }
 
         @Override
@@ -136,13 +146,15 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive, QueryShardContext context) {
             throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query wildcardQuery(String value,
                                    @Nullable MultiTermQuery.RewriteMethod method,
+                                   boolean caseInsensitive,
                                    QueryShardContext context) {
             throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
@@ -438,7 +450,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public ICUCollationKeywordFieldMapper build(BuilderContext context) {
             final Collator collator = buildCollator();
-            CollationFieldType ft = new CollationFieldType(buildFullName(context), indexed, hasDocValues, collator, meta);
+            CollationFieldType ft
+                = new CollationFieldType(buildFullName(context), indexed, fieldType.stored(),
+                hasDocValues, collator, nullValue, ignoreAbove, meta);
             return new ICUCollationKeywordFieldMapper(name, fieldType, ft,
                 multiFieldsBuilder.build(this, context), copyTo, rules, language, country, variant, strength, decomposition,
                 alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode, ignoreAbove, collator, nullValue);
@@ -586,51 +600,51 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             conflicts.add("mapper [" + name() + "] has different [collator]");
         }
         if (!Objects.equals(rules, icuMergeWith.rules)) {
-            conflicts.add("Cannot update rules setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [rules] for [" + CONTENT_TYPE + "]");
         }
 
         if (!Objects.equals(language, icuMergeWith.language)) {
-            conflicts.add("Cannot update language setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [language] for [" + CONTENT_TYPE + "]");
         }
 
         if (!Objects.equals(country, icuMergeWith.country)) {
-            conflicts.add("Cannot update country setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [country] for [" + CONTENT_TYPE + "]");
         }
 
         if (!Objects.equals(variant, icuMergeWith.variant)) {
-            conflicts.add("Cannot update variant setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [variant] for [" + CONTENT_TYPE + "]");
         }
 
         if (!Objects.equals(strength, icuMergeWith.strength)) {
-            conflicts.add("Cannot update strength setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [strength] for [" + CONTENT_TYPE + "]");
         }
 
         if (!Objects.equals(decomposition, icuMergeWith.decomposition)) {
-            conflicts.add("Cannot update decomposition setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [decomposition] for [" + CONTENT_TYPE + "]");
         }
 
         if (!Objects.equals(alternate, icuMergeWith.alternate)) {
-            conflicts.add("Cannot update alternate setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [alternate] for [" + CONTENT_TYPE + "]");
         }
 
         if (caseLevel != icuMergeWith.caseLevel) {
-            conflicts.add("Cannot update case_level setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [case_level] for [" + CONTENT_TYPE + "]");
         }
 
         if (!Objects.equals(caseFirst, icuMergeWith.caseFirst)) {
-            conflicts.add("Cannot update case_first setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [case_first] for [" + CONTENT_TYPE + "]");
         }
 
         if (numeric != icuMergeWith.numeric) {
-            conflicts.add("Cannot update numeric setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [numeric] for [" + CONTENT_TYPE + "]");
         }
 
         if (!Objects.equals(variableTop, icuMergeWith.variableTop)) {
-            conflicts.add("Cannot update variable_top setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [variable_top] for [" + CONTENT_TYPE + "]");
         }
 
         if (hiraganaQuaternaryMode != icuMergeWith.hiraganaQuaternaryMode) {
-            conflicts.add("Cannot update hiragana_quaternary_mode setting for [" + CONTENT_TYPE + "]");
+            conflicts.add("Cannot update parameter [hiragana_quaternary_mode] for [" + CONTENT_TYPE + "]");
         }
 
         this.ignoreAbove = icuMergeWith.ignoreAbove;
@@ -732,24 +746,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             createFieldNamesField(context);
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                String keywordValue = value.toString();
-                if (keywordValue.length() > ignoreAbove) {
-                    return null;
-                }
-                return keywordValue;
-            }
-        };
     }
 
 }

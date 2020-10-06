@@ -126,7 +126,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             @SuppressWarnings("unchecked")
             Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>)invocationOnMock.getArguments()[1];
             searchLookupSetOnce.set(searchLookup);
-            return (IndexFieldData.Builder) (cache, breakerService, mapperService) -> null;
+            return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
         SearchLookup searchLookup = new SearchLookup(null, null);
         ifdService.getForField(ft, "qualified", () -> searchLookup);
@@ -312,17 +312,17 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnLongs() {
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG));
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG,
-            true, false, Collections.emptyMap()));
+            true, false, false, false, null, Collections.emptyMap()));
     }
 
     public void testRequireDocValuesOnDoubles() {
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE));
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE,
-            true, false, Collections.emptyMap()));
+            true, false, false, false, null, Collections.emptyMap()));
     }
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
-        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, Collections.emptyMap()));
+        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, Collections.emptyMap()));
     }
 }

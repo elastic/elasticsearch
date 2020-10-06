@@ -119,6 +119,7 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
@@ -674,6 +675,16 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    /**
+     * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
+     * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
+     * Modify this random generator if a wider range for BigIntegers is necessary.
+     * @return a random bigInteger in the range [0 ; 2^64 - 1]
+     */
+    public static BigInteger randomBigInteger() {
+        return new BigInteger(64, random());
     }
 
     /** A random integer from 0..max (inclusive). */

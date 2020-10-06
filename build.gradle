@@ -36,7 +36,7 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id "com.diffplug.gradle.spotless" version "4.0.0" apply false
+  id "com.diffplug.spotless" version "5.6.1" apply false
 }
 
 apply from: 'gradle/build-scan.gradle'
@@ -175,7 +175,7 @@ tasks.register("verifyVersions") {
  */
 
 boolean bwc_tests_enabled = false
-final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/62576" /* place a PR link here when committing bwc changes */
+final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/63291" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")

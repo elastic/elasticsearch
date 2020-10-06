@@ -16,6 +16,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
@@ -25,8 +26,8 @@ import java.util.Collections;
 
 public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
-    protected RootFlatObjectFieldType createDefaultFieldType() {
-        return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
+    private static RootFlatObjectFieldType createDefaultFieldType() {
+        return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false, null);
     }
 
     public void testValueForDisplay() {
@@ -43,20 +44,24 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
         Query expected = new TermQuery(new Term("field", "value"));
         assertEquals(expected, ft.termQuery("value", null));
 
+        expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "Value"));
+        assertEquals(expected, ft.termQueryCaseInsensitive("Value", null));
+
+
         RootFlatObjectFieldType unsearchable = new RootFlatObjectFieldType("field", false, true,
-            Collections.emptyMap(), false);
+            Collections.emptyMap(), false, null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlatObjectFieldType ft = new RootFlatObjectFieldType("field", true, false, Collections.emptyMap(), false);
+        RootFlatObjectFieldType ft = new RootFlatObjectFieldType("field", true, false, Collections.emptyMap(), false, null);
         assertEquals(
             new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))),
             ft.existsQuery(null));
 
-        RootFlatObjectFieldType withDv = new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
+        RootFlatObjectFieldType withDv = new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false, null);
         assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
     }
 

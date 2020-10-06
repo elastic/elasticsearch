@@ -47,8 +47,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
@@ -56,6 +56,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -1530,7 +1531,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final boolean enabled;
 
         public MetadataTimestampFieldMapper(boolean enabled) {
-            super(new MappedFieldType("_data_stream_timestamp", false, false, TextSearchInfo.NONE, Map.of()) {
+            super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Map.of()) {
+                @Override
+                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                    throw new UnsupportedOperationException();
+                }
+
                 @Override
                 public String typeName() {
                     return "_data_stream_timestamp";
@@ -1552,16 +1558,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         @Override
         public ParametrizedFieldMapper.Builder getMergeBuilder() {
             return new MetadataTimestampFieldBuilder().init(this);
-        }
-
-        @Override
-        public void preParse(ParseContext context) {
-
-        }
-
-        @Override
-        protected void parseCreateField(ParseContext context) {
-
         }
 
         @Override

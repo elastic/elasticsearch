@@ -9,8 +9,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -93,6 +95,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -131,7 +134,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), "test_node");
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
         jobResultsProvider = new JobResultsProvider(client(), builder.build(), new IndexNameExpressionResolver());
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
@@ -154,7 +157,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 auditor,
                 JOB_ID,
                 renormalizer,
-                new JobResultsPersister(originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node")),
+                new JobResultsPersister(originSettingClient, resultsPersisterService,
+                    new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class))),
                 new AnnotationPersister(resultsPersisterService, auditor),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),
@@ -166,6 +170,13 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         };
         waitForMlTemplates();
         putJob();
+        // In production opening a job ensures the state index exists. These tests
+        // do not open jobs, but instead feed JSON directly to the results processor.
+        // A a result they must create the index as part of the test setup. Do not
+        // copy this setup to tests that run jobs in the way they are run in production.
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, new IndexNameExpressionResolver(), future);
+        future.get();
     }
 
     @After

@@ -29,6 +29,8 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -51,6 +53,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -144,15 +147,19 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchRequest.source().collapse(new CollapseBuilder("collapse_field"));
         }
         searchRequest.allowPartialSearchResults(false);
+        Executor executor = EsExecutors.newDirectExecutorService();
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
+            shardsIter.size(), exc -> {});
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), controller, EsExecutors.newDirectExecutorService(), searchRequest,
-            null, shardsIter, timeProvider, null, task,
-            SearchResponse.Clusters.EMPTY, exc -> {}) {
+            Collections.emptyMap(), Collections.emptyMap(), controller, executor,
+            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
+            task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
                 return new SearchPhase("test") {

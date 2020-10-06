@@ -24,10 +24,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
@@ -85,7 +82,6 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             (n, c, o) -> o == null ? null : XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue)
             .acceptsNull();
 
-        private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -94,13 +90,13 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(meta, boost, docValues, indexed, nullValue, stored);
+            return List.of(meta, docValues, indexed, nullValue, stored);
         }
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
-            MappedFieldType ft = new BooleanFieldType(buildFullName(context), indexed.getValue(), docValues.getValue(), meta.getValue());
-            ft.setBoost(boost.getValue());
+            MappedFieldType ft = new BooleanFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+                docValues.getValue(), nullValue.getValue(), meta.getValue());
             return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -109,12 +105,20 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
-        public BooleanFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        private final Boolean nullValue;
+
+        public BooleanFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                                Boolean nullValue, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.nullValue = nullValue;
         }
 
         public BooleanFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this(name, true, false, true, false, Collections.emptyMap());
+        }
+
+        public BooleanFieldType(String name, boolean searchable) {
+            this(name, searchable, false, true, false, Collections.emptyMap());
         }
 
         @Override
@@ -123,12 +127,22 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
+
+            return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+                @Override
+                protected Boolean parseSourceValue(Object value) {
+                    if (value instanceof Boolean) {
+                        return (Boolean) value;
+                    } else {
+                        String textValue = value.toString();
+                        return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                    }
+                }
+            };
         }
 
         @Override
@@ -250,25 +264,6 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         } else {
             createFieldNamesField(context);
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected Boolean parseSourceValue(Object value) {
-                if (value instanceof Boolean) {
-                    return (Boolean) value;
-                } else {
-                    String textValue = value.toString();
-                    return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
-                }
-            }
-        };
     }
 
     @Override

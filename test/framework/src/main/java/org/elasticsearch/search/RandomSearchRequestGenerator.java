@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -371,8 +372,11 @@ public class RandomSearchRequestGenerator {
             builder.collapse(randomCollapseBuilder.get());
         }
         if (randomBoolean()) {
-            TimeValue keepAlive = randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 60)) : null;
-            builder.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10), keepAlive));
+            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10));
+            if (randomBoolean()) {
+                pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
+            }
+            builder.pointInTimeBuilder(pit);
         }
         return builder;
     }

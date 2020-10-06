@@ -21,23 +21,18 @@ package org.elasticsearch.index.mapper;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -67,36 +62,26 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         return Set.of("analyzer", "similarity");
     }
 
-    @Before
-    public void setup() {
-        addModifier("strength", false, (a, b) -> {
-            a.strength("primary");
-            b.strength("secondary");
-        });
-        addModifier("decomposition", false, (a, b) -> {
-            a.decomposition("no");
-            b.decomposition("canonical");
-        });
-        addModifier("alternate", false, (a, b) -> {
-            a.alternate("shifted");
-            b.alternate("non-ignorable");
-        });
-        addBooleanModifier("case_level", false, ICUCollationKeywordFieldMapper.Builder::caseLevel);
-        addModifier("case_first", false, (a, b) -> {
-            a.caseFirst("upper");
-            a.caseFirst("lower");
-        });
-        addBooleanModifier("numeric", false, ICUCollationKeywordFieldMapper.Builder::numeric);
-        addModifier("variable_top", false, (a, b) -> {
-            a.variableTop(";");
-            b.variableTop(":");
-        });
-        addBooleanModifier("hiragana_quaternary_mode", false, ICUCollationKeywordFieldMapper.Builder::hiraganaQuaternaryMode);
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("strength", b -> b.field("strength", "secondary"));
+        checker.registerConflictCheck("decomposition", b -> b.field("decomposition", "canonical"));
+        checker.registerConflictCheck("alternate", b -> b.field("alternate", "non-ignorable"));
+        checker.registerConflictCheck("case_level", b -> b.field("case_level", true));
+        checker.registerConflictCheck("case_first", b -> b.field("case_first", "lower"));
+        checker.registerConflictCheck("numeric", b -> b.field("numeric", true));
+        checker.registerConflictCheck("variable_top", b -> b.field("variable_top", ":"));
+        checker.registerConflictCheck("hiragana_quaternary_mode", b -> b.field("hiragana_quaternary_mode", true));
     }
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", FIELD_TYPE);
+    }
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(1234);
     }
 
     public void testDefaults() throws Exception {
@@ -317,24 +302,4 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         assertEquals(0, fields.length);
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(context);
-        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
-
-        ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field")
-            .ignoreAbove(4)
-            .build(context);
-        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
-
-        ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field")
-            .nullValue("NULL")
-            .build(context);
-        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
-    }
 }

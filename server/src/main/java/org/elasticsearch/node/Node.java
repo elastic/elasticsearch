@@ -522,7 +522,7 @@ public class Node implements Closeable {
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, systemIndices);
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
@@ -926,6 +926,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
+        toClose.add(injector.getInstance(RepositoriesService.class));
         toClose.add(() -> stopWatch.stop().start("client"));
         Releasables.close(injector.getInstance(Client.class));
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ExpressionTests extends ESTestCase {
 
@@ -64,14 +66,24 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("hello\\\nworld", unquoteString(source("\"hello\\\\\\nworld\"")));
         assertEquals("hello\\\"world", unquoteString(source("\"hello\\\\\\\"world\"")));
 
-        // test for unescaped strings: ?"...."
-        assertEquals("hello\"world", unquoteString(source("?\"hello\"world\"")));
-        assertEquals("hello\\\"world", unquoteString(source("?\"hello\\\"world\"")));
-        assertEquals("hello'world", unquoteString(source("?\"hello'world\"")));
-        assertEquals("hello\\nworld", unquoteString(source("?\"hello\\nworld\"")));
-        assertEquals("hello\\\\nworld", unquoteString(source("?\"hello\\\\nworld\"")));
-        assertEquals("hello\\\\\\nworld", unquoteString(source("?\"hello\\\\\\nworld\"")));
-        assertEquals("hello\\\\\\\"world", unquoteString(source("?\"hello\\\\\\\"world\"")));
+        // test for unescaped strings: """...."""
+        assertEquals("hello\"world", unquoteString(source("\"\"\"hello\"world\"\"\"")));
+        assertEquals("hello\\\"world", unquoteString(source("\"\"\"hello\\\"world\"\"\"")));
+        assertEquals("\"\"hello\"\\\"world\"\"\"", unquoteString(source("\"\"\"\"\"hello\"\\\"world\"\"\"\"\"\"")));
+        assertEquals("hello'world", unquoteString(source("\"\"\"hello'world\"\"\"")));
+        assertEquals("hello'world", unquoteString(source("\"\"\"hello\'world\"\"\"")));
+        assertEquals("hello\\'world", unquoteString(source("\"\"\"hello\\\'world\"\"\"")));
+        assertEquals("hello\\nworld", unquoteString(source("\"\"\"hello\\nworld\"\"\"")));
+        assertEquals("hello\\\\nworld", unquoteString(source("\"\"\"hello\\\\nworld\"\"\"")));
+        assertEquals("hello\\\\\\nworld", unquoteString(source("\"\"\"hello\\\\\\nworld\"\"\"")));
+        assertEquals("hello\\\\\\\"world", unquoteString(source("\"\"\"hello\\\\\\\"world\"\"\"")));
+        assertEquals("\"\\\"", unquoteString(source("\"\"\"\"\\\"\"\"\"")));
+        assertEquals("\\\"\"\"", unquoteString(source("\"\"\"\\\"\"\"\"\"\"")));
+        assertEquals("\"\\\"\"", unquoteString(source("\"\"\"\"\\\"\"\"\"\"")));
+        assertEquals("\"\"\\\"", unquoteString(source("\"\"\"\"\"\\\"\"\"\"")));
+        assertEquals("\"\"", unquoteString(source("\"\"\"\"\"\"\"\"")));
+        assertEquals("\"\" \"\"", unquoteString(source("\"\"\"\"\" \"\"\"\"\"")));
+        assertEquals("", unquoteString(source("\"\"\"\"\"\"")));
     }
 
     public void testLiterals() {
@@ -84,8 +96,8 @@ public class ExpressionTests extends ESTestCase {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("'hello world'"));
         assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name='hello world'"));
-        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=='hello world'"));
+        assertEquals("line 1:22: Use double quotes [\"] to define string literals, not single quotes [']",
                 e.getMessage());
     }
 
@@ -96,20 +108,82 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expected, parsed);
     }
 
-    public void testSingleQuotedUnescapedStringForbidden() {
+    public void testSingleQuotedUnescapedStringDisallowed() {
         ParsingException e = expectThrows(ParsingException.class, () -> expr("?'hello world'"));
-        assertEquals("line 1:2: Use double quotes [\"] to define string literals, not single quotes [']",
+        assertEquals("line 1:2: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?']",
                 e.getMessage());
-        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name=?'hello world'"));
-        assertEquals("line 1:21: Use double quotes [\"] to define string literals, not single quotes [']",
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name == ?'hello world'"));
+        assertEquals("line 1:24: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?']",
                 e.getMessage());
     }
 
-    public void testDoubleQuotedUnescapedString() {
-        // "hello \" world"
-        Expression parsed = expr("?\"hello \\\" world!\"");
-        Expression expected = new Literal(null, "hello \\\" world!", DataTypes.KEYWORD);
-        assertEquals(expected, parsed);
+    public void testDoubleQuotedUnescapedStringForbidden() {
+        ParsingException e = expectThrows(ParsingException.class, () -> expr("?\"hello world\""));
+        assertEquals("line 1:2: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?\"]",
+                e.getMessage());
+        e = expectThrows(ParsingException.class, () -> parser.createStatement("process where name == ?\"hello world\""));
+        assertEquals("line 1:24: Use triple double quotes [\"\"\"] to define unescaped string literals, not [?\"]",
+                e.getMessage());
+    }
+
+    public void testTripleDoubleQuotedUnescapedString() {
+        // """hello world!"""" == """foobar""" => hello world! = foobar
+        String str = "\"\"\"hello world!\"\"\" == \"\"\"foobar\"\"\"";
+        String expectedStrLeft = "hello world!";
+        String expectedStrRight = "foobar";
+        Expression parsed = expr(str);
+        assertEquals(Equals.class, parsed.getClass());
+        Equals eq = (Equals) parsed;
+        assertEquals(Literal.class, eq.left().getClass());
+        assertEquals(expectedStrLeft, ((Literal) eq.left()).value());
+        assertEquals(Literal.class, eq.right().getClass());
+        assertEquals(expectedStrRight, ((Literal) eq.right()).value());
+
+        // """""hello""world!"""" == """"foo"bar""""" => ""hello""world!" = "foo""bar""
+        str = " \"\"\"\"\"hello\"\"world!\"\"\"\" == \"\"\"\"foo\"bar\"\"\"\"\" ";
+        expectedStrLeft = "\"\"hello\"\"world!\"";
+        expectedStrRight = "\"foo\"bar\"\"";
+        parsed = expr(str);
+        assertEquals(Equals.class, parsed.getClass());
+        eq = (Equals) parsed;
+        assertEquals(Literal.class, eq.left().getClass());
+        assertEquals(expectedStrLeft, ((Literal) eq.left()).value());
+        assertEquals(Literal.class, eq.right().getClass());
+        assertEquals(expectedStrRight, ((Literal) eq.right()).value());
+
+        // """""\""hello\\""\""world!\\""""" == """\\""\""foo""\\""\"bar""\\""\"""" =>
+        // ""\""hello\\""\""world!\\"" == \\""\""foo""\\""\"bar""\\""\"
+        str = " \"\"\"\"\"\\\"\"hello\\\\\"\"\\\"\"world!\\\\\"\"\"\"\"  ==  " +
+                " \"\"\"\\\\\"\"\\\"\"foo\"\"\\\\\"\"\\\"bar\"\"\\\\\"\"\\\"\"\"\"  ";
+        expectedStrLeft = "\"\"\\\"\"hello\\\\\"\"\\\"\"world!\\\\\"\"";
+        expectedStrRight = "\\\\\"\"\\\"\"foo\"\"\\\\\"\"\\\"bar\"\"\\\\\"\"\\\"";
+        parsed = expr(str);
+        assertEquals(Equals.class, parsed.getClass());
+        eq = (Equals) parsed;
+        assertEquals(Literal.class, eq.left().getClass());
+        assertEquals(expectedStrLeft, ((Literal) eq.left()).value());
+        assertEquals(Literal.class, eq.right().getClass());
+        assertEquals(expectedStrRight, ((Literal) eq.right()).value());
+
+        // """"""hello world!""" == """foobar"""
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\"\"\"\"\"hello world!\"\"\" == \"\"\"foobar\"\"\""));
+        assertThat(e.getMessage(), startsWith("line 1:7: mismatched input 'hello' expecting {<EOF>,"));
+
+        // """""\"hello world!"""""" == """foobar"""
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\"\"\"\"\\\"hello world!\"\"\"\"\"\" == \"\"\"foobar\"\"\""));
+        assertThat(e.getMessage(), startsWith("line 1:25: mismatched input '\" == \"' expecting {<EOF>,"));
+
+        // """""\"hello world!""\"""" == """"""foobar"""
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\"\"\"\"\\\"hello world!\"\"\\\"\"\"\" == \"\"\"\"\"\"foobar\"\"\""));
+        assertThat(e.getMessage(), startsWith("line 1:37: mismatched input 'foobar' expecting {<EOF>,"));
+
+        // """""\"hello world!""\"""" == """""\"foobar\"\""""""
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\"\"\"\"\\\"hello world!\"\"\\\"\"\"\" == \"\"\"\"\"\\\"foobar\\\"\\\"\"\"\"\"\""));
+        assertEquals("line 1:52: token recognition error at: '\"'", e.getMessage());
     }
 
     public void testNumbers() {
@@ -123,7 +197,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(expected, parsed);
     }
 
-    public void testBackQuotedAttribute() {
+    public void testBackQuotedIdentifier() {
         String quote = "`";
         String qualifier = "table";
         String name = "@timestamp";
@@ -133,6 +207,66 @@ public class ExpressionTests extends ESTestCase {
         assertThat(ua.name(), equalTo(qualifier + "." + name));
         assertThat(ua.qualifiedName(), equalTo(qualifier + "." + name));
         assertThat(ua.qualifier(), is(nullValue()));
+    }
+
+    public void testBackQuotedIdentifierWithEscapedBackQuote() {
+        String quote = "`";
+        String qualifier = "``test``table``";
+        String expectedQualifier = "`test`table`";
+        String name = "@timestamp";
+        Expression exp = expr(quote + qualifier + quote + "." + quote + name + quote);
+        assertThat(exp, instanceOf(UnresolvedAttribute.class));
+        UnresolvedAttribute ua = (UnresolvedAttribute) exp;
+        assertThat(ua.name(), equalTo(expectedQualifier + "." + name));
+        assertThat(ua.qualifiedName(), equalTo(expectedQualifier + "." + name));
+        assertThat(ua.qualifier(), is(nullValue()));
+
+        quote = "`";
+        qualifier = "``test_table";
+        expectedQualifier = "`test_table";
+        name = "@timestamp";
+        exp = expr(quote + qualifier + quote + "." + quote + name + quote);
+        assertThat(exp, instanceOf(UnresolvedAttribute.class));
+        ua = (UnresolvedAttribute) exp;
+        assertThat(ua.name(), equalTo(expectedQualifier + "." + name));
+        assertThat(ua.qualifiedName(), equalTo(expectedQualifier + "." + name));
+        assertThat(ua.qualifier(), is(nullValue()));
+    }
+
+    public void testBackQuotedIdentifierWithUnescapedBackQuotes() {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("`wrong_identifier == true"));
+        assertEquals("line 1:1: token recognition error at: '`wrong_identifier == true'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("``wrong_identifier == true"));
+        assertThat(e.getMessage(), startsWith("line 1:3: mismatched input 'wrong_identifier' expecting {<EOF>, "));
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("``wrong_identifier` == true"));
+        assertEquals("line 1:19: token recognition error at: '` == true'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("`wrong`identifier` == true"));
+        assertEquals("line 1:18: token recognition error at: '` == true'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("wrong_identifier` == true"));
+        assertEquals("line 1:17: token recognition error at: '` == true'", e.getMessage());
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("wrong_identifier`` == true"));
+        assertThat(e.getMessage(), startsWith("line 1:17: mismatched input '``' expecting {<EOF>,"));
+
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("`wrong_identifier`` == true"));
+        assertEquals("line 1:19: token recognition error at: '` == true'", e.getMessage());
+    }
+
+    public void testIdentifierForEventTypeDisallowed() {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> parser.createStatement("`identifier` where foo == true"));
+        assertEquals("line 1:1: no viable alternative at input '`identifier`'", e.getMessage());
     }
 
     public void testFunctions() {
@@ -159,6 +293,9 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(new GreaterThanOrEqual(null, field, value, UTC), expr(fieldText + ">=" + valueText));
         assertEquals(new GreaterThan(null, field, value, UTC), expr(fieldText + ">" + valueText));
         assertEquals(new LessThan(null, field, value, UTC), expr(fieldText + "<" + valueText));
+
+        expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr(fieldText + "=" + valueText));
     }
 
     public void testBoolean() {
@@ -220,5 +357,44 @@ public class ExpressionTests extends ESTestCase {
     public void testInEmptySet() {
         expectThrows(ParsingException.class, "Expected syntax error",
             () -> expr("name in ()"));
+    }
+
+    public void testComplexComparison() {
+        String comparison;
+        if (randomBoolean()) {
+            comparison = "1 * -2 <= -3 * 4";
+        } else {
+            comparison = "(1 * -2) <= (-3 * 4)";
+        }
+
+        Mul left = new Mul(null,
+                new Literal(null, 1, DataTypes.INTEGER),
+                new Neg(null, new Literal(null, 2, DataTypes.INTEGER)));
+        Mul right = new Mul(null,
+                new Neg(null, new Literal(null, 3, DataTypes.INTEGER)),
+                new Literal(null, 4, DataTypes.INTEGER));
+
+        assertEquals(new LessThanOrEqual(null, left, right, UTC), expr(comparison));
+    }
+
+    public void testChainedComparisonsDisallowed() {
+        int noComparisions = randomIntBetween(2, 20);
+        String firstComparator = "";
+        String secondComparator = "";
+        StringBuilder sb = new StringBuilder("a ");
+        for (int i = 0 ; i < noComparisions; i++) {
+            String comparator = randomFrom("==", "!=", "<", "<=", ">", ">=");
+            sb.append(comparator).append(" a ");
+
+            if (i == 0) {
+                firstComparator = comparator;
+            } else if (i == 1) {
+                secondComparator = comparator;
+            }
+        }
+        ParsingException e = expectThrows(ParsingException.class, () -> expr(sb.toString()));
+        assertEquals("line 1:" + (6 + firstComparator.length()) + ": mismatched input '" + secondComparator +
+                        "' expecting {<EOF>, 'and', 'in', 'not', 'or', '+', '-', '*', '/', '%', '.', '['}",
+                e.getMessage());
     }
 }

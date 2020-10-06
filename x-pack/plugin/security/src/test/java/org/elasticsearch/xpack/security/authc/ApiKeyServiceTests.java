@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -144,7 +145,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
     }
 
-    public void testCreateApiKeyWillUseBulkAction() {
+    public void testCreateApiKeyUsesBulkIndexAction() {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
         final Authentication authentication = new Authentication(
@@ -154,8 +155,16 @@ public class ApiKeyServiceTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            BulkRequest bulkRequest = (BulkRequest) args[1];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+            assertThat(indexRequest.id(), is(createApiKeyRequest.getId()));
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
-        verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
     }
 
     public void testGetCredentialsFromThreadContext() {

@@ -208,8 +208,6 @@ import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
-import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
-import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.elasticsearch.xpack.core.votingonly.VotingOnlyNodeFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
@@ -351,9 +349,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 CreateApiKeyAction.INSTANCE,
                 InvalidateApiKeyAction.INSTANCE,
                 GetApiKeyAction.INSTANCE,
-                // upgrade
-                IndexUpgradeInfoAction.INSTANCE,
-                IndexUpgradeAction.INSTANCE,
                 // watcher
                 PutWatchAction.INSTANCE,
                 DeleteWatchAction.INSTANCE,
@@ -512,7 +507,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SEARCHABLE_SNAPSHOTS,
                 SearchableSnapshotFeatureSetUsage::new),
             // Data Streams
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
+            // Data Tiers
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new)
         );
     }
 

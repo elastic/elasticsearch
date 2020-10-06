@@ -371,7 +371,7 @@ which is incremented every time the index is rolled over. For instance:
 [source,console]
 --------------------------------------------------
 # PUT /<logs-{now/d}-1> with URI encoding:
-PUT /%3Clogs-%7Bnow%2Fd%7D-1%3E <1>
+PUT /%3Clogs_%7Bnow%2Fd%7D-1%3E <1>
 {
   "aliases": {
     "logs_write": {}
@@ -394,10 +394,10 @@ POST /logs_write/_rollover <2>
   }
 }
 --------------------------------------------------
-// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/62043"]
+// TEST[s/now/2016.10.31%7C%7C/]
 
-<1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
-<2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
+<1> Creates an index named with today's date (e.g.) `logs_2016.10.31-1`
+<2> Rolls over to a new index with today's date, e.g. `logs_2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
 
 //////////////////////////
 
@@ -410,12 +410,12 @@ GET _alias
 [source,console-result]
 --------------------------------------------------
 {
-  "logs-2016.10.31-000002": {
+  "logs_2016.10.31-000002": {
     "aliases": {
       "logs_write": {}
     }
   },
-  "logs-2016.10.31-1": {
+  "logs_2016.10.31-1": {
     "aliases": {}
   }
 }

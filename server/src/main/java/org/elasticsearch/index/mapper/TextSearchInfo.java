@@ -39,8 +39,6 @@ public class TextSearchInfo {
 
     /**
      * Defines indexing information for fields that support only simple match text queries
-     *
-     * Note that the results of {@link #isStored()} for this may not be accurate
      */
     public static final TextSearchInfo SIMPLE_MATCH_ONLY
         = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
@@ -48,8 +46,6 @@ public class TextSearchInfo {
     /**
      * Defines indexing information for fields that index as keywords, but split query input
      * on whitespace to build disjunctions.
-     *
-     * Note that the results of {@link #isStored()} for this may not be accurate
      */
     public static final TextSearchInfo WHITESPACE_MATCH_ONLY
         = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.WHITESPACE_ANALYZER, Lucene.WHITESPACE_ANALYZER);
@@ -118,13 +114,6 @@ public class TextSearchInfo {
      */
     public boolean isTokenized() {
         return luceneFieldType.tokenized();
-    }
-
-    /**
-     * @return whether or not this field is stored
-     */
-    public boolean isStored() {
-        return luceneFieldType.stored();    // TODO move this directly to MappedFieldType? It's not text specific...
     }
 
     /**

@@ -264,6 +264,7 @@ public class ApiKeyService {
             final IndexRequest indexRequest =
                 client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setSource(builder)
+                    .setId(request.getId())
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
             final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
@@ -271,8 +272,11 @@ public class ApiKeyService {
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
                     TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
-                        indexResponse -> listener.onResponse(
-                            new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
+                        indexResponse -> {
+                            assert request.getId().equals(indexResponse.getId());
+                            listener.onResponse(
+                                    new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                        },
                         listener::onFailure))));
         } catch (IOException e) {
             listener.onFailure(e);

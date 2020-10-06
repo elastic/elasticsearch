@@ -45,18 +45,13 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -73,14 +68,11 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -92,42 +84,117 @@ import static org.hamcrest.core.Is.is;
 public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.Builder> {
 
     @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(1234);
+    }
+
+    public final void testExistsQueryIndexDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+            b.field("norms", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public final void testExistsQueryIndexDisabledStoreTrue() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+            b.field("norms", false);
+            b.field("store", true);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public final void testExistsQueryWithNorms() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("norms", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    @Override
     protected TextFieldMapper.Builder newBuilder() {
         return new TextFieldMapper.Builder("text")
             .indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
             .searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
     }
 
-    @Before
-    public void addModifiers() {
-        addBooleanModifier("fielddata", true, TextFieldMapper.Builder::fielddata);
-        addModifier("fielddata_frequency_filter.min", true, (a, b) -> {
-            a.fielddataFrequencyFilter(1, 10, 10);
-            a.fielddataFrequencyFilter(2, 10, 10);
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("fielddata", true), m -> {
+            TextFieldType ft = (TextFieldType) m.fieldType();
+            assertTrue(ft.fielddata());
         });
-        addModifier("fielddata_frequency_filter.max", true, (a, b) -> {
-            a.fielddataFrequencyFilter(1, 10, 10);
-            a.fielddataFrequencyFilter(1, 12, 10);
+        checker.registerUpdateCheck(b -> {
+            b.field("fielddata", true);
+            b.startObject("fielddata_frequency_filter");
+            {
+                b.field("min", 10);
+                b.field("max", 20);
+                b.field("min_segment_size", 100);
+            }
+            b.endObject();
+        }, m -> {
+            TextFieldType ft = (TextFieldType) m.fieldType();
+            assertEquals(10, ft.fielddataMinFrequency(), 0);
+            assertEquals(20, ft.fielddataMaxFrequency(), 0);
+            assertEquals(100, ft.fielddataMinSegmentSize());
         });
-        addModifier("fielddata_frequency_filter.min_segment_size", true, (a, b) -> {
-            a.fielddataFrequencyFilter(1, 10, 10);
-            a.fielddataFrequencyFilter(1, 10, 11);
-        });
-        addModifier("index_phrases", false, (a, b) -> {
-            a.indexPhrases(true);
-            b.indexPhrases(false);
-        });
-        addModifier("index_prefixes", false, (a, b) -> {
-            a.indexPrefixes(2, 4);
-        });
-        addModifier("index_options", false, (a, b) -> {
-            a.indexOptions(IndexOptions.DOCS_AND_FREQS);
-            b.indexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-        });
-        addModifier("similarity", false, (a, b) -> {
-            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
-            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
-        });
+        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", "true"),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
+        checker.registerUpdateCheck(b -> {
+                b.field("analyzer", "default");
+                b.field("search_analyzer", "keyword");
+            },
+            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> {
+                b.field("analyzer", "default");
+                b.field("search_analyzer", "keyword");
+                b.field("search_quote_analyzer", "keyword");
+            },
+            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+
+
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
+        checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
+        checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
+        checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "keyword"));
+        checker.registerConflictCheck("term_vector", b -> b.field("term_vector", "yes"));
+
+        // TODO position_increment_gap should not be updateable!
+        //checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
+
+        // norms can be set from true to false, but not vice versa
+        checker.registerConflictCheck("norms",
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", false);
+            }),
+            fieldMapping(b -> {
+                b.field("type", "text");
+                b.field("norms", true);
+            }));
+        checker.registerUpdateCheck(
+            b -> {
+                b.field("type", "text");
+                b.field("norms", true);
+            },
+            b -> {
+                b.field("type", "text");
+                b.field("norms", false);
+            },
+            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
+        );
+
     }
 
     @Override
@@ -920,17 +987,5 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         merge(mapperService, newField);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
         assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        FieldMapper fieldMapper = newBuilder().build(context);
-        TextFieldMapper mapper = (TextFieldMapper) fieldMapper;
-
-        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
     }
 }

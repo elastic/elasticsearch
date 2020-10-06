@@ -50,7 +50,6 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62413")
     public void testPipelineCRUD() throws Exception {
         // put pipeline
         final String pipelineJson = getPipelineJson();

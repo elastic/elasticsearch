@@ -31,10 +31,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -65,6 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
+
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.
      */
@@ -85,6 +83,33 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             );
         }
 
+    }
+
+    @Override
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value("value");
+    }
+
+    public final void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+            if (randomBoolean()) {
+                b.field("norms", false);
+            }
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public final void testExistsQueryDocValuesDisabledWithNorms() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+            b.field("norms", true);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     @Override
@@ -129,6 +154,38 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "keyword");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "freqs"));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
+        checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
+        checker.registerConflictCheck("normalizer", b -> b.field("normalizer", "lowercase"));
+
+        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
+        checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((KeywordFieldMapper)m).ignoreAbove()));
+        checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
+            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+
+        // norms can be set from true to false, but not vice versa
+        checker.registerConflictCheck("norms", b -> b.field("norms", true));
+        checker.registerUpdateCheck(
+            b -> {
+                b.field("type", "keyword");
+                b.field("norms", true);
+            },
+            b -> {
+                b.field("type", "keyword");
+                b.field("norms", false);
+            },
+            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
+        );
     }
 
     public void testDefaults() throws Exception {
@@ -230,11 +287,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]")
             );
         }
-    }
-
-    public void testBoost() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("boost", 2f)));
-        assertThat(mapperService.fieldType("field").boost(), equalTo(2f));
     }
 
     public void testEnableNorms() throws IOException {
@@ -399,36 +451,5 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "hello world" }
         );
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        KeywordFieldMapper mapper = new KeywordFieldMapper.Builder("field").build(context);
-        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
-        assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
-
-        KeywordFieldMapper ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
-            .ignoreAbove(4)
-            .build(context);
-        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
-
-        KeywordFieldMapper normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers(null)).normalizer("lowercase")
-            .build(context);
-        assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
-        assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
-        assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "value"));
-
-        KeywordFieldMapper nullValueMapper = new KeywordFieldMapper.Builder("field")
-            .nullValue("NULL")
-            .build(context);
-        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
@@ -88,7 +89,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             emitTypesDeprecationWarning();
-            return new ConstantIndexFieldData.Builder(mapperService -> type, name(), CoreValuesSourceType.BYTES);
+            Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
+            return new ConstantIndexFieldData.Builder(typeFunction, name(), CoreValuesSourceType.BYTES);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override

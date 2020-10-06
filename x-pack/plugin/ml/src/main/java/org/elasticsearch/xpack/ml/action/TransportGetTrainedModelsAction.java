@@ -49,18 +49,17 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                     return;
                 }
 
-                if (request.isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
+                if (request.getIncludes().isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
                     listener.onFailure(
                         ExceptionsHelper.badRequestException(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED)
                     );
                     return;
                 }
 
-                if (request.isIncludeModelDefinition()) {
+                if (request.getIncludes().isIncludeModelDefinition()) {
                     provider.getTrainedModel(
                         totalAndIds.v2().iterator().next(),
-                        true,
-                        request.isIncludeTotalFeatureImportance(),
+                        request.getIncludes(),
                         ActionListener.wrap(
                             config -> listener.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()),
                             listener::onFailure
@@ -69,8 +68,8 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                 } else {
                     provider.getTrainedModels(
                         totalAndIds.v2(),
+                        request.getIncludes(),
                         request.isAllowNoResources(),
-                        request.isIncludeTotalFeatureImportance(),
                         ActionListener.wrap(
                             configs -> listener.onResponse(responseBuilder.setModels(configs).build()),
                             listener::onFailure

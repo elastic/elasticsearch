@@ -264,6 +264,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             if (prefixField == null || prefixField.termLengthWithinBounds(value.length()) == false) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
@@ -370,6 +375,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public String typeName() {
             return "prefix";
         }
@@ -402,11 +412,6 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -452,11 +457,6 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         protected String contentType() {
             return "shingle";
         }
@@ -476,6 +476,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         void setPrefixFieldType(PrefixFieldType prefixFieldType) {
             this.prefixFieldType = prefixFieldType;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -571,11 +576,6 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         if (fieldType().fieldType.omitNorms()) {
             createFieldNamesField(context);
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException();
     }
 
     @Override

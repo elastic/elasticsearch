@@ -132,6 +132,17 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return value == null
+                ? lookup -> Collections.emptyList()
+                : lookup -> Collections.singletonList(value);
+        }
+
+        @Override
         protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
             if (value == null) {
                 return false;
@@ -249,17 +260,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
                     "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
                     "], but got [" + value + "]");
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return fieldType().value == null
-            ? lookup -> org.elasticsearch.common.collect.List.of()
-            : lookup -> org.elasticsearch.common.collect.List.of(fieldType().value);
     }
 
     @Override

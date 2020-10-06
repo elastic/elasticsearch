@@ -27,10 +27,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -55,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -120,8 +119,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 .put("compress", false)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-        logger.info("--> delete snapshot");
-        client.admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
+        startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots(repoName)
@@ -211,29 +209,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.move(repo.resolve("index-" + beforeMoveGen), repo.resolve("index-" + (beforeMoveGen + 1)));
 
         logger.info("--> set next generation as pending in the cluster state");
-        final PlainActionFuture<Void> csUpdateFuture = PlainActionFuture.newFuture();
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).submitStateUpdateTask("set pending generation",
-            new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.getMetadata())
-                        .putCustom(RepositoriesMetadata.TYPE,
-                            currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE).withUpdatedGeneration(
-                                repository.getMetadata().name(), beforeMoveGen, beforeMoveGen + 1)).build()).build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    csUpdateFuture.onFailure(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    csUpdateFuture.onResponse(null);
-                }
-            }
-        );
-        csUpdateFuture.get();
+        updateClusterState(currentState -> ClusterState.builder(currentState).metadata(Metadata.builder(currentState.getMetadata())
+                .putCustom(RepositoriesMetadata.TYPE,
+                        currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE).withUpdatedGeneration(
+                                repository.getMetadata().name(), beforeMoveGen, beforeMoveGen + 1)).build()).build());
 
         logger.info("--> full cluster restart");
         internalCluster().fullRestart();
@@ -242,8 +221,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify index-N blob is found at the new location");
         assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 1));
 
-        logger.info("--> delete snapshot");
-        client().admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
+        startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> verify index-N blob is found at the expected location");
         assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 2));
@@ -303,7 +281,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
+        assertAcked(startDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
 
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
@@ -353,7 +331,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
     }
 
-    public void testHandleSnapshotErrorWithBwCFormat() throws IOException {
+    public void testHandleSnapshotErrorWithBwCFormat() throws IOException, ExecutionException, InterruptedException {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
@@ -377,13 +355,12 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertFileExists(initialShardMetaPath);
         Files.move(initialShardMetaPath, shardPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + "1"));
 
-        logger.info("--> delete old version snapshot");
-        client().admin().cluster().prepareDeleteSnapshot(repoName, oldVersionSnapshot).get();
+        startDeleteSnapshot(repoName, oldVersionSnapshot).get();
 
         createFullSnapshot(repoName, "snapshot-2");
     }
 
-    public void testRepairBrokenShardGenerations() throws IOException {
+    public void testRepairBrokenShardGenerations() throws Exception {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
@@ -398,8 +375,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createFullSnapshot(repoName, "snapshot-1");
 
-        logger.info("--> delete old version snapshot");
-        client().admin().cluster().prepareDeleteSnapshot(repoName, oldVersionSnapshot).get();
+        startDeleteSnapshot(repoName, oldVersionSnapshot).get();
 
         logger.info("--> move shard level metadata to new generation and make RepositoryData point at an older generation");
         final IndexId indexId = getRepositoryData(repoName).resolveIndexId(indexName);

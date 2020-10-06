@@ -57,9 +57,9 @@ public class AggregationProfileShardResultTests extends ESTestCase {
 
         AggregationProfileShardResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             XContentParserUtils.ensureFieldName(parser, parser.nextToken(), AggregationProfileShardResult.AGGREGATIONS);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
             parsed = AggregationProfileShardResult.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());

@@ -43,7 +43,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,8 +57,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Base class for testing {@link Mapper}s.
@@ -265,24 +262,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) throws IOException {
-        return fetchSourceValue(mapper, sourceValue, null);
-    }
-
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) throws IOException {
-        String field = mapper.name();
-
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
-
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup);
-    }
-
     /**
-     * Use a {@linkplain FieldMapper} to extract values from doc values.
+     * Use a {@linkplain ValueFetcher} to extract values from doc values.
      */
     protected final List<?> fetchFromDocValues(MapperService mapperService, MappedFieldType ft, DocValueFormat format, Object sourceValue)
         throws IOException {

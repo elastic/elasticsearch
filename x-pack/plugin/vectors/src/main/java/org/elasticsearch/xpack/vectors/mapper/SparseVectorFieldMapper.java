@@ -99,6 +99,19 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             return new DocValuesFieldExistsQuery(name());
         }
@@ -143,7 +156,7 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
         if (context.externalValueSet()) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
-        ensureExpectedToken(Token.START_OBJECT, context.parser().currentToken(), context.parser()::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, context.parser().currentToken(), context.parser());
         int[] dims = new int[0];
         float[] values = new float[0];
         int dimCount = 0;
@@ -185,31 +198,8 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected boolean docValuesByDefault() {
-        return true;
-    }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
     }
 
     @Override

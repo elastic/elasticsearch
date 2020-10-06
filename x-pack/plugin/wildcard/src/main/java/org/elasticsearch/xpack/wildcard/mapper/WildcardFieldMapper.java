@@ -98,18 +98,18 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public TokenStreamComponents createComponents(String fieldName) {
             Tokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
-            
+
             TokenStream tok = new LowerCaseFilter(tokenizer);
             tok = new PunctuationFoldingFilter(tok);
-            
+
             return new TokenStreamComponents(r -> {
                 tokenizer.setReader(r);
-            }, tok);            
-            
-            
+            }, tok);
+
+
         }
     });
-    
+
     // @deprecated - used for BWC with elasticsearch 7.9
     static final NamedAnalyzer WILDCARD_ANALYZER_7_9 = new NamedAnalyzer("_wildcard", AnalyzerScope.GLOBAL, new Analyzer() {
         @Override
@@ -118,23 +118,23 @@ public class WildcardFieldMapper extends FieldMapper {
             TokenStream tok = new LowerCaseFilter(tokenizer);
             return new TokenStreamComponents(r -> {
                 tokenizer.setReader(r);
-            }, tok);            
+            }, tok);
         }
     });
-    
+
     public static class PunctuationFoldingFilter extends TokenFilter {
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
-        
+
         /**
          * Create a new PunctuationFoldingFilter, that normalizes token text such that even-numbered ascii values
          * are made odd and punctuation is replaced with /
-         * 
+         *
          * @param in TokenStream to filter
          */
         public PunctuationFoldingFilter(TokenStream in) {
           super(in);
         }
-        
+
         @Override
         public final boolean incrementToken() throws IOException {
           if (input.incrementToken()) {
@@ -143,13 +143,13 @@ public class WildcardFieldMapper extends FieldMapper {
           } else
             return false;
         }
-        
+
         public static String normalize(String s) {
             char[] chars = s.toCharArray();
             normalize(chars, 0, chars.length);
-            return new String(chars);            
+            return new String(chars);
         }
-        
+
         /**
          * Normalizes a token
          */
@@ -179,8 +179,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 // return even ascii char or non-ascii chars
                 return codepoint;
             }
-        }        
-        
+        }
+
       }
 
     public static class Defaults {
@@ -255,10 +255,11 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public WildcardFieldMapper build(BuilderContext context) {
+            Version version = context.indexCreatedVersion();
             return new WildcardFieldMapper(
                 name,
                 fieldType,
-                new WildcardFieldType(buildFullName(context), fieldType, meta, context.indexCreatedVersion()),
+                new WildcardFieldType(buildFullName(context), fieldType, nullValue, ignoreAbove, version, meta),
                 ignoreAbove,
                 multiFieldsBuilder.build(this, context),
                 copyTo,
@@ -302,15 +303,20 @@ public class WildcardFieldMapper extends FieldMapper {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        private WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta, Version version) {
+        private final String nullValue;
+        private final int ignoreAbove;
+
+        private WildcardFieldType(String name, FieldType fieldType, String nullValue, int ignoreAbove,
+                                  Version version, Map<String, String> meta) {
             super(name, true, fieldType.stored(), true,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
-            
             if (version.onOrAfter(Version.V_7_10_0)) {
                 setIndexAnalyzer(WILDCARD_ANALYZER_7_10);
             } else {
                 setIndexAnalyzer(WILDCARD_ANALYZER_7_9);
             }
+            this.nullValue = nullValue;
+            this.ignoreAbove = ignoreAbove;
         }
 
         @Override
@@ -399,7 +405,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (value.length() == 0) {
                 return new MatchNoDocsQuery();
             }
-            
+
             RegExp ngramRegex = new RegExp(addLineEndChars(value), syntaxFlags, matchFlags);
 
             Query approxBooleanQuery = toApproximationQuery(ngramRegex);
@@ -712,7 +718,7 @@ public class WildcardFieldMapper extends FieldMapper {
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard regex pattern fragment [" + fragment + "]");
             }
-            
+
             if (foundTokens == 0 && fragment.length() > 0) {
                 // fragment must have been less than NGRAM_SIZE - add a placeholder which may be used in a prefix query e.g. ab*
                 fragment = toLowerCase(fragment);
@@ -971,6 +977,24 @@ public class WildcardFieldMapper extends FieldMapper {
             };
         }
 
+         @Override
+         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+             if (format != null) {
+                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+             }
+
+             return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+                 @Override
+                 protected String parseSourceValue(Object value) {
+                     String keywordValue = value.toString();
+                     if (keywordValue.length() > ignoreAbove) {
+                         return null;
+                     }
+                     return keywordValue;
+                 }
+             };
+         }
+
      }
 
     private int ignoreAbove;
@@ -1035,24 +1059,6 @@ public class WildcardFieldMapper extends FieldMapper {
         List<IndexableField> fields = new ArrayList<>();
         createFields(value, parseDoc, fields);
         parseDoc.addAll(fields);
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                String keywordValue = value.toString();
-                if (keywordValue.length() > ignoreAbove) {
-                    return null;
-                }
-                return keywordValue;
-            }
-        };
     }
 
     void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {

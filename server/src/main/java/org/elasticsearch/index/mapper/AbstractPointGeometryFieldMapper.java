@@ -119,7 +119,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
             extends AbstractGeometryFieldType<Parsed, Processed> {
         protected AbstractPointGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                                  Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexed, stored, hasDocValues, true, meta);
         }
     }
 

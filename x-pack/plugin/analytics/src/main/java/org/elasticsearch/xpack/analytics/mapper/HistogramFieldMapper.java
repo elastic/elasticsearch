@@ -125,19 +125,6 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
-    }
-
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, Map<String, String> meta) {
@@ -147,6 +134,19 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, false) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
         }
 
         @Override
@@ -252,23 +252,23 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
             DoubleArrayList values = null;
             IntArrayList counts = null;
             // should be an object
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
             token = subParser.nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
                 // should be an field
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
                 String fieldName = subParser.currentName();
                 if (fieldName.equals(VALUES_FIELD.getPreferredName())) {
                     token = subParser.nextToken();
                     // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
                     values = new DoubleArrayList();
                     token = subParser.nextToken();
                     double previousVal = -Double.MAX_VALUE;
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                         double val = subParser.doubleValue();
                         if (val < previousVal) {
                             // values must be in increasing order
@@ -283,12 +283,12 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
                 } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
                     token = subParser.nextToken();
                     // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
                     counts = new IntArrayList();
                     token = subParser.nextToken();
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                         counts.add(subParser.intValue());
                         token = subParser.nextToken();
                     }

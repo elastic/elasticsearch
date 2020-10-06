@@ -89,8 +89,7 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
         }
         ResponseException exc = expectThrows(ResponseException.class,
             () -> submitAsyncEqlSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user));
-        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(exc.getMessage(), containsString("unauthorized"));
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     static String extractResponseId(Response response) throws IOException {

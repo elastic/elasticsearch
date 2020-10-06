@@ -245,7 +245,6 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> index = Parameter.indexParam(m -> builder(m).index.getValue(), true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
 
-        final TextParams.Analyzers analyzers;
         final Parameter<SimilarityProvider> similarity
             = TextParams.similarity(m -> builder(m).similarity.getValue());
 
@@ -269,6 +268,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             () -> null, TextFieldMapper::parsePrefixConfig, m -> builder(m).indexPrefixes.getValue()).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        final TextParams.Analyzers analyzers;
 
         public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
             this(name, Version.CURRENT, defaultAnalyzer);

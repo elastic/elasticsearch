@@ -75,7 +75,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
         // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, null,0);
+            null, null, 0);
         allocation.debugDecision(true);
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).primaryShard(),
@@ -126,7 +126,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node1");
 
         allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, null,0);
+            null, null, 0);
         allocation.debugDecision(true);
         decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).shards().get(0),

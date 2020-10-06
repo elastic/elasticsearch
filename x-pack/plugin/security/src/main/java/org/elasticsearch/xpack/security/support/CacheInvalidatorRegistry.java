@@ -42,6 +42,8 @@ public class CacheInvalidatorRegistry {
         final CacheInvalidator cacheInvalidator = cacheInvalidators.get(cacheName);
         if (cacheInvalidator != null) {
             cacheInvalidator.invalidate(keys);
+        } else {
+            throw new IllegalArgumentException("No cache named [" + cacheName + "] is found");
         }
     }
 
@@ -49,6 +51,8 @@ public class CacheInvalidatorRegistry {
         final CacheInvalidator cacheInvalidator = cacheInvalidators.get(cacheName);
         if (cacheInvalidator != null) {
             cacheInvalidator.invalidateAll();
+        } else {
+            throw new IllegalArgumentException("No cache named [" + cacheName + "] is found");
         }
     }
 

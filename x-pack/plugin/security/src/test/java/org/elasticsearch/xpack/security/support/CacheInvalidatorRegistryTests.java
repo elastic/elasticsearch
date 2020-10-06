@@ -64,6 +64,12 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         cacheInvalidatorRegistry.invalidateByKey("service2", List.of("k1", "k2"));
         verify(invalidator1, never()).invalidate(any());
         verify(invalidator2).invalidate(List.of("k1", "k2"));
+
+        // Trying to invalidate entries from a non-existing cache will throw error
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class,
+                () -> cacheInvalidatorRegistry.invalidateByKey("non-exist", List.of("k1", "k2")));
+        assertThat(e.getMessage(), containsString("No cache named [non-exist] is found"));
     }
 
     public void testInvalidateCache() {
@@ -75,5 +81,11 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         cacheInvalidatorRegistry.invalidateCache("service1");
         verify(invalidator1).invalidateAll();
         verify(invalidator2, never()).invalidateAll();
+
+        // Trying to invalidate entries from a non-existing cache will throw error
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class,
+                () -> cacheInvalidatorRegistry.invalidateCache("non-exist"));
+        assertThat(e.getMessage(), containsString("No cache named [non-exist] is found"));
     }
 }

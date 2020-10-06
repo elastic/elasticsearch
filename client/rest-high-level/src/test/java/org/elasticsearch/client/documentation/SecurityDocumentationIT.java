@@ -1059,7 +1059,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             //tag::clear-api-key-cache-request
-            ClearApiKeyCacheRequest request = new ClearApiKeyCacheRequest(
+            ClearApiKeyCacheRequest request = ClearApiKeyCacheRequest.clearById(
                 "yVGMr3QByxdh1MSaicYx"  // <1>
             );
             //end::clear-api-key-cache-request
@@ -1077,7 +1077,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::clear-api-key-cache-execute-listener
-            ClearApiKeyCacheRequest request = new ClearApiKeyCacheRequest("yVGMr3QByxdh1MSaicYx");
+            ClearApiKeyCacheRequest request = ClearApiKeyCacheRequest.clearById("yVGMr3QByxdh1MSaicYx");
             ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<>() {
                 @Override
                 public void onResponse(ClearSecurityCacheResponse clearSecurityCacheResponse) {

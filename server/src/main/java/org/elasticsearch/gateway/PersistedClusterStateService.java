@@ -54,7 +54,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.PagedBytesReference;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.RecyclingBytesStreamOutput;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lease.Releasable;
@@ -847,7 +847,7 @@ public class PersistedClusterStateService {
         DocumentBuffer(int size, BigArrays bigArrays) {
             if (size <= PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
                 final ByteArray byteArray = bigArrays.newByteArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES);
-                final BytesRefIterator iterator = new PagedBytesReference(byteArray, Math.toIntExact(byteArray.size())).iterator();
+                final BytesRefIterator iterator = BytesReference.fromByteArray(byteArray, Math.toIntExact(byteArray.size())).iterator();
                 final BytesRef firstPage;
                 try {
                     firstPage = iterator.next();

@@ -29,6 +29,8 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -39,7 +41,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -51,6 +53,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -98,8 +101,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     assertNotEquals(shardId, (int) request.getBottomSortValues().getFormattedSortValues()[0]);
                     numWithTopDocs.incrementAndGet();
                 }
-                QuerySearchResult queryResult = new QuerySearchResult(new SearchContextId("N/A", 123),
-                    new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE));
+                QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
+                    new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE), null);
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (withCollapse) {
                     queryResult.topDocs(new TopDocsAndMaxScore(
@@ -144,15 +147,19 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchRequest.source().collapse(new CollapseBuilder("collapse_field"));
         }
         searchRequest.allowPartialSearchResults(false);
+        Executor executor = EsExecutors.newDirectExecutorService();
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchTask task = new SearchTask(0, "n/a", "n/a", "test", null, Collections.emptyMap());
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
+            shardsIter.size(), exc -> {});
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), controller, EsExecutors.newDirectExecutorService(), searchRequest,
-            null, shardsIter, timeProvider, null, task,
-            SearchResponse.Clusters.EMPTY, exc -> {}) {
+            Collections.emptyMap(), Collections.emptyMap(), controller, executor,
+            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
+            task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
                 return new SearchPhase("test") {

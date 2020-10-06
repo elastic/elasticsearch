@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -25,6 +26,7 @@ import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TAS
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
@@ -72,7 +74,7 @@ public final class AuthorizationUtils {
         // we have a internal action being executed by a user other than the system user, lets verify that there is a
         // originating action that is not a internal action. We verify that there must be a originating action as an
         // internal action should never be called by user code from a client
-        final String originatingAction = threadContext.getTransient(AuthorizationService.ORIGINATING_ACTION_KEY);
+        final String originatingAction = threadContext.getTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY);
         if (originatingAction != null && isInternalAction(originatingAction) == false) {
             return true;
         }
@@ -121,6 +123,7 @@ public final class AuthorizationUtils {
             case IDP_ORIGIN:
             case INGEST_ORIGIN:
             case STACK_ORIGIN:
+            case SEARCHABLE_SNAPSHOTS_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsUser(XPackUser.INSTANCE, consumer, Version.CURRENT);
                 break;

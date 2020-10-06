@@ -11,8 +11,9 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.LiteralTests;
 import org.elasticsearch.xpack.ql.session.Configuration;
+import org.junit.Assume;
 
-import static org.elasticsearch.xpack.eql.EqlTestUtils.randomConfigurationWithCaseSensitive;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -20,9 +21,10 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class IndexOfFunctionProcessorTests extends ESTestCase {
 
-    final Configuration caseInsensitive = randomConfigurationWithCaseSensitive(false);
-
     public void testIndexOfFunctionWithValidInputInsensitive() {
+        Assume.assumeTrue(false); //TODO: revisit after we decide on functions case sensitivity handling
+
+        final Configuration caseInsensitive = randomConfiguration();
         assertEquals(5, new IndexOf(EMPTY, l("foobarbar"), l("r"), l(null), caseInsensitive).makePipe().asProcessor().process(null));
         assertEquals(5, new IndexOf(EMPTY, l("foobaRbar"), l("r"), l(null), caseInsensitive).makePipe().asProcessor().process(null));
         assertEquals(0, new IndexOf(EMPTY, l("foobar"), l("Foo"), l(null), caseInsensitive).makePipe().asProcessor().process(null));
@@ -44,7 +46,7 @@ public class IndexOfFunctionProcessorTests extends ESTestCase {
     }
 
     public void testIndexOfFunctionWithValidInputSensitive() {
-        final Configuration caseSensitive = randomConfigurationWithCaseSensitive(true);
+        final Configuration caseSensitive = randomConfiguration();
         assertEquals(5, new IndexOf(EMPTY, l("foobarbar"), l("r"), l(null), caseSensitive).makePipe().asProcessor().process(null));
         assertEquals(8, new IndexOf(EMPTY, l("foobaRbar"), l("r"), l(null), caseSensitive).makePipe().asProcessor().process(null));
         assertEquals(4, new IndexOf(EMPTY, l("foobARbar"), l("AR"), l(null), caseSensitive).makePipe().asProcessor().process(null));
@@ -67,30 +69,32 @@ public class IndexOfFunctionProcessorTests extends ESTestCase {
     }
 
     public void testIndexOfFunctionInputsValidation() {
+        Configuration config = randomConfiguration();
         QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new IndexOf(EMPTY, l(5), l("foo"), l(null), caseInsensitive).makePipe().asProcessor().process(null));
+                () -> new IndexOf(EMPTY, l(5), l("foo"), l(null), config).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [5]", siae.getMessage());
         siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new IndexOf(EMPTY, l("bar"), l(false), l(2), caseInsensitive).makePipe().asProcessor().process(null));
+                () -> new IndexOf(EMPTY, l("bar"), l(false), l(2), config).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [false]", siae.getMessage());
         siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new IndexOf(EMPTY, l("bar"), l("a"), l("1"), caseInsensitive).makePipe().asProcessor().process(null));
+                () -> new IndexOf(EMPTY, l("bar"), l("a"), l("1"), config).makePipe().asProcessor().process(null));
         assertEquals("A number is required; received [1]", siae.getMessage());
     }
 
     public void testIndexOfFunctionWithRandomInvalidDataType() {
+        Configuration config = randomConfiguration();
         Literal stringLiteral = randomValueOtherThanMany(v -> v.dataType() == KEYWORD, () -> LiteralTests.randomLiteral());
         QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new IndexOf(EMPTY, stringLiteral, l("foo"), l(1), caseInsensitive).makePipe().asProcessor().process(null));
+                () -> new IndexOf(EMPTY, stringLiteral, l("foo"), l(1), config).makePipe().asProcessor().process(null));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
         
         siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new IndexOf(EMPTY, l("foo"), stringLiteral, l(2), caseInsensitive).makePipe().asProcessor().process(null));
+                () -> new IndexOf(EMPTY, l("foo"), stringLiteral, l(2), config).makePipe().asProcessor().process(null));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
         
         Literal numericLiteral = randomValueOtherThanMany(v -> v.dataType().isNumeric(), () -> LiteralTests.randomLiteral());
         siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new IndexOf(EMPTY, l("foo"), l("o"), numericLiteral, caseInsensitive).makePipe().asProcessor().process(null));
+                () -> new IndexOf(EMPTY, l("foo"), l("o"), numericLiteral, config).makePipe().asProcessor().process(null));
         assertThat(siae.getMessage(), startsWith("A number is required; received"));
     }
 }

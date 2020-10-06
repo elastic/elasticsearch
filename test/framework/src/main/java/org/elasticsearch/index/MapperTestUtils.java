@@ -73,7 +73,7 @@ public class MapperTestUtils {
             xContentRegistry,
             similarityService,
             mapperRegistry,
-            () -> null, () -> false);
+            () -> null, () -> false, null);
     }
 
     public static void assertConflicts(String mapping1,

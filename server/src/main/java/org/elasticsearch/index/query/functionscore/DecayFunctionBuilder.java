@@ -210,6 +210,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
         // dates and time and geo need special handling
         parser.nextToken();
+        // TODO these ain't gonna work with runtime fields
         if (fieldType instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(parser, context, fieldType, mode);
         } else if (fieldType instanceof GeoPointFieldType) {

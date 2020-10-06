@@ -302,7 +302,8 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents
         // in its child space
-        if (new NestedHelper(context.getMapperService()).mightMatchNonNestedDocs(innerQuery, path)) {
+        NestedHelper nestedHelper = new NestedHelper(context.getMapperService()::getObjectMapper, context.getMapperService()::fieldType);
+        if (nestedHelper.mightMatchNonNestedDocs(innerQuery, path)) {
             innerQuery = Queries.filtered(innerQuery, nestedObjectMapper.nestedTypeFilter());
         }
 
@@ -426,12 +427,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                     topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
                     maxScoreCollector = new MaxScoreCollector();
                 }
-                try {
-                    intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
-                } finally {
-                    clearReleasables(Lifetime.COLLECTION);
-                }
-
+                intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
                 TopDocs td = topDocsCollector.topDocs(from(), size());
                 float maxScore = Float.NaN;
                 if (maxScoreCollector != null) {

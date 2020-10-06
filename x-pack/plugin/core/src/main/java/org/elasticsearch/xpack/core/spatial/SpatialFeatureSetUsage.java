@@ -11,18 +11,27 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
 
-    public SpatialFeatureSetUsage(boolean available, boolean enabled) {
+    private final SpatialStatsAction.Response statsResponse;
+
+    public SpatialFeatureSetUsage(boolean available, boolean enabled, SpatialStatsAction.Response statsResponse) {
         super(XPackField.SPATIAL, available, enabled);
+        this.statsResponse = statsResponse;
     }
 
     public SpatialFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
+        if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.statsResponse = new SpatialStatsAction.Response(input);
+        } else {
+            this.statsResponse = null;
+        }
     }
 
     @Override
@@ -30,14 +39,21 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
         return Version.V_7_4_0;
     }
 
+    SpatialStatsAction.Response statsResponse() {
+        return statsResponse;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.statsResponse.writeTo(out);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(available, enabled);
+        return Objects.hash(available, enabled, statsResponse);
     }
 
     @Override
@@ -49,7 +65,8 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         SpatialFeatureSetUsage other = (SpatialFeatureSetUsage) obj;
-        return Objects.equals(available, other.available) &&
-            Objects.equals(enabled, other.enabled);
+        return Objects.equals(available, other.available)
+            && Objects.equals(enabled, other.enabled)
+            && Objects.equals(statsResponse, other.statsResponse);
     }
 }

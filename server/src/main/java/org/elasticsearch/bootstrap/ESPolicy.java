@@ -47,10 +47,13 @@ final class ESPolicy extends Policy {
     final Policy untrusted;
     final Policy system;
     final PermissionCollection dynamic;
+    final PermissionCollection dataPathPermission;
     final Map<String,Policy> plugins;
 
-    ESPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
+    ESPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults,
+             PermissionCollection dataPathPermission) {
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
+        this.dataPathPermission = dataPathPermission;
         this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
@@ -96,6 +99,12 @@ final class ESPolicy extends Policy {
                     rethrow(new IOException("no hadoop, you cannot do this."));
                 }
             }
+        }
+
+        // The FilePermission to check access to the path.data is the hottest permission check in
+        // Elasticsearch, so we check it first.
+        if (permission instanceof FilePermission && dataPathPermission.implies(permission)) {
+            return true;
         }
 
         // otherwise defer to template + dynamic file permissions

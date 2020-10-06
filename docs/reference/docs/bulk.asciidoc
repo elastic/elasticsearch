@@ -137,7 +137,7 @@ $ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --
 
 [discrete]
 [[bulk-optimistic-concurrency-control]]
-===== Optimistic Concurrency Control
+===== Optimistic concurrency control
 
 Each `index` and `delete` action within a bulk API call may include the
 `if_seq_no` and `if_primary_term` parameters in their respective action
@@ -168,7 +168,7 @@ appropriate backing index for the stream.
 
 [discrete]
 [[bulk-wait-for-active-shards]]
-===== Wait For Active Shards
+===== Wait for active shards
 
 When making bulk calls, you can set the `wait_for_active_shards`
 parameter to require a minimum number of shard copies to be active

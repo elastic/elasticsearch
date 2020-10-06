@@ -17,6 +17,7 @@ Never expose an unprotected node to the public internet.
 ==== Commonly used network settings
 
 `network.host`::
+(<<static-cluster-setting,Static>>)
 The node will bind to this hostname or IP address and _publish_ (advertise)
 this host to other nodes in the cluster. Accepts an IP address, hostname, a
 <<network-interface-values,special value>>, or an array of any combination of
@@ -29,6 +30,7 @@ same effect as the value `0.0.0.0`.
 Defaults to `_local_`.
 
 `discovery.seed_hosts`::
+(<<static-cluster-setting,Static>>)
 In order to join a cluster, a node needs to know the hostname or IP address of
 at least some of the other nodes in the cluster.  This setting provides the
 initial list of addresses this node will try to contact. Accepts IP addresses
@@ -43,6 +45,7 @@ caching>>).
 Defaults to `["127.0.0.1", "[::1]"]`.
 
 `http.port`::
+(<<static-cluster-setting,Static>>)
 Port to bind to for incoming HTTP requests. Accepts a single value or a range.
 If a range is specified, the node will bind to the first available port in the
 range.
@@ -50,6 +53,7 @@ range.
 Defaults to `9200-9300`.
 
 `transport.port`::
+(<<static-cluster-setting,Static>>)
 Port to bind for communication between nodes. Accepts a single value or a
 range. If a range is specified, the node will bind to the first available port
 in the range.
@@ -126,39 +130,50 @@ Any component that uses TCP (like the <<modules-http,HTTP>> and
 <<modules-transport,transport>> layers) share the following settings:
 
 `network.tcp.no_delay`::
+(<<static-cluster-setting,Static>>)
 Enable or disable the {wikipedia}/Nagle%27s_algorithm[TCP no delay]
 setting. Defaults to `true`.
 
 `network.tcp.keep_alive`::
+(<<static-cluster-setting,Static>>)
 Configures the `SO_KEEPALIVE` option for this socket, which
 determines whether it sends TCP keepalive probes.
 
-`network.tcp.keep_idle`:: Configures the `TCP_KEEPIDLE` option for this socket, which
+`network.tcp.keep_idle`::
+(<<static-cluster-setting,Static>>)
+Configures the `TCP_KEEPIDLE` option for this socket, which
 determines the time in seconds that a connection must be idle before
 starting to send TCP keepalive probes. Defaults to `-1`, which uses
 the system default. This value cannot exceed `300` seconds. Only applicable on Linux and macOS,
 and requires Java 11 or newer.
 
-`network.tcp.keep_interval`:: Configures the `TCP_KEEPINTVL` option for this socket,
+`network.tcp.keep_interval`::
+(<<static-cluster-setting,Static>>)
+Configures the `TCP_KEEPINTVL` option for this socket,
 which determines the time in seconds between sending TCP keepalive probes.
 Defaults to `-1`, which uses the system default. This value cannot exceed `300` seconds.
 Only applicable on Linux and macOS, and requires Java 11 or newer.
 
-`network.tcp.keep_count`:: Configures the `TCP_KEEPCNT` option for this socket, which
+`network.tcp.keep_count`::
+(<<static-cluster-setting,Static>>)
+Configures the `TCP_KEEPCNT` option for this socket, which
 determines the number of unacknowledged TCP keepalive probes that may be
 sent on a connection before it is dropped. Defaults to `-1`,
 which uses the system default. Only applicable on Linux and macOS, and requires
 Java 11 or newer.
 
 `network.tcp.reuse_address`::
+(<<static-cluster-setting,Static>>)
 Should an address be reused or not. Defaults to `true` on non-windows
 machines.
 
 `network.tcp.send_buffer_size`::
+(<<static-cluster-setting,Static>>)
 The size of the TCP send buffer (specified with <<size-units,size units>>).
 By default not explicitly set.
 
 `network.tcp.receive_buffer_size`::
+(<<static-cluster-setting,Static>>)
 The size of the TCP receive buffer (specified with <<size-units,size units>>).
 By default not explicitly set.
 

@@ -22,37 +22,13 @@ treated. Examples of metadata fields include the document's
 <<mapping-index-field,`_index`>>, <<mapping-id-field,`_id`>>, and
 <<mapping-source-field,`_source`>> fields.
 
-<<mapping-types,Fields>> or _properties_::
+<<mapping-types,Fields>>::
 
 A mapping contains a list of fields or `properties` pertinent to the
-document.
+document. Each field has its own <<mapping-types, data type>>.
 
 NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
 For more details, please see <<removal-of-types>>.
-
-[discrete]
-[[field-datatypes]]
-== Field data types
-
-Each field has a data `type` which can be:
-
-* a simple type like <<text,`text`>>, <<keyword,`keyword`>>, <<date,`date`>>, <<number,`long`>>,
-  <<number,`double`>>, <<boolean,`boolean`>> or <<ip,`ip`>>.
-* a type which supports the hierarchical nature of JSON such as
-  <<object,`object`>> or <<nested,`nested`>>.
-* or a specialised type like <<geo-point,`geo_point`>>,
-  <<geo-shape,`geo_shape`>>, or <<completion-suggester,`completion`>>.
-
-It is often useful to index the same field in different ways for different
-purposes. For instance, a `string` field could be <<mapping-index,indexed>> as
-a `text` field for full-text search, and as a `keyword` field for
-sorting or aggregations.  Alternatively, you could index a string field with
-the <<analysis-standard-analyzer,`standard` analyzer>>, the
-<<english-analyzer,`english`>> analyzer, and the
-<<french-analyzer,`french` analyzer>>.
-
-This is the purpose of _multi-fields_.  Most data types support multi-fields
-via the <<multi-fields>> parameter.
 
 [[mapping-limit-settings]]
 [discrete]

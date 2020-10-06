@@ -54,10 +54,8 @@ testClusters.integTest {
     setting 'indices.lifecycle.history_index_enabled', 'false'
     if (BuildParams.isSnapshotBuild() == false) {
       systemProperty 'es.autoscaling_feature_flag_registered', 'true'
-      systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
     }
     setting 'xpack.autoscaling.enabled', 'true'
-    setting 'xpack.eql.enabled', 'true'
     keystorePassword 's3cr3t'
   }
 
@@ -94,13 +92,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
   if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
     return
   }
-  // FIXME
-  subproj.afterEvaluate { // need to wait until the project has been configured
-    testClusters.integTest {
-      plugin subproj.bundlePlugin.archiveFile
-    }
-    tasks.integTest.dependsOn subproj.bundlePlugin
-  }
+  testClusters.integTest.plugin subproj.path
 }
 
 buildRestTests.docs = fileTree(projectDir) {
@@ -1455,12 +1447,6 @@ buildRestTests.setups['atomic_red_regsvr32'] = '''
             settings:
               number_of_shards: 5
               number_of_routing_shards: 5
-            mappings:
-              properties:
-                process:
-                  properties:
-                    "command_line":
-                      type: keyword
   - do:
         bulk:
           index: my-index-000001

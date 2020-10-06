@@ -217,7 +217,7 @@ information for the step that's being performed on the index.
         "message": "Waiting for all shard copies to be active",
         "shards_left_to_allocate": -1,
         "all_shards_active": false,
-        "actual_replicas": 2
+        "number_of_replicas": 2
       },
       "phase_execution": {
         "policy": "my_lifecycle3",

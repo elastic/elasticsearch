@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisions;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -89,12 +88,8 @@ public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecis
             {
                 builder.startArray("decisions");
                 {
-                    for (final Map.Entry<String, AutoscalingDecisions> decision : decisions.entrySet()) {
-                        builder.startObject();
-                        {
-                            builder.field(decision.getKey(), decision.getValue());
-                        }
-                        builder.endObject();
+                    for (final AutoscalingDecisions decision : decisions.values()) {
+                        decision.toXContent(builder, params);
                     }
                 }
                 builder.endArray();

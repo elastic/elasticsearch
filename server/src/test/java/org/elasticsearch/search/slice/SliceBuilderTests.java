@@ -32,12 +32,12 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchShardIterator;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -51,10 +51,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -119,7 +122,13 @@ public class SliceBuilderTests extends ESTestCase {
 
     private QueryShardContext createShardContext(Version indexVersionCreated, IndexReader reader,
                                                  String fieldName, DocValuesType dvType, int numShards, int shardId) {
-        MappedFieldType fieldType = new MappedFieldType(fieldName, true, dvType != null, TextSearchInfo.NONE, Collections.emptyMap()) {
+        MappedFieldType fieldType = new MappedFieldType(fieldName, true, false, dvType != null,
+            TextSearchInfo.NONE, Collections.emptyMap()) {
+
+            @Override
+            public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                throw new UnsupportedOperationException();
+            }
 
             @Override
             public String typeName() {
@@ -326,7 +335,7 @@ public class SliceBuilderTests extends ESTestCase {
         OperationRouting routing = mock(OperationRouting.class);
         GroupShardsIterator<ShardIterator> it = new GroupShardsIterator<>(
             Collections.singletonList(
-                new SearchShardIterator(null, new ShardId("index", "index", 1), null, null)
+                new PlainShardIterator(new ShardId("index", "index", 1), Collections.emptyList())
             )
         );
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(it);

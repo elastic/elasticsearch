@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -140,9 +139,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     GeoTileGridValuesSourceBuilder(StreamInput in) throws IOException {
         super(in);
         this.precision = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            this.geoBoundingBox = new GeoBoundingBox(in);
-        }
+        this.geoBoundingBox = new GeoBoundingBox(in);
     }
 
     public GeoTileGridValuesSourceBuilder precision(int precision) {
@@ -163,9 +160,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeInt(precision);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            geoBoundingBox.writeTo(out);
-        }
+        geoBoundingBox.writeTo(out);
     }
 
     @Override

@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.ir.BinaryMathNode;
-import org.elasticsearch.painless.ir.BinaryNode;
+import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.BreakNode;
@@ -196,8 +196,8 @@ public class IRTreeBaseVisitor<Scope> implements IRTreeVisitor<Scope> {
     }
 
     @Override
-    public void visitBinary(BinaryNode irBinaryNode, Scope scope) {
-        irBinaryNode.visitChildren(this, scope);
+    public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, Scope scope) {
+        irBinaryImplNode.visitChildren(this, scope);
     }
 
     @Override

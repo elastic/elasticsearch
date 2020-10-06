@@ -58,7 +58,7 @@ public class ExtractedFieldsDetector {
      * Fields to ignore. These are mostly internal meta fields.
      */
     private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.ID_COPY,
+        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.INCREMENTAL_ID,
         "_data_stream_timestamp");
 
     private final DataFrameAnalyticsConfig config;

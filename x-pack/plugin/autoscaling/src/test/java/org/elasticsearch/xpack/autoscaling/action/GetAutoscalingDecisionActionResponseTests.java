@@ -44,9 +44,7 @@ public class GetAutoscalingDecisionActionResponseTests extends AutoscalingTestCa
         expected.startObject();
         expected.startArray("decisions");
         for (Map.Entry<String, AutoscalingDecisions> entry : decisions.entrySet()) {
-            expected.startObject();
-            expected.field(entry.getKey(), entry.getValue());
-            expected.endObject();
+            entry.getValue().toXContent(expected, null);
         }
         expected.endArray();
         expected.endObject();

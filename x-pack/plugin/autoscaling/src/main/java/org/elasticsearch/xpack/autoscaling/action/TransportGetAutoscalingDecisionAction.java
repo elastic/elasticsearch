@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.autoscaling.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -27,6 +28,7 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
     GetAutoscalingDecisionAction.Response> {
 
     private final AutoscalingDecisionService decisionService;
+    private final ClusterInfoService clusterInfoService;
 
     @Inject
     public TransportGetAutoscalingDecisionAction(
@@ -35,7 +37,8 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final AutoscalingDecisionService.Holder decisionServiceHolder
+        final AutoscalingDecisionService.Holder decisionServiceHolder,
+        final ClusterInfoService clusterInfoService
     ) {
         super(
             GetAutoscalingDecisionAction.NAME,
@@ -47,6 +50,7 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
             indexNameExpressionResolver
         );
         this.decisionService = decisionServiceHolder.get();
+        this.clusterInfoService = clusterInfoService;
         assert this.decisionService != null;
     }
 
@@ -67,7 +71,7 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
         final ClusterState state,
         final ActionListener<GetAutoscalingDecisionAction.Response> listener
     ) {
-        listener.onResponse(new GetAutoscalingDecisionAction.Response(decisionService.decide(state)));
+        listener.onResponse(new GetAutoscalingDecisionAction.Response(decisionService.decide(state, clusterInfoService.getClusterInfo())));
     }
 
     @Override

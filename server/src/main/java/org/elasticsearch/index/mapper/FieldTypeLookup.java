@@ -67,12 +67,11 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             for (String targetField : fieldMapper.copyTo().copyToFields()) {
                 Set<String> sourcePath = fieldToCopiedFields.get(targetField);
                 if (sourcePath == null) {
-                    fieldToCopiedFields.put(targetField, Set.of(targetField, fieldName));
-                } else if (sourcePath.contains(fieldName) == false) {
-                    Set<String> newSourcePath = new HashSet<>(sourcePath);
-                    newSourcePath.add(fieldName);
-                    fieldToCopiedFields.put(targetField, Collections.unmodifiableSet(newSourcePath));
+                    Set<String> copiedFields = new HashSet<>();
+                    copiedFields.add(targetField);
+                    fieldToCopiedFields.put(targetField, copiedFields);
                 }
+                fieldToCopiedFields.get(targetField).add(fieldName);
             }
         }
 
@@ -119,20 +118,22 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     /**
-     * Given a field, returns its possible paths in the _source.
+     * Given a concrete field name, return its paths in the _source.
      *
      * For most fields, the source path is the same as the field itself. However
-     * there are some exceptions:
-     *   - The 'source path' for a field alias is its target field.
+     * there are cases where a field's values are found elsewhere in the _source:
      *   - For a multi-field, the source path is the parent field.
      *   - One field's content could have been copied to another through copy_to.
+     *
+     * @param field The field for which to look up the _source path. Note that the field
+     *              should be a concrete field and *not* an alias.
+     * @return A set of paths in the _source that contain the field's values.
      */
     public Set<String> sourcePaths(String field) {
-        String resolvedField = aliasToConcreteName.getOrDefault(field, field);
-
-        int lastDotIndex = resolvedField.lastIndexOf('.');
+        String resolvedField = field;
+        int lastDotIndex = field.lastIndexOf('.');
         if (lastDotIndex > 0) {
-            String parentField = resolvedField.substring(0, lastDotIndex);
+            String parentField = field.substring(0, lastDotIndex);
             if (fullNameToFieldType.containsKey(parentField)) {
                 resolvedField = parentField;
             }

@@ -168,7 +168,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
   
 `conflicts`::
-  (Optional, string) What to do if delete by query hits version conflicts: 
+  (Optional, string) What to do if update by query hits version conflicts: 
   `abort` or `proceed`. Defaults to `abort`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]

@@ -204,6 +204,17 @@ public class ESTestCaseTests extends ESTestCase {
 
     public void testRandomDateFormatterPattern() {
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern());
-        assertThat(formatter.parseMillis(formatter.formatMillis(0)), equalTo(0L));
+        /*
+         * Make sure it doesn't crash trying to format some dates and
+         * that round tripping through millis doesn't lose any information.
+         * Interestingly, round tripping through a string *can* lose
+         * information because not all date formats spit out milliseconds.
+         * Hell, not all of them spit out the time of day at all!
+         * But going from text back to millis back to text should
+         * be fine!
+         */
+        String formatted = formatter.formatMillis(randomLongBetween(0, 2_000_000_000_000L));
+        String formattedAgain = formatter.formatMillis(formatter.parseMillis(formatted));
+        assertThat(formattedAgain, equalTo(formatted));
     }
 }

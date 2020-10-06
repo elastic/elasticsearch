@@ -89,10 +89,12 @@
   - skip:
       features:
         - headers
-        - warnings
+        - allowed_warnings
 
   - do:
-      warnings:
+      # We don't require this warning because there's a very brief window during upgrades before the IndexMetaData is upgraded when warnings
+      # may not be emitted. That they do get upgraded is tested specifically by FullClusterRestartIT#testSystemIndexMetadataIsUpgraded().
+      allowed_warnings:
         - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true

@@ -29,7 +29,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
@@ -85,8 +84,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
             expectedQuery = LatLonPoint.newDistanceFeatureQuery(fieldName, boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
         } else { // if (fieldName.equals(DATE_FIELD_NAME))
-            MapperService mapperService = context.getMapperService();
-            DateFieldType fieldType = (DateFieldType) mapperService.fieldType(fieldName);
+            DateFieldType fieldType = (DateFieldType) context.fieldMapper(fieldName);
             long originLong = fieldType.parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotVal = TimeValue.parseTimeValue(pivot, DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             long pivotLong;

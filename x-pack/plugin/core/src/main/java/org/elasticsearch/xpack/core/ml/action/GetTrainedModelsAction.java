@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
@@ -34,41 +35,34 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         super(NAME, Response::new);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
-
+    public static class Includes implements Writeable {
         static final String DEFINITION = "definition";
         static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
+        static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
         private static final Set<String> KNOWN_INCLUDES;
         static {
-            HashSet<String> includes = new HashSet<>(2, 1.0f);
+            HashSet<String> includes = new HashSet<>(3, 1.0f);
             includes.add(DEFINITION);
             includes.add(TOTAL_FEATURE_IMPORTANCE);
+            includes.add(FEATURE_IMPORTANCE_BASELINE);
             KNOWN_INCLUDES = Collections.unmodifiableSet(includes);
         }
-        public static final ParseField INCLUDE = new ParseField("include");
-        public static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
-        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
-        public static final ParseField TAGS = new ParseField("tags");
 
-        private final Set<String> includes;
-        private final List<String> tags;
-
-        @Deprecated
-        public Request(String id, boolean includeModelDefinition, List<String> tags) {
-            setResourceId(id);
-            setAllowNoResources(true);
-            this.tags = tags == null ? Collections.emptyList() : tags;
-            if (includeModelDefinition) {
-                this.includes = new HashSet<>(Collections.singletonList(DEFINITION));
-            } else {
-                this.includes = Collections.emptySet();
-            }
+        public static Includes forModelDefinition() {
+            return new Includes(new HashSet<>(Collections.singletonList(DEFINITION)));
         }
 
-        public Request(String id, List<String> tags, Set<String> includes) {
-            setResourceId(id);
-            setAllowNoResources(true);
-            this.tags = tags == null ? Collections.emptyList() : tags;
+        public static Includes empty() {
+            return new Includes(new HashSet<>());
+        }
+
+        public static Includes all() {
+            return new Includes(KNOWN_INCLUDES);
+        }
+
+        private final Set<String> includes;
+
+        public Includes(Set<String> includes) {
             this.includes = includes == null ? Collections.emptySet() : includes;
             Set<String> unknownIncludes = Sets.difference(this.includes, KNOWN_INCLUDES);
             if (unknownIncludes.isEmpty() == false) {
@@ -79,23 +73,13 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             }
         }
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-                this.includes = in.readSet(StreamInput::readString);
-            } else {
-                Set<String> includes = new HashSet<>();
-                if (in.readBoolean()) {
-                    includes.add(DEFINITION);
-                }
-                this.includes = includes;
-            }
-            this.tags = in.readStringList();
+        public Includes(StreamInput in) throws IOException {
+            this.includes = in.readSet(StreamInput::readString);
         }
 
         @Override
-        public String getResourceIdField() {
-            return TrainedModelConfig.MODEL_ID.getPreferredName();
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(this.includes, StreamOutput::writeString);
         }
 
         public boolean isIncludeModelDefinition() {
@@ -106,17 +90,83 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             return this.includes.contains(TOTAL_FEATURE_IMPORTANCE);
         }
 
+        public boolean isIncludeFeatureImportanceBaseline() {
+            return this.includes.contains(FEATURE_IMPORTANCE_BASELINE);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Includes includes1 = (Includes) o;
+            return Objects.equals(includes, includes1.includes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(includes);
+        }
+    }
+
+    public static class Request extends AbstractGetResourcesRequest {
+
+        public static final ParseField INCLUDE = new ParseField("include");
+        public static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+        public static final ParseField TAGS = new ParseField("tags");
+
+        private final Includes includes;
+        private final List<String> tags;
+
+        @Deprecated
+        public Request(String id, boolean includeModelDefinition, List<String> tags) {
+            setResourceId(id);
+            setAllowNoResources(true);
+            this.tags = tags == null ? Collections.emptyList() : tags;
+            if (includeModelDefinition) {
+                this.includes = Includes.forModelDefinition();
+            } else {
+                this.includes = Includes.empty();
+            }
+        }
+
+        public Request(String id, List<String> tags, Set<String> includes) {
+            setResourceId(id);
+            setAllowNoResources(true);
+            this.tags = tags == null ? Collections.emptyList() : tags;
+            this.includes = new Includes(includes);
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+                this.includes = new Includes(in);
+            } else {
+                this.includes = in.readBoolean() ? Includes.forModelDefinition() : Includes.empty();
+            }
+            this.tags = in.readStringList();
+        }
+
+        @Override
+        public String getResourceIdField() {
+            return TrainedModelConfig.MODEL_ID.getPreferredName();
+        }
+
         public List<String> getTags() {
             return tags;
+        }
+
+        public Includes getIncludes() {
+            return includes;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-                out.writeCollection(this.includes, StreamOutput::writeString);
+                this.includes.writeTo(out);
             } else {
-                out.writeBoolean(this.includes.contains(DEFINITION));
+                out.writeBoolean(this.includes.isIncludeModelDefinition());
             }
             out.writeStringCollection(tags);
         }

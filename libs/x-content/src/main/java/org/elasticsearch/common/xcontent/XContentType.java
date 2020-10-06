@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -113,9 +114,26 @@ public enum XContentType implements MediaType {
         }
     };
 
-    public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser<>(XContentType.values(),
-        Map.of("application/*", JSON, "application/x-ndjson", JSON));
-
+    private static final String COMPATIBLE_WITH_PARAMETER_NAME = "compatible-with";
+    private static final String VERSION_PATTERN = "\\d+";
+    public static final MediaTypeParser<XContentType> mediaTypeParser = new MediaTypeParser.Builder<XContentType>()
+        .withMediaTypeAndParams("application/smile", SMILE, Collections.emptyMap())
+        .withMediaTypeAndParams("application/cbor", CBOR, Collections.emptyMap())
+        .withMediaTypeAndParams("application/json", JSON, Map.of("charset", "UTF-8"))
+        .withMediaTypeAndParams("application/yaml", YAML, Map.of("charset", "UTF-8"))
+        .withMediaTypeAndParams("application/*", JSON, Map.of("charset", "UTF-8"))
+        .withMediaTypeAndParams("application/x-ndjson", JSON, Map.of("charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+json", JSON,
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+smile", SMILE,
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+yaml", YAML,
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+cbor", CBOR,
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8"))
+        .withMediaTypeAndParams("application/vnd.elasticsearch+x-ndjson", JSON,
+            Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8"))
+        .build();
 
     /**
      * Accepts a format string, which is most of the time is equivalent to {@link XContentType#subtype()}
@@ -137,11 +155,21 @@ public enum XContentType implements MediaType {
         return mediaTypeParser.fromMediaType(mediaTypeHeaderValue);
     }
 
-
     private int index;
 
     XContentType(int index) {
         this.index = index;
+    }
+
+    public static Byte parseVersion(String mediaType) {
+        MediaTypeParser<XContentType>.ParsedMediaType parsedMediaType = mediaTypeParser.parseMediaType(mediaType);
+        if (parsedMediaType != null) {
+            String version = parsedMediaType
+                .getParameters()
+                .get(COMPATIBLE_WITH_PARAMETER_NAME);
+            return version != null ? Byte.parseByte(version) : null;
+        }
+        return null;
     }
 
     public int index() {

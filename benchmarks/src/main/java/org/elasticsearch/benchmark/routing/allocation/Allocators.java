@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -79,7 +80,8 @@ public final class Allocators {
             defaultAllocationDeciders(settings, clusterSettings),
             NoopGatewayAllocator.INSTANCE,
             new BalancedShardsAllocator(settings),
-            EmptyClusterInfoService.INSTANCE
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
         );
     }
 

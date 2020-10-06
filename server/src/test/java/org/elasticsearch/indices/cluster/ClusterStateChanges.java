@@ -92,6 +92,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -147,7 +148,7 @@ public class ClusterStateChanges {
                 new ReplicaAfterPrimaryActiveAllocationDecider(),
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(SETTINGS),
-            EmptyClusterInfoService.INSTANCE);
+            EmptyClusterInfoService.INSTANCE, EmptySnapshotsInfoService.INSTANCE);
         shardFailedClusterStateTaskExecutor
             = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, () -> Priority.NORMAL, logger);
         shardStartedClusterStateTaskExecutor

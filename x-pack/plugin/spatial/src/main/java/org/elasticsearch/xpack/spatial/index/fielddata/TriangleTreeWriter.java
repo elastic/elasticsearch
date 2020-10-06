@@ -82,10 +82,6 @@ class TriangleTreeWriter {
 
     /** Represents an inner node of the tree. */
     private static class TriangleTreeNode {
-        /** type of component */
-        public enum TYPE {
-            POINT, LINE, TRIANGLE
-        }
         /** minimum latitude of this geometry's bounding box area */
         private int minY;
         /** maximum latitude of this geometry's bounding box area */

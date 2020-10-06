@@ -1927,7 +1927,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
             AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocResult.getScore(), closeTo(0.99995, 1e-9));
+            assertThat(aucRocResult.getScore(), closeTo(0.9299, 1e-9));
             assertNotNull(aucRocResult.getCurve());
         }
         {  // Accuracy

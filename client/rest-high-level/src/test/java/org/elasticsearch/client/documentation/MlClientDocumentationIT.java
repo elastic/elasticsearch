@@ -3561,7 +3561,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(otherClassesCount, equalTo(0L));
 
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocScore, equalTo(0.2625));
+            assertThat(aucRocScore, equalTo(0.7162000000000013));
         }
     }
 

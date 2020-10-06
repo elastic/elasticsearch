@@ -7,11 +7,14 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.function.Supplier;
 
 public interface MlDataRemover {
+    TimeValue DEFAULT_MAX_DURATION = TimeValue.timeValueHours(8L);
+
     void remove(float requestsPerSecond, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier);
 
     /**

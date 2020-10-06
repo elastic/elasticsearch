@@ -75,13 +75,15 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from-models]
 
 `include`::
 (Optional, string)
-A comma delimited string of optional fields to include in the response body.
-Valid options are:
+A comma delimited string of optional fields to include in the response body. The
+default value is empty, indicating no optional fields are included. Valid
+options are:
  - `definition`: Includes the model definition
- - `total_feature_importance`: Includes the total feature importance for the
-   training data set. This field is available in the `metadata` field in the
-   response body.
-Default is empty, indicating including no optional fields.
+ - `feature_importance_baseline`: Includes the baseline for {feat-imp} values.
+ - `total_feature_importance`: Includes the total {feat-imp} for the training
+   data set.
+The baseline and total {feature-imp} values are returned in the `metadata` field
+in the response body.
 
 `size`::
 (Optional, integer)
@@ -141,14 +143,19 @@ created by {dfanalytics} contain `analysis_config` and `input` objects.
 .Properties of metadata
 [%collapsible%open]
 =====
+`feature_importance_baseline`:::
+(object)
+An object that contains the baseline for {feat-imp} values. For {reganalysis},
+it is a single value. For {classanalysis}, there is a value for each class.
+
 `total_feature_importance`:::
 (array)
-An array of the total feature importance for each feature used from
+An array of the total {feat-imp} for each feature used from
 the training data set. This array of objects is returned if {dfanalytics} trained
 the model and the request includes `total_feature_importance` in the `include`
 request parameter.
 +
-.Properties of total feature importance
+.Properties of total {feat-imp}
 [%collapsible%open]
 ======
 
@@ -158,9 +165,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-impo
 
 `importance`:::
 (object)
-A collection of feature importance statistics related to the training data set for this particular feature.
+A collection of {feat-imp} statistics related to the training data set for this particular feature.
 +
-.Properties of feature importance
+.Properties of {feat-imp}
 [%collapsible%open]
 =======
 `mean_magnitude`:::
@@ -179,10 +186,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-impo
 
 `classes`:::
 (array)
-If the trained model is a classification model, feature importance statistics are gathered
+If the trained model is a classification model, {feat-imp} statistics are gathered
 per target class value.
 +
-.Properties of class feature importance
+.Properties of class {feat-imp}
 [%collapsible%open]
 
 =======
@@ -193,9 +200,9 @@ The target class value. Could be a string, boolean, or number.
 
 `importance`:::
 (object)
-A collection of feature importance statistics related to the training data set for this particular feature.
+A collection of {feat-imp} statistics related to the training data set for this particular feature.
 +
-.Properties of feature importance
+.Properties of {feat-imp}
 [%collapsible%open]
 ========
 `mean_magnitude`:::

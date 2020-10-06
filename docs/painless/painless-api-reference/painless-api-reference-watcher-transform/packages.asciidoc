@@ -60,17 +60,3 @@ See the <<painless-api-reference-watcher-transform, Watcher Transform API>> for 
 * String {java11-javadoc}/java.base/java/lang/String.html#trim()[trim]()
 
 
-[role="exclude",id="painless-api-reference-watcher-transform-org-elasticsearch-painless-api"]
-=== Watcher Transform API for package org.elasticsearch.painless.api
-See the <<painless-api-reference-watcher-transform, Watcher Transform API>> for a high-level overview of all packages and classes.
-
-[[painless-api-reference-watcher-transform-Json]]
-==== Json
-* static String dump(def)
-* static String dump(def, boolean)
-* static def load(String)
-* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
-* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
-* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
-
-

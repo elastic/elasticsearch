@@ -9,16 +9,11 @@
 |Aggs Map | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-map, Specialized API>>
 |Aggs Reduce | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-reduce, Specialized API>>
 |Analysis | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-analysis, Specialized API>>
-|Boolean Script Field Script Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-boolean-script-field-script-field, Specialized API>>
 |Bucket Aggregation | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-bucket-aggregation, Specialized API>>
-|Date Script Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-date-script-field, Specialized API>>
-|Double Script Field Script Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-double-script-field-script-field, Specialized API>>
 |Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-field, Specialized API>>
 |Filter | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-filter, Specialized API>>
 |Ingest | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-ingest, Specialized API>>
 |Interval | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-interval, Specialized API>>
-|Ip Script Field Script Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-ip-script-field-script-field, Specialized API>>
-|Long Script Field Script Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-long-script-field-script-field, Specialized API>>
 |Moving Function | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-moving-function, Specialized API>>
 |Number Sort | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-number-sort, Specialized API>>
 |Painless Test | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-painless-test, Specialized API>>
@@ -27,7 +22,6 @@
 |Script Heuristic | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-script-heuristic, Specialized API>>
 |Similarity | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-similarity, Specialized API>>
 |Similarity Weight | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-similarity-weight, Specialized API>>
-|String Script Field Script Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-string-script-field-script-field, Specialized API>>
 |String Sort | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-string-sort, Specialized API>>
 |Template | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-template, Specialized API>>
 |Terms Set | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-terms-set, Specialized API>>
@@ -45,16 +39,11 @@ include::painless-api-reference-aggs-init/index.asciidoc[]
 include::painless-api-reference-aggs-map/index.asciidoc[]
 include::painless-api-reference-aggs-reduce/index.asciidoc[]
 include::painless-api-reference-analysis/index.asciidoc[]
-include::painless-api-reference-boolean-script-field-script-field/index.asciidoc[]
 include::painless-api-reference-bucket-aggregation/index.asciidoc[]
-include::painless-api-reference-date-script-field/index.asciidoc[]
-include::painless-api-reference-double-script-field-script-field/index.asciidoc[]
 include::painless-api-reference-field/index.asciidoc[]
 include::painless-api-reference-filter/index.asciidoc[]
 include::painless-api-reference-ingest/index.asciidoc[]
 include::painless-api-reference-interval/index.asciidoc[]
-include::painless-api-reference-ip-script-field-script-field/index.asciidoc[]
-include::painless-api-reference-long-script-field-script-field/index.asciidoc[]
 include::painless-api-reference-moving-function/index.asciidoc[]
 include::painless-api-reference-number-sort/index.asciidoc[]
 include::painless-api-reference-painless-test/index.asciidoc[]
@@ -63,7 +52,6 @@ include::painless-api-reference-score/index.asciidoc[]
 include::painless-api-reference-script-heuristic/index.asciidoc[]
 include::painless-api-reference-similarity/index.asciidoc[]
 include::painless-api-reference-similarity-weight/index.asciidoc[]
-include::painless-api-reference-string-script-field-script-field/index.asciidoc[]
 include::painless-api-reference-string-sort/index.asciidoc[]
 include::painless-api-reference-template/index.asciidoc[]
 include::painless-api-reference-terms-set/index.asciidoc[]

@@ -21,15 +21,12 @@ public class GeometryDocValueWriter {
     private final TriangleTreeWriter treeWriter;
     private final CoordinateEncoder coordinateEncoder;
     private final CentroidCalculator centroidCalculator;
-    private Extent extent;
 
     public GeometryDocValueWriter(List<ShapeField.DecodedTriangle> triangles, CoordinateEncoder coordinateEncoder,
                                   CentroidCalculator centroidCalculator) {
         this.coordinateEncoder = coordinateEncoder;
         this.centroidCalculator = centroidCalculator;
-        this.extent = new Extent();
-        this.treeWriter = new TriangleTreeWriter(triangles,
-            (treeNode) -> extent.addRectangle(treeNode.minX, treeNode.minY, treeNode.maxX, treeNode.maxY));
+        this.treeWriter = new TriangleTreeWriter(triangles);
     }
 
     /*** Serialize the interval tree in the provided data output */
@@ -38,7 +35,6 @@ public class GeometryDocValueWriter {
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
         centroidCalculator.getDimensionalShapeType().writeTo(out);
         out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
-        extent.writeCompressed(out);
         treeWriter.writeTo(out);
     }
 }

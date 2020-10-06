@@ -13,7 +13,6 @@ import org.apache.lucene.util.ArrayUtil;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * This is a tree-writer that serializes a list of {@link ShapeField.DecodedTriangle} as an interval tree
@@ -22,26 +21,29 @@ import java.util.function.Consumer;
 class TriangleTreeWriter {
 
     private final TriangleTreeNode node;
+    private final Extent extent;
 
-    TriangleTreeWriter(List<ShapeField.DecodedTriangle> triangles, Consumer<TriangleTreeNode> consumer) {
-        this.node = build(triangles, consumer);
+    TriangleTreeWriter(List<ShapeField.DecodedTriangle> triangles) {
+        this.extent = new Extent();
+        this.node = build(triangles);
     }
 
     /*** Serialize the interval tree in the provided data output */
     public void writeTo(ByteBuffersDataOutput out) throws IOException {
+        extent.writeCompressed(out);
         node.writeTo(out);
     }
 
-    private TriangleTreeNode build(List<ShapeField.DecodedTriangle> triangles, Consumer<TriangleTreeNode> consumer) {
+    private TriangleTreeNode build(List<ShapeField.DecodedTriangle> triangles) {
         if (triangles.size() == 1) {
             TriangleTreeNode triangleTreeNode =  new TriangleTreeNode(triangles.get(0));
-            consumer.accept(triangleTreeNode);
+            extent.addRectangle(triangleTreeNode.minX, triangleTreeNode.minY, triangleTreeNode.maxX, triangleTreeNode.maxY);
             return triangleTreeNode;
         }
         TriangleTreeNode[] nodes = new TriangleTreeNode[triangles.size()];
         for (int i = 0; i < triangles.size(); i++) {
             nodes[i] = new TriangleTreeNode(triangles.get(i));
-            consumer.accept(nodes[i]);
+            extent.addRectangle(nodes[i].minX, nodes[i].minY, nodes[i].maxX, nodes[i].maxY);
         }
         return createTree(nodes, 0, triangles.size() - 1, true);
     }
@@ -79,19 +81,19 @@ class TriangleTreeWriter {
     }
 
     /** Represents an inner node of the tree. */
-    protected static class TriangleTreeNode {
+    private static class TriangleTreeNode {
         /** type of component */
         public enum TYPE {
             POINT, LINE, TRIANGLE
         }
         /** minimum latitude of this geometry's bounding box area */
-        protected int minY;
+        private int minY;
         /** maximum latitude of this geometry's bounding box area */
-        protected int maxY;
+        private int maxY;
         /** minimum longitude of this geometry's bounding box area */
-        protected int minX;
+        private int minX;
         /**  maximum longitude of this geometry's bounding box area */
-        protected int maxX;
+        private int maxX;
         // child components, or null.
         private TriangleTreeNode left;
         private TriangleTreeNode right;

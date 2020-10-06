@@ -47,7 +47,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
         assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
@@ -64,7 +64,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
         assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);

@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -478,7 +479,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                                             long epoch = (Long) timestamp;
                                             ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
                                             dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
-                                            emit(toEpochMilli(dt));
+                                            emit(dt.toInstant().toEpochMilli());
                                         }
                                     }
                                 };

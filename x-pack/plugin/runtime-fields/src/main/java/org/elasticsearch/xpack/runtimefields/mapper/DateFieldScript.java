@@ -50,13 +50,6 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         this.formatter = formatter;
     }
 
-    public static long toEpochMilli(TemporalAccessor v) {
-        // TemporalAccessor is a nanos API so we have to convert.
-        long millis = Math.multiplyExact(v.getLong(ChronoField.INSTANT_SECONDS), 1000);
-        millis = Math.addExact(millis, v.get(ChronoField.NANO_OF_SECOND) / 1_000_000);
-        return millis;
-    }
-
     public static class Emit {
         private final DateFieldScript script;
 

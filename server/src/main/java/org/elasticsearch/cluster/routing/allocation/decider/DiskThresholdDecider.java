@@ -490,9 +490,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return targetShardSize == 0 ? defaultValue : targetShardSize;
         } else {
             if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                final Long shardSize = snapshotShardSizeInfo.getShardSize(shard);
-                assert shardSize != null : "no shard size provided for " + shard;
-                return shardSize;
+                return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
             }
             return clusterInfo.getShardSize(shard, defaultValue);
         }

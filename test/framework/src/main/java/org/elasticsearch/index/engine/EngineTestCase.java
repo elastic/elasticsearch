@@ -267,12 +267,14 @@ public abstract class EngineTestCase extends ESTestCase {
         try {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                assertNoOutstandingReservingDocuments(engine);
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService());
                 assertMaxSeqNoInCommitUserData(engine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                assertNoOutstandingReservingDocuments(replicaEngine);
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService());
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
@@ -570,7 +572,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         } else {
-            return new InternalTestEngine(config, InternalEngine.DEFAULT_MAX_DOCS, localCheckpointTrackerSupplier) {
+            return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -1244,5 +1246,17 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static long getNumVersionLookups(Engine engine) {
         return ((InternalEngine) engine).getNumVersionLookups();
+    }
+
+    public static long getReservingDocs(Engine engine) {
+        if (engine instanceof InternalEngine) {
+            return ((InternalEngine) engine).getReservingNumDocs();
+        } else {
+            return 0;
+        }
+    }
+
+    public static void assertNoOutstandingReservingDocuments(Engine engine) throws Exception {
+        assertBusy(() -> assertThat(getReservingDocs(engine), equalTo(0L)));
     }
 }

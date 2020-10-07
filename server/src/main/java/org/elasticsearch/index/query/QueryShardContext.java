@@ -43,6 +43,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -60,6 +61,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -231,7 +233,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * @see QueryShardContext#setAllowUnmappedFields(boolean)
      * @see QueryShardContext#setMapUnmappedFieldAsString(boolean)
      */
-    public MappedFieldType fieldMapper(String name) {
+    public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
 
@@ -244,6 +246,25 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public ObjectMapper getObjectMapper(String name) {
         return mapperService.getObjectMapper(name);
+    }
+
+    /**
+     * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
+     * Generally used to handle unmapped fields in the context of sorting.
+     */
+    public MappedFieldType buildAnonymousFieldType(String type) {
+        final Mapper.TypeParser.ParserContext parserContext = mapperService.documentMapperParser().parserContext();
+        Mapper.TypeParser typeParser = parserContext.typeParser(type);
+        if (typeParser == null) {
+            throw new IllegalArgumentException("No mapper found for type [" + type + "]");
+        }
+        final Mapper.Builder<?> builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
+        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1));
+        Mapper mapper = builder.build(builderContext);
+        if (mapper instanceof FieldMapper) {
+            return ((FieldMapper)mapper).fieldType();
+        }
+        throw new IllegalArgumentException("Mapper for type [" + type + "] must be a leaf field");
     }
 
     public IndexAnalyzers getIndexAnalyzers() {

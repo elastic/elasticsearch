@@ -10,17 +10,19 @@
 // the number following the string is used as a timestamp/order
 // while the optional prefix followed by | indicates the key
 
-// since the spec checks the way matching is done
-// which is based on the runtime component that can make multiple requests
-// use X99 as an token to force results from other lines to be read in
+// since the spec checks only the way matching is done it returns
+// all the results in the first call and then an empty list.
+// Since the runtime component can make multiple requests and thus discard
+// returned data, use X99 as an token to force results from other lines
+// to be read in (as it makes a larger window for the runtime)
 
 // For example
 // A1 A2
 //       B3
 // fails because B3 should not be read in its first call as it goes beyond A1/A2 window.
 // however the testing infrastructure doesn't know this so it returns the item
-// which is then discarded.
-// To avoid the runtime filtering leaking in, adding an extra token at the end forces
+// which is then discarded. On the next call, empty results are returned.
+// To avoid the runtime behavior leaking in, adding an extra token at the end forces
 // the runtime window to be expanded and thus for all results to be properly read:
 //
 // A1 A2      X99 (event occurring last in the base query)
@@ -69,7 +71,7 @@ A3 B4
 ;
 
 basicSequenceMergingPreviousStage
-A1 A2    X99
+A1 A2       X99
       B3
 ;
 A2 B3

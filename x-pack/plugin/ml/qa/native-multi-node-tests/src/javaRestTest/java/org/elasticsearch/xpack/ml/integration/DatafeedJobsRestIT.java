@@ -127,11 +127,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "          \"keyword\":{\"type\":\"keyword\"}"
                 + "         }"
                 + "       },"
-                + "      \"airline_lowercase_rt\": { "
-                + "        \"type\":\"runtime\","
-                + "        \"runtime_type\": \"keyword\","
-                + "        \"script\" : { \"source\": \"emit(params._source.airline.toLowerCase())\" }"
-                + "      },"
                 + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
                 + "  }"
@@ -294,13 +289,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 .setScriptedFields(
                     "{\"scripted_airline\":{\"script\":{\"lang\":\"painless\",\"source\":\"doc['airline.keyword'].value\"}}}")
             .setAirlineVariant("scripted_airline")
-            .execute();
-    }
-
-    public void testLookbackOnlyWithRuntimeFields() throws Exception {
-        new LookbackOnlyTestHelper("test-lookback-only-with-runtime-fields", "airline-data")
-            .setAirlineVariant("airline_lowercase_rt")
-            .setShouldSucceedProcessing(true)
             .execute();
     }
 

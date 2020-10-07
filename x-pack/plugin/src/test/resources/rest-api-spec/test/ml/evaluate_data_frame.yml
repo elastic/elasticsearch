@@ -685,7 +685,7 @@ setup:
 ---
 "Test classification auc_roc given predicted_class_field is never equal to mouse":
   - do:
-      catch: /\[auc_roc\] requires that \[mouse\] appears as one of the \[ml.top_classes.class_name\] for every document \(appeared for 0 out of 8\)/
+      catch: /\[auc_roc\] requires that \[mouse\] appears as one of the \[ml.top_classes.class_name\] for every document \(appeared in 0 out of 8\)./
       ml.evaluate_data_frame:
         body:  >
           {

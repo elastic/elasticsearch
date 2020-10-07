@@ -187,28 +187,24 @@ public class AucRoc extends AbstractAucRoc {
         Nested restNested = restAgg.getAggregations().get(NESTED_AGG_NAME);
         Filter restNestedFilter = restNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
 
-        long filteredDocCount = classNestedFilter.getDocCount() + restNestedFilter.getDocCount();
-        long totalDocCount = classAgg.getDocCount() + restAgg.getDocCount();
-
         if (classAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have the value [{}]",
                 getName(), fields.get().getActualField(), className);
-        }
-        if (classNestedFilter.getDocCount() < classAgg.getDocCount()) {
-            throw ExceptionsHelper.badRequestException(
-                "[{}] requires that [{}] appears as one of the [{}] for every document (appeared for {} out of {})",
-                getName(), className, fields.get().getPredictedClassField(), filteredDocCount, totalDocCount);
         }
         if (restAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have a different value than [{}]",
                 getName(), fields.get().getActualField(), className);
         }
-        if (restNestedFilter.getDocCount() < restAgg.getDocCount()) {
+        long filteredDocCount = classNestedFilter.getDocCount() + restNestedFilter.getDocCount();
+        long totalDocCount = classAgg.getDocCount() + restAgg.getDocCount();
+        if (filteredDocCount < totalDocCount) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] requires that [{}] appears as one of the [{}] for every document (appeared for {} out of {})",
-                getName(), className, fields.get().getPredictedClassField(), filteredDocCount, totalDocCount);
+                "[{}] requires that [{}] appears as one of the [{}] for every document (appeared in {} out of {}). "
+                + "This is probably caused by the {} value being less than the total number of actual classes in the dataset.",
+                getName(), className, fields.get().getPredictedClassField(), filteredDocCount, totalDocCount,
+                org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification.NUM_TOP_CLASSES.getPreferredName());
         }
 
         Percentiles classPercentiles = classNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);

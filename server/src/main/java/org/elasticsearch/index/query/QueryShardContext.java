@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -249,28 +248,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public ObjectMapper getObjectMapper(String name) {
         return mapperService.getObjectMapper(name);
-    }
-
-    /**
-     * Gets the search analyzer for the given field, or the default if there is none present for the field
-     * TODO: remove this by moving defaults into mappers themselves
-     */
-    public Analyzer getSearchAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.getTextSearchInfo().getSearchAnalyzer() != null) {
-            return fieldType.getTextSearchInfo().getSearchAnalyzer();
-        }
-        return mapperService.searchAnalyzer();
-    }
-
-    /**
-     * Gets the search quote analyzer for the given field, or the default if there is none present for the field
-     * TODO: remove this by moving defaults into mappers themselves
-     */
-    public Analyzer getSearchQuoteAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.getTextSearchInfo().getSearchQuoteAnalyzer() != null) {
-            return fieldType.getTextSearchInfo().getSearchQuoteAnalyzer();
-        }
-        return mapperService.searchQuoteAnalyzer();
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {

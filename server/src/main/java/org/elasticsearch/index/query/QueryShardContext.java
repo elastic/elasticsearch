@@ -258,7 +258,10 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.searchAnalyzer();
     }
 
-    public Analyzer searchAnalyzer() {
+    /**
+     * Returns the default search analyzer
+     */
+    public Analyzer getSearchAnalyzer() {
         return this.mapperService.searchAnalyzer();
     }
 

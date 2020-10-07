@@ -23,6 +23,7 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.shard.ShardId;
@@ -199,7 +200,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             for (int ops = randomIntBetween(0, 20); ops > 0; ops--) {
                 out.reset(bytes);
                 out.writeInt(ops);
-                writer.add(new BytesArray(bytes), ops);
+                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), ops);
             }
         }
         return new Tuple<>(readers, writer);

@@ -34,7 +34,7 @@ import java.nio.file.Path;
  */
 public final class TranslogConfig {
 
-    public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(8, ByteSizeUnit.KB);
+    public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
     private final BigArrays bigArrays;
     private final IndexSettings indexSettings;
     private final ShardId shardId;

@@ -225,7 +225,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final Predicate<Long> failedSnapshotShardSizeRetrieval = shardSize -> shardSize == Long.MIN_VALUE;
         assertBusy(() -> {
             assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(),
-                equalTo((int) results.values().stream().filter(Predicate.not(failedSnapshotShardSizeRetrieval)).count()));
+                equalTo((int) results.values().stream().filter(size -> failedSnapshotShardSizeRetrieval.test(size) == false).count()));
             assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(),
                 equalTo((int) results.values().stream().filter(failedSnapshotShardSizeRetrieval).count()));
             assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));

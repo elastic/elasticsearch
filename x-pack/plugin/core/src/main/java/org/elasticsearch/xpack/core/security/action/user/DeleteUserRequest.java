@@ -10,9 +10,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 
@@ -21,7 +18,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete a native user.
  */
-public class DeleteUserRequest extends ActionRequest implements UserRequest, WriteRequest<DeleteUserRequest>, ToXContentObject {
+public class DeleteUserRequest extends ActionRequest implements UserRequest, WriteRequest<DeleteUserRequest> {
 
     private String username;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
@@ -77,15 +74,5 @@ public class DeleteUserRequest extends ActionRequest implements UserRequest, Wri
         super.writeTo(out);
         out.writeString(username);
         refreshPolicy.writeTo(out);
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-               .field("username", username);
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
-            builder.field("refresh_policy", refreshPolicy.toString());
-        }
-        return builder.endObject();
     }
 }

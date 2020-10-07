@@ -13,9 +13,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 
@@ -25,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Request to change a user's password.
  */
 public class ChangePasswordRequest extends ActionRequest
-        implements UserRequest, WriteRequest<ChangePasswordRequest>, ToXContentObject {
+        implements UserRequest, WriteRequest<ChangePasswordRequest> {
 
     private String username;
     private char[] passwordHash;
@@ -94,20 +91,5 @@ public class ChangePasswordRequest extends ActionRequest
         out.writeString(username);
         out.writeBytesReference(new BytesArray(CharArrays.toUtf8Bytes(passwordHash)));
         refreshPolicy.writeTo(out);
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-                .field("username", username);
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_CREDENTIALS, true)) {
-            builder.field("password_hash", passwordHash != null ? String.valueOf(passwordHash) : null);
-        } else {
-            builder.field("password_hash", passwordHash != null ? "<redacted>" : null);
-        }
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
-            builder.field("refresh_policy", refreshPolicy.toString());
-        }
-        return builder.endObject();
     }
 }

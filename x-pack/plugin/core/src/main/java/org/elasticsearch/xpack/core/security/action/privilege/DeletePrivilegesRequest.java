@@ -11,9 +11,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,7 +23,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to delete an application privilege.
  */
 public final class DeletePrivilegesRequest extends ActionRequest
-    implements ApplicationPrivilegesRequest, WriteRequest<DeletePrivilegesRequest>, ToXContentObject {
+    implements ApplicationPrivilegesRequest, WriteRequest<DeletePrivilegesRequest> {
 
     private String application;
     private String[] privileges;
@@ -98,18 +95,5 @@ public final class DeletePrivilegesRequest extends ActionRequest
         out.writeString(application);
         out.writeStringArray(privileges);
         refreshPolicy.writeTo(out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-                .startObject("delete_privileges")
-                .field("application", application)
-                .array("privileges", privileges)
-                .endObject();
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
-            builder.field("refresh_policy", refreshPolicy.toString());
-        }
-        return builder.endObject();
     }
 }

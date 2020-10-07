@@ -13,8 +13,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for invalidating API key(s) so that it can no longer be used
  */
-public final class InvalidateApiKeyRequest extends ActionRequest implements ToXContentObject {
+public final class InvalidateApiKeyRequest extends ActionRequest {
 
     private final String realmName;
     private final String userName;
@@ -201,18 +199,4 @@ public final class InvalidateApiKeyRequest extends ActionRequest implements ToXC
         return Objects.hash(realmName, userName, id, name, ownedByAuthenticatedUser);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .startObject("invalidate_api_key")
-                .field("username", userName)
-                .startObject("realm")
-                    .field("name", realmName)
-                .endObject()
-                .field("id", id)
-                .field("name", name)
-                .field("owned_by_authenticated_user", ownedByAuthenticatedUser)
-                .endObject() // invalidate_api_key
-                .endObject();
-    }
 }

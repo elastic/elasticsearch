@@ -13,8 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -22,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object for adding a role to the security index
  */
-public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRoleRequest>, ToXContentObject {
+public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRoleRequest> {
 
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
@@ -222,25 +219,5 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 runAs,
                 metadata,
                 Collections.emptyMap());
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-                .field("name", name)
-                .array("cluster_privileges", clusterPrivileges)
-                .array("run_as", runAs)
-                .field("indices_privileges", indicesPrivileges)
-                .field("application_privileges", applicationPrivileges)
-                .field("metadata", metadata);
-        builder.startObject("configurable_cluster_privileges");
-        for (ConfigurableClusterPrivilege configurableClusterPrivilege : configurableClusterPrivileges) {
-            configurableClusterPrivilege.toXContent(builder, params);
-        }
-        builder.endObject(); // configurable_cluster_privileges
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
-            builder.field("refresh_policy", refreshPolicy.toString());
-        }
-        return builder.endObject();
     }
 }

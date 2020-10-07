@@ -11,11 +11,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.support.Validation.Error;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 import java.io.IOException;
 
@@ -24,7 +21,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * The request that allows to set a user as enabled or disabled
  */
-public class SetEnabledRequest extends ActionRequest implements UserRequest, WriteRequest<SetEnabledRequest>, ToXContentObject {
+public class SetEnabledRequest extends ActionRequest implements UserRequest, WriteRequest<SetEnabledRequest> {
 
     private Boolean enabled;
     private String username;
@@ -106,16 +103,5 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
         out.writeBoolean(enabled);
         out.writeString(username);
         refreshPolicy.writeTo(out);
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-               .field("username", username)
-               .field("enabled", enabled);
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, true)) {
-            builder.field("refresh_policy", refreshPolicy.toString());
-        }
-        return builder.endObject();
     }
 }

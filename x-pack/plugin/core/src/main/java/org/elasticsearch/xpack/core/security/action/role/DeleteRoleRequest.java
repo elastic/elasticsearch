@@ -10,18 +10,15 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils.AuditToXContentParams;
 
 /**
  * A request delete a role from the security index
  */
-public class DeleteRoleRequest extends ActionRequest implements WriteRequest<DeleteRoleRequest>, ToXContentObject {
+public class DeleteRoleRequest extends ActionRequest implements WriteRequest<DeleteRoleRequest> {
 
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
@@ -68,17 +65,5 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
         super.writeTo(out);
         out.writeString(name);
         refreshPolicy.writeTo(out);
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-               .startObject("delete_role")
-               .field("name", name())
-               .endObject();
-        if (params.paramAsBoolean(AuditToXContentParams.INCLUDE_REFRESH_POLICY, false)) {
-            builder.field("refresh_policy", refreshPolicy.toString());
-        }
-        return builder.endObject();
     }
 }

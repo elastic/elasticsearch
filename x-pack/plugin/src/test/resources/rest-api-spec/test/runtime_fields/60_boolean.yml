@@ -135,3 +135,18 @@ setup:
             timestamp: asc
   - match: {hits.total.value: 4}
   - match: {hits.hits.0._source.voltage: 5.6}
+
+---
+"explain term query":
+  - do:
+      search:
+        index: sensor
+        explain: true
+        body:
+          query:
+            term:
+              over_v: true
+  - match: {hits.hits.0._explanation.description: over_v:true}
+  - match: {hits.hits.0._explanation.details.0.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.description: 'runtime field query scoring boost'}
+  - match: {hits.hits.0._explanation.details.0.details: []}

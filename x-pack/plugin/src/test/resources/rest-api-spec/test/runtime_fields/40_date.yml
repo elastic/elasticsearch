@@ -183,3 +183,18 @@ setup:
               tomorrow: 2018-01-19T17:41:34Z
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.voltage: 4.0}
+
+---
+"explain term query":
+  - do:
+      search:
+        index: sensor
+        explain: true
+        body:
+          query:
+            term:
+              tomorrow: 2018-01-19T17:41:34Z
+  - match: {hits.hits.0._explanation.description: tomorrow:1516383694000}
+  - match: {hits.hits.0._explanation.details.0.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.description: 'runtime field query scoring boost'}
+  - match: {hits.hits.0._explanation.details.0.details: []}

@@ -20,7 +20,6 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -38,7 +37,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -78,12 +76,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class InternalSnapshotsInfoServiceTests extends ESTestCase {
@@ -100,13 +93,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         repositoriesService = mock(RepositoriesService.class);
-        rerouteService = mock(RerouteService.class);
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            final ActionListener<ClusterState> listener = (ActionListener<ClusterState>) invocation.getArguments()[2];
-            listener.onResponse(clusterService.state());
-            return null;
-        }).when(rerouteService).reroute(anyString(), any(Priority.class), any());
+        rerouteService = (reason, priority, listener) -> listener.onResponse(clusterService.state());
     }
 
     @After
@@ -120,6 +107,13 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
     public void testSnapshotShardSizes() throws Exception {
         final int maxConcurrentFetches = randomIntBetween(1, 10);
+
+        final AtomicInteger rerouteCount = new AtomicInteger(0);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            rerouteCount.incrementAndGet();
+            listener.onResponse(clusterService.state());
+        };
+
         final InternalSnapshotsInfoService snapshotsInfoService =
             new InternalSnapshotsInfoService(Settings.builder()
                 .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), maxConcurrentFetches)
@@ -167,8 +161,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(numberOfShards));
             assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
             assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(), equalTo(0));
+            assertThat(rerouteCount.get(), equalTo(numberOfShards));
         });
-        verify(rerouteService, times(numberOfShards)).reroute(anyString(), any(Priority.class), any());
+
         assertThat(getShardSnapshotStatusCount.get(), equalTo(numberOfShards));
 
         final SnapshotShardSizeInfo snapshotShardSizeInfo = snapshotsInfoService.snapshotShardSizes();

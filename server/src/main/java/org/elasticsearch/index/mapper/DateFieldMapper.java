@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.TwoPhaseDatePointMillis;
+import org.apache.lucene.document.TwoPhaseDatePointNanos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -100,6 +103,40 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
+
+            @Override
+            public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
+                if (hasDocValues) {
+                    Field[] fields = TwoPhaseDatePointMillis.createIndexableFields(name, toInstant(value));
+                    for (Field field : fields) {
+                        doc.add(field);
+                    }
+                } else {
+                    doc.add(new LongPoint(name, value));
+                }
+            }
+
+            @Override
+            public Query rangeQuery(String field, long min, long max, boolean hasDocValues) {
+                if (hasDocValues) {
+                    Instant minInstant = toInstant(min);
+                    Instant maxInstant = toInstant(max);
+                    if ((min == Long.MIN_VALUE || min == convert(Instant.ofEpochSecond(minInstant.getEpochSecond()))) &&
+                        (max == Long.MAX_VALUE || max == convert(Instant.ofEpochSecond(maxInstant.getEpochSecond())))) {
+                        return LongPoint.newRangeQuery(field, minInstant.getEpochSecond(), maxInstant.getEpochSecond());
+                    } else {
+                        return TwoPhaseDatePointMillis.newRangeQuery(field, minInstant, maxInstant);
+                    }
+                } else {
+                    return LongPoint.newRangeQuery(field, min, max);
+                }
+            }
+
+            @Override
+            public long toApprox(long exact) {
+                return toInstant(exact).getEpochSecond();
+            }
+
         },
         NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
             @Override
@@ -125,6 +162,39 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Override
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
+            }
+
+            @Override
+            public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
+                if (hasDocValues) {
+                    Field[] fields = TwoPhaseDatePointNanos.createIndexableFields(name, toInstant(value));
+                    for (Field field : fields) {
+                        doc.add(field);
+                    }
+                } else {
+                    doc.add(new LongPoint(name, value));
+                }
+            }
+
+            @Override
+            public Query rangeQuery(String field, long min, long max, boolean hasDocValues) {
+                if (hasDocValues) {
+                    Instant minInstant = toInstant(min);
+                    Instant maxInstant = toInstant(max);
+                    if (min == convert(Instant.ofEpochSecond(minInstant.getEpochSecond())) &&
+                        max == convert(Instant.ofEpochSecond(maxInstant.getEpochSecond()))) {
+                        return LongPoint.newRangeQuery(field, minInstant.getEpochSecond(), maxInstant.getEpochSecond());
+                    } else {
+                        return TwoPhaseDatePointNanos.newRangeQuery(field, minInstant, maxInstant);
+                    }
+                } else {
+                    return LongPoint.newRangeQuery(field, min, max);
+                }
+            }
+
+            @Override
+            public long toApprox(long exact) {
+                return toInstant(exact).getEpochSecond();
             }
         };
 
@@ -164,6 +234,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
          * Decode the points representation of this field as milliseconds.
          */
         public abstract long parsePointAsMillis(byte[] value);
+
+        /**
+         * Add index fields to doc
+         */
+        public abstract void index(ParseContext.Document doc, String name, long value, boolean hasDocValues);
+
+        /**
+         * Build range query
+         */
+        public abstract Query rangeQuery(String field, long min, long max, boolean hasDocValues);
+
+        /**
+         * Build range query
+         */
+        public abstract long toApprox(long exact);
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
@@ -352,8 +437,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
                     : forcedDateParser;
+
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query query = LongPoint.newRangeQuery(name(), l, u);
+                Query query = resolution.rangeQuery(name(), l, u, hasDocValues());
                 if (hasDocValues()) {
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
@@ -442,6 +528,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public Relation isFieldWithinQuery(IndexReader reader,
                                            Object from, Object to, boolean includeLower, boolean includeUpper,
                                            ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+
+            if (PointValues.size(reader, name()) == 0) {
+                // no points, so nothing matches
+                return Relation.DISJOINT;
+            }
+
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -468,20 +560,29 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 }
             }
 
-            if (PointValues.size(reader, name()) == 0) {
-                // no points, so nothing matches
-                return Relation.DISJOINT;
-            }
-
             long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
             long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
-            if (minValue >= fromInclusive && maxValue <= toInclusive) {
-                return Relation.WITHIN;
-            } else if (maxValue < fromInclusive || minValue > toInclusive) {
-                return Relation.DISJOINT;
+            long approxFromInclusive;
+            long approxToInclusive;
+            if (hasDocValues()) {
+                approxFromInclusive = resolution.toApprox(fromInclusive);
+                approxToInclusive = resolution.toApprox(toInclusive);
+                if (minValue >= approxFromInclusive + 1 && maxValue <= approxToInclusive - 1) {
+                    return Relation.WITHIN;
+                } else if (maxValue < approxFromInclusive || minValue > approxToInclusive) {
+                    return Relation.DISJOINT;
+                } else {
+                    return Relation.INTERSECTS;
+                }
             } else {
-                return Relation.INTERSECTS;
+                if (minValue >= fromInclusive && maxValue <= toInclusive) {
+                    return Relation.WITHIN;
+                } else if (maxValue < fromInclusive || minValue > toInclusive) {
+                    return Relation.DISJOINT;
+                } else {
+                    return Relation.INTERSECTS;
+                }
             }
         }
 
@@ -613,13 +714,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         if (indexed) {
-            context.doc().add(new LongPoint(fieldType().name(), timestamp));
+            resolution.index(context.doc(), fieldType().name(), timestamp, hasDocValues);
         }
         if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
         } else if (store || indexed) {
             createFieldNamesField(context);
         }
+
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }

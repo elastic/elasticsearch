@@ -366,7 +366,7 @@ public class QueryShardContextTests extends ESTestCase {
             indexWriter.addDocument(List.of(new StringField("indexed_field", "second", Field.Store.NO)));
             try (DirectoryReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType fieldType = queryShardContext.fieldMapper(field);
+                MappedFieldType fieldType = queryShardContext.getFieldType(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
                     indexFieldData = queryShardContext.getForField(fieldType);

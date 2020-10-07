@@ -48,6 +48,7 @@ public class SnapshotShardSizeInfo {
 
     public long getShardSize(ShardRouting shardRouting, long fallback) {
         final Long shardSize = getShardSize(shardRouting);
-        return shardSize == null ? fallback : shardSize;
+        assert shardSize != null : "no shard size provided for " + shardRouting;
+        return shardSize == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE ? fallback : shardSize;
     }
 }

@@ -727,6 +727,8 @@ public abstract class Engine implements Closeable {
      */
     public abstract Translog.Location getTranslogLastWriteLocation();
 
+    public abstract boolean isLocationSynced(Translog.Location location);
+
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
             AlreadyClosedException ace = new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());

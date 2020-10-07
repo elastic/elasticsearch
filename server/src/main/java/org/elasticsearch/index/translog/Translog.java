@@ -588,6 +588,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    public Location getLastSyncedLocation() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            /*
+             * We use position = current - 1 and size = Integer.MAX_VALUE here instead of position current and size = 0 for two reasons:
+             * 1. Translog.Location's compareTo doesn't actually pay attention to size even though it's equals method does.
+             * 2. It feels more right to return a *position* that is before the next write's position rather than rely on the size.
+             */
+            return new Location(current.generation, current.getLastSyncedCheckpoint().offset - 1, Integer.MAX_VALUE);
+        }
+    }
+
     /**
      * The last synced checkpoint for this translog.
      *
@@ -600,6 +611,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     final Checkpoint getLastSyncedCheckpoint() {
         try (ReleasableLock ignored = readLock.acquire()) {
             return current.getLastSyncedCheckpoint();
+        }
+    }
+
+    public final boolean isLocationSynced(Location location) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            // if we have a new one it's already synced
+            if (location.generation == current.getGeneration()) {
+                return current.getLastSyncedCheckpoint().offset >= (location.translogLocation + location.size);
+            } else {
+                return true;
+            }
         }
     }
 
@@ -710,7 +732,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Sync's the translog.
+     * Flushs the translog to disk. Does not fsync.
+     */
+    public void flush() throws IOException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            if (closed.get() == false) {
+                current.flush();
+            }
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
+            throw ex;
+        }
+    }
+
+    /**
+     * Syncs the translog.
      */
     public void sync() throws IOException {
         try (ReleasableLock lock = readLock.acquire()) {

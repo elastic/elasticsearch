@@ -290,6 +290,16 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
+     * flush all buffered ops to disk. Does not fsync.
+     *
+     * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
+     * raising the exception.
+     */
+    public void flush() throws IOException {
+        writeBufferedOps(Long.MAX_VALUE, true);
+    }
+
+    /**
      * Returns <code>true</code> if there are buffered operations that have not been flushed and fsynced to disk or if the latest global
      * checkpoint has not yet been fsynced
      */

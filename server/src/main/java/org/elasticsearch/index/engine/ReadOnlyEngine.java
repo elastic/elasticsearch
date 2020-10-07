@@ -318,6 +318,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public boolean isLocationSynced(Translog.Location location) {
+        return false;
+    }
+
+    @Override
     public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
     }

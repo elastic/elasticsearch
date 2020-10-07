@@ -30,6 +30,7 @@ Remove the index as the write index for the rollover alias and
 start indexing to a new index.
 
 [[ilm-searchable-snapshot-action]]<<ilm-searchable-snapshot, Searchable snapshot>>::
+beta:[]
 Take a snapshot of the managed index in the configured repository
 and mount it as a searchable snapshot.
 

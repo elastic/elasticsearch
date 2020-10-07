@@ -11,6 +11,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -57,21 +58,22 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         };
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), securityDefaultEnabled ? 0 : 1);
-        NodeClient client = mock(NodeClient.class);
 
-        assertFalse(consumerCalled.get());
-        verifyZeroInteractions(licenseState);
-        handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
-
-        verify(licenseState).checkFeature(XPackLicenseState.Feature.SECURITY);
-        if (securityDefaultEnabled) {
-            assertTrue(consumerCalled.get());
-            assertEquals(0, fakeRestChannel.responses().get());
-            assertEquals(0, fakeRestChannel.errors().get());
-        } else {
+        try (NodeClient client = new NoOpNodeClient(this.getTestName())) {
             assertFalse(consumerCalled.get());
-            assertEquals(0, fakeRestChannel.responses().get());
-            assertEquals(1, fakeRestChannel.errors().get());
+            verifyZeroInteractions(licenseState);
+            handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
+
+            verify(licenseState).checkFeature(XPackLicenseState.Feature.SECURITY);
+            if (securityDefaultEnabled) {
+                assertTrue(consumerCalled.get());
+                assertEquals(0, fakeRestChannel.responses().get());
+                assertEquals(0, fakeRestChannel.errors().get());
+            } else {
+                assertFalse(consumerCalled.get());
+                assertEquals(0, fakeRestChannel.responses().get());
+                assertEquals(1, fakeRestChannel.errors().get());
+            }
         }
     }
 }

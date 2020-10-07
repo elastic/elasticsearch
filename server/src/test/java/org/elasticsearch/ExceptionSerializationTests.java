@@ -91,6 +91,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -829,6 +830,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(157, IngestProcessorException.class);
         ids.put(158, PeerRecoveryNotFound.class);
         ids.put(159, NodeHealthCheckFailureException.class);
+        ids.put(160, NoSeedNodeLeftException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

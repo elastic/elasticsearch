@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
@@ -347,7 +348,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new UnsupportedOperationException("explain not supported");
             }
-        }, EmptyClusterInfoService.INSTANCE);
+        }, EmptyClusterInfoService.INSTANCE, EmptySnapshotsInfoService.INSTANCE);
         Metadata.Builder metadataBuilder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         IndexMetadata.Builder indexMeta = IndexMetadata.builder("test")

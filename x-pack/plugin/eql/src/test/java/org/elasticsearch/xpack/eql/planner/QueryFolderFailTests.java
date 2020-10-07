@@ -126,7 +126,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\nline 1:15: [length(plain_text)] cannot operate on field of data type [text]: No keyword/multi-field "
             + "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
     public void testMatchWithText() {
         VerificationException e = expectThrows(VerificationException.class,
             () -> plan("process where match(plain_text, \"foo.*\")"));
@@ -135,7 +135,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
             "line 1:15: [match(plain_text, \"foo.*\")] cannot operate on first argument field of data type [text]: " +
             "No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
     public void testMatchWithNonString() {
         VerificationException e = expectThrows(VerificationException.class,
             () -> plan("process where match(process_name, parent_process_name)"));
@@ -144,7 +144,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
             "line 1:15: second argument of [match(process_name, parent_process_name)] " +
             "must be a constant, received [parent_process_name]", msg);
     }
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
     public void testMatchWithNonRegex() {
         VerificationException e = expectThrows(VerificationException.class,
             () -> plan("process where match(process_name, 1)"));

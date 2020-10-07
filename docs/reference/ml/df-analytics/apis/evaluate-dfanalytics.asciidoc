@@ -27,7 +27,8 @@ privileges:
 
 * cluster: `monitor_ml`
   
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+For more information, see <<security-privileges>> and 
+{ml-docs-setup-privileges}.
 
 
 [[ml-evaluate-dfanalytics-desc]]
@@ -69,8 +70,8 @@ source index. See <<query-dsl>>.
 [[oldetection-resources]]
 === {oldetection-cap} evaluation objects
 
-{oldetection-cap} evaluates the results of an {oldetection} analysis which outputs
-the probability that each document is an outlier.
+{oldetection-cap} evaluates the results of an {oldetection} analysis which 
+outputs the probability that each document is an outlier.
 
 `actual_field`::
   (Required, string) The field of the `index` which contains the `ground truth`. 
@@ -121,24 +122,39 @@ which outputs a prediction of values.
   in other words the results of the {regression} analysis.
   
 `metrics`::
-  (Optional, object) Specifies the metrics that are used for the evaluation.
+  (Optional, object) Specifies the metrics that are used for the evaluation. For 
+  more information on `mse`, `msle`, and `huber`, consult 
+  https://github.com/elastic/examples/tree/master/Machine%20Learning/Regression%20Loss%20Functions[the Jupyter notebook on regression loss functions].
   Available metrics:
 
   `mse`:::
-    (Optional, object) Average squared difference between the predicted values and the actual (`ground truth`) value.
-    For more information, read {wikipedia}/Mean_squared_error[this wiki article].
+    (Optional, object) Average squared difference between the predicted values 
+    and the actual (`ground truth`) value. For more information, read 
+    {wikipedia}/Mean_squared_error[this wiki article].
 
   `msle`:::
-    (Optional, object) Average squared difference between the logarithm of the predicted values and the logarithm of the actual
-    (`ground truth`) value.
+    (Optional, object) Average squared difference between the logarithm of the 
+    predicted values and the logarithm of the actual (`ground truth`) value.
+    
+    `offset`::::
+      (Optional, double) Defines the transition point at which you switch from 
+      minimizing quadratic error to minimizing quadratic log error. Defaults to 
+      `1`.
 
   `huber`:::
-    (Optional, object) Pseudo Huber loss function.
-    For more information, read {wikipedia}/Huber_loss#Pseudo-Huber_loss_function[this wiki article].
+    (Optional, object) Pseudo Huber loss function. For more information, read 
+    {wikipedia}/Huber_loss#Pseudo-Huber_loss_function[this wiki article].
+    
+    `delta`::::
+      (Optional, double) Approximates 1/2 (prediction - actual)^2^ for values 
+      much less than delta and approximates a straight line with slope delta for 
+      values much larger than delta. Defaults to `1`. Delta needs to be greater 
+      than `0`.
 
   `r_squared`:::
-    (Optional, object) Proportion of the variance in the dependent variable that is predictable from the independent variables.
-    For more information, read {wikipedia}/Coefficient_of_determination[this wiki article].
+    (Optional, object) Proportion of the variance in the dependent variable that 
+    is predictable from the independent variables. For more information, read 
+    {wikipedia}/Coefficient_of_determination[this wiki article].
 
 
   
@@ -172,16 +188,16 @@ belongs.
   `auc_roc`:::
     (Optional, object) The AUC ROC (area under the curve of the receiver
     operating characteristic) score and optionally the curve.
-    It is calculated for a specific class (provided as "class_name")
-    treated as positive.
+    It is calculated for a specific class (provided as "class_name") treated as 
+    positive.
 
     `class_name`::::
       (Required, string) Name of the only class that will be treated as
       positive during AUC ROC calculation. Other classes will be treated as
       negative ("one-vs-all" strategy). Documents which do not have `class_name`
-      in the list of their top classes will not be taken into account for evaluation.
-      The number of documents taken into account is returned in the evaluation result
-      (`auc_roc.doc_count` field).
+      in the list of their top classes will not be taken into account for 
+      evaluation. The number of documents taken into account is returned in the 
+      evaluation result (`auc_roc.doc_count` field).
 
     `include_curve`::::
       (Optional, boolean) Whether or not the curve should be returned in

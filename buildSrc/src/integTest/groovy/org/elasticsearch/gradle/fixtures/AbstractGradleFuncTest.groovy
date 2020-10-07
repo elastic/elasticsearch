@@ -114,7 +114,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     void setupLocalGitRepo() {
         execute("git init");
         execute("git add .")
-        execute('git commit -m "Initial"')
+        execute('git cmmit -m "Initial"')
     }
 
     void execute(String command, File workingDir = testProjectDir.root) {
@@ -122,8 +122,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         proc.waitFor()
         if(proc.exitValue()) {
             println "Error running command ${command}:"
-            println "syserr: " + proc.errorStream.text
-            println "sysout: " + proc.outputStream.text
+            println "Syserr: " + proc.errorStream.text
         }
     }
 }

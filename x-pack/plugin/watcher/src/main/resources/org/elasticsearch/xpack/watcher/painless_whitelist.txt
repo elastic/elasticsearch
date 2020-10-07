@@ -8,3 +8,9 @@ class java.lang.String {
   String org.elasticsearch.painless.api.Augmentation sha1()
   String org.elasticsearch.painless.api.Augmentation sha256()
 }
+
+class org.elasticsearch.painless.api.Json {
+  def load(String)
+  String dump(def)
+  String dump(def, boolean)
+}

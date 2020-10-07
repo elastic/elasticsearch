@@ -121,7 +121,6 @@ public class CreateApiKeyRequestTests extends ESTestCase {
             expiration = TimeValue.timeValueHours(2);
         }
         CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-name", descriptorList, expiration);
-        createApiKeyRequest.toXContent()
     }
 
     public void testSerialization() throws IOException {

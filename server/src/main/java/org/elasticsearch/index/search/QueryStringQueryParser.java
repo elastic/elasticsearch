@@ -327,7 +327,7 @@ public class QueryStringQueryParser extends XQueryParser {
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
                 }
                 // if we are querying a single date field, we also create a range query that leverages the time zone setting
-                if (context.fieldMapper(field) instanceof DateFieldType && this.timeZone != null) {
+                if (context.getFieldType(field) instanceof DateFieldType && this.timeZone != null) {
                     return getRangeQuery(field, queryText, queryText, true, true);
                 }
             }
@@ -416,7 +416,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     private Query getRangeQuerySingle(String field, String part1, String part2,
                                       boolean startInclusive, boolean endInclusive, QueryShardContext context) {
-        MappedFieldType currentFieldType = context.fieldMapper(field);
+        MappedFieldType currentFieldType = context.getFieldType(field);
         if (currentFieldType == null) {
             return newUnmappedFieldQuery(field);
         }
@@ -466,7 +466,7 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query getFuzzyQuerySingle(String field, String termStr, int minSimilarity) throws ParseException {
-        MappedFieldType currentFieldType = context.fieldMapper(field);
+        MappedFieldType currentFieldType = context.getFieldType(field);
         if (currentFieldType == null) {
             return newUnmappedFieldQuery(field);
         }
@@ -518,7 +518,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private Query getPrefixQuerySingle(String field, String termStr) throws ParseException {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            MappedFieldType currentFieldType = context.fieldMapper(field);
+            MappedFieldType currentFieldType = context.getFieldType(field);
             if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
@@ -627,7 +627,7 @@ public class QueryStringQueryParser extends XQueryParser {
             return new MatchNoDocsQuery("No mappings yet");
         }
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-            (FieldNamesFieldMapper.FieldNamesFieldType) context.fieldMapper(FieldNamesFieldMapper.NAME);
+            (FieldNamesFieldMapper.FieldNamesFieldType) context.getFieldType(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType.isEnabled() == false) {
             // The field_names_field is disabled so we switch to a wildcard query that matches all terms
             return new WildcardQuery(new Term(fieldName, "*"));
@@ -671,7 +671,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
+            MappedFieldType currentFieldType = queryBuilder.context.getFieldType(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
@@ -724,7 +724,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private Query getRegexpQuerySingle(String field, String termStr) throws ParseException {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            MappedFieldType currentFieldType = queryBuilder.context.fieldMapper(field);
+            MappedFieldType currentFieldType = queryBuilder.context.getFieldType(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }

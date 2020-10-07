@@ -121,7 +121,7 @@ public final class QueryParserHelper {
         Map<String, Float> fields = new HashMap<>();
 
         for (String fieldName : allFields) {
-            if (fieldSuffix != null && context.fieldMapper(fieldName + fieldSuffix) != null) {
+            if (fieldSuffix != null && context.getFieldType(fieldName + fieldSuffix) != null) {
                 fieldName = fieldName + fieldSuffix;
             }
 
@@ -129,7 +129,7 @@ public final class QueryParserHelper {
                 continue;
             }
 
-            MappedFieldType fieldType = context.fieldMapper(fieldName);
+            MappedFieldType fieldType = context.getFieldType(fieldName);
             if (acceptMetadataField == false && fieldType.name().startsWith("_")) {
                 // Ignore metadata fields
                 continue;

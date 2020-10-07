@@ -259,7 +259,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
             if (fieldContext.fieldType() instanceof DateFieldType == false) {
-                new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
+                return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
             }
             return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData()) {
                 /**

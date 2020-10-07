@@ -10,21 +10,28 @@ import java.util.Objects;
 
 public class EqlSpec {
 
-    private boolean caseSensitive;
+    private int queryNo;
+    private String query;
     private long seqCount;
     private long[] expectedEventIds;
     private long[] filterCounts;
     private String[] filters;
-    private String query;
     private double time;
-    private int queryNo;
 
-    public boolean isCaseSensitive() {
-        return caseSensitive;
+    public int queryNo() {
+        return queryNo;
     }
 
-    public void caseSensitive(boolean caseSensitive) {
-        this.caseSensitive = caseSensitive;
+    public void queryNo(int queryNo) {
+        this.queryNo = queryNo;
+    }
+
+    public String query() {
+        return query;
+    }
+
+    public void query(String query) {
+        this.query = query;
     }
 
     public long seqCount() {
@@ -59,14 +66,6 @@ public class EqlSpec {
         this.filters = filters;
     }
 
-    public String query() {
-        return query;
-    }
-
-    public void query(String query) {
-        this.query = query;
-    }
-
     public double time() {
         return time;
     }
@@ -75,11 +74,7 @@ public class EqlSpec {
         this.time = time;
     }
 
-    public int queryNo() {
-        return queryNo;
-    }
-
-    public void queryNo(int queryNo) {
+    public EqlSpec(int queryNo) {
         this.queryNo = queryNo;
     }
 
@@ -89,22 +84,19 @@ public class EqlSpec {
     }
 
     @Override
-    public boolean equals(Object other) {
-        if (this == other) {
+    public boolean equals(Object o) {
+        if (this == o) {
             return true;
         }
-
-        if (other == null || getClass() != other.getClass()) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
-
-        EqlSpec that = (EqlSpec) other;
-
-        return Objects.equals(this.query, that.query) && Objects.equals(this.caseSensitive, that.caseSensitive);
+        EqlSpec eqlSpec = (EqlSpec) o;
+        return queryNo == eqlSpec.queryNo;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.query, this.caseSensitive);
+        return Objects.hash(queryNo);
     }
 }

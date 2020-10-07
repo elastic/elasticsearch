@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
@@ -28,21 +29,28 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
 public class EsEQLCorrectnessIT extends ESRestTestCase {
 
-    private static final String PARAM_FORMATTING = "%2$s";
+    private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "queries.toml";
     private static final String INDEX_NAME = "mitre";
     private static final int FETCH_SIZE = 10000;
-    private static RequestOptions COMMON_REQUEST_OPTIONS;
+    private static final String GCS_REPO_NAME = "eql_correctness_gcs_repo";
+    private static final String SNAPSHOT_NAME = "mitre-snapshot";
+    private static final String GCS_BUCKET_NAME = "matriv-gcs";
+    private static final String GCS_BASE_PATH = "mitre-data";
+    private static final String GCS_CLIENT_NAME = "eql_test";
     private static RestHighLevelClient highLevelClient;
+    private static RequestOptions COMMON_REQUEST_OPTIONS;
 
     @BeforeClass
-    private static void init() {
+    public static void init() {
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.setHttpAsyncResponseConsumerFactory(
             new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(1000 * 1024 * 1024)
@@ -51,19 +59,23 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     }
 
     @Before
-    private void setup() throws Exception {
-        if (client().performRequest(new Request("HEAD", "/" + INDEX_NAME)).getStatusLine().getStatusCode() != 200) {
+    public void restoreDataFromGcsRepo() throws Exception {
+        if (client().performRequest(new Request("HEAD", "/" + INDEX_NAME)).getStatusLine().getStatusCode() == 404) {
             highLevelClient().snapshot()
                 .createRepository(
-                    new PutRepositoryRequest("eql_correctness_gcs_repo").type("gcs")
+                    new PutRepositoryRequest(GCS_REPO_NAME).type("gcs")
                         .settings(
-                            Settings.builder().put("bucket", "matriv-gcs").put("base_path", "mitre-data").put("client", "eql_test").build()
+                            Settings.builder()
+                                .put("bucket", GCS_BUCKET_NAME)
+                                .put("base_path", GCS_BASE_PATH)
+                                .put("client", GCS_CLIENT_NAME)
+                                .build()
                         ),
                     RequestOptions.DEFAULT
                 );
             highLevelClient().snapshot()
                 .restore(
-                    new RestoreSnapshotRequest("eql_correctness_gcs_repo", "mitre-snapshot").indices(INDEX_NAME).waitForCompletion(true),
+                    new RestoreSnapshotRequest(GCS_REPO_NAME, SNAPSHOT_NAME).indices(INDEX_NAME).waitForCompletion(true),
                     RequestOptions.DEFAULT
                 );
         }
@@ -72,6 +84,9 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     @After
     public void checkSearchContent() throws Exception {
         assertNoSearchContexts(client());
+        if (highLevelClient != null) {
+            highLevelClient.close();
+        }
     }
 
     @AfterClass
@@ -92,6 +107,18 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setRequestConfigCallback(
+            requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(900000)
+                .setConnectionRequestTimeout(900000)
+                .setSocketTimeout(900000)
+        );
+        return builder.build();
+    }
+
     private EqlSpec spec;
 
     public EsEQLCorrectnessIT(EqlSpec spec) {
@@ -100,23 +127,15 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private RestHighLevelClient highLevelClient() {
         if (highLevelClient == null) {
-            String host = getClusterHosts().get(0).getHostName();
-            int port = getClusterHosts().get(0).getPort();
-            highLevelClient = new RestHighLevelClient(
-                RestClient.builder(new HttpHost(host, port, "http"))
-                    .setRequestConfigCallback(
-                        requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(900000)
-                            .setConnectionRequestTimeout(900000)
-                            .setSocketTimeout(900000)
-                    )
-            );
+            highLevelClient = new RestHighLevelClient(client(), ignore -> {}, Collections.emptyList()) {
+            };
         }
         return highLevelClient;
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static Iterable<Object[]> parameters() throws Exception {
-        List<EqlSpec> specs;
+        Collection<EqlSpec> specs;
         try (InputStream is = EsEQLCorrectnessIT.class.getClassLoader().getResourceAsStream(QUERIES_FILENAME)) {
             specs = EqlSpecLoader.readFromStream(is);
         }
@@ -151,7 +170,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         EqlSearchResponse response = highLevelClient.eql().search(eqlSearchRequest, RequestOptions.DEFAULT);
         totalTime += response.took();
         assertEquals(
-            "Failed to match sequence count for query No: " + queryNo + " : " + spec.query(),
+            "Failed to match sequence count for query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
             spec.seqCount(),
             response.hits().sequences().size()
         );
@@ -159,7 +178,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         for (EqlSearchResponse.Sequence seq : response.hits().sequences()) {
             for (EqlSearchResponse.Event event : seq.events()) {
                 assertEquals(
-                    "Failed to match event ids for query No: " + queryNo + " : " + spec.query(),
+                    "Failed to match event ids for query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
                     spec.expectedEventIds()[expectedEvenIdIdx++],
                     ((Integer) event.sourceAsMap().get("serial_id")).longValue()
                 );

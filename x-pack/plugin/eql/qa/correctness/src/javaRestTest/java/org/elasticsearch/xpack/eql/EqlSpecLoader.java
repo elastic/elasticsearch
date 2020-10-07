@@ -12,16 +12,21 @@ import io.ous.jtoml.TomlTable;
 import org.elasticsearch.common.Strings;
 
 import java.io.InputStream;
-import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public class EqlSpecLoader {
 
-    private static void validateAndAddSpec(List<EqlSpec> specs, EqlSpec spec) {
+    private static void validateAndAddSpec(Set<EqlSpec> specs, EqlSpec spec) {
         if (Strings.isNullOrEmpty(spec.query())) {
             throw new IllegalArgumentException("Read a test without a query value");
         }
 
+        if (specs.contains(spec)) {
+            throw new IllegalArgumentException("Read a test query with the same queryNo");
+        }
         specs.add(spec);
     }
 
@@ -33,21 +38,15 @@ public class EqlSpecLoader {
         return null;
     }
 
-    public static List<EqlSpec> readFromStream(InputStream is) throws Exception {
-        List<EqlSpec> testSpecs = new ArrayList<>();
+    public static Collection<EqlSpec> readFromStream(InputStream is) throws Exception {
+        Set<EqlSpec> testSpecs = new LinkedHashSet<>();
 
         EqlSpec spec;
         Toml toml = JToml.parse(is);
 
         List<TomlTable> queries = toml.getArrayTable("queries");
         for (TomlTable table : queries) {
-            spec = new EqlSpec();
-            Boolean caseInsensitive = table.getBoolean("case_insensitive");
-            if (caseInsensitive == null || Boolean.TRUE.equals(caseInsensitive)) {
-                spec.caseSensitive(false);
-            } else {
-                spec.caseSensitive(true);
-            }
+            spec = new EqlSpec(table.getLong("queryNo").intValue());
             spec.seqCount(table.getLong("count"));
             List<?> arr = table.getList("expected_event_ids");
             if (arr != null) {
@@ -81,7 +80,6 @@ public class EqlSpecLoader {
 
             spec.query(getTrimmedString(table, "query"));
             spec.time(table.getDouble("time"));
-            spec.queryNo(table.getLong("queryNo").intValue());
 
             validateAndAddSpec(testSpecs, spec);
         }

@@ -142,7 +142,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_ENRICH = new ActionClusterPrivilege("manage_enrich", MANAGE_ENRICH_AUTOMATON);
 
     public static final NamedClusterPrivilege MANAGE_LOGSTASH_PIPELINES = new ActionClusterPrivilege("manage_logstash_pipelines",
-        Set.of("cluster:admin/logstash/pipeline/*"));
+        Collections.unmodifiableSet(Sets.newHashSet("cluster:admin/logstash/pipeline/*")));
 
     private static final Map<String, NamedClusterPrivilege> VALUES = Collections.unmodifiableMap(
         Stream.of(

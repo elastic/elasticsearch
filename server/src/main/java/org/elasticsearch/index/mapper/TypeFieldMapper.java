@@ -39,6 +39,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
@@ -136,6 +137,22 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 }
             }
             return new MatchAllDocsQuery();
+        }
+
+        /**
+         * Build a type filter
+         *
+         * This does not emit a deprecation warning, as it is only called when a type
+         * has been specified in a REST request and warnings will have already been
+         * emitted at the REST layer.
+         */
+        public Query typeFilter(String[] types) {
+            for (String t : types) {
+                if (Objects.equals(this.type, t)) {
+                    return new MatchAllDocsQuery();
+                }
+            }
+            return new MatchNoDocsQuery();
         }
     }
 

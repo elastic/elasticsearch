@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -74,6 +73,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
+
 /**
  * A Translog is a per index shard component that records all non-committed index operations in a durable manner.
  * In Elasticsearch there is one Translog instance per {@link org.elasticsearch.index.engine.InternalEngine}.
@@ -118,7 +119,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
-    private BigArrays bigArrays;
+    private final BigArrays bigArrays;
     protected final ReleasableLock readLock;
     protected final ReleasableLock writeLock;
     private final Path location;
@@ -509,7 +510,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 config.getBufferSize(),
                 initialMinTranslogGen, initialGlobalCheckpoint,
                 globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong(), tragedy,
-                persistedSequenceNumberConsumer);
+                persistedSequenceNumberConsumer,
+                bigArrays);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
@@ -525,7 +527,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Location add(final Operation operation) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
-        boolean successfullySerialized = false;
         try {
             final long start = out.position();
             out.skip(Integer.BYTES);
@@ -535,9 +536,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.seek(start);
             out.writeInt(operationSize);
             out.seek(end);
-            successfullySerialized = true;
-            try (ReleasableBytesReference bytes = new ReleasableBytesReference(out.bytes(), out);
-                 ReleasableLock ignored = readLock.acquire()) {
+            final BytesReference bytes = out.bytes();
+            try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
                 if (operation.primaryTerm() > current.getPrimaryTerm()) {
                     assert false :
@@ -555,9 +555,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             closeOnTragicEvent(ex);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", ex);
         } finally {
-            if (successfullySerialized == false) {
-                Releasables.close(out);
-            }
+            Releasables.close(out);
         }
     }
 
@@ -1893,7 +1891,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         IOUtils.fsync(checkpointFile, false);
         final TranslogWriter writer = TranslogWriter.create(shardId, uuid, generation, translogFile, channelFactory,
-            TranslogConfig.DEFAULT_BUFFER_SIZE, minTranslogGeneration, initialGlobalCheckpoint,
+            EMPTY_TRANSLOG_BUFFER_SIZE, minTranslogGeneration, initialGlobalCheckpoint,
             () -> {
                 throw new UnsupportedOperationException();
             }, () -> {
@@ -1903,7 +1901,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             new TragicExceptionHolder(),
             seqNo -> {
                 throw new UnsupportedOperationException();
-            });
+            }, BigArrays.NON_RECYCLING_INSTANCE);
         writer.close();
         return uuid;
     }

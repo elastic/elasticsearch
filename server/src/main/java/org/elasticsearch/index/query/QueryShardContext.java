@@ -227,8 +227,24 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.simpleMatchToFullName(pattern);
     }
 
+    /**
+     * Returns the {@link MappedFieldType} for the provided field name.
+     * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
+     * In case unmapped fields are allowed, null is returned when the field is not mapped.
+     * In case unmapped fields are not allowed, either an exception is thrown or the field is automatically mapped as a text field.
+     * @throws QueryShardException if unmapped fields are not allowed and automatically mapping unmapped fields as text is disabled.
+     * @see QueryShardContext#setAllowUnmappedFields(boolean)
+     * @see QueryShardContext#setMapUnmappedFieldAsString(boolean)
+     */
     public MappedFieldType fieldMapper(String name) {
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
+    }
+
+    /**
+     * Returns true if the field identified by the provided name is mapped, false otherwise
+     */
+    public boolean isFieldMapped(String name) {
+        return mapperService.fieldType(name) != null;
     }
 
     public ObjectMapper getObjectMapper(String name) {
@@ -273,7 +289,8 @@ public class QueryShardContext extends QueryRewriteContext {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
+            TextFieldMapper.Builder builder
+                = new TextFieldMapper.Builder(name, () -> mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer());
             return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);

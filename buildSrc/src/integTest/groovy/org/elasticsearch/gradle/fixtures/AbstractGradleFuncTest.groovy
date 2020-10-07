@@ -112,8 +112,17 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     void setupLocalGitRepo() {
-        "git init".execute(Collections.emptyList(), testProjectDir.root).waitFor()
-        "git add .".execute(Collections.emptyList(), testProjectDir.root).waitFor()
-        'git commit -m "Initial"'.execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        execute("git init");
+        execute("git add .")
+        execute('git commit -m "Initial"')
+    }
+
+    void execute(String command, File workingDir = testProjectDir.root) {
+        def proc = command.execute(Collections.emptyList(), workingDir)
+        proc.waitFor()
+        if(proc.exitValue()) {
+            println "Error running command ${command}:"
+            println proc.text
+        }
     }
 }

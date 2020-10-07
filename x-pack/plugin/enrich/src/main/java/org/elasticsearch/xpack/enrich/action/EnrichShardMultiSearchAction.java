@@ -254,7 +254,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
                         visitor.reset();
                         searcher.doc(scoreDoc.doc, visitor);
-                        visitor.postProcess(context::fieldMapper);
+                        visitor.postProcess(field -> {
+                            if (context.isFieldMapped(field) == false) {
+                                throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
+                            }
+                            return context.fieldMapper(field);
+                        });
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), Map.of(), Map.of());
                         hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
                         hits[j] = hit;

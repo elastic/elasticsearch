@@ -904,6 +904,15 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
+            /*
+             * 128 is a power of two that isn't huge. We might be able to do
+             * better if the limit was based on the actual type of prepared
+             * rounding but this'll do for now.
+             */
+            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(minUtcMillis, maxUtcMillis, 128);
+        }
+
+        private TimeIntervalPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
             long minLookup = minUtcMillis - interval;
             long maxLookup = maxUtcMillis;
 
@@ -928,7 +937,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        Prepared prepareJavaTime() {
+        TimeIntervalPreparedRounding prepareJavaTime() {
             return new JavaTimeRounding();
         }
 
@@ -972,7 +981,7 @@ public abstract class Rounding implements Writeable {
             }
         }
 
-        private abstract class TimeIntervalPreparedRounding implements Prepared {
+        private abstract class TimeIntervalPreparedRounding extends PreparedRounding {
             @Override
             public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
                 if (timeUnit.isMillisBased) {

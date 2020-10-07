@@ -200,6 +200,33 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         }
     }
 
+    public void testBuildWithUnmappedField() {
+        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        if (randomBoolean()) {
+            builder.put(IndexSettings.ALLOW_UNMAPPED.getKey(), randomBoolean());
+        }
+        Settings indexSettings = builder.build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
+            indexSettings);
+        MapperService mapperService = mock(MapperService.class);
+        ScriptService scriptService = mock(ScriptService.class);
+
+        when(mapperService.searchAnalyzer())
+            .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
+        when(mapperService.getNamedAnalyzer(any(String.class))).then(
+            invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+            null, mapperService, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
+            System::currentTimeMillis, null, null, () -> true, null);
+        if (randomBoolean()) {
+            mockShardContext.setAllowUnmappedFields(randomBoolean());
+        }
+
+        SB suggestionBuilder = randomTestBuilder();
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> suggestionBuilder.build(mockShardContext));
+        assertEquals("no mapping found for field [" + suggestionBuilder.field + "]", iae.getMessage());
+    }
+
     /**
      * put implementation dependent assertions in the sub-type test
      */

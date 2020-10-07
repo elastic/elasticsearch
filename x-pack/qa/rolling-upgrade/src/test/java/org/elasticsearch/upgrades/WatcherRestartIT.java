@@ -38,18 +38,24 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
         // v7.7.0 contains a Watch history template (version 11) that can't be used unless all nodes in the cluster are >=7.7.0, so
         // in a mixed cluster with some nodes <7.7.0 it will install template version 10, but if all nodes are <=7.7.0 template v11
         // is used.
-        final String expectedMixedClusterTemplate = templatePrefix + (UPGRADE_FROM_VERSION.before(Version.V_7_7_0) ? "10" : "11");
         final String expectedFinalTemplate = templatePrefix + "12";
-
-        if (ClusterType.MIXED == CLUSTER_TYPE) {
-            final Request request = new Request("HEAD", "/_template/" + expectedMixedClusterTemplate);
-            request.addParameter("include_type_name", "false");
-            RequestOptions.Builder builder = request.getOptions().toBuilder();
-            builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
-            request.setOptions(builder);
-            Response response = client().performRequest(request);
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-        } else if (ClusterType.UPGRADED == CLUSTER_TYPE) {
+        // In 7.10 watcher templates were converted to composable index templates, so we only
+        // check legacy templates if we upgraded from a version that had legacy templates.
+        if (UPGRADE_FROM_VERSION.before(Version.V_7_10_0)) {
+            final String expectedMixedClusterTemplate = templatePrefix + (UPGRADE_FROM_VERSION.before(Version.V_7_7_0) ? "10" : "11");
+            if (ClusterType.MIXED == CLUSTER_TYPE) {
+                final Request request = new Request("HEAD", "/_template/" + expectedMixedClusterTemplate);
+                request.addParameter("include_type_name", "false");
+                RequestOptions.Builder builder = request.getOptions().toBuilder();
+                builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
+                request.setOptions(builder);
+                Response response = client().performRequest(request);
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+            } else if (ClusterType.UPGRADED == CLUSTER_TYPE) {
+                Response response = client().performRequest(new Request("HEAD", "/_index_template/" + expectedFinalTemplate));
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+            }
+        } else {
             Response response = client().performRequest(new Request("HEAD", "/_index_template/" + expectedFinalTemplate));
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }

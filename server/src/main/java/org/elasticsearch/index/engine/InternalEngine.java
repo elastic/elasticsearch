@@ -1327,10 +1327,10 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void adjustReservingDocs(int addedDocs) {
-        assert addedDocs <= 0 : addedDocs;
-        final long newValue = reservingNumDocs.addAndGet(addedDocs);
-        assert newValue >= 0 : "pendingNumDocs must not be negative [" + newValue + "]";
+    private void adjustReservingDocs(int numDocs) {
+        assert numDocs <= 0 : numDocs;
+        final long newValue = reservingNumDocs.addAndGet(numDocs);
+        assert newValue >= 0 : "reservingNumDocs must not be negative [" + newValue + "]";
     }
 
     long getReservingNumDocs() {

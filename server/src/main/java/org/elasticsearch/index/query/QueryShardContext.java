@@ -232,7 +232,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * @see QueryShardContext#setAllowUnmappedFields(boolean)
      * @see QueryShardContext#setMapUnmappedFieldAsString(boolean)
      */
-    public MappedFieldType fieldMapper(String name) {
+    public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
 

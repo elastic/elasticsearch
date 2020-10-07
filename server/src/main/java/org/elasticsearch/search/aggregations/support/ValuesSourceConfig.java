@@ -132,7 +132,7 @@ public class ValuesSourceConfig {
             }
         } else {
             // Field case
-            fieldType = context.fieldMapper(field);
+            fieldType = context.getFieldType(field);
             if (fieldType == null) {
                 /* Unmapped Field Case
                  * We got here because the user specified a field, but it doesn't exist on this index, possibly because of a wildcard index

@@ -178,12 +178,11 @@ public class InternalEngine extends Engine {
 
     /**
      * If multiple writes passed {@link InternalEngine#tryReserveDocs(Operation, int)} but they haven't adjusted
-     * {@link IndexWriter#getPendingNumDocs()} yet, then IndexWriter can fail with too many documents. In this case,
-     * we have to fail the engine because we already generated sequence numbers for write operations; otherwise we
-     * will have gaps in sequence numbers. To avoid this, we keep track the number of documents that are being added
-     * to IndexWriter, and account it in {@link InternalEngine#tryReserveDocs(Operation, int)}. Although we can double
-     * count some adding documents twice (in both IW and Engine), this shouldn't be an issue because it should happen
-     * for a short window and we adjust the reservingNumDocs once an indexing is completed.
+     * {@link IndexWriter#getPendingNumDocs()} yet, then IndexWriter can fail with too many documents. In this case, we have to fail
+     * the engine because we already generated sequence numbers for write operations; otherwise we will have gaps in sequence numbers.
+     * To avoid this, we keep track the number of documents that are being added to IndexWriter, and account it in
+     * {@link InternalEngine#tryReserveDocs(Operation, int)}. Although we can double count some adding documents in both IW and Engine,
+     * this shouldn't be an issue because it happens for a short window and we adjust the reservingNumDocs once an indexing is completed.
      */
     private final AtomicLong reservingNumDocs = new AtomicLong();
 
@@ -882,6 +881,7 @@ public class InternalEngine extends Engine {
 
                 final IndexResult indexResult;
                 if (plan.earlyResultOnPreFlightError.isPresent()) {
+                    assert index.origin() == Operation.Origin.PRIMARY : index.origin();
                     indexResult = plan.earlyResultOnPreFlightError.get();
                     assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                 } else {
@@ -1260,6 +1260,7 @@ public class InternalEngine extends Engine {
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
             reservedDocs = plan.reservedDocs;
             if (plan.earlyResultOnPreflightError.isPresent()) {
+                assert delete.origin() == Operation.Origin.PRIMARY : delete.origin();
                 deleteResult = plan.earlyResultOnPreflightError.get();
             } else {
                 // generate or register sequence number

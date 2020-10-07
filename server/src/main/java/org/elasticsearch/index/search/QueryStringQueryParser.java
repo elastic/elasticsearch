@@ -105,7 +105,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param defaultField The default field for query terms.
      */
     public QueryStringQueryParser(QueryShardContext context, String defaultField) {
-        this(context, defaultField, Collections.emptyMap(), false, context.getSearchAnalyzer());
+        this(context, defaultField, Collections.emptyMap(), false);
     }
 
     /**
@@ -114,7 +114,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
     public QueryStringQueryParser(QueryShardContext context, String defaultField, boolean lenient) {
-        this(context, defaultField, Collections.emptyMap(), lenient, context.getSearchAnalyzer());
+        this(context, defaultField, Collections.emptyMap(), lenient);
     }
 
     /**
@@ -122,7 +122,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param fieldsAndWeights The default fields and weights expansion for query terms
      */
     public QueryStringQueryParser(QueryShardContext context, Map<String, Float> fieldsAndWeights) {
-        this(context, null, fieldsAndWeights, false, context.getSearchAnalyzer());
+        this(context, null, fieldsAndWeights, false);
     }
 
     /**
@@ -131,7 +131,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
     public QueryStringQueryParser(QueryShardContext context, Map<String, Float> fieldsAndWeights, boolean lenient) {
-        this(context, null, fieldsAndWeights, lenient, context.getSearchAnalyzer());
+        this(context, null, fieldsAndWeights, lenient);
     }
 
     /**
@@ -142,13 +142,13 @@ public class QueryStringQueryParser extends XQueryParser {
     public QueryStringQueryParser(QueryShardContext context, boolean lenient) {
         this(context, "*",
             resolveMappingField(context, "*", 1.0f, false, false, null),
-            lenient, context.getSearchAnalyzer());
+            lenient);
     }
 
     private QueryStringQueryParser(QueryShardContext context, String defaultField,
                                    Map<String, Float> fieldsAndWeights,
-                                   boolean lenient, Analyzer analyzer) {
-        super(defaultField, analyzer);
+                                   boolean lenient) {
+        super(defaultField, context.getIndexAnalyzers().getDefaultSearchAnalyzer());
         this.context = context;
         this.fieldsAndWeights = Collections.unmodifiableMap(fieldsAndWeights);
         this.queryBuilder = new MultiMatchQuery(context);

@@ -217,8 +217,9 @@ public class TumblingWindow implements Executable {
 
         client.query(request, wrap(r -> {
             Ordinal boundary = reversed ? window.begin : window.end;
+            List<SearchHit> hits = searchHits(r);
             // filter hits that are escaping the window (same timestamp but different tiebreaker)
-            List<SearchHit> hits = trim(searchHits(r), criterion, boundary, reversed);
+            hits = trim(hits, criterion, boundary, reversed);
 
             log.trace("Found [{}] hits", hits.size());
 

@@ -50,7 +50,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
@@ -71,9 +70,6 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
@@ -141,8 +137,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Version indexVersionCreated;
 
     private final MapperAnalyzerWrapper indexAnalyzer;
-
-    private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
 
     final MapperRegistry mapperRegistry;
 
@@ -626,35 +620,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.mapper == null ? null : this.mapper.objectMappers().get(name);
     }
 
-    /**
-     * Given a type (eg. long, string, ...), return an anonymous field mapper that can be used for search operations.
-     */
-    public MappedFieldType unmappedFieldType(String type) {
-        if (type.equals("string")) {
-            deprecationLogger.deprecate("unmapped_type_string",
-                "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
-            type = "keyword";
-        }
-        MappedFieldType fieldType = unmappedFieldTypes.get(type);
-        if (fieldType == null) {
-            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
-            Mapper.TypeParser typeParser = parserContext.typeParser(type);
-            if (typeParser == null) {
-                throw new IllegalArgumentException("No mapper found for type [" + type + "]");
-            }
-            final Mapper.Builder<?> builder = typeParser.parse("__anonymous_" + type, emptyMap(), parserContext);
-            final BuilderContext builderContext = new BuilderContext(indexSettings.getSettings(), new ContentPath(1));
-            fieldType = ((FieldMapper) builder.build(builderContext)).fieldType();
-
-            // There is no need to synchronize writes here. In the case of concurrent access, we could just
-            // compute some mappers several times, which is not a big deal
-            Map<String, MappedFieldType> newUnmappedFieldTypes = new HashMap<>(unmappedFieldTypes);
-            newUnmappedFieldTypes.put(type, fieldType);
-            unmappedFieldTypes = unmodifiableMap(newUnmappedFieldTypes);
-        }
-        return fieldType;
-    }
-
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }
@@ -725,5 +690,4 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         return reloadedAnalyzers;
     }
-
 }

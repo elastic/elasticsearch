@@ -187,10 +187,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.nestedScope = new NestedScope();
     }
 
-    public IndexAnalyzers getIndexAnalyzers() {
-        return mapperService.getIndexAnalyzers();
-    }
-
     public Similarity getSearchSimilarity() {
         return similarityService != null ? similarityService.similarity(mapperService) : null;
     }
@@ -296,6 +292,10 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public Analyzer getIndexAnalyzer() {
         return mapperService.indexAnalyzer();
+    }
+
+    public IndexAnalyzers getIndexAnalyzers() {
+        return mapperService.getIndexAnalyzers();
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {

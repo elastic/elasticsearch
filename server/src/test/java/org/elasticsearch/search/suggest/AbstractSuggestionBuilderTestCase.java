@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -52,6 +53,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
@@ -167,8 +170,16 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             when(mapperService.searchAnalyzer())
                 .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
             when(mapperService.fieldType(any(String.class))).thenReturn(fieldType);
-            when(mapperService.getNamedAnalyzer(any(String.class))).then(
-                    invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
+            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
+                new HashMap<>() {
+                    @Override
+                    public NamedAnalyzer get(Object key) {
+                        return new NamedAnalyzer(key.toString(), AnalyzerScope.INDEX, new SimpleAnalyzer());
+                    }
+                },
+                Collections.emptyMap(),
+                Collections.emptyMap());
+            when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
             QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,

@@ -62,7 +62,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         String fieldPattern = queryBuilder.fieldName();
         Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
         Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
-                || context.fieldMapper(field) != null).collect(Collectors.toList());
+                || context.isFieldMapped(field)).collect(Collectors.toList());
         if (mappedFields.size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             return;
@@ -127,7 +127,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     @Override
-    public void testMustRewrite() throws IOException {
+    public void testMustRewrite() {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         ExistsQueryBuilder queryBuilder = new ExistsQueryBuilder("foo");

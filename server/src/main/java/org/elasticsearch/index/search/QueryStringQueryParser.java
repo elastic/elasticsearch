@@ -623,16 +623,15 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query existsQuery(String fieldName) {
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-            (FieldNamesFieldMapper.FieldNamesFieldType) context.fieldMapper(FieldNamesFieldMapper.NAME);
-        if (fieldNamesFieldType == null) {
+        if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
             return new MatchNoDocsQuery("No mappings yet");
         }
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+            (FieldNamesFieldMapper.FieldNamesFieldType) context.fieldMapper(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType.isEnabled() == false) {
             // The field_names_field is disabled so we switch to a wildcard query that matches all terms
             return new WildcardQuery(new Term(fieldName, "*"));
         }
-
         return ExistsQueryBuilder.newFilter(context, fieldName, false);
     }
 

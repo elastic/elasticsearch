@@ -46,6 +46,7 @@ import java.util.Set;
  */
 public class CompositeBucketsChangeCollector implements ChangeCollector {
 
+    // a magic for the case that we do not need a composite aggregation to collect changes
     private static final Map<String, Object> AFTER_KEY_MAGIC = Collections.singletonMap("_transform", "no_composite_after_key");
     private final Map<String, FieldCollector> fieldCollectors;
     private final CompositeAggregationBuilder compositeAggregation;

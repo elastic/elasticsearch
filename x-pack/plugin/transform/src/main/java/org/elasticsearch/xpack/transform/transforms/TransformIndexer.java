@@ -863,7 +863,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // if its either the 1st run or not continuous, do not apply extra filters
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
             sourceBuilder.query(queryBuilder);
-            logger.info("running query: {}", sourceBuilder);
+            logger.debug("[{}] Querying for data: {}", getJobId(), sourceBuilder);
 
             return sourceBuilder;
         }
@@ -880,7 +880,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         sourceBuilder.query(filteredQuery);
-        logger.info("running query: {}", sourceBuilder);
+        logger.debug("[{}] Querying for data: {}", getJobId(), sourceBuilder);
 
         return sourceBuilder;
     }

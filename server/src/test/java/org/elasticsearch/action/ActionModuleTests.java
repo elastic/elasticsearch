@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.CompatibleVersion;
@@ -108,9 +109,10 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupRestHandlerContainsKnownBuiltin() {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
-        ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
-                settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
-                null, usageService, null, CompatibleVersion.CURRENT_VERSION);
+        ActionModule actionModule = new ActionModule(settings.getSettings(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), settings.getIndexScopedSettings(),
+            settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
+            null, usageService, null, CompatibleVersion.CURRENT_VERSION);
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(IllegalArgumentException.class, () ->
@@ -147,9 +149,10 @@ public class ActionModuleTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
-                    settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(dupsMainAction), null, null, usageService, null,  CompatibleVersion.CURRENT_VERSION);
+            ActionModule actionModule = new ActionModule(settings.getSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()), settings.getIndexScopedSettings(),
+                settings.getClusterSettings(), settings.getSettingsFilter(), threadPool, singletonList(dupsMainAction),
+                null, null, usageService, null, CompatibleVersion.CURRENT_VERSION);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
         } finally {
@@ -181,9 +184,10 @@ public class ActionModuleTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
-                    settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(registersFakeHandler), null, null, usageService, null, CompatibleVersion.CURRENT_VERSION);
+            ActionModule actionModule = new ActionModule(settings.getSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()), settings.getIndexScopedSettings(),
+                settings.getClusterSettings(), settings.getSettingsFilter(), threadPool, singletonList(registersFakeHandler),
+                null, null, usageService, null, CompatibleVersion.CURRENT_VERSION);
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(IllegalArgumentException.class, () ->

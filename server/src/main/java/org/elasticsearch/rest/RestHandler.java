@@ -91,6 +91,15 @@ public interface RestHandler {
         return Collections.emptyList();
     }
 
+
+    /**
+     * Controls whether requests handled by this class are allowed to to access system indices by default.
+     * @return {@code true} if requests handled by this class should be allowed to access system indices.
+     */
+    default boolean allowSystemIndexAccessByDefault() {
+        return false;
+    }
+
     /**
      * Returns the version that a handler is compatible with.
      * The version is used to find a handler for a request that specified a compatible with version.

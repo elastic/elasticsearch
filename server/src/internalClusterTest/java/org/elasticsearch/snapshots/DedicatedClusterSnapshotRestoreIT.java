@@ -54,6 +54,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -577,10 +578,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         indexRandomDocs("test-idx", 100);
 
-        logger.info("--> start snapshot");
-        assertThat(clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-1").setIndices("test-idx")
-                .setWaitForCompletion(true).get().getSnapshotInfo().state(),
-            equalTo(SnapshotState.SUCCESS));
+        createSnapshot("test-repo", "test-snap-1", Collections.singletonList("test-idx"));
 
         logger.info("--> close the index");
         assertAcked(client().admin().indices().prepareClose("test-idx"));
@@ -793,9 +791,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(client().admin().indices().prepareResizeIndex(sourceIdx, shrunkIdx).get());
 
         logger.info("--> snapshot the shrunk index");
-        assertSuccessful(clusterAdmin()
-            .prepareCreateSnapshot(repo, snapshot)
-            .setWaitForCompletion(true).setIndices(shrunkIdx).execute());
+        createSnapshot(repo, snapshot, Collections.singletonList(shrunkIdx));
 
         logger.info("--> delete index and stop the data node");
         assertAcked(client().admin().indices().prepareDelete(sourceIdx).get());
@@ -823,7 +819,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public void testSnapshotWithDateMath() {
         final String repo = "repo";
 
-        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver();
+        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");
@@ -1091,11 +1087,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertTrue(shardStats + ": " + retentionLeases, retentionLeases.contains(leaseId));
 
         final String snapshotName = "snapshot-retention-leases";
-        logger.debug("-->  create snapshot {}:{}", repoName, snapshotName);
-        CreateSnapshotResponse createResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
-            .setWaitForCompletion(true).setIndices(indexName).get();
-        assertThat(createResponse.getSnapshotInfo().successfulShards(), equalTo(shardCount));
-        assertThat(createResponse.getSnapshotInfo().failedShards(), equalTo(0));
+        createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
 
         if (randomBoolean()) {
             final int extraDocCount = iterations(10, 1000);

@@ -729,6 +729,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * {@link Long} class.
      */
     public XContentBuilder timeField(String name, String readableName, long value) throws IOException {
+        assert name.equals(readableName) == false :
+            "expected raw and readable field names to differ, but they were both: " + name;
         if (humanReadable) {
             Function<Object, Object> longTransformer = DATE_TRANSFORMERS.get(Long.class);
             if (longTransformer == null) {
@@ -941,6 +943,8 @@ public final class XContentBuilder implements Closeable, Flushable {
     //////////////////////////////////
 
     public XContentBuilder humanReadableField(String rawFieldName, String readableFieldName, Object value) throws IOException {
+        assert rawFieldName.equals(readableFieldName) == false :
+            "expected raw and readable field names to differ, but they were both: " + rawFieldName;
         if (humanReadable) {
             field(readableFieldName, Objects.toString(value));
         }
@@ -960,6 +964,8 @@ public final class XContentBuilder implements Closeable, Flushable {
 
 
     public XContentBuilder percentageField(String rawFieldName, String readableFieldName, double percentage) throws IOException {
+        assert rawFieldName.equals(readableFieldName) == false :
+            "expected raw and readable field names to differ, but they were both: " + rawFieldName;
         if (humanReadable) {
             field(readableFieldName, String.format(Locale.ROOT, "%1.1f%%", percentage));
         }

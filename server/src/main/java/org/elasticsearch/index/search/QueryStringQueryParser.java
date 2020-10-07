@@ -105,7 +105,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param defaultField The default field for query terms.
      */
     public QueryStringQueryParser(QueryShardContext context, String defaultField) {
-        this(context, defaultField, Collections.emptyMap(), false, context.getMapperService().searchAnalyzer());
+        this(context, defaultField, Collections.emptyMap(), false, context.getSearchAnalyzer());
     }
 
     /**
@@ -114,7 +114,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
     public QueryStringQueryParser(QueryShardContext context, String defaultField, boolean lenient) {
-        this(context, defaultField, Collections.emptyMap(), lenient, context.getMapperService().searchAnalyzer());
+        this(context, defaultField, Collections.emptyMap(), lenient, context.getSearchAnalyzer());
     }
 
     /**
@@ -122,7 +122,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param fieldsAndWeights The default fields and weights expansion for query terms
      */
     public QueryStringQueryParser(QueryShardContext context, Map<String, Float> fieldsAndWeights) {
-        this(context, null, fieldsAndWeights, false, context.getMapperService().searchAnalyzer());
+        this(context, null, fieldsAndWeights, false, context.getSearchAnalyzer());
     }
 
     /**
@@ -131,7 +131,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
     public QueryStringQueryParser(QueryShardContext context, Map<String, Float> fieldsAndWeights, boolean lenient) {
-        this(context, null, fieldsAndWeights, lenient, context.getMapperService().searchAnalyzer());
+        this(context, null, fieldsAndWeights, lenient, context.getSearchAnalyzer());
     }
 
     /**
@@ -142,7 +142,7 @@ public class QueryStringQueryParser extends XQueryParser {
     public QueryStringQueryParser(QueryShardContext context, boolean lenient) {
         this(context, "*",
             resolveMappingField(context, "*", 1.0f, false, false, null),
-            lenient, context.getMapperService().searchAnalyzer());
+            lenient, context.getSearchAnalyzer());
     }
 
     private QueryStringQueryParser(QueryShardContext context, String defaultField,
@@ -623,16 +623,15 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query existsQuery(String fieldName) {
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-            (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fieldType(FieldNamesFieldMapper.NAME);
-        if (fieldNamesFieldType == null) {
+        if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
             return new MatchNoDocsQuery("No mappings yet");
         }
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+            (FieldNamesFieldMapper.FieldNamesFieldType) context.fieldMapper(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType.isEnabled() == false) {
             // The field_names_field is disabled so we switch to a wildcard query that matches all terms
             return new WildcardQuery(new Term(fieldName, "*"));
         }
-
         return ExistsQueryBuilder.newFilter(context, fieldName, false);
     }
 

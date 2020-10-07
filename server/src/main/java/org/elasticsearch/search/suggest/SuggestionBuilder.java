@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -298,22 +297,18 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
      * Transfers the text, prefix, regex, analyzer, field, size and shard size settings from the
      * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
      */
-    protected void populateCommonFields(MapperService mapperService, SuggestionSearchContext.SuggestionContext suggestionContext) {
+    protected void populateCommonFields(QueryShardContext context, SuggestionSearchContext.SuggestionContext suggestionContext) {
 
         Objects.requireNonNull(field, "field must not be null");
-
-        MappedFieldType fieldType = mapperService.fieldType(field);
-        if (fieldType == null) {
+        if (context.isFieldMapped(field) == false) {
             throw new IllegalArgumentException("no mapping found for field [" + field + "]");
-        } else if (analyzer == null) {
-            // no analyzer name passed in, so try the field's analyzer, or the default analyzer
-            if (fieldType.getTextSearchInfo().getSearchAnalyzer() == null) {
-                suggestionContext.setAnalyzer(mapperService.searchAnalyzer());
-            } else {
-                suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().getSearchAnalyzer());
-            }
+        }
+
+        MappedFieldType fieldType = context.fieldMapper(field);
+        if (analyzer == null) {
+            suggestionContext.setAnalyzer(context.getSearchAnalyzer(fieldType));
         } else {
-            Analyzer luceneAnalyzer = mapperService.getNamedAnalyzer(analyzer);
+            Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {
                 throw new IllegalArgumentException("analyzer [" + analyzer + "] doesn't exists");
             }

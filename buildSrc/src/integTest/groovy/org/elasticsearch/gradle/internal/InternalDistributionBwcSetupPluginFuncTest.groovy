@@ -142,10 +142,10 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         FileUtils.copyDirectory(new File(fakeRemote.file), workingRemoteGit)
         fakeRemote.file + "/.git"
         gradleRunner(workingRemoteGit, "wrapper").build()
-        "git init".execute(Collections.emptyList(), workingRemoteGit).waitFor()
-        "git add .".execute(Collections.emptyList(), workingRemoteGit).waitFor()
-        'git commit -m"Initial"'.execute(Collections.emptyList(), workingRemoteGit).waitFor()
-        "git checkout -b origin/8.0".execute(Collections.emptyList(), workingRemoteGit).waitFor()
+        execute("git init", workingRemoteGit)
+        execute("git add .", workingRemoteGit)
+        execute('git commit -m"Initial"', workingRemoteGit)
+        execute("git checkout -b origin/8.0", workingRemoteGit)
         return workingRemoteGit;
     }
 }

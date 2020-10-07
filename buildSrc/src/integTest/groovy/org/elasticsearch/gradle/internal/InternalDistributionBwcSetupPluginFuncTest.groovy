@@ -35,7 +35,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
     def setup() {
         remoteGitRepo = new File(setupGitRemote(), '.git')
 
-        "git clone ${remoteGitRepo.absolutePath}".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        execute("git clone ${remoteGitRepo.absolutePath}", testProjectDir.root)
         File buildScript = new File(testProjectDir.root, 'remote/build.gradle')
         internalBuild(buildScript)
         buildScript << """
@@ -142,10 +142,12 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         FileUtils.copyDirectory(new File(fakeRemote.file), workingRemoteGit)
         fakeRemote.file + "/.git"
         gradleRunner(workingRemoteGit, "wrapper").build()
-        "git init".execute(Collections.emptyList(), workingRemoteGit).waitFor()
-        "git add .".execute(Collections.emptyList(), workingRemoteGit).waitFor()
-        'git commit -m"Initial"'.execute(Collections.emptyList(), workingRemoteGit).waitFor()
-        "git checkout -b origin/8.0".execute(Collections.emptyList(), workingRemoteGit).waitFor()
+        execute("git init", workingRemoteGit)
+        execute('git config user.email "build-tool@elastic.co"', workingRemoteGit)
+        execute('git config --global user.name "Build tool"', workingRemoteGit)
+        execute("git add .", workingRemoteGit)
+        execute('git commit -m"Initial"', workingRemoteGit)
+        execute("git checkout -b origin/8.0", workingRemoteGit)
         return workingRemoteGit;
     }
 }

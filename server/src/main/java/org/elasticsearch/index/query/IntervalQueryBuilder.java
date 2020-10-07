@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -132,7 +132,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType fieldType = context.fieldMapper(field);
+        MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
             // Be lenient with unmapped fields so that cross-index search will work nicely
             return new MatchNoDocsQuery();
@@ -140,7 +140,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         Set<String> maskedFields = new HashSet<>();
         sourceProvider.extractFields(maskedFields);
         for (String maskedField : maskedFields) {
-            MappedFieldType ft = context.fieldMapper(maskedField);
+            MappedFieldType ft = context.getFieldType(maskedField);
             if (ft == null) {
                 // Be lenient with unmapped fields so that cross-index search will work nicely
                 return new MatchNoDocsQuery();

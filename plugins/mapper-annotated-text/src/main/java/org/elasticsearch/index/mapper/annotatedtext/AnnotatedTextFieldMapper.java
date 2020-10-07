@@ -32,34 +32,32 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
+import org.elasticsearch.index.mapper.TextParams;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 /** A {@link FieldMapper} for full-text fields with annotation markup e.g.
  *
@@ -72,34 +70,47 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
  * This code is largely a copy of TextFieldMapper which is less than ideal -
  * my attempts to subclass TextFieldMapper failed but we can revisit this.
  **/
-public class AnnotatedTextFieldMapper extends FieldMapper {
+public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "annotated_text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
 
-    public static class Builder extends TextFieldMapper.Builder {
+    private static Builder builder(FieldMapper in) {
+        return ((AnnotatedTextFieldMapper)in).builder;
+    }
 
-        private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        public Builder(String name) {
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
+
+        final TextParams.Analyzers analyzers;
+        final Parameter<SimilarityProvider> similarity
+            = TextParams.similarity(m -> builder(m).similarity.getValue());
+
+        final Parameter<String> indexOptions = TextParams.indexOptions(m -> builder(m).indexOptions.getValue());
+        final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.getValue());
+        final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
+
+        final Parameter<Integer> positionIncrementGap = Parameter.intParam("position_increment_gap", false,
+            m -> builder(m).positionIncrementGap.getValue(), POSITION_INCREMENT_GAP_USE_ANALYZER)
+            .setValidator(v -> {
+                if (v != POSITION_INCREMENT_GAP_USE_ANALYZER && v < 0) {
+                    throw new MapperParsingException("[positions_increment_gap] must be positive, got [" + v + "]");
+                }
+            });
+
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
             super(name);
-            builder = this;
-        }
-
-        public Builder positionIncrementGap(int positionIncrementGap) {
-            if (positionIncrementGap < 0) {
-                throw new MapperParsingException("[positions_increment_gap] must be positive, got " + positionIncrementGap);
-            }
-            this.positionIncrementGap = positionIncrementGap;
-            return this;
+            this.analyzers = new TextParams.Analyzers(defaultAnalyzer);
         }
 
         @Override
-        public Builder docValues(boolean docValues) {
-            if (docValues) {
-                throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields do not support doc values");
-            }
-            return this;
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(store, indexOptions, norms, termVectors, similarity,
+                analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, positionIncrementGap,
+                meta);
         }
 
         private NamedAnalyzer wrapAnalyzer(NamedAnalyzer in, int positionIncrementGap) {
@@ -107,57 +118,44 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 new AnnotationAnalyzerWrapper(in.analyzer()), positionIncrementGap);
         }
 
-        private AnnotatedTextFieldType buildFieldType(BuilderContext context) {
+        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
             int posGap;
-            if (positionIncrementGap == POSITION_INCREMENT_GAP_USE_ANALYZER) {
+            if (positionIncrementGap.get() == POSITION_INCREMENT_GAP_USE_ANALYZER) {
                 posGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
             } else {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException("Cannot set position_increment_gap on field [" + name()
                         + "] without positions enabled");
                 }
-                posGap = positionIncrementGap;
+                posGap = positionIncrementGap.get();
             }
-            AnnotatedTextFieldType ft = new AnnotatedTextFieldType(buildFullName(context), fieldType, similarity,
-                wrapAnalyzer(searchAnalyzer, posGap), wrapAnalyzer(searchQuoteAnalyzer, posGap), meta);
-            ft.setIndexAnalyzer(indexAnalyzer, posGap);
+            TextSearchInfo tsi = new TextSearchInfo(
+                fieldType,
+                similarity.get(),
+                wrapAnalyzer(analyzers.getSearchAnalyzer(), posGap),
+                wrapAnalyzer(analyzers.getSearchQuoteAnalyzer(), posGap));
+            AnnotatedTextFieldType ft = new AnnotatedTextFieldType(
+                buildFullName(context),
+                store.getValue(),
+                tsi,
+                meta.getValue());
+            ft.setIndexAnalyzer(wrapAnalyzer(analyzers.getIndexAnalyzer(), posGap));
             return ft;
         }
 
         @Override
         public AnnotatedTextFieldMapper build(BuilderContext context) {
+            FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE ) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
             }
             return new AnnotatedTextFieldMapper(
-                    name, fieldType, buildFieldType(context), positionIncrementGap,
-                    multiFieldsBuilder.build(this, context), copyTo);
+                    name, fieldType, buildFieldType(fieldType, context),
+                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(
-                String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            AnnotatedTextFieldMapper.Builder builder = new AnnotatedTextFieldMapper.Builder(fieldName);
-            builder.indexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
-            builder.searchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
-            builder.searchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
-            parseTextField(builder, fieldName, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals("position_increment_gap")) {
-                    int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
-                    builder.positionIncrementGap(newPositionIncrementGap);
-                    iterator.remove();
-                }
-            }
-            return builder;
-        }
-    }
-
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, () -> c.getIndexAnalyzers().getDefaultIndexAnalyzer()));
 
     /**
      * Parses markdown-like syntax into plain text and AnnotationTokens with offsets for
@@ -170,7 +168,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         // Format is markdown-like syntax for URLs eg:
         //   "New mayor is [John Smith](type=person&value=John%20Smith) "
-        static Pattern markdownPattern = Pattern.compile("\\[([^\\]\\[]*)\\]\\(([^\\)\\(]*)\\)");
+        static Pattern markdownPattern = Pattern.compile("\\[([^]\\[]*)]\\(([^)(]*)\\)");
 
         public static AnnotatedText parse (String textPlusMarkup) {
             List<AnnotationToken> annotations =new ArrayList<>();
@@ -179,7 +177,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             StringBuilder sb = new StringBuilder();
             while(m.find()){
                 if(m.start() > lastPos){
-                    sb.append(textPlusMarkup.substring(lastPos, m.start()));
+                    sb.append(textPlusMarkup, lastPos, m.start());
                 }
 
                 int startOffset = sb.length();
@@ -191,22 +189,18 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 String value = null;
                 for (String pair : pairs) {
                     String[] kv = pair.split("=");
-                    try {
-                        if(kv.length == 2){
-                            throw new ElasticsearchParseException("key=value pairs are not supported in annotations");
+                    if(kv.length == 2){
+                        throw new ElasticsearchParseException("key=value pairs are not supported in annotations");
+                    }
+                    if(kv.length == 1) {
+                        //Check "=" sign wasn't in the pair string
+                        if(kv[0].length() == pair.length()) {
+                            //untyped value
+                            value = URLDecoder.decode(kv[0], StandardCharsets.UTF_8);
                         }
-                        if(kv.length == 1) {
-                            //Check "=" sign wasn't in the pair string
-                            if(kv[0].length() == pair.length()) {
-                                //untyped value
-                                value = URLDecoder.decode(kv[0], "UTF-8");
-                            }
-                        }
-                        if (value!=null && value.length() > 0) {
-                            annotations.add(new AnnotationToken(startOffset, endOffset, value));
-                        }
-                    } catch (UnsupportedEncodingException uee){
-                        throw new ElasticsearchParseException("Unsupported encoding parsing annotated text", uee);
+                    }
+                    if (value!=null && value.length() > 0) {
+                        annotations.add(new AnnotationToken(startOffset, endOffset, value));
                     }
                 }
             }
@@ -464,7 +458,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             }
         }
 
-        private void setType(AnnotationToken token) {
+        private void setType() {
             //Default annotation type - in future AnnotationTokens may contain custom type info
             typeAtt.setType("annotation");
         }
@@ -473,7 +467,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             // Set the annotation's attributes
             posLenAtt.setPositionLength(annotationPosLen);
             textOffsetAtt.setOffset(nextAnnotationForInjection.offset, nextAnnotationForInjection.endOffset);
-            setType(nextAnnotationForInjection);
+            setType();
 
             // We may have multiple annotations at this location - stack them up
             final int annotationOffset = nextAnnotationForInjection.offset;
@@ -481,7 +475,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             while (nextAnnotationForInjection != null && nextAnnotationForInjection.offset == annotationOffset) {
 
 
-                setType(nextAnnotationForInjection);
+                setType();
                 termAtt.resizeBuffer(nextAnnotationForInjection.value.length());
                 termAtt.copyBuffer(nextAnnotationForInjection.value.toCharArray(), 0, nextAnnotationForInjection.value.length());
 
@@ -512,24 +506,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
-        private AnnotatedTextFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
-                                       NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
-            super(name, fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer, meta);
+        private AnnotatedTextFieldType(String name, boolean store, TextSearchInfo tsi, Map<String, String> meta) {
+            super(name, true, store, tsi, meta);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
             super(name, true, false, meta);
-        }
-
-        public void setIndexAnalyzer(NamedAnalyzer delegate, int positionIncrementGap) {
-            if(delegate.analyzer() instanceof AnnotationAnalyzerWrapper){
-                // Already wrapped the Analyzer with an AnnotationAnalyzer
-                super.setIndexAnalyzer(delegate);
-            } else {
-                // Wrap the analyzer with an AnnotationAnalyzer that will inject required annotations
-                super.setIndexAnalyzer(new NamedAnalyzer(delegate.name(), AnalyzerScope.INDEX,
-                    new AnnotationAnalyzerWrapper(delegate.analyzer()), positionIncrementGap));
-            }
         }
 
         @Override
@@ -538,26 +520,20 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    private int positionIncrementGap;
+    private final FieldType fieldType;
+    private final Builder builder;
+
     protected AnnotatedTextFieldMapper(String simpleName, FieldType fieldType, AnnotatedTextFieldType mappedFieldType,
-                                int positionIncrementGap, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
+                                MultiFields multiFields, CopyTo copyTo, Builder builder) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
-        this.positionIncrementGap = positionIncrementGap;
+        this.fieldType = fieldType;
+        this.builder = builder;
     }
 
     @Override
     protected AnnotatedTextFieldMapper clone() {
         return (AnnotatedTextFieldMapper) super.clone();
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
-    }
-
-    public int getPositionIncrementGap() {
-        return this.positionIncrementGap;
     }
 
     @Override
@@ -588,24 +564,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public AnnotatedTextFieldType fieldType() {
-        return (AnnotatedTextFieldType) super.fieldType();
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return false;
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        doXContentAnalyzers(builder, includeDefaults);
-        if (includeDefaults || fieldType.omitNorms()) {
-            builder.field("norms", fieldType.omitNorms() == false);
-        }
-        if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
-            builder.field("position_increment_gap", positionIncrementGap);
-        }
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
     }
 }

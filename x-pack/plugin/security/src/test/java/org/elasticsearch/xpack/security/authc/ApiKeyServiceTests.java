@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyRoleDescriptors;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
@@ -105,6 +107,9 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ApiKeyServiceTests extends ESTestCase {
@@ -113,6 +118,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     private XPackLicenseState licenseState;
     private Client client;
     private SecurityIndexManager securityIndex;
+    private CacheInvalidatorRegistry cacheInvalidatorRegistry;
 
     @Before
     public void createThreadPool() {
@@ -136,6 +142,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
+        this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
     }
 
     public void testCreateApiKeyUsesBulkIndexAction() {
@@ -336,6 +343,11 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     private void mockKeyDocument(ApiKeyService service, String id, String key, User user, boolean invalidated,
                                  Duration expiry) throws IOException {
+        mockKeyDocument(service, id, key, user, invalidated, expiry, null);
+    }
+
+    private void mockKeyDocument(ApiKeyService service, String id, String key, User user, boolean invalidated,
+                                 Duration expiry, List<RoleDescriptor> keyRoles) throws IOException {
         final Authentication authentication;
         if (user.isRunAs()) {
             authentication = new Authentication(user, new RealmRef("authRealm", "test", "foo"),
@@ -348,7 +360,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                             AuthenticationType.ANONYMOUS), Collections.emptyMap());
         }
         XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()), "test", authentication,
-            Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), null,
+            Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), keyRoles,
             Version.CURRENT);
         if (invalidated) {
             Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
@@ -711,6 +723,113 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.isAuthenticated(), is(true));
         CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(creds.getId());
         assertNull(cachedApiKeyHashResult);
+        assertNull(service.getDocCache());
+        assertNull(service.getRoleDescriptorsBytesCache());
+    }
+
+    public void testApiKeyDocCacheCanBeDisabledSeparately() {
+        final String apiKey = randomAlphaOfLength(16);
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+        final Settings settings = Settings.builder()
+            .put(ApiKeyService.DOC_CACHE_TTL_SETTING.getKey(), "0s")
+            .build();
+
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
+
+        ApiKeyService service = createApiKeyService(settings);
+
+        ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
+        AuthenticationResult result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(true));
+        CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(creds.getId());
+        assertNotNull(cachedApiKeyHashResult);
+        assertNull(service.getDocCache());
+        assertNull(service.getRoleDescriptorsBytesCache());
+    }
+
+    public void testApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        assertNotNull(service.getDocCache());
+        assertNotNull(service.getRoleDescriptorsBytesCache());
+        final ThreadContext threadContext = threadPool.getThreadContext();
+
+        // 1. A new API key document will be cached after its authentication
+        final String docId = randomAlphaOfLength(16);
+        final String apiKey = randomAlphaOfLength(16);
+        ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
+        mockKeyDocument(service, docId, apiKey, new User("hulk", "superuser"), false, Duration.ofSeconds(3600));
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future);
+        final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc = service.getDocCache().get(docId);
+        assertNotNull(cachedApiKeyDoc);
+        assertEquals("hulk", cachedApiKeyDoc.creator.get("principal"));
+        final BytesReference roleDescriptorsBytes =
+            service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc.roleDescriptorsHash);
+        assertNotNull(roleDescriptorsBytes);
+        assertEquals("{}", roleDescriptorsBytes.utf8ToString());
+        final BytesReference limitedByRoleDescriptorsBytes =
+            service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc.limitedByRoleDescriptorsHash);
+        assertNotNull(limitedByRoleDescriptorsBytes);
+        final List<RoleDescriptor> limitedByRoleDescriptors = service.parseRoleDescriptors(docId, limitedByRoleDescriptorsBytes);
+        assertEquals(1, limitedByRoleDescriptors.size());
+        assertEquals(SUPERUSER_ROLE_DESCRIPTOR, limitedByRoleDescriptors.get(0));
+
+        // 2. A different API Key with the same role descriptors will share the entries in the role descriptor cache
+        final String docId2 = randomAlphaOfLength(16);
+        final String apiKey2 = randomAlphaOfLength(16);
+        ApiKeyCredentials apiKeyCredentials2 = new ApiKeyCredentials(docId2, new SecureString(apiKey2.toCharArray()));
+        mockKeyDocument(service, docId2, apiKey2, new User("thor", "superuser"), false, Duration.ofSeconds(3600));
+        PlainActionFuture<AuthenticationResult> future2 = new PlainActionFuture<>();
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials2, future2);
+        final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc2 = service.getDocCache().get(docId2);
+        assertNotNull(cachedApiKeyDoc2);
+        assertEquals("thor", cachedApiKeyDoc2.creator.get("principal"));
+        final BytesReference roleDescriptorsBytes2 =
+            service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc2.roleDescriptorsHash);
+        assertSame(roleDescriptorsBytes, roleDescriptorsBytes2);
+        final BytesReference limitedByRoleDescriptorsBytes2 =
+            service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc2.limitedByRoleDescriptorsHash);
+        assertSame(limitedByRoleDescriptorsBytes, limitedByRoleDescriptorsBytes2);
+
+        // 3. Different role descriptors will be cached into a separate entry
+        final String docId3 = randomAlphaOfLength(16);
+        final String apiKey3 = randomAlphaOfLength(16);
+        ApiKeyCredentials apiKeyCredentials3 = new ApiKeyCredentials(docId3, new SecureString(apiKey3.toCharArray()));
+        final List<RoleDescriptor> keyRoles =
+            List.of(RoleDescriptor.parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), true, XContentType.JSON));
+        mockKeyDocument(service, docId3, apiKey3, new User("banner", "superuser"),
+                        false, Duration.ofSeconds(3600), keyRoles);
+        PlainActionFuture<AuthenticationResult> future3 = new PlainActionFuture<>();
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials3, future3);
+        final ApiKeyService.CachedApiKeyDoc cachedApiKeyDoc3 = service.getDocCache().get(docId3);
+        assertNotNull(cachedApiKeyDoc3);
+        assertEquals("banner", cachedApiKeyDoc3.creator.get("principal"));
+        // Shared bytes for limitedBy role since it is the same
+        assertSame(limitedByRoleDescriptorsBytes,
+                   service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc3.limitedByRoleDescriptorsHash));
+        // But role descriptors bytes are different
+        final BytesReference roleDescriptorsBytes3 = service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc3.roleDescriptorsHash);
+        assertNotSame(roleDescriptorsBytes, roleDescriptorsBytes3);
+        assertEquals(3, service.getRoleDescriptorsBytesCache().count());
+
+        // 4. Will fetch document from security index if role descriptors are not found even when
+        //    cachedApiKeyDoc is available
+        service.getRoleDescriptorsBytesCache().invalidateAll();
+        mockKeyDocument(service, docId, apiKey, new User("hulk", "superuser"), false, Duration.ofSeconds(3600));
+        PlainActionFuture<AuthenticationResult> future4 = new PlainActionFuture<>();
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future4);
+        verify(client, times(4)).get(any(GetRequest.class), any(ActionListener.class));
+        assertEquals(2, service.getRoleDescriptorsBytesCache().count());
+        assertSame(AuthenticationResult.Status.SUCCESS, future4.get().getStatus());
+
+        // 5. Cached entries will be used for the same API key doc
+        SecurityMocks.mockGetRequestException(client, new EsRejectedExecutionException("rejected"));
+        PlainActionFuture<AuthenticationResult> future5 = new PlainActionFuture<>();
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future5);
+        assertSame(AuthenticationResult.Status.SUCCESS, future5.get().getStatus());
     }
 
     public void testWillGetLookedUpByRealmNameIfExists() {
@@ -923,8 +1042,16 @@ public class ApiKeyServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(baseSettings)
             .build();
-        return new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex,
-            ClusterServiceUtils.createClusterService(threadPool), threadPool);
+        final ApiKeyService service = new ApiKeyService(
+            settings, Clock.systemUTC(), client, licenseState, securityIndex,
+            ClusterServiceUtils.createClusterService(threadPool),
+            cacheInvalidatorRegistry, threadPool);
+        if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {
+            verify(cacheInvalidatorRegistry, never()).registerCacheInvalidator(eq("api_key"), any());
+        } else {
+            verify(cacheInvalidatorRegistry).registerCacheInvalidator(eq("api_key"), any());
+        }
+        return service;
     }
 
     private Map<String, Object> buildApiKeySourceDoc(char[] hash) {

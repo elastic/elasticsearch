@@ -73,11 +73,11 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         boolean allTypes = queryBuilder.types().length == 0 ||
                 queryBuilder.types().length == 1 && "_all".equals(queryBuilder.types()[0]);
         if (queryBuilder.ids().size() == 0
-                // no types
-                || context.fieldMapper(IdFieldMapper.NAME) == null
-                // there are types, but disjoint from the query
-                || (allTypes == false &&
-                    Arrays.asList(queryBuilder.types()).indexOf(context.getMapperService().documentMapper().type()) == -1)) {
+            // no types
+            || context.getFieldType(IdFieldMapper.NAME) == null
+            // there are types, but disjoint from the query
+            || (allTypes == false &&
+            Arrays.asList(queryBuilder.types()).indexOf(context.getMapperService().documentMapper().type()) == -1)) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));

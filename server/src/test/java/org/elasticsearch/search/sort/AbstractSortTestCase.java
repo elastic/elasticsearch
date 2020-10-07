@@ -206,7 +206,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 () -> randomNonNegativeLong(), null, null, () -> true, null) {
 
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType getFieldType(String name) {
                 return provideMappedFieldType(name);
             }
 

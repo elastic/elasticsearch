@@ -1370,7 +1370,7 @@ public class TranslogTests extends ESTestCase {
         String translogUUID = Translog.createEmptyTranslog(
             config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, channelFactory, primaryTerm.get());
 
-        try (Translog translog = new Translog(config, translogUUID, new TranslogDeletionPolicy(),
+        try (Translog translog = new Translog(config, translogUUID, new TranslogDeletionPolicy(-1, -1, 0),
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, persistedSeqNos::add) {
             @Override
             ChannelFactory getChannelFactory() {
@@ -1471,7 +1471,7 @@ public class TranslogTests extends ESTestCase {
         String translogUUID = Translog.createEmptyTranslog(
             config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, channelFactory, primaryTerm.get());
 
-        try (Translog translog = new Translog(config, translogUUID, new TranslogDeletionPolicy(),
+        try (Translog translog = new Translog(config, translogUUID, new TranslogDeletionPolicy(-1, -1, 0),
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, persistedSeqNos::add) {
             @Override
             ChannelFactory getChannelFactory() {

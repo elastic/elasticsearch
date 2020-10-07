@@ -211,11 +211,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return (cache, breakerService, mapperService) -> {
+            return (cache, breakerService) -> {
                 final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
                     name(),
                     IndexNumericFieldData.NumericType.LONG
-                ).build(cache, breakerService, mapperService);
+                ).build(cache, breakerService);
                 return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
             };
         }
@@ -225,7 +225,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, false) {
+            return new SourceValueFetcher(name(), mapperService) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;

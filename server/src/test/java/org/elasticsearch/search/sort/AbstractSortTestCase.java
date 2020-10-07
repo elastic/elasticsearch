@@ -199,7 +199,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup =
             (fieldType, fieldIndexName, searchLookup) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
-            return builder.build(new IndexFieldDataCache.None(), null, null);
+            return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,

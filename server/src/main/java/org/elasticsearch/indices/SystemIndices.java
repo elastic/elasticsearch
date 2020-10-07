@@ -50,7 +50,6 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
  * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
  */
 public class SystemIndices {
-
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
         TaskResultsService.class.getName(), singletonList(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
     );

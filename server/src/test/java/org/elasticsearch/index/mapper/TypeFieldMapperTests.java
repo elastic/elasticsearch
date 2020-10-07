@@ -54,6 +54,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDocValuesSingleType() throws Exception {
         testDocValues(this::createIndex);
+        assertWarnings("[types removal] Using the _type field in queries and aggregations is deprecated, prefer to use a field instead.");
     }
 
     public static void testDocValues(Function<String, IndexService> createIndex) throws IOException {
@@ -70,7 +71,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         MappedFieldType ft = mapperService.fieldType(TypeFieldMapper.NAME);
         IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test", () -> {
             throw new UnsupportedOperationException();
-        }).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
+        }).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         LeafOrdinalsFieldData afd = fd.load(r.leaves().get(0));
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));

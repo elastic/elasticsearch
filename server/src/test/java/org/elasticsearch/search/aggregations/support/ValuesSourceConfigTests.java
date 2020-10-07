@@ -271,7 +271,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
             ValuesSourceConfig config = ValuesSourceConfig.resolve(
                 context, null, TypeFieldMapper.NAME, null, null, null, null, CoreValuesSourceType.BYTES);
-            assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+            assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
         }
     }
 

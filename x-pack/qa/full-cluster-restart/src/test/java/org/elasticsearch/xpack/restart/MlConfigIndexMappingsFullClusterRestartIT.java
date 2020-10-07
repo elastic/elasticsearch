@@ -9,7 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -75,6 +74,12 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
 
     private void assertThatMlConfigIndexDoesNotExist() {
         Request getIndexRequest = new Request("GET", ".ml-config");
+        getIndexRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
+                "access to system indices will be prevented by default";
+            v.current(systemIndexWarning);
+            v.compatible(systemIndexWarning);
+        }));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getIndexRequest));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
@@ -102,12 +107,16 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     @SuppressWarnings("unchecked")
     private Map<String, Object> getConfigIndexMappings() throws Exception {
         Request getIndexMappingsRequest = new Request("GET", ".ml-config/_mappings");
-        Response getIndexMappingsResponse;
-        try {
-            getIndexMappingsResponse = client().performRequest(getIndexMappingsRequest);
-        } catch (WarningFailureException e) {
-            getIndexMappingsResponse = e.getResponse();
-        }
+        getIndexMappingsRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
+                "access to system indices will be prevented by default";
+            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in get mapping " +
+                "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', which means responses will omit the type " +
+                "name in mapping definitions.";
+            v.current(systemIndexWarning);
+            v.compatible(systemIndexWarning, typesWarning);
+        }));
+        Response getIndexMappingsResponse = client().performRequest(getIndexMappingsRequest);
         assertThat(getIndexMappingsResponse.getStatusLine().getStatusCode(), equalTo(200));
 
         Map<String, Object> mappings = entityAsMap(getIndexMappingsResponse);

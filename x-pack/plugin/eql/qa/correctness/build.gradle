@@ -1,0 +1,26 @@
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.build'
+test.enabled = false
+
+restResources {
+  restApi {
+    includeCore '_common', 'bulk', 'indices', 'snapshot'
+    includeXpack 'eql', 'indices'
+  }
+}
+
+dependencies {
+  javaRestTestImplementation project(':test:framework')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(xpackModule('ql:test'))
+  javaRestTestImplementation 'io.ous:jtoml:2.0.0'
+}
+
+File serviceAccountFile = new File('/Users/matriv/elastic/work', 'credentials.gcs.json')
+testClusters.all {
+  plugin ':plugins:repository-gcs'
+  keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+}

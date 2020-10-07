@@ -5,6 +5,13 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   (Instant, ZoneId)
 }
 
+# for unit tests only
+class org.elasticsearch.painless.api.Json {
+  def load(String)
+  String dump(def)
+  String dump(def,boolean)
+}
+
 class org.elasticsearch.painless.BindingsTests$BindingsTestScript {
 }
 

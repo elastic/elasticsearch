@@ -21,7 +21,7 @@ package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Named;
 import org.gradle.api.file.CopySpec;
-import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 
@@ -30,10 +30,10 @@ import java.util.function.Supplier;
 public class DistributionArchive implements Named {
 
     private TaskProvider<? extends AbstractArchiveTask> archiveTask;
-    private TaskProvider<Copy> expandedDistTask;
+    private TaskProvider<Sync> expandedDistTask;
     private final String name;
 
-    public DistributionArchive(TaskProvider<? extends AbstractArchiveTask> archiveTask, TaskProvider<Copy> expandedDistTask, String name) {
+    public DistributionArchive(TaskProvider<? extends AbstractArchiveTask> archiveTask, TaskProvider<Sync> expandedDistTask, String name) {
         this.archiveTask = archiveTask;
         this.expandedDistTask = expandedDistTask;
         this.name = name;
@@ -57,7 +57,7 @@ public class DistributionArchive implements Named {
         return archiveTask;
     }
 
-    public TaskProvider<Copy> getExpandedDistTask() {
+    public TaskProvider<Sync> getExpandedDistTask() {
         return expandedDistTask;
     }
 }

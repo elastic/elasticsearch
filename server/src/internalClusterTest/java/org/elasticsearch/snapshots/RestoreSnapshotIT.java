@@ -526,10 +526,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build()).get();
 
-        // check that restore now completes quickly (i.e. within 10 seconds)
-        assertBusy(() -> assertTrue(restoreSnapshotResponse.isDone()));
-
-        assertThat(restoreSnapshotResponse.get().getRestoreInfo().totalShards(), greaterThan(0));
+        // check that restore now completes quickly (i.e. within 20 seconds)
+        assertThat(restoreSnapshotResponse.get(20L, TimeUnit.SECONDS).getRestoreInfo().totalShards(), greaterThan(0));
         assertDocCount("test-idx", 100L);
     }
 

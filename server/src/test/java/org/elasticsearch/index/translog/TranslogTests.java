@@ -1253,7 +1253,7 @@ public class TranslogTests extends ESTestCase {
         final TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1);
         final Set<Long> persistedSeqNos = new HashSet<>();
         persistedSeqNoConsumer.set(persistedSeqNos::add);
-        final int numOps = randomIntBetween(8, 128);
+        final int numOps = scaledRandomIntBetween(8, 250000);
         final Set<Long> seenSeqNos = new HashSet<>();
         boolean opsHaveValidSequenceNumbers = randomBoolean();
         for (int i = 0; i < numOps; i++) {
@@ -2276,6 +2276,7 @@ public class TranslogTests extends ESTestCase {
         assertTrue(translog.getTragicException() instanceof UnknownException);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63299")
     public void testFatalIOExceptionsWhileWritingConcurrently() throws IOException, InterruptedException {
         Path tempDir = createTempDir();
         final FailSwitch fail = new FailSwitch();

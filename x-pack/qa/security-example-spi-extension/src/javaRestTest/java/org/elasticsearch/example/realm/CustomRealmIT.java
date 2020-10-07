@@ -87,8 +87,8 @@ public class CustomRealmIT extends ESIntegTestCase {
         Settings settings = Settings.builder()
                 .put("cluster.name", clusterName)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.DEFAULT_KNOWN_USER)
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.DEFAULT_KNOWN_PW.toString())
+                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, USERNAME)
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, PASSWORD)
                 .build();
         try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
@@ -104,12 +104,11 @@ public class CustomRealmIT extends ESIntegTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
-        String wrongUsername = CustomRealm.DEFAULT_KNOWN_USER + randomAlphaOfLength(1);
         Settings settings = Settings.builder()
                 .put("cluster.name", clusterName)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, wrongUsername)
-                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.DEFAULT_KNOWN_PW.toString())
+                .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, USERNAME + randomAlphaOfLength(1))
+                .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, PASSWORD)
                 .build();
         try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);

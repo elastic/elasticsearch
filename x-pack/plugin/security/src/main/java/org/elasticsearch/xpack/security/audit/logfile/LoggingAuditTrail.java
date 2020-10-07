@@ -959,7 +959,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .field("realm", inferRealmNameFromUsername.apply(deleteUserRequest.username()))
                     .endObject() // user
                     .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, builder);
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 
@@ -971,7 +971,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .field("name", deleteRoleRequest.name())
                     .endObject() // role
                     .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, builder);
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 
@@ -983,7 +983,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .field("name", deleteRoleMappingRequest.getName())
                     .endObject() // role_mapping
                     .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, builder);
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 
@@ -991,7 +991,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "invalidate_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
-                    .field("id", invalidateApiKeyRequest.getId())
+                    .array("ids", invalidateApiKeyRequest.getIds())
                     .field("name", invalidateApiKeyRequest.getName())
                     .field("owned_by_authenticated_user", invalidateApiKeyRequest.ownedByAuthenticatedUser())
                     .startObject("user")
@@ -999,7 +999,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .field("realm", invalidateApiKeyRequest.getRealmName())
                     .endObject() // user
                     .endObject();
-            logEntry.with(INVALIDATE_API_KEYS_FIELD_NAME, builder);
+            logEntry.with(INVALIDATE_API_KEYS_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 
@@ -1012,7 +1012,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .array("privileges", deletePrivilegesRequest.privileges())
                     .endObject() // privileges
                     .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, builder);
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 

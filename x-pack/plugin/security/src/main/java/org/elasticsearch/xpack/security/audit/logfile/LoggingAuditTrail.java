@@ -855,7 +855,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .field("name", putRoleRequest.name())
                     .array("cluster_privileges", putRoleRequest.cluster())
                     .array("run_as", putRoleRequest.runAs())
-                    .array("indices_privileges", putRoleRequest.indices())
+                    .array("indices_privileges", (Object[]) putRoleRequest.indices())
                     .field("application_privileges", putRoleRequest.applicationPrivileges())
                     .field("metadata", putRoleRequest.metadata());
             builder.startObject("conditional_cluster_privileges");

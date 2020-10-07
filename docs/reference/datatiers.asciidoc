@@ -1,0 +1,99 @@
+[role="xpack"]
+[[data-tiers]]
+=== Data tiers
+
+Common data lifecycle management patterns revolve around transitioning indices
+through multiple collections of nodes with different hardware characteristics in order
+to fulfil evolving CRUD, search, and aggregation needs as indices age. The concept
+of a tiered hardware architecture is not new in {es}.
+<<index-lifecycle-management, Index Lifecycle Management>> is instrumental in
+implementing tiered architectures by automating the managemnt of indices according to
+performance, resiliency and data retention requirements.
+<<overview-index-lifecycle-management, Hot/warm/cold>> architectures are common
+for timeseries data such as logging and metrics.
+
+A data tier is a collection of nodes with the same role. Data tiers are an integrated
+solution offering better support for optimising cost and improving performance.
+Formalized data tiers in ES allow configuration of the lifecycle and location of data
+in a hot/warm/cold topology without requiring the use of custom node attributes.
+Each tier formalises specific characteristics and data behaviours.
+
+The node roles that can currently define data tiers are:
+
+* <<data-content-node, data_content>>
+* <<data-hot-node, data_hot>>
+* <<data-warm-node, data_warm>>
+* <<data-cold-node, data_cold>>
+
+The more generic <<data-node, data role>> is not a data tier role, but
+it is the default node role if no roles are configured. If a node has the
+<<data-node, data>> role we treat the node as if it has all of the tier
+roles assigned.
+
+[[content-tier]]
+==== Content tier
+
+The content tier is made of one or more nodes that have the <<data-content-node, data_content>>
+role. A content tier is designed to store and search user created content. Non-timeseries data
+doesn't necessarily follow the hot-warm-cold path. The hardware profiles are quite different to
+the <<hot-tier, hot tier>>. User created content prioritises high CPU to support complex
+queries and aggregations in a timely manner, as opposed to the <<hot-tier, hot tier>> which
+prioritises high IO.
+The content data has very long data retention characteristics and from a resiliency perspective
+the indices in this tier should be configured to use one or more replicas.
+
+NOTE: new indices that are not part of <<data-streams, data streams>> will be automatically allocated to the
+<<content-tier>>
+
+[[hot-tier]]
+==== Hot tier
+
+The hot tier is made of one or more nodes that have the <<data-hot-node, data_hot>> role.
+It is the {es} entry point for timeseries data. This tier needs to be fast both for reads
+and writes, requiring more hardware resources such as SSD drives. The hot tier is usually
+hosting the data from recent days. From a resiliency perspective the indices in this
+tier should be configured to use one or more replicas.
+
+NOTE: new indices that are part of a <<data-streams, data stream>> will be automatically allocated to the
+<<hot-tier>>
+
+[[warm-tier]]
+==== Warm tier
+
+The warm tier is made of one or more nodes that have the <<data-warm-node, data_warm>> role.
+This tier is where data goes once it is not queried as frequently as in the <<hot-tier, hot tier>>.
+It is a medium-fast tier that still allows data updates. The warm tier is usually
+hosting the data from recent weeks. From a resiliency perspective the indices in this
+tier should be configured to use one or more replicas.
+
+[[cold-tier]]
+==== Cold tier
+
+The cold tier is made of one or more nodes that have the <<data-cold-node, data_cold>> role.
+Once the data in the <<warm-tier, warm tier>> is not updated anymore it can transition to the
+cold tier. The cold tier is still a responsive query tier but as the data transitions into this
+tier it can be compressed, shrunken, or configured to have zero replicas and be backed by
+a <<ilm-searchable-snapshot, snapshot>>. The cold tier is usually hosting the data from recent
+months or years.
+[discrete]
+[[data-tier-allocation]]
+=== Data tier index allocation
+
+When an index is created {es} will automatically allocate the index to the <<content-tier, Content tier>>
+if the index is not part of a <<data-streams, data stream>> or to the <<hot-tier, Hot tier>> if the index
+is part of a <<data-streams, data stream>>.
+{es} will configure the <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
+to `data_content` or `data_hot` respectively.
+
+These heuristics can be overridden by specifying any <<shard-allocation-filtering, shard allocation filtering>>
+settings in the create index request or index template that matches the new index.
+Specifying any configuration, including `null`, for `index.routing.allocation.include._tier_preference` will
+also opt out of the automatic new index allocation to tiers.
+[discrete]
+[[data-tier-migration]]
+=== Data tier index migration
+
+<<index-lifecycle-management, Index Lifecycle Management>> automates the transition of managed
+indices through the available data tiers using the `migrate` action which is injected
+in every phase, unless it's manually specified in the phase or an
+<<ilm-allocate-action, allocate action>> modifying the allocation rules is manually configured.

@@ -16,13 +16,22 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
@@ -121,5 +130,20 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        Map<String, Object> sourceValue = Map.of("key", "value");
+        RootFlatObjectFieldType ft = createDefaultFieldType();
+        assertEquals(List.of(sourceValue), fetchSourceValue(ft, sourceValue));
+
+        MappedFieldType nullValueMapper = new FlatObjectFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context)
+            .fieldType();
+        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 }

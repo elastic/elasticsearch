@@ -199,7 +199,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0), instanceOf(MapperParsingException.class));
-        assertThat(errors.get(0).getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
+        assertThat(errors.get(0).getMessage(), containsString("analyzer [custom_1] has not been configured in mappings"));
     }
 
     public void testBrokenMapping() throws Exception {

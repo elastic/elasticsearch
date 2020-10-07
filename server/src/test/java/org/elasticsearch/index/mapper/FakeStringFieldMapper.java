@@ -21,65 +21,48 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 // Like a String mapper but with very few options. We just use it to test if highlighting on a custom string mapped field works as expected.
-public class FakeStringFieldMapper extends FieldMapper {
+public class FakeStringFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "fake_string";
 
     public static final FieldType FIELD_TYPE = new FieldType();
     static {
+        FIELD_TYPE.setTokenized(true);
+        FIELD_TYPE.setStored(true);
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
         public Builder(String name) {
-            super(name, FIELD_TYPE);
+            super(name);
             builder = this;
         }
 
         @Override
-        public Builder index(boolean index) {
-            throw new UnsupportedOperationException();
+        protected List<Parameter<?>> getParameters() {
+            return Collections.emptyList();
         }
 
         @Override
         public FakeStringFieldMapper build(BuilderContext context) {
             return new FakeStringFieldMapper(
-                fieldType,
-                new FakeStringFieldType(name, fieldType.stored(),
-                    new TextSearchInfo(fieldType, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
-                multiFieldsBuilder.build(this, context), copyTo);
+                new FakeStringFieldType(name, true,
+                    new TextSearchInfo(FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
+                multiFieldsBuilder.build(this, context), copyTo.build());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-
-        public TypeParser() {
-        }
-
-        @Override
-        public Mapper.Builder<?> parse(String fieldName, Map<String, Object> node,
-                                       ParserContext parserContext) throws MapperParsingException {
-            FakeStringFieldMapper.Builder builder = new FakeStringFieldMapper.Builder(fieldName);
-            parseTextField(builder, fieldName, node, parserContext);
-            return builder;
-        }
-    }
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class FakeStringFieldType extends StringFieldType {
 
@@ -104,9 +87,9 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
     }
 
-    protected FakeStringFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType,
+    protected FakeStringFieldMapper(MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(mappedFieldType.name(), fieldType, mappedFieldType, multiFields, copyTo);
+        super(mappedFieldType.name(), mappedFieldType, multiFields, copyTo);
     }
 
     @Override
@@ -122,18 +105,8 @@ public class FakeStringFieldMapper extends FieldMapper {
             return;
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(fieldType().name(), value, fieldType);
-            context.doc().add(field);
-        }
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
-        }
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        Field field = new Field(fieldType().name(), value, FIELD_TYPE);
+        context.doc().add(field);
     }
 
     @Override
@@ -142,13 +115,7 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FakeStringFieldType fieldType() {
-        return (FakeStringFieldType) super.fieldType();
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-    }
-
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -61,7 +62,7 @@ public class ExternalMapper extends ParametrizedFieldMapper {
 
         public Builder(String name, String generatedValue, String mapperName) {
             super(name);
-            this.stringBuilder = new TextFieldMapper.Builder(name).store(false);
+            this.stringBuilder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).store(false);
             this.generatedValue = generatedValue;
             this.mapperName = mapperName;
         }

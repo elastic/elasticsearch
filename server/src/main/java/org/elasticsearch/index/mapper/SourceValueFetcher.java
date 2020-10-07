@@ -102,4 +102,19 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             }
         };
     }
+
+    /**
+     * Creates a {@link SourceValueFetcher} that converts source values to strings.
+     */
+    public static SourceValueFetcher toString(String fieldName, MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(fieldName, mapperService) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
+    }
 }

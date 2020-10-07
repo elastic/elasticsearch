@@ -177,14 +177,14 @@ public class InternalEngine extends Engine {
     private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
 
     /**
-     * If multiple writes passed {@link InternalEngine#tryReserveDocs(Operation, int)} but they haven't adjusted
+     * If multiple writes passed {@link InternalEngine#tryAcquireInFlightDocs(Operation, int)} but they haven't adjusted
      * {@link IndexWriter#getPendingNumDocs()} yet, then IndexWriter can fail with too many documents. In this case, we have to fail
      * the engine because we already generated sequence numbers for write operations; otherwise we will have gaps in sequence numbers.
      * To avoid this, we keep track the number of documents that are being added to IndexWriter, and account it in
-     * {@link InternalEngine#tryReserveDocs(Operation, int)}. Although we can double count some adding documents in both IW and Engine,
-     * this shouldn't be an issue because it happens for a short window and we adjust the reservingNumDocs once an indexing is completed.
+     * {@link InternalEngine#tryAcquireInFlightDocs(Operation, int)}. Although we can double count some adding documents in both IW and Engine,
+     * this shouldn't be an issue because it happens for a short window and we adjust the inFlightDocCount once an indexing is completed.
      */
-    private final AtomicLong reservingNumDocs = new AtomicLong();
+    private final AtomicLong inFlightDocCount = new AtomicLong();
 
     private final int maxDocs;
 
@@ -937,7 +937,7 @@ public class InternalEngine extends Engine {
                 indexResult.freeze();
                 return indexResult;
             } finally {
-                adjustReservingDocs(-reservedDocs);
+                releaseInFlightDocs(reservedDocs);
             }
         } catch (RuntimeException | IOException e) {
             try {
@@ -1005,7 +1005,7 @@ public class InternalEngine extends Engine {
         // resolve an external operation into an internal one which is safe to replay
         final boolean canOptimizeAddDocument = canOptimizeAddDocument(index);
         if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
-            final Exception reserveError = tryReserveDocs(index, reservingDocs);
+            final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
             if (reserveError != null) {
                 plan = IndexingStrategy.failAsTooManyDocs(reserveError);
             } else {
@@ -1042,7 +1042,7 @@ public class InternalEngine extends Engine {
                         new VersionConflictEngineException(shardId, index, currentVersion, currentNotFoundOrDeleted);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
             } else {
-                final Exception reserveError = tryReserveDocs(index, reservingDocs);
+                final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
                 if (reserveError != null) {
                     plan = IndexingStrategy.failAsTooManyDocs(reserveError);
                 } else {
@@ -1309,32 +1309,33 @@ public class InternalEngine extends Engine {
             }
             throw e;
         } finally {
-            adjustReservingDocs(-reservedDocs);
+            releaseInFlightDocs(reservedDocs);
         }
         maybePruneDeletes();
         return deleteResult;
     }
 
-    private Exception tryReserveDocs(Operation operation, int addingDocs) {
+    private Exception tryAcquireInFlightDocs(Operation operation, int addingDocs) {
         assert operation.origin() == Operation.Origin.PRIMARY : operation;
         assert operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : operation;
-        final long totalDocs = indexWriter.getPendingNumDocs() + reservingNumDocs.addAndGet(addingDocs);
+        assert addingDocs > 0 : addingDocs;
+        final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
-            adjustReservingDocs(-addingDocs);
+            releaseInFlightDocs(addingDocs);
             return new IllegalArgumentException("Number of documents in the index can't exceed [" + maxDocs + "]");
         } else {
             return null;
         }
     }
 
-    private void adjustReservingDocs(int numDocs) {
-        assert numDocs <= 0 : numDocs;
-        final long newValue = reservingNumDocs.addAndGet(numDocs);
-        assert newValue >= 0 : "reservingNumDocs must not be negative [" + newValue + "]";
+    private void releaseInFlightDocs(int numDocs) {
+        assert numDocs >= 0 : numDocs;
+        final long newValue = inFlightDocCount.addAndGet(-numDocs);
+        assert newValue >= 0 : "inFlightDocCount must not be negative [" + newValue + "]";
     }
 
-    long getReservingNumDocs() {
-        return reservingNumDocs.get();
+    long getInFlightDocCount() {
+        return inFlightDocCount.get();
     }
 
     protected DeletionStrategy deletionStrategyForOperation(final Delete delete) throws IOException {
@@ -1403,7 +1404,7 @@ public class InternalEngine extends Engine {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
         } else {
-            final Exception reserveError = tryReserveDocs(delete, 1);
+            final Exception reserveError = tryAcquireInFlightDocs(delete, 1);
             if (reserveError != null) {
                 plan = DeletionStrategy.failAsTooManyDocs(reserveError);
             } else {

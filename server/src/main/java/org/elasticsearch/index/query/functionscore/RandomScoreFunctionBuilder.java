@@ -27,7 +27,6 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -156,15 +155,15 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             // DocID-based random score generation
             return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
         } else {
-            final MappedFieldType fieldType;
-            if (field != null) {
-                fieldType = context.fieldMapper(field);
-            } else {
+            String fieldName;
+            if (field == null) {
                 deprecationLogger.deprecate("seed_requires_field",
                     "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
-                fieldType = context.fieldMapper(IdFieldMapper.NAME);
+                fieldName = IdFieldMapper.NAME;
+            } else {
+                fieldName = field;
             }
-            if (fieldType == null) {
+            if (context.isFieldMapped(fieldName) == false) {
                 if (context.getMapperService().documentMapper() == null) {
                     // no mappings: the index is empty anyway
                     return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
@@ -173,12 +172,12 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                         "] and cannot be used as a source of random numbers.");
             }
             int seed;
-            if (this.seed != null) {
-                seed = this.seed;
-            } else {
+            if (this.seed == null) {
                 seed = hash(context.nowInMillis());
+            } else {
+                seed = this.seed;
             }
-            return new RandomScoreFunction(seed, salt, context.getForField(fieldType));
+            return new RandomScoreFunction(seed, salt, context.getForField(context.fieldMapper(fieldName)));
         }
     }
 

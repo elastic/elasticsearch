@@ -475,15 +475,15 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (from == null && to == null) {
-            /**
+            /*
              * Open bounds on both side, we can rewrite to an exists query
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
-            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType) context.fieldMapper(FieldNamesFieldMapper.NAME);
-            if (fieldNamesFieldType == null) {
+            if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
                 return new MatchNoDocsQuery("No mappings yet");
             }
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.fieldMapper(FieldNamesFieldMapper.NAME);
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
                 return ExistsQueryBuilder.newFilter(context, fieldName, false);

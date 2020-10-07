@@ -33,6 +33,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
+    // The special ID that means the message applies to all jobs/resources.
+    public static final String All_RESOURCES_ID = "";
+
     private static final Logger logger = LogManager.getLogger(AbstractAuditor.class);
     static final int MAX_BUFFER_SIZE = 1000;
 

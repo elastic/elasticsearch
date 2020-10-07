@@ -688,7 +688,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, false) {
+            return new SourceValueFetcher(name(), mapperService) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value.toString();

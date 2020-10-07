@@ -293,19 +293,17 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             suggestionContext.setShardSize(shardSize);
         }
         MappedFieldType mappedFieldType = context.fieldMapper(suggestionContext.getField());
-        if (mappedFieldType == null || mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
+        if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
-        if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
-            CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
-            suggestionContext.setFieldType(type);
-            if (type.hasContextMappings() && contextBytes != null) {
-                Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(contextBytes,
-                        context.getXContentRegistry(), type.getContextMappings());
-                suggestionContext.setQueryContexts(queryContexts);
-            } else if (contextBytes != null) {
-                throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
-            }
+        CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
+        suggestionContext.setFieldType(type);
+        if (type.hasContextMappings() && contextBytes != null) {
+            Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(contextBytes,
+                context.getXContentRegistry(), type.getContextMappings());
+            suggestionContext.setQueryContexts(queryContexts);
+        } else if (contextBytes != null) {
+            throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
         }
         assert suggestionContext.getFieldType() != null : "no completion field type set";
         return suggestionContext;

@@ -43,7 +43,8 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver();
     private final Context context = new Context(
-            ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand()
+        ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand(),
+        false
     );
 
     public void testNormal() throws Exception {
@@ -146,7 +147,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             // rounding to today 00:00
             now = DateTime.now(UTC).withHourOfDay(0).withMinuteOfHour(0).withSecondOfMinute(0);
         }
-        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis());
+        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis(), false);
         List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getID() + "}}>"));
         assertThat(results.size(), equalTo(1));
         logger.info("timezone: [{}], now [{}], name: [{}]", timeZone, now, results.get(0));

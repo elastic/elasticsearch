@@ -607,6 +607,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return (byte) random().nextInt();
     }
 
+    public static byte randomNonNegativeByte() {
+        byte randomByte =  (byte) random().nextInt();
+        return (byte) (randomByte == Byte.MIN_VALUE ? 0 : Math.abs(randomByte));
+    }
+
     /**
      * Helper method to create a byte array of a given length populated with random byte values
      *

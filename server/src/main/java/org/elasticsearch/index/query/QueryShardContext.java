@@ -258,6 +258,10 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.searchAnalyzer();
     }
 
+    public Analyzer searchAnalyzer() {
+        return this.mapperService.searchAnalyzer();
+    }
+
     /**
      * Gets the search quote analyzer for the given field, or the default if there is none present for the field
      * TODO: remove this by moving defaults into mappers themselves

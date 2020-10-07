@@ -72,9 +72,12 @@ tier should be configured to use one or more replicas.
 The cold tier is made of one or more nodes that have the <<data-cold-node, data_cold>> role.
 Once the data in the <<warm-tier, warm tier>> is not updated anymore it can transition to the
 cold tier. The cold tier is still a responsive query tier but as the data transitions into this
-tier it can be compressed, shrunken, or configured to have zero replicas and be backed by
-a <<ilm-searchable-snapshot, snapshot>>. The cold tier is usually hosting the data from recent
+tier it can be compressed, shrunken, or configured to have zero replicas and be backed by snapshot. The cold tier is usually hosting the data from recent
 months or years.
+ifdef::permanently-unreleased-branch[]
+See <<ilm-searchable-snapshot>>.
+endif::[]
+
 [discrete]
 [[data-tier-allocation]]
 === Data tier index allocation

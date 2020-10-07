@@ -49,6 +49,7 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.apache.http.protocol.HTTP;
 
 import javax.net.ssl.SSLHandshakeException;
 import java.io.ByteArrayInputStream;
@@ -73,7 +74,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -308,12 +308,16 @@ public class RestClient implements Closeable {
         RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
         int statusCode = httpResponse.getStatusLine().getStatusCode();
 
-        Optional.ofNullable(httpResponse.getEntity())
-            .map(HttpEntity::getContentEncoding)
-            .map(Header::getValue)
-            .filter("gzip"::equalsIgnoreCase)
-            .map(gzipHeaderValue -> new GzipDecompressingEntity(httpResponse.getEntity()))
-            .ifPresent(httpResponse::setEntity);
+        HttpEntity entity = httpResponse.getEntity();
+        if (entity != null) {
+            Header header = entity.getContentEncoding();
+            if (header != null && "gzip".equals(header.getValue())) {
+                // Decompress and cleanup response headers
+                httpResponse.setEntity(new GzipDecompressingEntity(entity));
+                httpResponse.removeHeaders(HTTP.CONTENT_ENCODING);
+                httpResponse.removeHeaders(HTTP.CONTENT_LEN);
+            }
+        }
 
         Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
         if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {

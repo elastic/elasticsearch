@@ -132,7 +132,8 @@ which outputs a prediction of values.
   `mse`:::
     (Optional, object) Average squared difference between the predicted values 
     and the actual (`ground truth`) value. For more information, read 
-    {wikipedia}/Mean_squared_error[this wiki article].
+    {wikipedia}/Mean_squared_error[this wiki article]. (This metric was called 
+    `mean_squared_error` prior to 7.9).
 
   `msle`:::
     (Optional, object) Average squared difference between the logarithm of the 

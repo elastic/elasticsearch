@@ -20,19 +20,14 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.IndexWriterMaxDocsChanger;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -92,22 +87,6 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         IndexWriterMaxDocsChanger.restoreMaxDocs();
     }
 
-    public static void assertNoOutstandingReservingDocs() throws Exception {
-        assertBusy(() -> {
-            for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-                for (IndexService indexService : indicesService) {
-                    for (IndexShard indexShard : indexService) {
-                        try {
-                            assertThat(EngineTestCase.getReservingDocs(IndexShardTestCase.getEngine(indexShard)), equalTo(0L));
-                        } catch (AlreadyClosedException ignored) {
-                            // ok
-                        }
-                    }
-                }
-            }
-        });
-    }
-
     public void testMaxDocsLimit() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         assertAcked(client().admin().indices().prepareCreate("test")
@@ -138,7 +117,6 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0).get();
         ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) maxDocs.get()));
-        assertNoOutstandingReservingDocs();
     }
 
     public void testMaxDocsLimitConcurrently() throws Exception {
@@ -168,7 +146,6 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE).setSize(0).get();
         ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalSuccess));
-        assertNoOutstandingReservingDocs();
     }
 
     static final class IndexingResult {
@@ -206,7 +183,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         for (Thread indexer : indexers) {
             indexer.join();
         }
-        assertNoOutstandingReservingDocs();
+        internalCluster().assertNoInFlightDocsInEngine();
         return new IndexingResult(numSuccess.get(), numFailure.get());
     }
 }

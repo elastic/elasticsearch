@@ -138,8 +138,8 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
             mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [name] has different [index] values"));
-            assertThat(e.getMessage(), containsString("mapper [name] has different [store] values"));
+            assertThat(e.getMessage(), containsString("Cannot update parameter [index] from [true] to [false]"));
+            assertThat(e.getMessage(), containsString("Cannot update parameter [store] from [true] to [false]"));
         }
 
         // There are conflicts, so the `name.not_indexed3` has not been added

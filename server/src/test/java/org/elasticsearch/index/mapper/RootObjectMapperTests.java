@@ -34,6 +34,8 @@ import java.util.Arrays;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RootObjectMapperTests extends ESSingleNodeTestCase {
 
@@ -365,10 +367,10 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         }
         mapping.endObject();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
-        assertThat(mapper.mappingSource().toString(), containsString("\"analyzer\":\"foobar\""));
-        assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
-            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] not found for field [__dynamic__my_template]]");
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
+        assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getRootCause().getMessage(), equalTo("analyzer [foobar] has not been configured in mappings"));
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {

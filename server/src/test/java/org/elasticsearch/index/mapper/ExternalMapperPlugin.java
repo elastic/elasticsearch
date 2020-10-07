@@ -40,7 +40,7 @@ public class ExternalMapperPlugin extends Plugin implements MapperPlugin {
         mappers.put(EXTERNAL, ExternalMapper.parser(EXTERNAL, "foo"));
         mappers.put(EXTERNAL_BIS, ExternalMapper.parser(EXTERNAL_BIS, "bar"));
         mappers.put(EXTERNAL_UPPER, ExternalMapper.parser(EXTERNAL_UPPER, "FOO BAR"));
-        mappers.put(FakeStringFieldMapper.CONTENT_TYPE, new FakeStringFieldMapper.TypeParser());
+        mappers.put(FakeStringFieldMapper.CONTENT_TYPE, FakeStringFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }
 

@@ -113,7 +113,7 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     @Override
     protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         ValuesSourceConfig config;
-        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(context::fieldType, context::mapper);
+        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(context::getFieldType, context::getMapper);
         ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
         if (parentIdFieldMapper != null) {
             parentFilter = parentIdFieldMapper.getParentFilter();

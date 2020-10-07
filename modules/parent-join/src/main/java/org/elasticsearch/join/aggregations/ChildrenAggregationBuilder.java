@@ -113,7 +113,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         ValuesSourceConfig config;
 
-        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(context::fieldType, context::mapper);
+        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(context::getFieldType, context::getMapper);
         if (parentJoinFieldMapper == null) {
             // Unmapped field case
             config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), context);

@@ -143,6 +143,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         fakeRemote.file + "/.git"
         gradleRunner(workingRemoteGit, "wrapper").build()
         execute("git init", workingRemoteGit)
+        execute('git config user.email "build-tool@elastic.co"', workingRemoteGit)
+        execute('git config --global user.name "Build tool"', workingRemoteGit)
         execute("git add .", workingRemoteGit)
         execute('git commit -m"Initial"', workingRemoteGit)
         execute("git checkout -b origin/8.0", workingRemoteGit)

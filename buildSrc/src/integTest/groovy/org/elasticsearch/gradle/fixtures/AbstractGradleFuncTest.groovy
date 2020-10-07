@@ -122,7 +122,8 @@ abstract class AbstractGradleFuncTest extends Specification {
         proc.waitFor()
         if(proc.exitValue()) {
             println "Error running command ${command}:"
-            println proc.text
+            println "syserr: " + proc.errorStream.text
+            println "sysout: " + proc.outputStream.text
         }
     }
 }

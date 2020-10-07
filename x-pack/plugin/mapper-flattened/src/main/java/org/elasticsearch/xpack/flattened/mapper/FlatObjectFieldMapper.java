@@ -323,7 +323,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();  // TODO can we implement this?
+            throw new UnsupportedOperationException();
         }
     }
 

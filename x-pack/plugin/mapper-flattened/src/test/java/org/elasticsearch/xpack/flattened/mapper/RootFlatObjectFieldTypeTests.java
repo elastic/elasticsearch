@@ -129,6 +129,8 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
         Map<String, Object> sourceValue = Map.of("key", "value");
         RootFlatObjectFieldType ft = createDefaultFieldType();
+
         assertEquals(List.of(sourceValue), fetchSourceValue(ft, sourceValue));
+        assertEquals(List.of(), fetchSourceValue(ft, null));
     }
 }

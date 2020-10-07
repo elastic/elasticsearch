@@ -114,7 +114,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     void setupLocalGitRepo() {
         execute("git init");
         execute("git add .")
-        execute('git cmmit -m "Initial"')
+        execute('git commit -m "Initial"')
     }
 
     void execute(String command, File workingDir = testProjectDir.root) {

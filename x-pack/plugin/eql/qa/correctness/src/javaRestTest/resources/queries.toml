@@ -441,28 +441,28 @@ sequence by hostname with maxspan=10s
 time = 8.545618057250977
 type = "sequence"
 
-#[[queries]]
-#queryNo = 26
-#case_insensitive = true
-#count = 1
-#expected_event_ids = [2732749, 2732788]
-#filter_counts = [89, 1]
-#filters = [
-#  '''file where file_extension in ("exe", "EXE", "Exe", "scr") and (startsWith(file_path, 'C:\\Users') or startsWith(file_path, 'C:\\ProgramData')) and file_name != "DismHost.exe"''',
-#  '''process where opcode == 1 and signature_status == "noSignature" and (startsWith(process_path, 'C:\\Users') or startsWith(process_path, 'C:\\ProgramData'))'''
-#]
-#query = '''
-#sequence by hostname with maxspan=5m
-#  [file where file_extension in ("exe", "EXE", "Exe", "scr")
-#    and (startsWith(file_path, 'C:\\Users') or startsWith(file_path, 'C:\\ProgramData'))
-#    and file_name != "DismHost.exe"
-#  ] by process_path, unique_pid
-#  [process where opcode == 1 and signature_status == "noSignature"
-#    and (startsWith(process_path, 'C:\\Users') or startsWith(process_path, 'C:\\ProgramData'))
-#  ] by parent_process_path, unique_ppid
-#'''
-#time = 7.217672109603882
-#type = "sequence"
+[[queries]]
+queryNo = 26
+case_insensitive = true
+count = 1
+expected_event_ids = [2732749, 2732788]
+filter_counts = [89, 1]
+filters = [
+  '''file where file_extension in ("exe", "EXE", "Exe", "scr") and (startsWith(file_path, "C:\\Users") or startsWith(file_path, "C:\\ProgramData")) and file_name != "DismHost.exe"''',
+  '''process where opcode == 1 and signature_status == "noSignature" and (startsWith(process_path, "C:\\Users") or startsWith(process_path, "C:\\ProgramData"))'''
+]
+query = '''
+sequence by hostname with maxspan=5m
+  [file where file_extension in ("exe", "EXE", "Exe", "scr")
+    and (startsWith(file_path, "C:\\Users") or startsWith(file_path, "C:\\ProgramData"))
+    and file_name != "DismHost.exe"
+  ] by process_path, unique_pid
+  [process where opcode == 1 and signature_status == "noSignature"
+    and (startsWith(process_path, "C:\\Users") or startsWith(process_path, "C:\\ProgramData"))
+  ] by parent_process_path, unique_ppid
+'''
+time = 7.217672109603882
+type = "sequence"
 
 [[queries]]
 queryNo = 27

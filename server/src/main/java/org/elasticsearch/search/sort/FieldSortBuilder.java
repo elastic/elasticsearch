@@ -449,7 +449,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (unmappedType == null) {
             throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
         }
-        return context.getMapperService().unmappedFieldType(unmappedType);
+        return context.buildAnonymousFieldType(unmappedType);
     }
 
     private MultiValueMode localSortMode() {

@@ -35,11 +35,15 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -159,5 +163,16 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             .build());
 
         assertThat(q, equalTo(expected));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        MappedFieldType mapper = new TextFieldMapper.Builder("field").build(context).fieldType();
+
+        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
     }
 }

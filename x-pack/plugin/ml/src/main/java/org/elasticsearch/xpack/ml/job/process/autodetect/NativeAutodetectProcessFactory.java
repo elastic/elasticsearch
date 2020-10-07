@@ -76,9 +76,9 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                                                      ExecutorService executorService,
                                                      Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AutodetectBuilder.AUTODETECT, job.getId(),
-                false, true, true, params.modelSnapshot() != null,
-                !AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AutodetectBuilder.AUTODETECT,
+            job.getId(), false, true, true, params.modelSnapshot() != null,
+            AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings) == false);
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
                 && job.getAnalysisConfig().getCategorizationFieldName() != null;
@@ -90,7 +90,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             NamedXContentRegistry.EMPTY);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), nativeController, processPipes, numberOfFields,
-                filesToDelete, resultsParser, onProcessCrash, processConnectTimeout);
+                filesToDelete, resultsParser, onProcessCrash);
         try {
             autodetect.start(executorService, stateProcessor);
             return autodetect;

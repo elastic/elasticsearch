@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyB
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
@@ -23,13 +24,17 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recal
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -37,16 +42,19 @@ import static org.hamcrest.Matchers.notANumber;
 
 public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
-    private static final String ANIMALS_DATA_INDEX = "test-evaluate-animals-index";
+    static final String ANIMALS_DATA_INDEX = "test-evaluate-animals-index";
 
-    private static final String ANIMAL_NAME_KEYWORD_FIELD = "animal_name_keyword";
-    private static final String ANIMAL_NAME_PREDICTION_KEYWORD_FIELD = "animal_name_keyword_prediction";
-    private static final String NO_LEGS_KEYWORD_FIELD = "no_legs_keyword";
-    private static final String NO_LEGS_INTEGER_FIELD = "no_legs_integer";
-    private static final String NO_LEGS_PREDICTION_INTEGER_FIELD = "no_legs_integer_prediction";
-    private static final String IS_PREDATOR_KEYWORD_FIELD = "predator_keyword";
-    private static final String IS_PREDATOR_BOOLEAN_FIELD = "predator_boolean";
-    private static final String IS_PREDATOR_PREDICTION_BOOLEAN_FIELD = "predator_boolean_prediction";
+    static final String ANIMAL_NAME_KEYWORD_FIELD = "animal_name_keyword";
+    static final String ANIMAL_NAME_PREDICTION_KEYWORD_FIELD = "animal_name_keyword_prediction";
+    static final String ANIMAL_NAME_PREDICTION_PROB_FIELD = "animal_name_prediction_prob";
+    static final String NO_LEGS_KEYWORD_FIELD = "no_legs_keyword";
+    static final String NO_LEGS_INTEGER_FIELD = "no_legs_integer";
+    static final String NO_LEGS_PREDICTION_INTEGER_FIELD = "no_legs_integer_prediction";
+    static final String IS_PREDATOR_KEYWORD_FIELD = "predator_keyword";
+    static final String IS_PREDATOR_BOOLEAN_FIELD = "predator_boolean";
+    static final String IS_PREDATOR_PREDICTION_BOOLEAN_FIELD = "predator_boolean_prediction";
+    static final String IS_PREDATOR_PREDICTION_PROBABILITY_FIELD = "predator_prediction_probability";
+    static final String ML_TOP_CLASSES_FIELD = "ml_results";
 
     @Before
     public void setup() {
@@ -66,7 +74,8 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_DefaultMetrics() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
-                ANIMALS_DATA_INDEX, new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null));
+                ANIMALS_DATA_INDEX,
+                new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, null));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(
@@ -81,6 +90,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 new Classification(
                     ANIMAL_NAME_KEYWORD_FIELD,
                     ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                    null,
                     List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
@@ -115,6 +125,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 new Classification(
                     actualField,
                     predictedField,
+                    null,
                     List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
 
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
@@ -138,9 +149,37 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(recallResult.getAvgRecall(), equalTo(0.0));
     }
 
+    private AucRoc.Result evaluateAucRoc(boolean includeCurve) {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX,
+                new Classification(ANIMAL_NAME_KEYWORD_FIELD, null, ML_TOP_CLASSES_FIELD, List.of(new AucRoc(includeCurve, "cat"))));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        AucRoc.Result aucrocResult = (AucRoc.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(aucrocResult.getMetricName(), equalTo(AucRoc.NAME.getPreferredName()));
+        return aucrocResult;
+    }
+
+    public void testEvaluate_AucRoc_DoNotIncludeCurve() {
+        AucRoc.Result aucrocResult = evaluateAucRoc(false);
+        assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
+        assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
+        assertThat(aucrocResult.getCurve(), hasSize(0));
+    }
+
+    public void testEvaluate_AucRoc_IncludeCurve() {
+        AucRoc.Result aucrocResult = evaluateAucRoc(true);
+        assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
+        assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
+        assertThat(aucrocResult.getCurve(), hasSize(greaterThan(0)));
+    }
+
     private Accuracy.Result evaluateAccuracy(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, List.of(new Accuracy())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, List.of(new Accuracy())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -259,7 +298,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     private Precision.Result evaluatePrecision(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, List.of(new Precision())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, List.of(new Precision())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -353,13 +392,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
                     ANIMALS_DATA_INDEX,
-                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, List.of(new Precision()))));
+                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, List.of(new Precision()))));
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
     private Recall.Result evaluateRecall(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, List.of(new Recall())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, List.of(new Recall())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -468,7 +507,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
                     ANIMALS_DATA_INDEX,
-                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, List.of(new Recall()))));
+                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, List.of(new Recall()))));
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
@@ -477,7 +516,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
                 new Classification(
-                    ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, List.of(new MulticlassConfusionMatrix())));
+                    ANIMAL_NAME_KEYWORD_FIELD,
+                    ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                    null,
+                    List.of(new MulticlassConfusionMatrix())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -558,7 +600,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
                 new Classification(
-                    ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, List.of(new MulticlassConfusionMatrix(3, null))));
+                    ANIMAL_NAME_KEYWORD_FIELD,
+                    ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                    null,
+                    List.of(new MulticlassConfusionMatrix(3, null))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -592,7 +637,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(2L));
     }
 
-    private static void createAnimalsIndex(String indexName) {
+    static void createAnimalsIndex(String indexName) {
         client().admin().indices().prepareCreate(indexName)
             .setMapping(
                 ANIMAL_NAME_KEYWORD_FIELD, "type=keyword",
@@ -602,28 +647,41 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 NO_LEGS_PREDICTION_INTEGER_FIELD, "type=integer",
                 IS_PREDATOR_KEYWORD_FIELD, "type=keyword",
                 IS_PREDATOR_BOOLEAN_FIELD, "type=boolean",
-                IS_PREDATOR_PREDICTION_BOOLEAN_FIELD, "type=boolean")
+                IS_PREDATOR_PREDICTION_BOOLEAN_FIELD, "type=boolean",
+                IS_PREDATOR_PREDICTION_PROBABILITY_FIELD, "type=double",
+                ML_TOP_CLASSES_FIELD, "type=nested")
             .get();
     }
 
-    private static void indexAnimalsData(String indexName) {
+    static void indexAnimalsData(String indexName) {
         List<String> animalNames = List.of("dog", "cat", "mouse", "ant", "fox");
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < animalNames.size(); i++) {
             for (int j = 0; j < animalNames.size(); j++) {
                 for (int k = 0; k < j + 1; k++) {
+                    List<?> topClasses =
+                        IntStream
+                            .range(0, 5)
+                            .mapToObj(ix -> new HashMap<String, Object>() {{
+                                put("class_name", animalNames.get(ix));
+                                put("class_probability", 0.4 - 0.1 * ix);
+                            }})
+                            .collect(toList());
                     bulkRequestBuilder.add(
                         new IndexRequest(indexName)
                             .source(
                                 ANIMAL_NAME_KEYWORD_FIELD, animalNames.get(i),
                                 ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, animalNames.get((i + j) % animalNames.size()),
+                                ANIMAL_NAME_PREDICTION_PROB_FIELD, animalNames.get((i + j) % animalNames.size()),
                                 NO_LEGS_KEYWORD_FIELD, String.valueOf(i + 1),
                                 NO_LEGS_INTEGER_FIELD, i + 1,
                                 NO_LEGS_PREDICTION_INTEGER_FIELD, j + 1,
                                 IS_PREDATOR_KEYWORD_FIELD, String.valueOf(i % 2 == 0),
                                 IS_PREDATOR_BOOLEAN_FIELD, i % 2 == 0,
-                                IS_PREDATOR_PREDICTION_BOOLEAN_FIELD, (i + j) % 2 == 0));
+                                IS_PREDATOR_PREDICTION_BOOLEAN_FIELD, (i + j) % 2 == 0,
+                                IS_PREDATOR_PREDICTION_PROBABILITY_FIELD, i % 2 == 0 ? 1.0 - 0.1 * i : 0.1 * i,
+                                ML_TOP_CLASSES_FIELD, topClasses));
                 }
             }
         }

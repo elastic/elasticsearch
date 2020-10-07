@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +35,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -818,7 +818,19 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     private String getAliases() throws IOException {
-        Response response = client().performRequest(new Request("GET", "/_aliases"));
+        final Request aliasesRequest = new Request("GET", "/_aliases");
+        // Allow system index deprecation warnings - this can be removed once system indices are omitted from responses rather than
+        // triggering a deprecation warning.
+        aliasesRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            } else {
+                return warnings.get(0).startsWith("this request accesses system indices:") == false;
+            }
+        }).build());
+        Response response = client().performRequest(aliasesRequest);
         return EntityUtils.toString(response.getEntity());
     }
 

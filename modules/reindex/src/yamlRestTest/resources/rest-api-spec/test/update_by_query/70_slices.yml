@@ -54,6 +54,8 @@
 
 ---
 "Multiple slices with wait_for_completion=false":
+  - skip:
+      features: warnings
   - do:
       index:
         index:   test
@@ -143,8 +145,12 @@
 
   # Only the "parent" reindex task wrote its status to the tasks index though
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       indices.refresh: {}
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true
         index: .tasks
@@ -152,6 +158,8 @@
 
 ---
 "Multiple slices with rethrottle":
+  - skip:
+      features: warnings
   - do:
       index:
         index:   test
@@ -246,8 +254,12 @@
 
   # Only the "parent" reindex task wrote its status to the tasks index though
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       indices.refresh: {}
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true
         index: .tasks

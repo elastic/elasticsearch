@@ -33,4 +33,4 @@ GET .watches/_search
   "size" : 100
 }
 --------------------------------------------------
-// TEST[setup:my_active_watch]
+// TEST[skip:deprecation warning]

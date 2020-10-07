@@ -69,6 +69,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
@@ -317,7 +318,7 @@ public class FetchPhase {
             return new HitContext(hit, subReaderContext, subDocId, lookup.source(), sharedCache);
         } else {
             SearchHit hit;
-            loadStoredFields(context.mapperService(), fieldReader, fieldsVisitor, subDocId);
+            loadStoredFields(context::fieldType, fieldReader, fieldsVisitor, subDocId);
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
@@ -373,7 +374,7 @@ public class FetchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context.mapperService(), storedFieldReader, rootFieldsVisitor, rootDocId);
+            loadStoredFields(context::fieldType, storedFieldReader, rootFieldsVisitor, rootDocId);
             rootId = rootFieldsVisitor.id();
 
             if (needSource) {
@@ -388,7 +389,7 @@ public class FetchPhase {
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(context.mapperService(), storedFieldReader, nestedFieldsVisitor, nestedDocId);
+            loadStoredFields(context::fieldType, storedFieldReader, nestedFieldsVisitor, nestedDocId);
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -522,12 +523,12 @@ public class FetchPhase {
         return nestedIdentity;
     }
 
-    private void loadStoredFields(MapperService mapperService,
+    private void loadStoredFields(Function<String, MappedFieldType> fieldTypeLookup,
                                   CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
                                   FieldsVisitor fieldVisitor, int docId) throws IOException {
         fieldVisitor.reset();
         fieldReader.accept(docId, fieldVisitor);
-        fieldVisitor.postProcess(mapperService);
+        fieldVisitor.postProcess(fieldTypeLookup);
     }
 
     private static void fillDocAndMetaFields(SearchContext context, FieldsVisitor fieldsVisitor,

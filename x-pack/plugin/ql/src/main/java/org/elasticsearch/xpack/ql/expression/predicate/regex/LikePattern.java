@@ -22,7 +22,7 @@ import java.util.Objects;
  *
  * To prevent conflicts with ES, the string and char must be validated to not contain '*'.
  */
-public class LikePattern implements StringPattern {
+public class LikePattern extends AbstractStringPattern {
 
     private final String pattern;
     private final char escape;
@@ -30,6 +30,7 @@ public class LikePattern implements StringPattern {
     private final String regex;
     private final String wildcard;
     private final String indexNameWildcard;
+    private final String string;
 
     public LikePattern(String pattern, char escape) {
         this.pattern = pattern;
@@ -38,6 +39,7 @@ public class LikePattern implements StringPattern {
         this.regex = StringUtils.likeToJavaPattern(pattern, escape);
         this.wildcard = StringUtils.likeToLuceneWildcard(pattern, escape);
         this.indexNameWildcard = StringUtils.likeToIndexWildcard(pattern, escape);
+        this.string = pattern.replace(Character.toString(escape), StringUtils.EMPTY);
     }
 
     public String pattern() {
@@ -49,14 +51,19 @@ public class LikePattern implements StringPattern {
     }
 
     @Override
+    Automaton createAutomaton() {
+        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
+        return MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+    }
+
+    @Override
     public String asJavaRegex() {
         return regex;
     }
 
     @Override
-    public boolean matchesAll() {
-        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
-        return Operations.isTotal(MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+    public String asString() {
+        return string;
     }
 
     /**

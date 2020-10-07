@@ -18,6 +18,10 @@ Makes the index read-only.
 [[ilm-freeze-action]]<<ilm-freeze,Freeze>>::
 Freeze the index to minimize its memory footprint.
 
+[[ilm-migrate-action]]<<ilm-migrate,Migrate>>::
+Move the index shards to the <<data-tiers, data tier>> that corresponds
+to the current {ilm-init] phase.
+
 [[ilm-readonly-action]]<<ilm-readonly,Read only>>::
 Block write operations to the index. 
   
@@ -54,6 +58,7 @@ include::actions/ilm-allocate.asciidoc[]
 include::actions/ilm-delete.asciidoc[]
 include::actions/ilm-forcemerge.asciidoc[]
 include::actions/ilm-freeze.asciidoc[]
+include::actions/ilm-migrate.asciidoc[]
 include::actions/ilm-readonly.asciidoc[]
 include::actions/ilm-rollover.asciidoc[]
 ifdef::permanently-unreleased-branch[]

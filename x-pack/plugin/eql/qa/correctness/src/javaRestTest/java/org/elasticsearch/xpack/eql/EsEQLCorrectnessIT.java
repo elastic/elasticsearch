@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.eql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
@@ -35,6 +37,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -74,19 +77,13 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
                     RequestOptions.DEFAULT
                 );
             highLevelClient().snapshot()
-                .restore(
-                    new RestoreSnapshotRequest(GCS_REPO_NAME, SNAPSHOT_NAME).indices(INDEX_NAME).waitForCompletion(true),
-                    RequestOptions.DEFAULT
-                );
+                .restore(new RestoreSnapshotRequest(GCS_REPO_NAME, SNAPSHOT_NAME).waitForCompletion(true), RequestOptions.DEFAULT);
         }
     }
 
     @After
     public void checkSearchContent() throws Exception {
         assertNoSearchContexts(client());
-        if (highLevelClient != null) {
-            highLevelClient.close();
-        }
     }
 
     @AfterClass
@@ -112,10 +109,11 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
         builder.setRequestConfigCallback(
-            requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(900000)
-                .setConnectionRequestTimeout(900000)
-                .setSocketTimeout(900000)
+            requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(30000000)
+                .setConnectionRequestTimeout(30000000)
+                .setSocketTimeout(30000000)
         );
+        builder.setStrictDeprecationMode(true);
         return builder.build();
     }
 

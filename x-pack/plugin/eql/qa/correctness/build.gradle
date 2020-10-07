@@ -23,4 +23,5 @@ testClusters.all {
   keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
+  jvmArgs '-Xms8g', '-Xmx8g'
 }

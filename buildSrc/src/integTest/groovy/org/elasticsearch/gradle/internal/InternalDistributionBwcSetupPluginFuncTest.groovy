@@ -35,7 +35,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
     def setup() {
         remoteGitRepo = new File(setupGitRemote(), '.git')
 
-        "git clone ${remoteGitRepo.absolutePath}".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        execute("git clone ${remoteGitRepo.absolutePath}", testProjectDir.root)
         File buildScript = new File(testProjectDir.root, 'remote/build.gradle')
         internalBuild(buildScript)
         buildScript << """

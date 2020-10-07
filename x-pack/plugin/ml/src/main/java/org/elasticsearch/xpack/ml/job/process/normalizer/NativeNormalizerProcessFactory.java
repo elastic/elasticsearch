@@ -81,6 +81,9 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
             List<String> command = new NormalizerBuilder(env, jobId, quantilesState, bucketSpan).build();
             processPipes.addArgs(command);
             nativeController.startProcess(command);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("Interrupted while launching normalizer for job " + jobId);
         } catch (IOException e) {
             String msg = "Failed to launch normalizer for job " + jobId;
             LOGGER.error(msg);

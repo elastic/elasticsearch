@@ -43,8 +43,10 @@ public interface NativeProcess extends Closeable {
 
     /**
      * Kill the process.  Do not wait for it to stop gracefully.
+     * @param awaitCompletion Indicates whether to wait for the process to die.  Even if this
+     *                        is set to <code>true</code> the process will not complete gracefully.
      */
-    void kill() throws IOException;
+    void kill(boolean awaitCompletion) throws IOException;
 
     /**
      * The time the process was started

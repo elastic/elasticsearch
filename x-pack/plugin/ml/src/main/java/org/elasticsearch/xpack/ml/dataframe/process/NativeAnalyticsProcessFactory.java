@@ -116,6 +116,9 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
             new AnalyticsBuilder(env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
         try {
             analyticsBuilder.build();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("Interrupted while launching data frame analytics process for job " + jobId);
         } catch (IOException e) {
             String msg = "Failed to launch data frame analytics process for job " + jobId;
             LOGGER.error(msg);

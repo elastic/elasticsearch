@@ -127,6 +127,9 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                 autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
             autodetectBuilder.build();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("Interrupted while launching autodetect for job " + job.getId());
         } catch (IOException e) {
             String msg = "Failed to launch autodetect for job " + job.getId();
             LOGGER.error(msg);

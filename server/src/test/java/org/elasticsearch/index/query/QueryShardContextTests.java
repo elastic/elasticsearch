@@ -108,7 +108,7 @@ public class QueryShardContextTests extends ESTestCase {
         assertThat(result.name(), equalTo("name"));
     }
 
-    public void testUnmappedFieldType() {
+    public void testBuildAnonymousFieldType() {
         QueryShardContext context = createQueryShardContext("uuid", null);
         assertThat(context.buildAnonymousFieldType("keyword"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));

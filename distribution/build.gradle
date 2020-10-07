@@ -72,7 +72,7 @@ def buildDefaultNoticeTaskProvider = tasks.register("buildDefaultNotice", Notice
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
-def buildOssNoticeTaskProvider = tasks.register("buildOssNotice", NoticeTask).configure {
+def buildOssNoticeTaskProvider = tasks.register("buildOssNotice", NoticeTask) {
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 

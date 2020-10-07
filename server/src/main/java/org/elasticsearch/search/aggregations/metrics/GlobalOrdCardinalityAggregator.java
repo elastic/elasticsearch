@@ -26,7 +26,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -52,8 +51,10 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     @Nullable
     private HyperLogLogPlusPlusSparse counts;
 
-    private OrdinalsCollector collector;
-
+    private final BigArrays bigArrays;
+    private SortedSetDocValues values;
+    private final int maxOrd;
+    private ObjectArray<BitArray> visitedOrds;
     private final int precision;
 
     public GlobalOrdCardinalityAggregator(
@@ -66,9 +67,10 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
-        this.counts = null;
-        this.collector = new OrdinalsCollector(context.bigArrays(), maxOrd);
         this.precision = precision;
+        this.maxOrd = maxOrd;
+        this.bigArrays = context.bigArrays();
+        this.visitedOrds = bigArrays.newObjectArray(1);
     }
 
     @Override
@@ -79,16 +81,61 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        this.collector.set(valuesSource.globalOrdinalsValues(ctx));
-        return collector;
+        values = valuesSource.globalOrdinalsValues(ctx);
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucketOrd) throws IOException {
+                visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
+                BitArray bits = visitedOrds.get(bucketOrd);
+                if (bits == null) {
+                    bits = new BitArray(maxOrd, bigArrays);
+                    visitedOrds.set(bucketOrd, bits);
+                }
+                if (values.advanceExact(doc)) {
+                    for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                        bits.set((int) ord);
+                    }
+                }
+            }
+        };
     }
 
     @Override
     protected void doPostCollection() throws IOException {
-        counts = new HyperLogLogPlusPlusSparse(precision, collector.bigArrays, collector.visitedOrds.size());
-        collector.postCollect(counts);
-        collector.close();
-        collector = null;
+        counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
+        try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
+            for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
+                final BitArray bits = visitedOrds.get(bucket);
+                if (bits != null) {
+                    allVisitedOrds.or(bits);
+                }
+            }
+
+            try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
+                final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+                for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE;
+                     ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                    final BytesRef value = values.lookupOrd(ord);
+                    MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
+                    hashes.set(ord, hash.h1);
+                }
+                for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
+                    try (BitArray bits = visitedOrds.get(bucket)){
+                        if (bits != null) {
+                            visitedOrds.set(bucket, null); // remove Bitset from array
+                            counts.ensureCapacity(bucket, bits.cardinality());
+                            for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
+                                 ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                                counts.collect(bucket, hashes.get(ord));
+                            }
+                        }
+                    }
+                }
+                // free resources
+                Releasables.close(visitedOrds);
+                visitedOrds = null;
+            }
+        }
     }
 
     @Override
@@ -114,78 +161,11 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     protected void doClose() {
-        Releasables.close(counts, collector);
-    }
-
-    private static class OrdinalsCollector extends LeafBucketCollector implements Releasable {
-
-        private final BigArrays bigArrays;
-        private SortedSetDocValues values;
-        private final int maxOrd;
-        private ObjectArray<BitArray> visitedOrds;
-
-        OrdinalsCollector(BigArrays bigArrays, int maxOrd) {
-            this.maxOrd = maxOrd;
-            this.bigArrays = bigArrays;
-            this.visitedOrds = bigArrays.newObjectArray(1);
-        }
-
-        protected void set(SortedSetDocValues values) {
-            this.values = values;
-        }
-
-        @Override
-        public void collect(int doc, long bucketOrd) throws IOException {
-            visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
-            BitArray bits = visitedOrds.get(bucketOrd);
-            if (bits == null) {
-                bits = new BitArray(maxOrd, bigArrays);
-                visitedOrds.set(bucketOrd, bits);
-            }
-            if (values.advanceExact(doc)) {
-                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
-                    bits.set((int) ord);
-                }
-            }
-        }
-
-        protected void postCollect(HyperLogLogPlusPlusSparse counts) throws IOException {
-            try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
-                for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
-                    final BitArray bits = visitedOrds.get(bucket);
-                    if (bits != null) {
-                        allVisitedOrds.or(bits);
-                    }
-                }
-
-                try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
-                    final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-                    for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE;
-                         ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : Long.MAX_VALUE) {
-                        final BytesRef value = values.lookupOrd(ord);
-                        MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
-                        hashes.set(ord, hash.h1);
-                    }
-                    for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
-                        final BitArray bits = visitedOrds.get(bucket);
-                        if (bits != null) {
-                            counts.ensureCapacity(bucket, bits.cardinality());
-                            for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
-                                 ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
-                                counts.collect(bucket, hashes.get(ord));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        @Override
-        public void close() {
+        if (visitedOrds != null) {
             for (int i = 0; i < visitedOrds.size(); i++) {
                 Releasables.close(visitedOrds.get(i));
             }
-            Releasables.close(visitedOrds);
         }
+        Releasables.close(visitedOrds, counts);
     }
 }

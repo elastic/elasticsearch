@@ -44,10 +44,6 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
@@ -208,7 +204,7 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     }
 
-    public void testRequestParsingThrowsException() throws Exception {
+    public void testRequestParsingThrowsException() {
         BytesReference inputBytes = new BytesArray(
                 " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}");
         TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
@@ -255,35 +251,6 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertEquals(new BytesArray("{}"), request.doc());
             assertEquals(XContentType.JSON, request.xContentType());
         }
-    }
-
-    public void testFieldTypeToTermVectorString() throws Exception {
-        FieldType ft = new FieldType();
-        ft.setStoreTermVectorOffsets(false);
-        ft.setStoreTermVectorPayloads(true);
-        ft.setStoreTermVectors(true);
-        ft.setStoreTermVectorPositions(true);
-        String ftOpts = FieldMapper.termVectorOptionsToString(ft);
-        assertThat("with_positions_payloads", equalTo(ftOpts));
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(null);
-        boolean exceptionThrown = false;
-        try {
-            TypeParsers.parseTermVector("", ftOpts, builder);
-        } catch (MapperParsingException e) {
-            exceptionThrown = true;
-        }
-        assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.",
-            exceptionThrown, equalTo(false));
-    }
-
-    public void testTermVectorStringGenerationWithoutPositions() throws Exception {
-        FieldType ft = new FieldType();
-        ft.setStoreTermVectorOffsets(true);
-        ft.setStoreTermVectorPayloads(true);
-        ft.setStoreTermVectors(true);
-        ft.setStoreTermVectorPositions(false);
-        String ftOpts = FieldMapper.termVectorOptionsToString(ft);
-        assertThat(ftOpts, equalTo("with_offsets"));
     }
 
     public void testMultiParser() throws Exception {

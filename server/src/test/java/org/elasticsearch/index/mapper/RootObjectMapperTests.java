@@ -368,7 +368,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
         assertThat(mapper.mappingSource().toString(), containsString("\"analyzer\":\"foobar\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
-            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] not found for field [__dynamic__my_template]]");
+            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] has not been configured in mappings]");
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {

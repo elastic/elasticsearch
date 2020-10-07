@@ -59,6 +59,9 @@ All operations on index templates.
 `manage_ingest_pipelines`::
 All operations on ingest node pipelines.
 
+`manage_logstash_pipelines`::
+All operations on logstash pipelines.
+
 `manage_ml`::
 All {ml} operations, such as creating and deleting {dfeeds}, jobs, and model
 snapshots.

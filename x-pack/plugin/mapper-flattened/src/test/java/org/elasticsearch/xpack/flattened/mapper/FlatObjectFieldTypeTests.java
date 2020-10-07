@@ -27,11 +27,5 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         Map<String, Object> sourceValue = Map.of("key", "value");
         MappedFieldType mapper = new FlatObjectFieldMapper.Builder("field").build(context).fieldType();
         assertEquals(List.of(sourceValue), fetchSourceValue(mapper, sourceValue));
-
-        MappedFieldType nullValueMapper = new FlatObjectFieldMapper.Builder("field")
-            .nullValue("NULL")
-            .build(context)
-            .fieldType();
-        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 }

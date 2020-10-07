@@ -8,6 +8,9 @@ package org.elasticsearch.compat;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.MediaTypeParser;
+import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RestCompatibilityPlugin;
@@ -15,11 +18,13 @@ import org.elasticsearch.rest.RestStatus;
 
 public class CompatibleVersionPlugin extends Plugin implements RestCompatibilityPlugin {
 
+    MediaTypeParser<MediaType> mediaTypeParser = new MediaTypeParser.Builder<>()
+        .build(MediaTypeRegistry.getInstance());
     @Override
     public Version getCompatibleVersion(@Nullable String acceptHeader, @Nullable String contentTypeHeader, boolean hasContent) {
-        Byte aVersion = XContentType.parseVersion(acceptHeader);
+        Byte aVersion = mediaTypeParser.parseVersion(acceptHeader);
         byte acceptVersion = aVersion == null ? Version.CURRENT.major : Integer.valueOf(aVersion).byteValue();
-        Byte cVersion = XContentType.parseVersion(contentTypeHeader);
+        Byte cVersion = mediaTypeParser.parseVersion(contentTypeHeader);
         byte contentTypeVersion = cVersion == null ? Version.CURRENT.major : Integer.valueOf(cVersion).byteValue();
 
         // accept version must be current or prior

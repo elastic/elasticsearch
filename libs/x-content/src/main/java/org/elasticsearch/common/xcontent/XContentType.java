@@ -133,7 +133,7 @@ public enum XContentType implements MediaType {
             Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8"))
         .withMediaTypeAndParams("application/vnd.elasticsearch+x-ndjson", JSON,
             Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8"))
-        .build();
+        .build(MediaTypeRegistry.getInstance());
 
     /**
      * Accepts a format string, which is most of the time is equivalent to {@link XContentType#subtype()}

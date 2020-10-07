@@ -25,27 +25,22 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 public class MediaTypeParser<T extends MediaType> {
-    private final Map<String, T> formatToMediaType;
-    private final Map<String, T> typeWithSubtypeToMediaType;
-    private final Map<String, Map<String, Pattern>> parametersMap;
+    private MediaTypeRegistry mediaTypeRegistry;
 
-    public MediaTypeParser(Map<String, T> formatToMediaType, Map<String, T> typeWithSubtypeToMediaType,
-                           Map<String, Map<String, Pattern>> parametersMap) {
-        this.formatToMediaType = Map.copyOf(formatToMediaType);
-        this.typeWithSubtypeToMediaType = Map.copyOf(typeWithSubtypeToMediaType);
-        this.parametersMap = Map.copyOf(parametersMap);
+    public MediaTypeParser(MediaTypeRegistry mediaTypeRegistry) {
+        this.mediaTypeRegistry = mediaTypeRegistry;
     }
-
+    @SuppressWarnings("unchecked")
     public T fromMediaType(String mediaType) {
         ParsedMediaType parsedMediaType = parseMediaType(mediaType);
-        return parsedMediaType != null ? parsedMediaType.getMediaType() : null;
+        return parsedMediaType != null ? (T)parsedMediaType.getMediaType() : null;
     }
-
+    @SuppressWarnings("unchecked")
     public T fromFormat(String format) {
         if (format == null) {
             return null;
         }
-        return formatToMediaType.get(format.toLowerCase(Locale.ROOT));
+        return (T)mediaTypeRegistry.formatToMediaType(format.toLowerCase(Locale.ROOT));
     }
 
     /**
@@ -65,7 +60,7 @@ public class MediaTypeParser<T extends MediaType> {
                 String type = typeSubtype[0];
                 String subtype = typeSubtype[1];
                 String typeWithSubtype = type + "/" + subtype;
-                T xContentType = typeWithSubtypeToMediaType.get(typeWithSubtype);
+                MediaType xContentType = mediaTypeRegistry.typeWithSubtypeToMediaType(typeWithSubtype);
                 if (xContentType != null) {
                     Map<String, String> parameters = new HashMap<>();
                     for (int i = 1; i < split.length; i++) {
@@ -90,8 +85,8 @@ public class MediaTypeParser<T extends MediaType> {
     }
 
     private boolean isValidParameter(String typeWithSubtype, String parameterName, String parameterValue) {
-        if (parametersMap.containsKey(typeWithSubtype)) {
-            Map<String, Pattern> parameters = parametersMap.get(typeWithSubtype);
+        if (mediaTypeRegistry.parametersFor(typeWithSubtype) != null) {
+            Map<String, Pattern> parameters = mediaTypeRegistry.parametersFor(typeWithSubtype);
             if (parameters.containsKey(parameterName)) {
                 Pattern regex = parameters.get(parameterName);
                 return regex.matcher(parameterValue).matches();
@@ -104,19 +99,32 @@ public class MediaTypeParser<T extends MediaType> {
         return s.trim().equals(s) == false;
     }
 
+    private static final String COMPATIBLE_WITH_PARAMETER_NAME = "compatible-with";
+
+    public  Byte parseVersion(String mediaType) {
+        ParsedMediaType parsedMediaType = parseMediaType(mediaType);
+        if (parsedMediaType != null) {
+            String version = parsedMediaType
+                .getParameters()
+                .get(COMPATIBLE_WITH_PARAMETER_NAME);
+            return version != null ? Byte.parseByte(version) : null;
+        }
+        return null;
+    }
+
     /**
      * A media type object that contains all the information provided on a Content-Type or Accept header
      */
     public class ParsedMediaType {
         private final Map<String, String> parameters;
-        private final T mediaType;
+        private final MediaType mediaType;
 
-        public ParsedMediaType(T mediaType, Map<String, String> parameters) {
+        public ParsedMediaType(MediaType mediaType, Map<String, String> parameters) {
             this.parameters = parameters;
             this.mediaType = mediaType;
         }
 
-        public T getMediaType() {
+        public MediaType getMediaType() {
             return mediaType;
         }
 
@@ -126,11 +134,11 @@ public class MediaTypeParser<T extends MediaType> {
     }
 
     public static class Builder<T extends MediaType> {
-        private final Map<String, T> formatToMediaType = new HashMap<>();
-        private final Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
+        private final Map<String, MediaType> formatToMediaType = new HashMap<>();
+        private final Map<String, MediaType> typeWithSubtypeToMediaType = new HashMap<>();
         private final Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();
 
-        public Builder<T> withMediaTypeAndParams(String alternativeMediaType, T mediaType, Map<String, String> paramNameAndValueRegex) {
+        public Builder<T> withMediaTypeAndParams(String alternativeMediaType, MediaType mediaType, Map<String, String> paramNameAndValueRegex) {
             typeWithSubtypeToMediaType.put(alternativeMediaType.toLowerCase(Locale.ROOT), mediaType);
             formatToMediaType.put(mediaType.format(), mediaType);
 
@@ -146,15 +154,9 @@ public class MediaTypeParser<T extends MediaType> {
             return this;
         }
 
-        public Builder<T> copyFromMediaTypeParser(MediaTypeParser<? extends T> mediaTypeParser) {
-            formatToMediaType.putAll(mediaTypeParser.formatToMediaType);
-            typeWithSubtypeToMediaType.putAll(mediaTypeParser.typeWithSubtypeToMediaType);
-            parametersMap.putAll(mediaTypeParser.parametersMap);
-            return this;
-        }
-
-        public MediaTypeParser<T> build() {
-            return new MediaTypeParser<>(formatToMediaType, typeWithSubtypeToMediaType, parametersMap);
+        public MediaTypeParser<T> build(MediaTypeRegistry mediaTypeRegistry) {
+            mediaTypeRegistry.register(formatToMediaType, typeWithSubtypeToMediaType, parametersMap);
+            return new MediaTypeParser<T>(mediaTypeRegistry);
         }
     }
 }

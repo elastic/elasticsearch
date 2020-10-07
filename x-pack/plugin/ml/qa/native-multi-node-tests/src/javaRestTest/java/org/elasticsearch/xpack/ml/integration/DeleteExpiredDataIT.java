@@ -95,6 +95,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63379")
     public void testDeleteExpiredDataNoThrottle() throws Exception {
         testExpiredDeletion(null, 10010);
     }

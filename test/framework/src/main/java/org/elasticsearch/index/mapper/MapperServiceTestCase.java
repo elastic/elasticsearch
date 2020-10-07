@@ -269,7 +269,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Mapper mapper(String name) {
+            public Mapper getMapper(String name) {
                 throw new UnsupportedOperationException();
             }
 
@@ -289,7 +289,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public MappedFieldType fieldType(String path) {
+            public MappedFieldType getFieldType(String path) {
                 return mapperService.fieldType(path);
             }
 
@@ -357,8 +357,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected QueryShardContext createQueryShardContext(MapperService mapperService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getMapperService()).thenReturn(mapperService);
-        when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.isFieldMapped(anyString()))
+            .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(queryShardContext.getSearchQuoteAnalyzer(anyObject())).thenCallRealMethod();
         when(queryShardContext.getSearchAnalyzer(anyObject())).thenCallRealMethod();

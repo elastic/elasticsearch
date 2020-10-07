@@ -85,7 +85,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
      * if there is no parent-join field in this mapping.
      */
     public static ParentJoinFieldMapper getMapper(QueryShardContext context) {
-        return getMapper(context::fieldMapper, context.getMapperService().documentMapper().mappers()::getMapper);
+        return getMapper(context::getFieldType, context.getMapperService().documentMapper().mappers()::getMapper);
     }
 
     /**
@@ -235,7 +235,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, false) {
+            return new SourceValueFetcher(name(), mapperService) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;

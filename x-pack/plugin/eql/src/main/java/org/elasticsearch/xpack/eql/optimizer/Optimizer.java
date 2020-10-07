@@ -7,15 +7,12 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
-import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
-import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -24,14 +21,12 @@ import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanEqualsSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
@@ -70,7 +65,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
-                new ReplaceWildcards(),
                 new ReplaceSurrogateFunction(),
                 new ReplaceRegexMatch());
 
@@ -106,51 +100,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new SetAsOptimized());
 
         return Arrays.asList(substitutions, operators, constraints, operators, ordering, local, label);
-    }
-
-    private static class ReplaceWildcards extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(e -> {
-                // expr : "wildcard*phrase" || expr !: "wildcard*phrase"
-                if (e instanceof InsensitiveBinaryComparison) {
-                    InsensitiveBinaryComparison cmp = (InsensitiveBinaryComparison) e;
-
-                    Expression target = null;
-                    String wildString = null;
-
-                    // check either side since the literals can be on both sides
-                    // "a" : "*" is the same as "*" : "a"
-                    if (isWildcard(cmp.left())) {
-                        wildString = (String) cmp.left().fold();
-                        target = cmp.right();
-                    } else if (isWildcard(cmp.right())) {
-                        wildString = (String) cmp.right().fold();
-                        target = cmp.left();
-                    }
-
-                    if (target != null) {
-                        Expression like = new Like(e.source(), target, StringUtils.toLikePattern(wildString), true);
-                        if (e instanceof InsensitiveNotEquals) {
-                            like = new Not(e.source(), like);
-                        }
-
-                        e = like;
-                    }
-                }
-
-                return e;
-            });
-        }
-
-        private static boolean isWildcard(Expression expr) {
-            if (expr instanceof Literal) {
-                Object value = expr.fold();
-                return value instanceof String && ((String) value).contains("*");
-            }
-            return false;
-        }
     }
 
     private static class ReplaceNullChecks extends OptimizerRule<Filter> {

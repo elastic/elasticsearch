@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.License;
@@ -79,7 +80,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
         ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(trainedModelProvider,
             analyticsConfig,
-            new DataFrameAnalyticsAuditor(client(), "test-node"),
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
             (ex) -> { throw new ElasticsearchException(ex); },
             new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
         );

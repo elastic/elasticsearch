@@ -57,7 +57,7 @@ public abstract class AggregationContext {
      * Lookup the context for a field.
      */
     public final FieldContext buildFieldContext(String field) {
-        MappedFieldType ft = fieldType(field);
+        MappedFieldType ft = getFieldType(field);
         if (ft == null) {
             // The field is unmapped
             return null;
@@ -80,12 +80,12 @@ public abstract class AggregationContext {
     /**
      * Lookup a {@link MappedFieldType} by path.
      */
-    public abstract MappedFieldType fieldType(String path);
+    public abstract MappedFieldType getFieldType(String path);
 
     /**
      * Lookup a field {@link Mapper} by path.
      */
-    public abstract Mapper mapper(String path);
+    public abstract Mapper getMapper(String path);
 
     /**
      * Compile a script.
@@ -159,12 +159,12 @@ public abstract class AggregationContext {
             }
 
             @Override
-            public MappedFieldType fieldType(String path) {
-                return context.fieldMapper(path);
+            public MappedFieldType getFieldType(String path) {
+                return context.getFieldType(path);
             }
 
             @Override
-            public Mapper mapper(String path) {
+            public Mapper getMapper(String path) {
                 return context.getMapperService().documentMapper().mappers().getMapper(path);
             }
 

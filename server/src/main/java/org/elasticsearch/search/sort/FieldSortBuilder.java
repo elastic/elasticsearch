@@ -325,7 +325,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return order == SortOrder.DESC ? SORT_DOC_REVERSE : SORT_DOC;
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
             fieldType = resolveUnmappedType(context);
@@ -376,7 +376,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (canRewriteToMatchNone() == false) {
             return false;
         }
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             // unmapped
             return false;
@@ -415,7 +415,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new IllegalArgumentException("sorting by _doc is not supported");
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
             fieldType = resolveUnmappedType(context);
@@ -503,7 +503,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return null;
         }
         IndexReader reader = context.getIndexReader();
-        MappedFieldType fieldType = context.fieldMapper(sortField.getField());
+        MappedFieldType fieldType = context.getFieldType(sortField.getField());
         if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
             return null;
         }

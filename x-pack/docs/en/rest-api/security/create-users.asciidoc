@@ -27,7 +27,7 @@ to as _native users_.
 ==== {api-description-title}
 
 A `password` is required for adding a new user but is optional when updating an
-existing user. To change a user's password,
+existing user. To change a user's password without updating any other fields,
 use the <<security-api-change-password, change password API>>.
 
 For more information about the native realm, see

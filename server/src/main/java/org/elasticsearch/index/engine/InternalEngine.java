@@ -181,7 +181,7 @@ public class InternalEngine extends Engine {
      * {@link IndexWriter#getPendingNumDocs()} yet, then IndexWriter can fail with too many documents. In this case, we have to fail
      * the engine because we already generated sequence numbers for write operations; otherwise we will have gaps in sequence numbers.
      * To avoid this, we keep track the number of documents that are being added to IndexWriter, and account it in
-     * {@link InternalEngine#tryAcquireInFlightDocs(Operation, int)}. Although we can double count some adding documents in both IW and Engine,
+     * {@link InternalEngine#tryAcquireInFlightDocs(Operation, int)}. Although we can double count some inFlight documents in IW and Engine,
      * this shouldn't be an issue because it happens for a short window and we adjust the inFlightDocCount once an indexing is completed.
      */
     private final AtomicLong inFlightDocCount = new AtomicLong();

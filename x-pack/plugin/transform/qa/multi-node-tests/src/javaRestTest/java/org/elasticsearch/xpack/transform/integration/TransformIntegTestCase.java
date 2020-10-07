@@ -149,6 +149,14 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
                 return restClient.transform().startTransform(new StartTransformRequest(id), options);
             } catch (ElasticsearchStatusException e) {
+                logger.warn(
+                    "Failed to start transform [{}], remaining retries [{}], error: [{}], status: [{}]",
+                    id,
+                    retries,
+                    e.getDetailedMessage(),
+                    e.status()
+                );
+
                 if (RestStatus.CONFLICT.equals(e.status()) == false) {
                     throw e;
                 }

@@ -127,7 +127,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
-    public static final Version CLONE_SNAPSHOT_VERSION = Version.V_8_0_0;
+    public static final Version CLONE_SNAPSHOT_VERSION = Version.V_7_10_0;
 
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
 
@@ -324,6 +324,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 .collect(Collectors.toMap(IndexId::getName, Function.identity()));
     }
 
+    // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
+    //       for repository metadata and loading it has predictable performance
     public void cloneSnapshot(CloneSnapshotRequest request, ActionListener<Void> listener) {
         final String repositoryName = request.repository();
         Repository repository = repositoriesService.repository(repositoryName);

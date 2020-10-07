@@ -140,7 +140,7 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, false) {
+            return new SourceValueFetcher(name(), mapperService) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;
@@ -151,7 +151,7 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return (cache, breakerService, mapperService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
+            return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
                 public LeafHistogramFieldData load(LeafReaderContext context) {

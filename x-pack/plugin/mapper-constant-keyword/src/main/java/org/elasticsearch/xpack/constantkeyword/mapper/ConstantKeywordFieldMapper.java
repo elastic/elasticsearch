@@ -79,7 +79,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name) {
             super(name);
-            value.setShouldSerialize(() -> value.getValue() != null);
+            value.setSerializerCheck((id, ic, v) -> v != null);
             value.setMergeValidator((previous, current) -> previous == null || Objects.equals(previous, current));
         }
 
@@ -127,7 +127,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(mapperService -> value, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

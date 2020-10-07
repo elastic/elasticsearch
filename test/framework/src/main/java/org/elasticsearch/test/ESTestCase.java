@@ -128,6 +128,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -870,7 +871,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Generate a random valid date formatter pattern.
      */
     public static String randomDateFormatterPattern() {
-        return randomFrom(FormatNames.values()).getName();
+        //WEEKYEAR should be used instead of WEEK_YEAR
+        EnumSet<FormatNames> formatNames = EnumSet.complementOf(EnumSet.of(FormatNames.WEEK_YEAR));
+        return randomFrom(formatNames).getName();
     }
 
     /**

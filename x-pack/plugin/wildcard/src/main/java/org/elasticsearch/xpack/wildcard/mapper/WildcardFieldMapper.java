@@ -969,8 +969,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 @Override
                 public IndexFieldData<?> build(
                     IndexFieldDataCache cache,
-                    CircuitBreakerService breakerService,
-                    MapperService mapperService
+                    CircuitBreakerService breakerService
                 ) {
                     return new StringBinaryIndexFieldData(name(), CoreValuesSourceType.BYTES);
                 }
@@ -983,7 +982,7 @@ public class WildcardFieldMapper extends FieldMapper {
                  throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
              }
 
-             return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+             return new SourceValueFetcher(name(), mapperService, nullValue) {
                  @Override
                  protected String parseSourceValue(Object value) {
                      String keywordValue = value.toString();

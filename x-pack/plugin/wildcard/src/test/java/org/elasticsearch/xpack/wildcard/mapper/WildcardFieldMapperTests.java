@@ -886,7 +886,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup =
             (fieldType, fieldIndexName, searchLookup) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
-            return builder.build(new IndexFieldDataCache.None(), null, null);
+            return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, xContentRegistry(), null, null, null,

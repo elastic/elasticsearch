@@ -21,10 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -42,13 +44,19 @@ public final class TextParams {
 
         public Analyzers(Supplier<NamedAnalyzer> defaultAnalyzer) {
             this.indexAnalyzer = Parameter.analyzerParam("analyzer", false,
-                m -> m.fieldType().indexAnalyzer(), defaultAnalyzer);
+                m -> m.fieldType().indexAnalyzer(), defaultAnalyzer)
+                .setSerializerCheck((id, ic, a) -> id || ic ||
+                    Objects.equals(a, getSearchAnalyzer()) == false || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
+                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
             this.searchAnalyzer
                 = Parameter.analyzerParam("search_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), indexAnalyzer::getValue);
+                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), indexAnalyzer::getValue)
+                .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
+                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.searchQuoteAnalyzer
                 = Parameter.analyzerParam("search_quote_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), searchAnalyzer::getValue);
+                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), searchAnalyzer::getValue)
+                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
         }
 
         public NamedAnalyzer getIndexAnalyzer() {
@@ -79,6 +87,20 @@ public final class TextParams {
     public static Parameter<String> indexOptions(Function<FieldMapper, String> initializer) {
         return Parameter.restrictedStringParam("index_options", false, initializer,
             "positions", "docs", "freqs", "offsets");
+    }
+
+    public static FieldType buildFieldType(Supplier<Boolean> indexed,
+                                           Supplier<Boolean> stored,
+                                           Supplier<String> indexOptions,
+                                           Supplier<Boolean> norms,
+                                           Supplier<String> termVectors) {
+        FieldType ft = new FieldType();
+        ft.setStored(stored.get());
+        ft.setTokenized(true);
+        ft.setIndexOptions(toIndexOptions(indexed.get(), indexOptions.get()));
+        ft.setOmitNorms(norms.get() == false);
+        setTermVectorParams(termVectors.get(), ft);
+        return ft;
     }
 
     public static IndexOptions toIndexOptions(boolean indexed, String indexOptions) {
@@ -122,6 +144,9 @@ public final class TextParams {
                 fieldType.setStoreTermVectorPositions(true);
                 return;
             case "with_offsets":
+                fieldType.setStoreTermVectors(true);
+                fieldType.setStoreTermVectorOffsets(true);
+                return;
             case "with_positions_offsets":
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorPositions(true);

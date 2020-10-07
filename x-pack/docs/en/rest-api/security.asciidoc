@@ -64,6 +64,7 @@ without requiring basic authentication:
 * <<security-api-create-api-key,Create API Key>>
 * <<security-api-get-api-key,Get API Key>>
 * <<security-api-invalidate-api-key,Invalidate API Key>>
+* <<security-api-clear-api-key-cache,Clear API key cache>>
 
 [discrete]
 [[security-user-apis]]
@@ -108,6 +109,7 @@ include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-privileges-cache.asciidoc[]
+include::security/clear-api-key-cache.asciidoc[]
 include::security/create-api-keys.asciidoc[]
 include::security/put-app-privileges.asciidoc[]
 include::security/create-role-mappings.asciidoc[]

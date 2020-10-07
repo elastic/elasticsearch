@@ -76,6 +76,10 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         parser.declareString(optionalConstructorArg(), FIELD);
         parser.declareObject(optionalConstructorArg(), (p, c) -> ScriptConfig.fromXContent(p, lenient), SCRIPT);
         parser.declareBoolean(optionalConstructorArg(), MISSING_BUCKET);
+        if (lenient == false) {
+            // either a script or a field must be declared, or both
+            parser.declareRequiredFieldSet(FIELD.getPreferredName(), SCRIPT.getPreferredName());
+        }
     }
 
     public SingleGroupSource(final String field, final ScriptConfig scriptConfig, final boolean missingBucket) {
@@ -96,6 +100,11 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         } else {
             missingBucket = false;
         }
+    }
+
+    boolean isValid() {
+        // either a script or a field must be declared
+        return field != null || scriptConfig != null;
     }
 
     @Override

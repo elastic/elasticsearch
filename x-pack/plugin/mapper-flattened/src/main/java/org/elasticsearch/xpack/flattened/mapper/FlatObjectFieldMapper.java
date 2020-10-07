@@ -424,7 +424,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             }
 
             @Override
-            public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
                 IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(
                     cache, fieldName, valuesSourceType, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
                 return new KeyedFlatObjectFieldData(key, delegate);
@@ -474,7 +474,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+            return new SourceValueFetcher(name(), mapperService, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;

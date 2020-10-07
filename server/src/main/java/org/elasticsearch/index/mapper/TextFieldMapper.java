@@ -267,6 +267,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         final Parameter<PrefixConfig> indexPrefixes = new Parameter<>("index_prefixes", false,
             () -> null, TextFieldMapper::parsePrefixConfig, m -> builder(m).indexPrefixes.getValue()).acceptsNull();
 
+        private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final TextParams.Analyzers analyzers;
@@ -313,7 +314,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 positionIncrementGap,
                 fieldData, freqFilter, eagerGlobalOrdinals,
                 indexPhrases, indexPrefixes,
-                meta);
+                boost, meta);
         }
 
         private TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
@@ -333,6 +334,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             TextFieldType ft = new TextFieldType(buildFullName(context), index.getValue(), store.getValue(), tsi, meta.getValue());
             ft.setIndexAnalyzer(indexAnalyzer);
             ft.setEagerGlobalOrdinals(eagerGlobalOrdinals.getValue());
+            ft.setBoost(boost.getValue());
             if (fieldData.getValue()) {
                 ft.setFielddata(true, freqFilter.getValue());
             }
@@ -1041,6 +1043,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         // this is a pain, but we have to do this to maintain BWC
         builder.field("type", contentType());
+        this.builder.boost.toXContent(builder, includeDefaults);
         this.builder.index.toXContent(builder, includeDefaults);
         this.builder.store.toXContent(builder, includeDefaults);
         this.multiFields.toXContent(builder, params);

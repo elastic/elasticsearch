@@ -99,6 +99,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                 }
             });
 
+        private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
@@ -110,7 +111,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         protected List<Parameter<?>> getParameters() {
             return Arrays.asList(store, indexOptions, norms, termVectors, similarity,
                 analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, positionIncrementGap,
-                meta);
+                boost, meta);
         }
 
         private NamedAnalyzer wrapAnalyzer(NamedAnalyzer in, int positionIncrementGap) {
@@ -140,6 +141,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                 tsi,
                 meta.getValue());
             ft.setIndexAnalyzer(wrapAnalyzer(analyzers.getIndexAnalyzer(), posGap));
+            ft.setBoost(boost.getValue());
             return ft;
         }
 

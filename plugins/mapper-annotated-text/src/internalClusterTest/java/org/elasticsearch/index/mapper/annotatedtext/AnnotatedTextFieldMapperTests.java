@@ -85,6 +85,11 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void assertParseMaximalWarnings() {
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
         checker.registerUpdateCheck(b -> {
@@ -128,6 +133,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             },
             m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
         );
+        checker.registerUpdateCheck(b -> b.field("boost", 2.0), m -> assertEquals(m.fieldType().boost(), 2.0, 0));
     }
 
     @Override
@@ -544,13 +550,12 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("must not have a [null] value"));
     }
 
-    public void testNotIndexedField() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+    public void testNotIndexedField() throws IOException {
+        createMapperService(fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.field("index", false);
-        })));
-        assertEquals("Failed to parse mapping: unknown parameter [index] on mapper [field] of type [annotated_text]",
-            e.getMessage());
+        }));
+        assertWarnings("Parameter [index] has no effect on type [annotated_text] and will be removed in future");
     }
 
     public void testAnalyzedFieldPositionIncrementWithoutPositions() {

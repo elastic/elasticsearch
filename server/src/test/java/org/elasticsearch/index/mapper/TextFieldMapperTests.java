@@ -87,6 +87,11 @@ public class TextFieldMapperTests extends MapperTestCase {
         builder.value(1234);
     }
 
+    @Override
+    protected void assertParseMaximalWarnings() {
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    }
+
     public final void testExistsQueryIndexDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
@@ -185,6 +190,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             },
             m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
         );
+
+        checker.registerUpdateCheck(b -> b.field("boost", 2.0), m -> assertEquals(m.fieldType().boost(), 2.0, 0));
 
     }
 

@@ -170,8 +170,12 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();
+        BytesRef indexedLower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
+        if (indexedLower != null && indexedLower.length == 0) {
+            includeLower = true;
+        }
         return new TermRangeQuery(name(),
-            lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+            indexedLower,
             upperTerm == null ? null : indexedValueForSearch(upperTerm),
             includeLower, includeUpper);
     }

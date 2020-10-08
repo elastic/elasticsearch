@@ -408,7 +408,7 @@ public class Node implements Closeable {
             final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(settings, clusterService,
                 repositoriesServiceReference::get, rerouteServiceReference::get);
             final ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService,
-                snapshotsInfoService);
+                snapshotsInfoService, threadPool.getThreadContext());
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
@@ -543,7 +543,9 @@ public class Node implements Closeable {
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(settings, xContentRegistry,
                 indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), systemIndices, scriptService);
-            clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
+            if (DiscoveryNode.isMasterNode(settings)) {
+                clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
+            }
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
@@ -1137,10 +1139,11 @@ public class Node implements Closeable {
     /** Constructs a ClusterInfoService which may be mocked for tests. */
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
                                                        ThreadPool threadPool, NodeClient client) {
-        final InternalClusterInfoService service =
-            new InternalClusterInfoService(settings, clusterService, threadPool, client);
-        // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
-        clusterService.addListener(service);
+        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        if (DiscoveryNode.isMasterNode(settings)) {
+            // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
+            clusterService.addListener(service);
+        }
         return service;
     }
 

@@ -182,42 +182,39 @@ public class AucRoc extends AbstractAucRoc {
         Filter classAgg = aggs.get(TRUE_AGG_NAME);
         Nested classNested = classAgg.getAggregations().get(NESTED_AGG_NAME);
         Filter classNestedFilter = classNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
+
+        Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
+        Nested restNested = restAgg.getAggregations().get(NESTED_AGG_NAME);
+        Filter restNestedFilter = restNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
+
         if (classAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have the value [{}]",
                 getName(), fields.get().getActualField(), className);
         }
-        if (classNestedFilter.getDocCount() == 0) {
-            throw ExceptionsHelper.badRequestException(
-                "[{}] requires at least one [{}] to have the value [{}]",
-                getName(), fields.get().getPredictedClassField(), className);
-        }
-        Percentiles classPercentiles = classNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
-        double[] tpPercentiles = percentilesArray(classPercentiles);
-
-        Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
-        Nested restNested = restAgg.getAggregations().get(NESTED_AGG_NAME);
-        Filter restNestedFilter = restNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
         if (restAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have a different value than [{}]",
                 getName(), fields.get().getActualField(), className);
         }
-        if (restNestedFilter.getDocCount() == 0) {
+        long filteredDocCount = classNestedFilter.getDocCount() + restNestedFilter.getDocCount();
+        long totalDocCount = classAgg.getDocCount() + restAgg.getDocCount();
+        if (filteredDocCount < totalDocCount) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] requires at least one [{}] to have the value [{}]",
-                getName(), fields.get().getPredictedClassField(), className);
+                "[{}] requires that [{}] appears as one of the [{}] for every document (appeared in {} out of {}). "
+                + "This is probably caused by the {} value being less than the total number of actual classes in the dataset.",
+                getName(), className, fields.get().getPredictedClassField(), filteredDocCount, totalDocCount,
+                org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification.NUM_TOP_CLASSES.getPreferredName());
         }
+
+        Percentiles classPercentiles = classNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
+        double[] tpPercentiles = percentilesArray(classPercentiles);
         Percentiles restPercentiles = restNestedFilter.getAggregations().get(PERCENTILES_AGG_NAME);
         double[] fpPercentiles = percentilesArray(restPercentiles);
 
         List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
         double aucRocScore = calculateAucScore(aucRocCurve);
-        result.set(
-            new Result(
-                aucRocScore,
-                classNestedFilter.getDocCount() + restNestedFilter.getDocCount(),
-                includeCurve ? aucRocCurve : Collections.emptyList()));
+        result.set(new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList()));
     }
 
     @Override

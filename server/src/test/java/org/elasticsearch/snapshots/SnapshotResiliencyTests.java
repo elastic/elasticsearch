@@ -145,6 +145,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -1478,7 +1479,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     },
                     a -> node, null, emptySet()
                 );
-                final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+                final IndexNameExpressionResolver indexNameExpressionResolver =
+                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
                 repositoriesService = new RepositoriesService(
                     settings, clusterService, transportService,
                     Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), threadPool

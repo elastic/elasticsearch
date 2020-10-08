@@ -347,7 +347,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         if (shape == null || supplier != null) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
-        final MappedFieldType fieldType = context.fieldMapper(fieldName);
+        final MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();

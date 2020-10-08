@@ -20,7 +20,6 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -38,7 +37,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -64,6 +62,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -77,12 +76,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class InternalSnapshotsInfoServiceTests extends ESTestCase {
@@ -99,13 +93,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         repositoriesService = mock(RepositoriesService.class);
-        rerouteService = mock(RerouteService.class);
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            final ActionListener<ClusterState> listener = (ActionListener<ClusterState>) invocation.getArguments()[2];
-            listener.onResponse(clusterService.state());
-            return null;
-        }).when(rerouteService).reroute(anyString(), any(Priority.class), any());
+        rerouteService = (reason, priority, listener) -> listener.onResponse(clusterService.state());
     }
 
     @After
@@ -119,12 +107,20 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
     public void testSnapshotShardSizes() throws Exception {
         final int maxConcurrentFetches = randomIntBetween(1, 10);
+
+        final int numberOfShards = randomIntBetween(1, 50);
+        final CountDownLatch rerouteLatch = new CountDownLatch(numberOfShards);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            listener.onResponse(clusterService.state());
+            assertThat(rerouteLatch.getCount(), greaterThanOrEqualTo(0L));
+            rerouteLatch.countDown();
+        };
+
         final InternalSnapshotsInfoService snapshotsInfoService =
             new InternalSnapshotsInfoService(Settings.builder()
                 .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), maxConcurrentFetches)
                 .build(), clusterService, () -> repositoriesService, () -> rerouteService);
 
-        final int numberOfShards = randomIntBetween(1, 50);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final long[] expectedShardSizes = new long[numberOfShards];
         for (int i = 0; i < expectedShardSizes.length; i++) {
@@ -162,17 +158,17 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         latch.countDown();
 
-        assertBusy(() -> {
-            assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(numberOfShards));
-            assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
-            assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(), equalTo(0));
-        });
-        verify(rerouteService, times(numberOfShards)).reroute(anyString(), any(Priority.class), any());
+        assertTrue(rerouteLatch.await(30L, TimeUnit.SECONDS));
+        assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(numberOfShards));
+        assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
+        assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(), equalTo(0));
         assertThat(getShardSnapshotStatusCount.get(), equalTo(numberOfShards));
 
+        final SnapshotShardSizeInfo snapshotShardSizeInfo = snapshotsInfoService.snapshotShardSizes();
         for (int i = 0; i < numberOfShards; i++) {
             final ShardRouting shardRouting = clusterService.state().routingTable().index(indexName).shard(i).primaryShard();
-            assertThat(snapshotsInfoService.snapshotShardSizes().getShardSize(shardRouting), equalTo(expectedShardSizes[i]));
+            assertThat(snapshotShardSizeInfo.getShardSize(shardRouting), equalTo(expectedShardSizes[i]));
+            assertThat(snapshotShardSizeInfo.getShardSize(shardRouting, Long.MIN_VALUE), equalTo(expectedShardSizes[i]));
         }
     }
 
@@ -182,18 +178,19 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10))
                 .build(), clusterService, () -> repositoriesService, () -> rerouteService);
 
-        final Map<InternalSnapshotsInfoService.SnapshotShard, Boolean> results = new ConcurrentHashMap<>();
+        final Map<InternalSnapshotsInfoService.SnapshotShard, Long> results = new ConcurrentHashMap<>();
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
             public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 final InternalSnapshotsInfoService.SnapshotShard snapshotShard =
                     new InternalSnapshotsInfoService.SnapshotShard(new Snapshot("_repo", snapshotId), indexId, shardId);
                 if (randomBoolean()) {
-                    results.put(snapshotShard, Boolean.FALSE);
+                    results.put(snapshotShard, Long.MIN_VALUE);
                     throw new SnapshotException(snapshotShard.snapshot(), "simulated");
                 } else {
-                    results.put(snapshotShard, Boolean.TRUE);
-                    return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
+                    final long shardSize = randomNonNegativeLong();
+                    results.put(snapshotShard, shardSize);
+                    return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, shardSize, null);
                 }
             }
         };
@@ -218,13 +215,29 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         addSnapshotRestoreIndicesThread.start();
         addSnapshotRestoreIndicesThread.join();
 
+        final Predicate<Long> failedSnapshotShardSizeRetrieval = shardSize -> shardSize == Long.MIN_VALUE;
         assertBusy(() -> {
             assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(),
-                equalTo((int) results.values().stream().filter(result -> result.equals(Boolean.TRUE)).count()));
+                equalTo((int) results.values().stream().filter(Predicate.not(failedSnapshotShardSizeRetrieval)).count()));
             assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(),
-                equalTo((int) results.values().stream().filter(result -> result.equals(Boolean.FALSE)).count()));
+                equalTo((int) results.values().stream().filter(failedSnapshotShardSizeRetrieval).count()));
             assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
         });
+
+        final SnapshotShardSizeInfo snapshotShardSizeInfo = snapshotsInfoService.snapshotShardSizes();
+        for (Map.Entry<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShard : results.entrySet()) {
+            final ShardId shardId = snapshotShard.getKey().shardId();
+            final ShardRouting shardRouting = clusterService.state().routingTable().index(shardId.getIndexName())
+                .shard(shardId.id()).primaryShard();
+            assertThat(shardRouting, notNullValue());
+
+            final boolean success = failedSnapshotShardSizeRetrieval.test(snapshotShard.getValue()) == false;
+            assertThat(snapshotShardSizeInfo.getShardSize(shardRouting),
+                success ? equalTo(results.get(snapshotShard.getKey())) : equalTo(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+            final long defaultValue = randomNonNegativeLong();
+            assertThat(snapshotShardSizeInfo.getShardSize(shardRouting, defaultValue),
+                success ? equalTo(results.get(snapshotShard.getKey())) : equalTo(defaultValue));
+        }
     }
 
     public void testNoLongerMaster() throws Exception {

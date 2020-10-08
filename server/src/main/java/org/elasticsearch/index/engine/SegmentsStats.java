@@ -52,7 +52,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
      * Ideally this should be in sync to what the current version of Lucene is using, but it's harmless to leave extensions out,
      * they'll just miss a proper description in the stats
      */
-    private static final ImmutableOpenMap<String, String> FILE_DESCRIPTIONS = ImmutableOpenMap.<String, String>builder()
+    static final ImmutableOpenMap<String, String> FILE_DESCRIPTIONS = ImmutableOpenMap.<String, String>builder()
             .fPut("si", "Segment Info")
             .fPut("fnm", "Fields")
             .fPut("fdm", "Field Metadata")

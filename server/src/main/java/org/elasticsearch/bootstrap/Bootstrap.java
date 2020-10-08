@@ -363,7 +363,7 @@ final class Bootstrap {
                             System.getProperty("java.home"));
             DeprecationLogger.getLogger(Bootstrap.class).deprecate("java_version_11_required", message);
         }
-        if (System.getProperties().containsKey("es.xcontent.strict_duplicate_detection")) {
+        if (BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection") != null) {
             final String message = String.format(
                 Locale.ROOT,
                 "The Java option es.xcontent.strict_duplicate_detection is set to [%s]; " +

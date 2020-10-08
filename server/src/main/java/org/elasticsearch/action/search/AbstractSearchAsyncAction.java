@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -99,6 +100,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
+    private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
     private final List<Releasable> releasables = new ArrayList<>();
 
@@ -393,6 +395,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]",
             shard != null ? shard : shardIt.shardId(), request, lastShard), e);
         if (lastShard) {
+            if (request.allowPartialSearchResults() == false) {
+                if (requestCancelled.compareAndSet(false, true)) {
+                    try {
+                        searchTransportService.cancelSearchTask(task, new CancellationException(
+                            "Search is cancelled because partial results are not allowed and at least one shard has failed"));
+                    } catch (Exception cancelFailure) {
+                        logger.debug("Failed to cancel search request", cancelFailure);
+                    }
+                }
+            }
             onShardGroupFailure(shardIndex, shard, e);
         }
         final int totalOps = this.totalOps.incrementAndGet();

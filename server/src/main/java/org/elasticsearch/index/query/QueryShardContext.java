@@ -250,35 +250,6 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Gets the search analyzer for the given field, or the default if there is none present for the field
-     * TODO: remove this by moving defaults into mappers themselves
-     */
-    public Analyzer getSearchAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.getTextSearchInfo().getSearchAnalyzer() != null) {
-            return fieldType.getTextSearchInfo().getSearchAnalyzer();
-        }
-        return mapperService.searchAnalyzer();
-    }
-
-    /**
-     * Returns the default search analyzer
-     */
-    public Analyzer getSearchAnalyzer() {
-        return this.mapperService.searchAnalyzer();
-    }
-
-    /**
-     * Gets the search quote analyzer for the given field, or the default if there is none present for the field
-     * TODO: remove this by moving defaults into mappers themselves
-     */
-    public Analyzer getSearchQuoteAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.getTextSearchInfo().getSearchQuoteAnalyzer() != null) {
-            return fieldType.getTextSearchInfo().getSearchQuoteAnalyzer();
-        }
-        return mapperService.searchQuoteAnalyzer();
-    }
-
-    /**
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.
      */
@@ -299,6 +270,10 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public IndexAnalyzers getIndexAnalyzers() {
         return mapperService.getIndexAnalyzers();
+    }
+
+    public Analyzer getIndexAnalyzer() {
+        return mapperService.indexAnalyzer();
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {

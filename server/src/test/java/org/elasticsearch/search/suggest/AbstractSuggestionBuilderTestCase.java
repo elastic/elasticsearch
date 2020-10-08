@@ -162,10 +162,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                     indexSettings);
             MapperService mapperService = mock(MapperService.class);
             ScriptService scriptService = mock(ScriptService.class);
-            boolean fieldTypeSearchAnalyzerSet = randomBoolean();
-            MappedFieldType fieldType = mockFieldType(suggestionBuilder.field(), fieldTypeSearchAnalyzerSet);
-            when(mapperService.searchAnalyzer())
-                .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
+            MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
             when(mapperService.fieldType(any(String.class))).thenReturn(fieldType);
             when(mapperService.getNamedAnalyzer(any(String.class))).then(
                     invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
@@ -191,10 +188,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             assertSame(mockShardContext, suggestionContext.getShardContext());
             if (suggestionBuilder.analyzer() != null) {
                 assertEquals(suggestionBuilder.analyzer(), ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
-            } else if (fieldTypeSearchAnalyzerSet) {
-                assertEquals("fieldSearchAnalyzer", ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
             } else {
-                assertEquals("mapperServiceSearchAnalyzer", ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
+                assertEquals("fieldSearchAnalyzer", ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
             }
             assertSuggestionContext(suggestionBuilder, suggestionContext);
         }
@@ -205,11 +200,10 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     protected abstract void assertSuggestionContext(SB builder, SuggestionContext context) throws IOException;
 
-    protected MappedFieldType mockFieldType(String fieldName, boolean analyzerSet) {
+    protected MappedFieldType mockFieldType(String fieldName) {
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn(fieldName);
-        NamedAnalyzer searchAnalyzer = analyzerSet ?
-            new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()) : null;
+        NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
         TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer);
         when(fieldType.getTextSearchInfo()).thenReturn(tsi);
         return fieldType;

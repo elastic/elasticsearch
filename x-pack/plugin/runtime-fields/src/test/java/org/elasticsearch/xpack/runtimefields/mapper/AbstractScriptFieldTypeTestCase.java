@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -74,7 +73,6 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
         when(context.getMapperService()).thenReturn(mapperService);
         if (mappedFieldType != null) {
             when(context.fieldMapper(anyString())).thenReturn(mappedFieldType);
-            when(context.getSearchAnalyzer(any())).thenReturn(mappedFieldType.getTextSearchInfo().getSearchAnalyzer());
         }
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(

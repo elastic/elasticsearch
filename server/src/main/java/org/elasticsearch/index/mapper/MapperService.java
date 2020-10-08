@@ -141,8 +141,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Version indexVersionCreated;
 
     private final MapperAnalyzerWrapper indexAnalyzer;
-    private final MapperAnalyzerWrapper searchAnalyzer;
-    private final MapperAnalyzerWrapper searchQuoteAnalyzer;
 
     private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
 
@@ -160,10 +158,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
                 queryShardContextSupplier, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
-        this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(),
-            p -> p.getTextSearchInfo().getSearchAnalyzer());
-        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(),
-            p -> p.getTextSearchInfo().getSearchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
         this.idFieldDataEnabled = idFieldDataEnabled;
 
@@ -663,14 +657,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
-    }
-
-    public Analyzer searchAnalyzer() {
-        return this.searchAnalyzer;
-    }
-
-    public Analyzer searchQuoteAnalyzer() {
-        return this.searchQuoteAnalyzer;
     }
 
     /**

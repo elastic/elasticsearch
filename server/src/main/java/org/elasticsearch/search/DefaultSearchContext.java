@@ -278,9 +278,10 @@ final class DefaultSearchContext extends SearchContext {
             filters.add(typeFilter);
         }
 
+        NestedHelper nestedHelper = new NestedHelper(mapperService()::getObjectMapper, mapperService()::fieldType);
         if (mapperService().hasNested()
-                && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
-                && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
+            && nestedHelper.mightMatchNestedDocs(query)
+            && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
             filters.add(Queries.newNonNestedFilter(mapperService().getIndexSettings().getIndexVersionCreated()));
         }
 

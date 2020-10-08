@@ -21,13 +21,13 @@ package org.elasticsearch.index.fieldvisitor;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -39,6 +39,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
@@ -88,13 +89,12 @@ public class FieldsVisitor extends StoredFieldVisitor {
                 : Status.NO;
     }
 
-    public void postProcess(MapperService mapperService) {
-        final DocumentMapper mapper = mapperService.documentMapper();
+    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup, @Nullable DocumentMapper mapper) {
         if (mapper != null) {
             type = mapper.type();
         }
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            MappedFieldType fieldType = mapperService.fieldType(entry.getKey());
+            MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
             if (fieldType == null) {
                 throw new IllegalStateException("Field [" + entry.getKey()
                     + "] exists in the index but not in mappings");

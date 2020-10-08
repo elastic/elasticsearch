@@ -488,7 +488,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @return this request
      */
     @SuppressWarnings("unchecked")
-    public RestoreSnapshotRequest source(Map<String, Object> source) { // GWB> Handle pluginStates NOCOMMIT
+    public RestoreSnapshotRequest source(Map<String, Object> source) {
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {

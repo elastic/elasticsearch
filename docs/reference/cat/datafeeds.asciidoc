@@ -20,7 +20,7 @@ Returns configuration and usage information about {dfeeds}.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs}/setup.html[Set up {ml-features}].
+<<security-privileges>> and {ml-docs-setup-privileges}.
 
 
 [[cat-datafeeds-desc]]
@@ -41,7 +41,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 [[cat-datafeeds-query-params]]
 ==== {api-query-parms-title}
 
-`allow_no_datafeeds`::
+`allow_no_match`::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 

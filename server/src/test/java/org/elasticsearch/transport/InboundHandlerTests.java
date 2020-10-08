@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -233,6 +234,43 @@ public class InboundHandlerTests extends ESTestCase {
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
             assertNull(channel.getMessageCaptor().get());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
+    public void testLogsSlowInboundProcessing() throws Exception {
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "expected message",
+                        InboundHandler.class.getCanonicalName(),
+                        Level.WARN,
+                        "handling inbound transport message "));
+        final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
+        Loggers.addAppender(inboundHandlerLogger, mockAppender);
+
+        handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
+        try {
+            final Version remoteVersion = Version.CURRENT;
+            final long requestId = randomNonNegativeLong();
+            final Header requestHeader = new Header(between(0, 100), requestId,
+                    TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), remoteVersion);
+            final InboundMessage requestMessage =
+                    new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {
+                        try {
+                            TimeUnit.SECONDS.sleep(1L);
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+            requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
+            requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
+            handler.inboundMessage(channel, requestMessage);
+            assertNotNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(inboundHandlerLogger, mockAppender);

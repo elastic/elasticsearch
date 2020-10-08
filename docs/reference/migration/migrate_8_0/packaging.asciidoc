@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_packaging_changes]]
 === Packaging changes
 

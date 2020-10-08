@@ -97,7 +97,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testExcludes() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_source").array("excludes", new String[]{"path1*"}).endObject()
+            .startObject("_source").array("excludes", "path1*").endObject()
             .endObject().endObject());
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser()
@@ -126,7 +126,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").field("enabled", false).endObject()
             .endObject().endObject());
-        assertConflicts(mapping1, mapping2, parser, "Cannot update enabled setting for [_source]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [enabled] from [true] to [false]");
 
         // not changing is ok
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -141,13 +141,13 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*").endObject()
             .endObject().endObject());
-        assertConflicts(defaultMapping, mapping1, parser, "Cannot update includes setting for [_source]");
-        assertConflicts(mapping1, defaultMapping, parser, "Cannot update includes setting for [_source]");
+        assertConflicts(defaultMapping, mapping1, parser, "Cannot update parameter [includes] from [[]] to [[foo.*]]");
+        assertConflicts(mapping1, defaultMapping, parser, "Cannot update parameter [includes] from [[foo.*]] to [[]]");
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*", "bar.*").endObject()
             .endObject().endObject());
-        assertConflicts(mapping1, mapping2, parser, "Cannot update includes setting for [_source]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [includes] from [[foo.*]] to [[foo.*, bar.*]]");
 
         // not changing is ok
         assertConflicts(mapping1, mapping1, parser);
@@ -159,13 +159,13 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*").endObject()
             .endObject().endObject());
-        assertConflicts(defaultMapping, mapping1, parser, "Cannot update excludes setting for [_source]");
-        assertConflicts(mapping1, defaultMapping, parser, "Cannot update excludes setting for [_source]");
+        assertConflicts(defaultMapping, mapping1, parser, "Cannot update parameter [excludes] from [[]] to [[foo.*]]");
+        assertConflicts(mapping1, defaultMapping, parser, "Cannot update parameter [excludes] from [[foo.*]] to [[]]");
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*", "bar.*").endObject()
             .endObject().endObject());
-        assertConflicts(mapping1, mapping2, parser, "Cannot update excludes setting for [_source]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [excludes]");
 
         // not changing is ok
         assertConflicts(mapping1, mapping1, parser);

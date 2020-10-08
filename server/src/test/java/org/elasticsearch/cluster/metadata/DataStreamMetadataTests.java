@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
@@ -36,7 +37,7 @@ public class DataStreamMetadataTests extends AbstractNamedWriteableTestCase<Data
         }
         Map<String, DataStream> dataStreams = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            dataStreams.put(randomAlphaOfLength(5), DataStreamTests.randomInstance());
+            dataStreams.put(randomAlphaOfLength(5), DataStreamTestHelper.randomInstance());
         }
         return new DataStreamMetadata(dataStreams);
     }

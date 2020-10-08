@@ -36,8 +36,6 @@ restResources {
   }
 }
 
-integTest.enabled = false
-
  // This directory is shared between two URL repositories and one FS repository in YAML integration tests
 File repositoryDir = new File(project.buildDir, "shared-repository")
 

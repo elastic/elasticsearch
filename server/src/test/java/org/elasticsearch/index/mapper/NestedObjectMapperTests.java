@@ -569,14 +569,14 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             createIndex("test2", Settings.builder()
                 .put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build())
                 .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), containsString("Limit of nested fields [0] in index [test2] has been exceeded"));
+        assertThat(e.getMessage(), containsString("Limit of nested fields [0] has been exceeded"));
 
         // setting limit to 1 with 2 nested fields fails
         e = expectThrows(IllegalArgumentException.class, () ->
             createIndex("test3", Settings.builder()
                 .put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 1).build())
                 .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), containsString("Limit of nested fields [1] in index [test3] has been exceeded"));
+        assertThat(e.getMessage(), containsString("Limit of nested fields [1] has been exceeded"));
 
         // do not check nested fields limit if mapping is not updated
         createIndex("test4", Settings.builder()
@@ -800,7 +800,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.docs().size(), equalTo(3));
         if (Version.indexCreated(settings).before(Version.V_8_0_0)) {
-            assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
+            assertThat(doc.docs().get(0).get(TypeFieldType.NAME), equalTo(nested1Mapper.nestedTypePath()));
         } else {
             assertThat(doc.docs().get(0).get(NestedPathFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
         }

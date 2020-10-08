@@ -52,7 +52,7 @@ the timeout for each lookup is controlled by `discovery.seed_resolver.timeout`
 which defaults to `5s`. Note that DNS lookups are subject to
 <<networkaddress-cache-ttl,JVM DNS caching>>.
 
-[float]
+[discrete]
 [[settings-based-hosts-provider]]
 ===== Settings-based seed hosts provider
 
@@ -76,7 +76,7 @@ discovery.seed_hosts:
 <2> If a hostname resolves to multiple IP addresses, {es} will attempt to
     connect to every resolved address.
 
-[float]
+[discrete]
 [[file-based-hosts-provider]]
 ===== File-based seed hosts provider
 
@@ -132,7 +132,7 @@ needed, coming after the brackets.
 You can also add comments to this file. All comments must appear on their lines
 starting with `#` (i.e. comments cannot start in the middle of a line).
 
-[float]
+[discrete]
 [[ec2-hosts-provider]]
 ===== EC2 hosts provider
 
@@ -140,14 +140,14 @@ The {plugins}/discovery-ec2.html[EC2 discovery plugin] adds a hosts provider
 that uses the https://github.com/aws/aws-sdk-java[AWS API] to find a list of
 seed nodes.
 
-[float]
+[discrete]
 [[azure-classic-hosts-provider]]
 ===== Azure Classic hosts provider
 
 The {plugins}/discovery-azure-classic.html[Azure Classic discovery plugin] adds
 a hosts provider that uses the Azure Classic API find a list of seed nodes.
 
-[float]
+[discrete]
 [[gce-hosts-provider]]
 ===== Google Compute Engine hosts provider
 

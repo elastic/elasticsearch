@@ -169,7 +169,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static class NodeRequest extends TransportRequest {
 
-        private List<Snapshot> snapshots;
+        private final List<Snapshot> snapshots;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
@@ -189,24 +189,12 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static class NodeSnapshotStatus extends BaseNodeResponse {
 
-        private Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status;
+        private final Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status;
 
         public NodeSnapshotStatus(StreamInput in) throws IOException {
             super(in);
-            int numberOfSnapshots = in.readVInt();
-            Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>(numberOfSnapshots);
-            for (int i = 0; i < numberOfSnapshots; i++) {
-                Snapshot snapshot = new Snapshot(in);
-                int numberOfShards = in.readVInt();
-                Map<ShardId, SnapshotIndexShardStatus> shardMapBuilder = new HashMap<>(numberOfShards);
-                for (int j = 0; j < numberOfShards; j++) {
-                    ShardId shardId =  new ShardId(in);
-                    SnapshotIndexShardStatus status = new SnapshotIndexShardStatus(in);
-                    shardMapBuilder.put(shardId, status);
-                }
-                snapshotMapBuilder.put(snapshot, unmodifiableMap(shardMapBuilder));
-            }
-            status = unmodifiableMap(snapshotMapBuilder);
+            status = unmodifiableMap(
+                    in.readMap(Snapshot::new, input -> unmodifiableMap(input.readMap(ShardId::new, SnapshotIndexShardStatus::new))));
         }
 
         public NodeSnapshotStatus(DiscoveryNode node, Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status) {
@@ -222,15 +210,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (status != null) {
-                out.writeVInt(status.size());
-                for (Map.Entry<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> entry : status.entrySet()) {
-                    entry.getKey().writeTo(out);
-                    out.writeVInt(entry.getValue().size());
-                    for (Map.Entry<ShardId, SnapshotIndexShardStatus> shardEntry : entry.getValue().entrySet()) {
-                        shardEntry.getKey().writeTo(out);
-                        shardEntry.getValue().writeTo(out);
-                    }
-                }
+                out.writeMap(status, (o, s) -> s.writeTo(o),
+                        (output, v) -> output.writeMap(v, (o, shardId) -> shardId.writeTo(o), (o, sis) -> sis.writeTo(o)));
             } else {
                 out.writeVInt(0);
             }

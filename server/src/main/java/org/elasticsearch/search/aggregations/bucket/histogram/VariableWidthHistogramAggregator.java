@@ -51,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 public class VariableWidthHistogramAggregator extends DeferableBucketAggregator {
 
@@ -170,8 +171,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         MergeBucketsPhase(DoubleArray buffer, int bufferSize) {
             // Cluster the documents to reduce the number of buckets
-            // Target shardSizes * (3/4) buckets so that there's room for more distant buckets to be added during rest of collection
-            bucketBufferedDocs(buffer, bufferSize, shardSize * 3 / 4);
+            bucketBufferedDocs(buffer, bufferSize, mergePhaseInitialBucketCount(shardSize));
 
             if(bufferSize > 1) {
                 updateAvgBucketDistance();
@@ -232,7 +232,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          * By just creating a merge map, we eliminate the need to actually sort <code>buffer</code>. We can just
          * use the merge map to find any doc's sorted index.
          */
-        private void bucketBufferedDocs(final DoubleArray buffer, final int bufferSize, final int numBuckets){
+        private void bucketBufferedDocs(final DoubleArray buffer, final int bufferSize, final int numBuckets) {
             // Allocate space for the clusters about to be created
             clusterMins = bigArrays.newDoubleArray(1);
             clusterMaxes = bigArrays.newDoubleArray(1);
@@ -265,7 +265,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 }
             }
 
-            mergeBuckets(mergeMap, numBuckets);
+            mergeBuckets(mergeMap, bucketOrd + 1);
             if (deferringCollector != null) {
                 deferringCollector.mergeBuckets(mergeMap);
             }
@@ -354,22 +354,23 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 clusterSizes.set(index, holdSize);
 
                 // Move the underlying buckets
-                long[] mergeMap = new long[numClusters];
-                for (int i = 0; i < index; i++) {
-                    // The clusters in range {0 ... idx - 1} don't move
-                    mergeMap[i] = i;
-                }
-                for (int i = index; i < numClusters - 1; i++) {
-                    // The clusters in range {index ... numClusters - 1} shift up
-                    mergeMap[i] = i + 1;
-                }
-                // Finally, the new cluster moves to index
-                mergeMap[numClusters - 1] = index;
+                LongUnaryOperator mergeMap = new LongUnaryOperator() {
+                    @Override
+                    public long applyAsLong(long i) {
+                        if(i < index) {
+                            // The clusters in range {0 ... idx - 1} don't move
+                            return i;
+                        }
+                        if(i == numClusters - 1) {
+                            // The new cluster moves to index
+                            return (long)index;
+                        }
+                        // The clusters in range {index ... numClusters - 1} shift forward
+                        return i + 1;
+                    }
+                };
 
-                // TODO: Create a moveLastCluster() method in BucketsAggregator which is like BucketsAggregator::mergeBuckets,
-                //  except it doesn't require a merge map. This would be more efficient as there would be no need to create a
-                //  merge map on every call.
-                mergeBuckets(mergeMap, numClusters);
+                mergeBuckets(numClusters, mergeMap);
                 if (deferringCollector != null) {
                     deferringCollector.mergeBuckets(mergeMap);
                 }
@@ -584,5 +585,9 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         Releasables.close(collector);
     }
 
+    public static int mergePhaseInitialBucketCount(int shardSize) {
+        // Target shardSizes * (3/4) buckets so that there's room for more distant buckets to be added during rest of collection
+        return (int) ((long) shardSize * 3 / 4);
+    }
 }
 

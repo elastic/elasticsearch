@@ -19,37 +19,23 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+public class CamelCaseFieldNameTests extends MapperServiceTestCase {
 
-public class CamelCaseFieldNameTests extends ESSingleNodeTestCase {
     public void testCamelCaseFieldNameStaysAsIs() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .endObject().endObject());
 
-        IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper documentMapper = index.mapperService().documentMapper();
+        MapperService mapperService = createMapperService(mapping(b -> {}));
 
-        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "1",
-                        BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                                .field("thisIsCamelCase", "value1")
-                                .endObject()),
-                        XContentType.JSON));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("thisIsCamelCase", "value1")));
 
         assertNotNull(doc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test")
-            .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
-        documentMapper = index.mapperService().documentMapper();
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        DocumentMapper documentMapper = mapperService.documentMapper();
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
         assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
 
-        documentMapper = index.mapperService().documentMapperParser().parse("_doc", documentMapper.mappingSource());
+        documentMapper = mapperService.documentMapperParser().parse("_doc", documentMapper.mappingSource());
 
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
         assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));

@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_indices_changes]]
 === Indices changes
 

@@ -240,22 +240,88 @@ setup:
           datafeed_id: "non-existing-datafeed"
 
 ---
-"Test stop with expression that does not match and allow_no_datafeeds":
+"Test stop with expression that does not match and allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
+      ml.stop_datafeed:
+        datafeed_id: "missing-*"
+        allow_no_match: true
+  - match: { stopped: true }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
       ml.stop_datafeed:
         datafeed_id: "missing-*"
         allow_no_datafeeds: true
   - match: { stopped: true }
 
 ---
-"Test stop with expression that does not match and not allow_no_datafeeds":
+"Test stop with expression that does not match and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
 
   - do:
       catch: missing
       ml.stop_datafeed:
         datafeed_id: "missing-*"
+        allow_no_match: false
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
+      catch: missing
+      ml.stop_datafeed:
+        datafeed_id: "missing-*"
         allow_no_datafeeds: false
+
+---
+"Test stop with body params":
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      catch: missing
+      ml.stop_datafeed:
+        datafeed_id: missing-*
+        body:  >
+          {
+            "allow_no_match" : false
+          }
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: missing-*
+        body:  >
+          {
+            "allow_no_match" : true
+          }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
+      catch: missing
+      ml.stop_datafeed:
+        datafeed_id: missing-*
+        body:  >
+          {
+            "allow_no_datafeeds" : false
+          }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
+      ml.stop_datafeed:
+        datafeed_id: missing-*
+        body:  >
+          {
+            "allow_no_datafeeds" : true
+          }
 
 ---
 "Test stop already stopped datafeed job is not an error":

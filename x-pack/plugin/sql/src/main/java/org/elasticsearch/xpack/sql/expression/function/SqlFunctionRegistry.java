@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTi
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Format;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.HourOfDay;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoDayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
@@ -176,10 +178,12 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
-                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
+                def(DateParse.class, DateParse::new, "DATE_PARSE"),
+                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"), 
                 def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
                 def(DateTimeParse.class, DateTimeParse::new, "DATETIME_PARSE"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
+                def(Format.class, Format::new, "FORMAT"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
                 def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISO_DAY_OF_WEEK", "ISODAYOFWEEK", "ISODOW", "IDOW"),
                 def(IsoWeekOfYear.class, IsoWeekOfYear::new, "ISO_WEEK_OF_YEAR", "ISOWEEKOFYEAR", "ISOWEEK", "IWOY", "IW"),

@@ -1,6 +1,6 @@
 apply plugin: 'elasticsearch.test-with-ssl'
 
-testClusters.integTest {
+testClusters.all {
   // The setup that we actually want
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.http.ssl.enabled', 'true'

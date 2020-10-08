@@ -11,12 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -40,7 +38,7 @@ import java.util.stream.Collectors;
  * {@link SnapshotLifecycleTask}. It reacts to new policies in the cluster state by scheduling a
  * task according to the policy's schedule.
  */
-public class SnapshotLifecycleService implements LocalNodeMasterListener, Closeable, ClusterStateListener {
+public class SnapshotLifecycleService implements Closeable, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(SnapshotLifecycleService.class);
     private static final String JOB_PATTERN_SUFFIX = "-\\d+$";
@@ -59,12 +57,31 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
         this.scheduler = new SchedulerEngine(settings, clock);
         this.clusterService = clusterService;
         this.snapshotTask = taskSupplier.get();
-        clusterService.addLocalNodeMasterListener(this); // TODO: change this not to use 'this'
+    }
+
+    /**
+     * Initializer method to avoid the publication of a self reference in the constructor.
+     */
+    public void init() {
         clusterService.addListener(this);
     }
 
     @Override
     public void clusterChanged(final ClusterChangedEvent event) {
+        // Instead of using a LocalNodeMasterListener to track master changes, this service will
+        // track them here to avoid conditions where master listener events run after other
+        // listeners that depend on what happened in the master listener
+        final boolean prevIsMaster = this.isMaster;
+        if (prevIsMaster != event.localNodeMaster()) {
+            this.isMaster = event.localNodeMaster();
+            if (this.isMaster) {
+                scheduler.register(snapshotTask);
+            } else {
+                scheduler.unregister(snapshotTask);
+                cancelSnapshotJobs();
+            }
+        }
+
         if (this.isMaster) {
             final ClusterState state = event.state();
 
@@ -81,25 +98,6 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
             scheduleSnapshotJobs(state);
             cleanupDeletedPolicies(state);
         }
-    }
-
-    @Override
-    public void onMaster() {
-        this.isMaster = true;
-        scheduler.register(snapshotTask);
-        final ClusterState state = clusterService.state();
-        if (slmStoppedOrStopping(state)) {
-            // SLM is currently stopped, so don't schedule jobs
-            return;
-        }
-        scheduleSnapshotJobs(state);
-    }
-
-    @Override
-    public void offMaster() {
-        this.isMaster = false;
-        scheduler.unregister(snapshotTask);
-        cancelSnapshotJobs();
     }
 
     // Only used for testing
@@ -234,11 +232,6 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
         Optional.ofNullable((RepositoriesMetadata) state.metadata().custom(RepositoriesMetadata.TYPE))
             .map(repoMeta -> repoMeta.repository(repository))
             .orElseThrow(() -> new IllegalArgumentException("no such repository [" + repository + "]"));
-    }
-
-    @Override
-    public String executorName() {
-        return ThreadPool.Names.SNAPSHOT;
     }
 
     @Override

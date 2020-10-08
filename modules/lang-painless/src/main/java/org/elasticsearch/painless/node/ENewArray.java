@@ -20,18 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.NewArrayNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -66,53 +56,14 @@ public class ENewArray extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitNewArray(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitNewArray(this, scope);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (AExpression valueNode : valueNodes) {
+            valueNode.visit(userTreeVisitor, scope);
         }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
-        }
-
-        Output output = new Output();
-
-        Class<?> valueType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (valueType == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
-        }
-
-        List<Output> argumentOutputs = new ArrayList<>();
-        List<PainlessCast> argumentCasts = new ArrayList<>();
-
-        for (AExpression expression : valueNodes) {
-            semanticScope.setCondition(expression, Read.class);
-            semanticScope.putDecoration(expression, new TargetType(isInitializer ? valueType.getComponentType() : int.class));
-            semanticScope.setCondition(expression, Internal.class);
-            Output expressionOutput = analyze(expression, classNode, semanticScope);
-            argumentOutputs.add(expressionOutput);
-            argumentCasts.add(expression.cast(semanticScope));
-        }
-
-        semanticScope.putDecoration(this, new ValueType(valueType));
-
-        NewArrayNode newArrayNode = new NewArrayNode();
-
-        for (int i = 0; i < valueNodes.size(); ++ i) {
-            newArrayNode.addArgumentNode(cast(argumentOutputs.get(i).expressionNode, argumentCasts.get(i)));
-        }
-
-        newArrayNode.setLocation(getLocation());
-        newArrayNode.setExpressionType(valueType);
-        newArrayNode.setInitialize(isInitializer);
-        output.expressionNode = newArrayNode;
-
-        return output;
     }
 }

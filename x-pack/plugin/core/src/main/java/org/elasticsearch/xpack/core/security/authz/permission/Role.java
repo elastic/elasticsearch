@@ -83,7 +83,7 @@ public class Role {
      * @return A predicate that will match all the indices that this role
      * has the privilege for executing the given action on.
      */
-    public Predicate<String> allowedIndicesMatcher(String action) {
+    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
         return indices.allowedIndicesMatcher(action);
     }
 

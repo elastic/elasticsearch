@@ -20,14 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.InstanceofNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -57,61 +50,12 @@ public class EInstanceof extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitInstanceof(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitInstanceof(this, scope);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
-        }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"));
-        }
-
-        Class<?> resolvedType;
-        Class<?> expressionType;
-        boolean primitiveExpression;
-
-        Output output = new Output();
-
-        // ensure the specified type is part of the definition
-        Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
-        }
-
-        // map to wrapped type for primitive types
-        resolvedType = clazz.isPrimitive() ? PainlessLookupUtility.typeToBoxedType(clazz) :
-                PainlessLookupUtility.typeToJavaType(clazz);
-
-        // analyze and cast the expression
-        semanticScope.setCondition(expressionNode, Read.class);
-        Output expressionOutput = analyze(expressionNode, classNode, semanticScope);
-        Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, ValueType.class).getValueType();
-
-        // record if the expression returns a primitive
-        primitiveExpression = expressionValueType.isPrimitive();
-        // map to wrapped type for primitive types
-        expressionType = expressionValueType.isPrimitive() ?
-            PainlessLookupUtility.typeToBoxedType(expressionValueType) : PainlessLookupUtility.typeToJavaType(clazz);
-
-        semanticScope.putDecoration(this, new ValueType(boolean.class));
-
-        InstanceofNode instanceofNode = new InstanceofNode();
-        instanceofNode.setChildNode(expressionOutput.expressionNode);
-        instanceofNode.setLocation(getLocation());
-        instanceofNode.setExpressionType(boolean.class);
-        instanceofNode.setInstanceType(expressionType);
-        instanceofNode.setResolvedType(resolvedType);
-        instanceofNode.setPrimitiveResult(primitiveExpression);
-        output.expressionNode = instanceofNode;
-
-        return output;
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        expressionNode.visit(userTreeVisitor, scope);
     }
 }

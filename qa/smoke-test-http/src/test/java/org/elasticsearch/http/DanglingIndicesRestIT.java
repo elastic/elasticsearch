@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
-import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.elasticsearch.indices.IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING;
 import static org.elasticsearch.rest.RestStatus.ACCEPTED;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -70,7 +69,6 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
             // when we delete an index, it's definitely considered to be dangling.
             .put(SETTING_MAX_TOMBSTONES.getKey(), maxTombstones)
             .put(WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), true)
-            .put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), false)
             .build();
     }
 

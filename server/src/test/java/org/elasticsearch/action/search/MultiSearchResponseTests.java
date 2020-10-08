@@ -49,7 +49,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
-                    successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+                    successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters, null);
             items[i] = new MultiSearchResponse.Item(searchResponse, null);
         }
         return new MultiSearchResponse(items, randomNonNegativeLong());
@@ -68,7 +68,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
                 SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
                 SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
-                        successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+                        successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters, null);
                 items[i] = new MultiSearchResponse.Item(searchResponse, null);
             } else {
                 items[i] = new MultiSearchResponse.Item(null, new ElasticsearchException("an error"));
@@ -81,7 +81,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
     protected MultiSearchResponse doParseInstance(XContentParser parser) throws IOException {
         return MultiSearchResponse.fromXContext(parser);
     }
-    
+
     @Override
     protected void assertEqualInstances(MultiSearchResponse expected, MultiSearchResponse actual) {
         assertThat(actual.getTook(), equalTo(expected.getTook()));
@@ -106,7 +106,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");
-    }     
+    }
 
     /**
      * Test parsing {@link MultiSearchResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
@@ -123,6 +123,6 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
                 getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
-    }       
+    }
 
 }

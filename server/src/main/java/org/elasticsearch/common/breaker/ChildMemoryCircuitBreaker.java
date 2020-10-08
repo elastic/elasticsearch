@@ -114,6 +114,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             this.addWithoutBreaking(-bytes);
             throw e;
         }
+        assert newUsed >= 0 : "Used bytes: [" + newUsed + "] must be >= 0";
         return newUsed;
     }
 

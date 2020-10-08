@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -20,6 +21,8 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -261,16 +264,40 @@ public class RBACEngine implements AuthorizationEngine {
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
                 if (SearchScrollAction.NAME.equals(action)) {
-                    authorizeIndexActionName(action, authorizationInfo, null, listener);
+                    ActionRunnable.supply(
+                        ActionListener.wrap(parsedScrollId -> {
+                            if (parsedScrollId.hasLocalIndices()) {
+                                authorizeIndexActionName(action, authorizationInfo, null, listener);
+                            } else {
+                                listener.onResponse(new IndexAuthorizationResult(true, null));
+                            }
+                        }, listener::onFailure),
+                        ((SearchScrollRequest) request)::parseScrollId
+                    ).run();
                 } else {
-                    // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
-                    // level. If authorization fails we will audit a access_denied message and will use the request to retrieve
-                    // information such as the index and the incoming address of the request
-                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                    // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.
+                    // Scroll related actions have special security logic, where the security context of the initial search
+                    // request is attached to the scroll context upon creation in {@code SecuritySearchOperationListener#onNewScrollContext}
+                    // and it is then verified, before every use of the scroll, in
+                    // {@code SecuritySearchOperationListener#validateSearchContext}.
+                    // The DLS/FLS permissions are used inside the {@code DirectoryReader} that {@code SecurityIndexReaderWrapper}
+                    // built while handling the initial search request. In addition, for consistency, the DLS/FLS permissions from
+                    // the originating search request are attached to the thread context upon validating the scroll.
+                    listener.onResponse(new IndexAuthorizationResult(true, null));
                 }
             } else if (isAsyncRelatedAction(action)) {
-                //index-level permissions are handled by the search action that is triggered internally by the submit API.
-                listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                if (SubmitAsyncSearchAction.NAME.equals(action)) {
+                    // authorize submit async search but don't fill in the DLS/FLS permissions
+                    // the `null` IndicesAccessControl parameter indicates that this action has *not* determined
+                    // which DLS/FLS controls should be applied to this action
+                    listener.onResponse(new IndexAuthorizationResult(true, null));
+                } else {
+                    // async-search actions other than submit have a custom security layer that checks if the current user is
+                    // the same as the user that submitted the original request so no additional checks are needed here.
+                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                }
+            } else if (action.equals(ClosePointInTimeAction.NAME)) {
+                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
             } else {
                 assert false : "only scroll and async-search related requests are known indices api that don't " +
                     "support retrieving the indices they relate to";
@@ -494,7 +521,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     static List<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
-        Predicate<String> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
+        Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
@@ -503,15 +530,15 @@ public class RBACEngine implements AuthorizationEngine {
         Set<String> indicesAndAliases = new HashSet<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
         for (Map.Entry<String, IndexAbstraction> entry : lookup.entrySet()) {
-            String indexAbstraction = entry.getKey();
+            IndexAbstraction indexAbstraction = entry.getValue();
             if (predicate.test(indexAbstraction)) {
-                if (entry.getValue().getType() != IndexAbstraction.Type.DATA_STREAM) {
-                    indicesAndAliases.add(indexAbstraction);
+                if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
+                    indicesAndAliases.add(indexAbstraction.getName());
                 } else if (includeDataStreams) {
                     // add data stream and its backing indices for any authorized data streams
-                    indicesAndAliases.addAll(entry.getValue().getIndices().stream()
+                    indicesAndAliases.add(indexAbstraction.getName());
+                    indicesAndAliases.addAll(indexAbstraction.getIndices().stream()
                         .map(i -> i.getIndex().getName()).collect(Collectors.toList()));
-                    indicesAndAliases.add(indexAbstraction);
                 }
             }
         }

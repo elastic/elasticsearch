@@ -98,7 +98,7 @@ public class LongBoundsTests extends ESTestCase {
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
                 BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
                 null, null, () -> now, null, null, () -> true, null);
-        DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
+        DateFormatter formatter = DateFormatter.forPattern("date_optional_time");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);
 
         LongBounds expected = randomParsedExtendedBounds();

@@ -8,12 +8,12 @@
 
 Starts a 30-day trial.
 
-[float]
+[discrete]
 ==== Request
 
 `POST /_license/start_trial`
 
-[float]
+[discrete]
 ==== Description
 
 The `start trial` API enables you to start a 30-day trial, which gives access to
@@ -35,7 +35,7 @@ You must have `manage` cluster privileges to use this API.
 For more information, see
 <<security-privileges>>.
 
-[float]
+[discrete]
 ==== Examples
 
 The following example starts a 30-day trial. The acknowledge parameter is

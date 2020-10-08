@@ -19,29 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
-import org.elasticsearch.painless.ir.FunctionNode;
-import org.elasticsearch.painless.ir.ReferenceNode;
-import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.LastSource;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.symbol.SemanticScope.LambdaScope;
-import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -98,168 +78,12 @@ public class ELambda extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitLambda(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitLambda(this, scope);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a lambda"));
-        }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException("not a statement: lambda not used"));
-        }
-
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
-
-        String name;
-        Class<?> returnType;
-        List<Class<?>> typeParametersWithCaptures;
-        List<String> parameterNames;
-        int maxLoopCounter;
-
-        Output output = new Output();
-        Class<?> valueType;
-
-        List<Class<?>> typeParameters;
-        PainlessMethod interfaceMethod;
-        // inspect the target first, set interface method if we know it.
-        if (targetType == null) {
-            // we don't know anything: treat as def
-            returnType = def.class;
-            // don't infer any types, replace any null types with def
-            typeParameters = new ArrayList<>(canonicalTypeNameParameters.size());
-            for (String type : canonicalTypeNameParameters) {
-                if (type == null) {
-                    typeParameters.add(def.class);
-                } else {
-                    Class<?> typeParameter = scriptScope.getPainlessLookup().canonicalTypeNameToType(type);
-
-                    if (typeParameter == null) {
-                        throw createError(new IllegalArgumentException("cannot resolve type [" + type + "]"));
-                    }
-
-                    typeParameters.add(typeParameter);
-                }
-            }
-        } else {
-            // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = scriptScope.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(targetType.getTargetType());
-            if (interfaceMethod == null) {
-                throw createError(new IllegalArgumentException("Cannot pass lambda to " +
-                        "[" + targetType.getTargetCanonicalTypeName() + "], not a functional interface"));
-            }
-            // check arity before we manipulate parameters
-            if (interfaceMethod.typeParameters.size() != canonicalTypeNameParameters.size())
-                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
-                        "] in [" + targetType.getTargetCanonicalTypeName() + "]");
-            // for method invocation, its allowed to ignore the return value
-            if (interfaceMethod.returnType == void.class) {
-                returnType = def.class;
-            } else {
-                returnType = interfaceMethod.returnType;
-            }
-            // replace any null types with the actual type
-            typeParameters = new ArrayList<>(canonicalTypeNameParameters.size());
-            for (int i = 0; i < canonicalTypeNameParameters.size(); i++) {
-                String paramType = canonicalTypeNameParameters.get(i);
-                if (paramType == null) {
-                    typeParameters.add(interfaceMethod.typeParameters.get(i));
-                } else {
-                    Class<?> typeParameter = scriptScope.getPainlessLookup().canonicalTypeNameToType(paramType);
-
-                    if (typeParameter == null) {
-                        throw createError(new IllegalArgumentException("cannot resolve type [" + paramType + "]"));
-                    }
-
-                    typeParameters.add(typeParameter);
-                }
-            }
-        }
-
-        LambdaScope lambdaScope = semanticScope.newLambdaScope(returnType);
-
-        for (int index = 0; index < typeParameters.size(); ++index) {
-            Class<?> type = typeParameters.get(index);
-            String paramName = this.parameterNames.get(index);
-            lambdaScope.defineVariable(getLocation(), type, paramName, true);
-        }
-
-        if (blockNode.getStatementNodes().isEmpty()) {
-            throw createError(new IllegalArgumentException("cannot generate empty lambda"));
-        }
-        semanticScope.setCondition(blockNode, LastSource.class);
-        AStatement.Output blockOutput = blockNode.analyze(classNode, lambdaScope);
-
-        if (semanticScope.getCondition(blockNode, MethodEscape.class) == false) {
-            throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
-        }
-
-        maxLoopCounter = scriptScope.getCompilerSettings().getMaxLoopCounter();
-
-        // prepend capture list to lambda's arguments
-        List<Variable> captures = new ArrayList<>(lambdaScope.getCaptures());
-        typeParametersWithCaptures = new ArrayList<>(captures.size() + typeParameters.size());
-        parameterNames = new ArrayList<>(captures.size() + this.parameterNames.size());
-        for (Variable var : captures) {
-            typeParametersWithCaptures.add(var.getType());
-            parameterNames.add(var.getName());
-        }
-        typeParametersWithCaptures.addAll(typeParameters);
-        parameterNames.addAll(this.parameterNames);
-
-        // desugar lambda body into a synthetic method
-        name = scriptScope.getNextSyntheticName("lambda");
-        scriptScope.getFunctionTable().addFunction(name, returnType, typeParametersWithCaptures, true, true);
-
-        ReferenceNode referenceNode;
-
-        // setup method reference to synthetic method
-        if (targetType == null) {
-            valueType = String.class;
-            String defReferenceEncoding = "Sthis." + name + "," + captures.size();
-
-            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
-            defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
-            referenceNode = defInterfaceReferenceNode;
-        } else {
-            FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    getLocation(), targetType.getTargetType(), "this", name, captures.size());
-            valueType = targetType.getTargetType();
-
-            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
-            typedInterfaceReferenceNode.setReference(ref);
-            referenceNode = typedInterfaceReferenceNode;
-        }
-
-        semanticScope.putDecoration(this, new ValueType(valueType));
-
-        FunctionNode functionNode = new FunctionNode();
-        functionNode.setBlockNode((BlockNode)blockOutput.statementNode);
-        functionNode.setLocation(getLocation());
-        functionNode.setName(name);
-        functionNode.setReturnType(returnType);
-        functionNode.getTypeParameters().addAll(typeParametersWithCaptures);
-        functionNode.getParameterNames().addAll(parameterNames);
-        functionNode.setStatic(true);
-        functionNode.setVarArgs(false);
-        functionNode.setSynthetic(true);
-        functionNode.setMaxLoopCounter(maxLoopCounter);
-
-        classNode.addFunctionNode(functionNode);
-
-        referenceNode.setLocation(getLocation());
-        referenceNode.setExpressionType(valueType);
-
-        for (Variable capture : captures) {
-            referenceNode.addCapture(capture.getName());
-        }
-
-        output.expressionNode = referenceNode;
-
-        return output;
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        blockNode.visit(userTreeVisitor, scope);
     }
 }

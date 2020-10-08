@@ -246,7 +246,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu,
                                                 RetentionLeases retentionLeases, long mappingVersion, ActionListener<Long> listener) {
                 shippedOps.addAll(operations);
-                checkpointOnTarget.set(randomLongBetween(checkpointOnTarget.get(), Long.MAX_VALUE));
+                if (randomBoolean()) {
+                    checkpointOnTarget.addAndGet(between(1, 20));
+                }
                 listener.onResponse(checkpointOnTarget.get());
             }
         };

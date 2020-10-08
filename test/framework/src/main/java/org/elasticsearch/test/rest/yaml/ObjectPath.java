@@ -44,7 +44,7 @@ public class ObjectPath {
     public static ObjectPath createFromResponse(Response response) throws IOException {
         byte[] bytes = EntityUtils.toByteArray(response.getEntity());
         String contentType = response.getHeader("Content-Type");
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
+        XContentType xContentType = XContentType.fromMediaType(contentType);
         return ObjectPath.createFromXContent(xContentType.xContent(), new BytesArray(bytes));
     }
 

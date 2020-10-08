@@ -17,6 +17,7 @@
  * under the License.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
@@ -39,7 +40,7 @@ restResources {
 testClusters.all {
   // Needed in order to test ingest pipeline templating:
   // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
-  module project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile
+  module ':modules:lang-mustache'
 }
 
 thirdPartyAudit.ignoreMissingClasses(

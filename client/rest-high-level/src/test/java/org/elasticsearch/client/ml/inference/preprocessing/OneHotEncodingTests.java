@@ -55,7 +55,7 @@ public class OneHotEncodingTests extends AbstractXContentTestCase<OneHotEncoding
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new OneHotEncoding(randomAlphaOfLength(10), valueMap);
+        return new OneHotEncoding(randomAlphaOfLength(10), valueMap, randomBoolean() ? null : randomBoolean());
     }
 
 }

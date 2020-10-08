@@ -25,8 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.analysis.AnalysisMode;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.ArrayList;
@@ -34,12 +32,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
@@ -50,125 +46,6 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_FREQS = "freqs";
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
-
-    private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
-                                                     Mapper.TypeParser.ParserContext parserContext) {
-        NamedAnalyzer indexAnalyzer = null;
-        NamedAnalyzer searchAnalyzer = null;
-        NamedAnalyzer searchQuoteAnalyzer = null;
-
-        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
-            Map.Entry<String, Object> entry = iterator.next();
-            final String propName = entry.getKey();
-            final Object propNode = entry.getValue();
-            if (propName.equals("term_vector")) {
-                parseTermVector(name, propNode.toString(), builder);
-                iterator.remove();
-            } else if (propName.equals("store_term_vectors")) {
-                builder.storeTermVectors(XContentMapValues.nodeBooleanValue(propNode, name + ".store_term_vectors"));
-                iterator.remove();
-            } else if (propName.equals("store_term_vector_offsets")) {
-                builder.storeTermVectorOffsets(XContentMapValues.nodeBooleanValue(propNode, name + ".store_term_vector_offsets"));
-                iterator.remove();
-            } else if (propName.equals("store_term_vector_positions")) {
-                builder.storeTermVectorPositions(XContentMapValues.nodeBooleanValue(propNode, name + ".store_term_vector_positions"));
-                iterator.remove();
-            } else if (propName.equals("store_term_vector_payloads")) {
-                builder.storeTermVectorPayloads(XContentMapValues.nodeBooleanValue(propNode, name + ".store_term_vector_payloads"));
-                iterator.remove();
-            } else if (propName.equals("analyzer")) {
-                NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
-                }
-                indexAnalyzer = analyzer;
-                iterator.remove();
-            } else if (propName.equals("search_analyzer")) {
-                NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
-                }
-                analyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
-                searchAnalyzer = analyzer;
-                iterator.remove();
-            } else if (propName.equals("search_quote_analyzer")) {
-                NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
-                if (analyzer == null) {
-                    throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
-                }
-                analyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
-                searchQuoteAnalyzer = analyzer;
-                iterator.remove();
-            }
-        }
-
-        // check analyzers are allowed to work in the respective AnalysisMode
-        {
-            if (indexAnalyzer != null) {
-                if (searchAnalyzer == null) {
-                    indexAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
-                } else {
-                    indexAnalyzer.checkAllowedInMode(AnalysisMode.INDEX_TIME);
-                }
-            }
-            if (searchAnalyzer != null) {
-                searchAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
-            }
-            if (searchQuoteAnalyzer != null) {
-                searchQuoteAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
-            }
-        }
-
-        if (indexAnalyzer == null && searchAnalyzer != null) {
-            throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
-        }
-
-        if (searchAnalyzer == null && searchQuoteAnalyzer != null) {
-            throw new MapperParsingException("analyzer and search_analyzer on field [" + name +
-                "] must be set when search_quote_analyzer is set");
-        }
-
-        if (searchAnalyzer == null) {
-            searchAnalyzer = indexAnalyzer;
-        }
-
-        if (searchQuoteAnalyzer == null) {
-            searchQuoteAnalyzer = searchAnalyzer;
-        }
-
-        if (indexAnalyzer != null) {
-            builder.indexAnalyzer(indexAnalyzer);
-        }
-        if (searchAnalyzer != null) {
-            builder.searchAnalyzer(searchAnalyzer);
-        }
-        if (searchQuoteAnalyzer != null) {
-            builder.searchQuoteAnalyzer(searchQuoteAnalyzer);
-        }
-    }
-
-    public static void parseNorms(FieldMapper.Builder<?> builder, String fieldName, Object propNode) {
-        builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms") == false);
-    }
-
-    /**
-     * Parse text field attributes. In addition to {@link #parseField common attributes}
-     * this will parse analysis and term-vectors related settings.
-     */
-    public static void parseTextField(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode,
-                                      Mapper.TypeParser.ParserContext parserContext) {
-        parseField(builder, name, fieldNode, parserContext);
-        parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
-        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext(); ) {
-            Map.Entry<String, Object> entry = iterator.next();
-            final String propName = entry.getKey();
-            final Object propNode = entry.getValue();
-            if ("norms".equals(propName)) {
-                parseNorms(builder, name, propNode);
-                iterator.remove();
-            }
-        }
-    }
 
     public static void checkNull(String propName, Object propNode) {
         if (false == propName.equals("null_value") && propNode == null) {
@@ -214,13 +91,12 @@ public class TypeParsers {
                         value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
             }
         }
-        final Function<Map.Entry<String, ?>, Object> entryValueFunction = Map.Entry::getValue;
-        final Function<Object, String> stringCast = String.class::cast;
-        return meta.entrySet().stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entryValueFunction.andThen(stringCast)));
+        Map<String, String> sortedMeta = new TreeMap<>();
+        for (Map.Entry<String, ?> entry : meta.entrySet()) {
+            sortedMeta.put(entry.getKey(), (String) entry.getValue());
+        }
+        return Collections.unmodifiableMap(sortedMeta);
     }
-
-
 
     /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
@@ -245,8 +121,16 @@ public class TypeParsers {
                 builder.docValues(XContentMapValues.nodeBooleanValue(propNode, name + "." + DOC_VALUES));
                 iterator.remove();
             } else if (propName.equals("boost")) {
-                builder.boost(nodeFloatValue(propNode));
-                iterator.remove();
+                if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                    deprecationLogger.deprecate(
+                        "boost",
+                        "Parameter [boost] on field [{}] is deprecated and has no effect",
+                        name);
+                    iterator.remove();
+                }
+                else {
+                    throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
+                }
             } else if (propName.equals("index_options")) {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
@@ -361,31 +245,6 @@ public class TypeParsers {
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }
 
-    @SuppressWarnings("rawtypes")
-    public static void parseTermVector(String fieldName, String termVector, FieldMapper.Builder builder) throws MapperParsingException {
-        if ("no".equals(termVector)) {
-            builder.storeTermVectors(false);
-        } else if ("yes".equals(termVector)) {
-            builder.storeTermVectors(true);
-        } else if ("with_offsets".equals(termVector)) {
-            builder.storeTermVectorOffsets(true);
-        } else if ("with_positions".equals(termVector)) {
-            builder.storeTermVectorPositions(true);
-        } else if ("with_positions_offsets".equals(termVector)) {
-            builder.storeTermVectorPositions(true);
-            builder.storeTermVectorOffsets(true);
-        } else if ("with_positions_payloads".equals(termVector)) {
-            builder.storeTermVectorPositions(true);
-            builder.storeTermVectorPayloads(true);
-        } else if ("with_positions_offsets_payloads".equals(termVector)) {
-            builder.storeTermVectorPositions(true);
-            builder.storeTermVectorOffsets(true);
-            builder.storeTermVectorPayloads(true);
-        } else {
-            throw new MapperParsingException("wrong value for termVector [" + termVector + "] for field [" + fieldName + "]");
-        }
-    }
-
     public static List<String> parseCopyFields(Object propNode) {
         List<String> copyFields = new ArrayList<>();
         if (isArray(propNode)) {
@@ -398,8 +257,11 @@ public class TypeParsers {
         return copyFields;
     }
 
-    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
+    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, Object value) {
+        if (value == null) {
+            return null;    // use default
+        }
+        SimilarityProvider similarityProvider = parserContext.getSimilarity(value.toString());
         if (similarityProvider == null) {
             throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");
         }

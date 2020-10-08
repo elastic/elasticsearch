@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
 
@@ -150,6 +152,23 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
     public boolean requiresRestart(DataFrameAnalyticsConfig source) {
         return (getModelMemoryLimit() != null && getModelMemoryLimit().equals(source.getModelMemoryLimit()) == false)
             || (getMaxNumThreads() != null && getMaxNumThreads().equals(source.getMaxNumThreads()) == false);
+    }
+
+    public Set<String> getUpdatedFields() {
+        Set<String> updatedFields = new TreeSet<>();
+        if (description != null) {
+            updatedFields.add(DataFrameAnalyticsConfig.DESCRIPTION.getPreferredName());
+        }
+        if (modelMemoryLimit != null) {
+            updatedFields.add(DataFrameAnalyticsConfig.MODEL_MEMORY_LIMIT.getPreferredName());
+        }
+        if (allowLazyStart != null) {
+            updatedFields.add(DataFrameAnalyticsConfig.ALLOW_LAZY_START.getPreferredName());
+        }
+        if (maxNumThreads != null) {
+            updatedFields.add(DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName());
+        }
+        return updatedFields;
     }
 
     @Override

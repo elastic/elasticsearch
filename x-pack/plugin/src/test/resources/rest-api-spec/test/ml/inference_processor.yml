@@ -29,28 +29,6 @@ setup:
           }
 
 ---
-"Test create and delete pipeline with inference processor":
-  - do:
-      ingest.put_pipeline:
-        id: "regression-model-pipeline"
-        body:  >
-          {
-            "processors": [
-              {
-                "inference" : {
-                  "model_id" : "a-perfect-regression-model",
-                  "inference_config": {"regression": {}},
-                  "target_field": "regression_field",
-                  "field_map": {}
-                }
-              }
-            ]
-          }
-  - match: { acknowledged: true }
-  - do:
-      ingest.delete_pipeline:
-        id: "regression-model-pipeline"
----
 "Test create processor with missing mandatory fields":
   - do:
       catch: /\[model_id\] required property is missing/
@@ -68,35 +46,7 @@ setup:
               }
             ]
           }
----
-"Test create processor with deprecated fields":
-  - skip:
-      features:
-       - "warnings"
-       - "allowed_warnings"
-  - do:
-      warnings:
-        - 'Deprecated field [field_mappings] used, expected [field_map] instead'
-      ingest.put_pipeline:
-        id: "regression-model-pipeline"
-        body:  >
-          {
-            "processors": [
-              {
-                "inference" : {
-                  "model_id" : "a-perfect-regression-model",
-                  "inference_config": {"regression": {}},
-                  "field_mappings": {}
-                }
-              }
-            ]
-          }
 
-  - do:
-      allowed_warnings:
-        - 'Deprecated field [field_mappings] used, expected [field_map] instead'
-      ingest.delete_pipeline:
-        id: "regression-model-pipeline"
 ---
 "Test simulate":
   - do:

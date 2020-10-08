@@ -148,10 +148,7 @@ public class MultiTermVectorsRequest extends ActionRequest
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(preference);
-        out.writeVInt(requests.size());
-        for (TermVectorsRequest termVectorsRequest : requests) {
-            termVectorsRequest.writeTo(out);
-        }
+        out.writeCollection(requests);
     }
 
     public void ids(String[] ids) {

@@ -123,7 +123,7 @@ operator:
     quikc~ brwn~ foks~
 
 This uses the
-http://en.wikipedia.org/wiki/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]
+{wikipedia}/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]
 to find all terms with a maximum of
 two changes, where a change is the insertion, deletion
 or substitution of a single character, or transposition of two adjacent
@@ -292,17 +292,17 @@ need to write your query as `\(1\+1\)\=2`. When using JSON for the request body,
 
 [source,console]
 ----
-GET /twitter/_search
+GET /my-index-000001/_search
 {
   "query" : {
     "query_string" : {
       "query" : "kimchy\\!",
-      "fields"  : ["user"]
+      "fields"  : ["user.id"]
     }
   }
 }
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 

@@ -903,7 +903,7 @@ setup:
   - match: { data_frame_analytics.0.state: "stopped" }
 
 ---
-"Test get stats on newly created congig":
+"Test get stats on newly created config":
 
   - do:
       ml.put_data_frame_analytics:
@@ -923,6 +923,20 @@ setup:
   - do:
       ml.get_data_frame_analytics_stats:
         id: "foo-1"
+  - match: { count: 1 }
+  - length: { data_frame_analytics: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.0.data_counts.training_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
+  - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+  - match: { data_frame_analytics.0.memory_usage.status: "ok" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-1"
+        verbose: true
   - match: { count: 1 }
   - length: { data_frame_analytics: 1 }
   - match: { data_frame_analytics.0.id: "foo-1" }
@@ -1508,10 +1522,10 @@ setup:
           }
 
 ---
-"Test put regression given training_percent is less than one":
+"Test put regression given training_percent is less than zero":
 
   - do:
-      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      catch: /\[training_percent\] must be a positive double in \(0, 100\]/
       ml.put_data_frame_analytics:
         id: "regression-training-percent-is-less-than-one"
         body: >
@@ -1525,7 +1539,7 @@ setup:
             "analysis": {
               "regression": {
                 "dependent_variable": "foo",
-                "training_percent": 0.999
+                "training_percent": -1.0
               }
             }
           }
@@ -1534,7 +1548,7 @@ setup:
 "Test put regression given training_percent is greater than hundred":
 
   - do:
-      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      catch: /\[training_percent\] must be a positive double in \(0, 100\]/
       ml.put_data_frame_analytics:
         id: "regression-training-percent-is-greater-than-hundred"
         body: >
@@ -1900,10 +1914,10 @@ setup:
           }
 
 ---
-"Test put classification given training_percent is less than one":
+"Test put classification given training_percent is less than zero":
 
   - do:
-      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      catch: /\[training_percent\] must be a positive double in \(0, 100\]/
       ml.put_data_frame_analytics:
         id: "classification-training-percent-is-less-than-one"
         body: >
@@ -1917,7 +1931,7 @@ setup:
             "analysis": {
               "classification": {
                 "dependent_variable": "foo",
-                "training_percent": 0.999
+                "training_percent": -1.0
               }
             }
           }
@@ -1926,7 +1940,7 @@ setup:
 "Test put classification given training_percent is greater than hundred":
 
   - do:
-      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      catch: /\[training_percent\] must be a positive double in \(0, 100\]/
       ml.put_data_frame_analytics:
         id: "classification-training-percent-is-greater-than-hundred"
         body: >
@@ -2154,3 +2168,37 @@ setup:
           {
             "description": "blah"
           }
+
+---
+"Test GET config for export":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - do:
+      ml.get_data_frame_analytics:
+        id: "simple-outlier-detection"
+        for_export: true
+  - match: { data_frame_analytics.0.source.index.0: "index-source" }
+  - match: { data_frame_analytics.0.source.query: {"match_all" : {} } }
+  - match: { data_frame_analytics.0.dest.index: "index-dest" }
+  - match: { data_frame_analytics.0.analysis: {
+    "outlier_detection":{
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  }}
+  - is_false: data_frame_analytics.0.create_time
+  - is_false: data_frame_analytics.0.version
+  - is_false: data_frame_analytics.0.id

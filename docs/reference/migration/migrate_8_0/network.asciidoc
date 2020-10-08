@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_network_changes]]
 === Network changes
 

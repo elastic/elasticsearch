@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests.randomValidId;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -195,6 +196,49 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
+    }
+
+    public void testGetUpdatedFields_GivenAll() {
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
+            .setDescription("new description")
+            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setAllowLazyStart(true)
+            .setMaxNumThreads(8)
+            .build();
+
+        assertThat(update.getUpdatedFields(), contains("allow_lazy_start", "description", "max_num_threads", "model_memory_limit"));
+    }
+
+    public void testGetUpdatedFields_GivenAllowLazyStart() {
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
+            .setAllowLazyStart(false)
+            .build();
+
+        assertThat(update.getUpdatedFields(), contains("allow_lazy_start"));
+    }
+
+    public void testGetUpdatedFields_GivenDescription() {
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
+            .setDescription("new description")
+            .build();
+
+        assertThat(update.getUpdatedFields(), contains("description"));
+    }
+
+    public void testGetUpdatedFields_GivenMaxNumThreads() {
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
+            .setMaxNumThreads(3)
+            .build();
+
+        assertThat(update.getUpdatedFields(), contains("max_num_threads"));
+    }
+
+    public void testGetUpdatedFields_GivenModelMemoryLimit() {
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
+            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .build();
+
+        assertThat(update.getUpdatedFields(), contains("model_memory_limit"));
     }
 
     private boolean isNoop(DataFrameAnalyticsConfig config, DataFrameAnalyticsConfigUpdate update) {

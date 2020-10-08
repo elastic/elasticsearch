@@ -1,5 +1,9 @@
 [[rename-processor]]
-=== Rename Processor
+=== Rename processor
+++++
+<titleabbrev>Rename</titleabbrev>
+++++
+
 Renames an existing field. If the field doesn't exist or the new name is already used, an exception will be thrown.
 
 [[rename-options]]

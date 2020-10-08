@@ -382,7 +382,7 @@ create a stemmed and unstemmed version of each token in a stream. The
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

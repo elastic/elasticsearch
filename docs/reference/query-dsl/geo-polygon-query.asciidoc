@@ -11,28 +11,28 @@ points. Here is an example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            {"lat" : 40, "lon" : -70},
-                            {"lat" : 30, "lon" : -80},
-                            {"lat" : 20, "lon" : -90}
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              { "lat": 40, "lon": -70 },
+              { "lat": 30, "lon": -80 },
+              { "lat": 20, "lon": -90 }
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Query Options
 
 [cols="<,<",options="header",]
@@ -45,10 +45,10 @@ invalid latitude or longitude, `COERCE` to try and infer correct latitude
 or longitude, or `STRICT` (default is `STRICT`).
 |=======================================================================
 
-[float]
+[discrete]
 ==== Allowed Formats
 
-[float]
+[discrete]
 ===== Lat Long as Array
 
 Format as `[lon, lat]`
@@ -60,28 +60,28 @@ conform with http://geojson.org/[GeoJSON].
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            [-70, 40],
-                            [-80, 30],
-                            [-90, 20]
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              [ -70, 40 ],
+              [ -80, 30 ],
+              [ -90, 20 ]
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Lat Lon as String
 
 Format in `lat,lon`.
@@ -90,62 +90,62 @@ Format in `lat,lon`.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-               "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            "40, -70",
-                            "30, -80",
-                            "20, -90"
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              "40, -70",
+              "30, -80",
+              "20, -90"
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Geohash
 
 [source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-               "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            "drn5x1g8cu2y",
-                            "30, -80",
-                            "20, -90"
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              "drn5x1g8cu2y",
+              "30, -80",
+              "20, -90"
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== geo_point Type
 
 The query *requires* the <<geo-point,`geo_point`>> type to be set on the
 relevant field.
 
-[float]
+[discrete]
 ==== Ignore Unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field

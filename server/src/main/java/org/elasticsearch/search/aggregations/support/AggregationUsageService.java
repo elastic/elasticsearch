@@ -19,12 +19,15 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.node.ReportingService;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
-public class AggregationUsageService {
+public class AggregationUsageService implements ReportingService<AggregationInfo> {
     private final Map<String, Map<String, LongAdder>> aggs;
+    private final AggregationInfo info;
 
     public static final String OTHER_SUBTYPE = "other";
 
@@ -54,6 +57,7 @@ public class AggregationUsageService {
 
     private AggregationUsageService(Builder builder) {
         this.aggs = builder.aggs;
+        info = new AggregationInfo(aggs);
     }
 
     public void incAggregationUsage(String aggregationName, String valuesSourceType) {
@@ -84,5 +88,10 @@ public class AggregationUsageService {
             }
         });
         return aggsUsageMap;
+    }
+
+    @Override
+    public AggregationInfo info() {
+        return info;
     }
 }

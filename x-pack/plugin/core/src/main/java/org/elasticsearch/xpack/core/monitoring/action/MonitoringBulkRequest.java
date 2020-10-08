@@ -79,7 +79,7 @@ public class MonitoringBulkRequest extends ActionRequest {
                                      final long intervalMillis) throws IOException {
 
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest
-        new BulkRequestParser(false).parse(content, null, null, null, null, true, xContentType,
+        new BulkRequestParser(false).parse(content, null, null, null, null, null, true, xContentType,
             (indexRequest, type) -> {
                     // we no longer accept non-timestamped indexes from Kibana, LS, or Beats because we do not use the data
                     // and it was duplicated anyway; by simply dropping it, we allow BWC for older clients that still send it

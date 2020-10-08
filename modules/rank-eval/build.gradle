@@ -17,6 +17,7 @@
  * under the License.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Rank Eval module adds APIs to evaluate ranking quality.'
@@ -31,5 +32,5 @@ restResources {
 
 testClusters.all {
   // Modules who's integration is explicitly tested in integration tests
-  module project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile
+  module ':modules:lang-mustache'
 }

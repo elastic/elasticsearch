@@ -10,17 +10,17 @@ price for the product. The mapping could look like:
 --------------------------------------------------
 PUT /products
 {
-    "mappings": {
-        "properties" : {
-            "resellers" : { <1>
-                "type" : "nested",
-                "properties" : {
-                    "reseller" : { "type" : "text" },
-                    "price" : { "type" : "double" }
-                }
-            }
+  "mappings": {
+    "properties": {
+      "resellers": { <1>
+        "type": "nested",
+        "properties": {
+          "reseller": { "type": "text" },
+          "price": { "type": "double" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 <1> `resellers` is an array that holds nested documents.
@@ -55,19 +55,19 @@ The following request returns the minimum price a product can be purchased for:
 --------------------------------------------------
 GET /products/_search
 {
-    "query" : {
-        "match" : { "name" : "led tv" }
-    },
-    "aggs" : {
-        "resellers" : {
-            "nested" : {
-                "path" : "resellers"
-            },
-            "aggs" : {
-                "min_price" : { "min" : { "field" : "resellers.price" } }
-            }
-        }
+  "query": {
+    "match": { "name": "led tv" }
+  },
+  "aggs": {
+    "resellers": {
+      "nested": {
+        "path": "resellers"
+      },
+      "aggs": {
+        "min_price": { "min": { "field": "resellers.price" } }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/GET \/products\/_search/GET \/products\/_search\?filter_path=aggregations/]

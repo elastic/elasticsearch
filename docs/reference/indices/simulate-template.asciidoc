@@ -204,7 +204,7 @@ PUT /_component_template/ct2                    <2>
 
 PUT /_index_template/final-template            <3>
 {
-  "index_patterns": ["myindex*"],
+  "index_patterns": ["my-index-*"],
   "composed_of": ["ct1", "ct2"],
   "priority": 5
 }
@@ -256,7 +256,7 @@ The specified template is used for the simulation if it has a higher priority th
 --------------------------------------------------
 POST /_index_template/_simulate
 {
-  "index_patterns": ["myindex*"],
+  "index_patterns": ["my-index-*"],
   "composed_of": ["ct2"],
   "priority": 10,
   "template": {
@@ -292,7 +292,7 @@ The response shows any overlapping templates with a lower priority.
     {
       "name" : "final-template",
       "index_patterns" : [
-        "myindex*"
+        "my-index-*"
       ]
     }
   ]

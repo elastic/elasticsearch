@@ -52,6 +52,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertThat(ByteSizeUnit.PB.toPB(10), is(new ByteSizeValue(10, ByteSizeUnit.PB).getPb()));
     }
 
+    public void testToIntBytes() {
+        assertThat(ByteSizeUnit.BYTES.toIntBytes(4), equalTo(4));
+        assertThat(ByteSizeUnit.KB.toIntBytes(4), equalTo(4096));
+        assertThat(expectThrows(AssertionError.class, () -> ByteSizeUnit.GB.toIntBytes(4)).getMessage(),
+            containsString("could not convert [4 GB] to an int"));
+    }
+
     public void testEquality() {
         String[] equalValues = new String[]{"1GB", "1024MB", "1048576KB", "1073741824B"};
         ByteSizeValue value1 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");

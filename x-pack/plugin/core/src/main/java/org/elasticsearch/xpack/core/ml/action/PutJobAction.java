@@ -9,8 +9,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,9 +66,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
             this.jobBuilder = jobBuilder;
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             jobBuilder = new Job.Builder(in);
@@ -113,13 +108,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         @Override
         public final String toString() {
             return Strings.toString(this);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, PutJobAction action) {
-            super(client, action, new Request());
         }
     }
 

@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
-import java.util.Set;
 
 /*
  * A terms aggregation source for group_by
@@ -28,16 +25,17 @@ public class TermsGroupSource extends SingleGroupSource {
         ConstructingObjectParser<TermsGroupSource, Void> parser = new ConstructingObjectParser<>(NAME, lenient, (args) -> {
             String field = (String) args[0];
             ScriptConfig scriptConfig = (ScriptConfig) args[1];
+            boolean missingBucket = args[2] == null ? false : (boolean) args[2];
 
-            return new TermsGroupSource(field, scriptConfig);
+            return new TermsGroupSource(field, scriptConfig, missingBucket);
         });
 
         SingleGroupSource.declareValuesSourceFields(parser, lenient);
         return parser;
     }
 
-    public TermsGroupSource(final String field, final ScriptConfig scriptConfig) {
-        super(field, scriptConfig);
+    public TermsGroupSource(final String field, final ScriptConfig scriptConfig, boolean missingBucket) {
+        super(field, scriptConfig, missingBucket);
     }
 
     public TermsGroupSource(StreamInput in) throws IOException {
@@ -51,18 +49,6 @@ public class TermsGroupSource extends SingleGroupSource {
 
     public static TermsGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
-    }
-
-    @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(
-        Set<String> changedBuckets,
-        String synchronizationField,
-        long synchronizationTimestamp
-    ) {
-        if (changedBuckets != null && changedBuckets.isEmpty() == false) {
-            return new TermsQueryBuilder(field, changedBuckets);
-        }
-        return null;
     }
 
     @Override

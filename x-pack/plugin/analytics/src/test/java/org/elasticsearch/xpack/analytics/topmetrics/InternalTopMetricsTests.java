@@ -20,11 +20,13 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics.MetricValue;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -40,6 +42,7 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notANumber;
 
 public class InternalTopMetricsTests extends InternalAggregationTestCase<InternalTopMetrics> {
     /**
@@ -209,6 +212,30 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                 "    ]\n" +
                 "  }\n" +
                 "}"));
+    }
+
+    public void testGetProperty() {
+        InternalTopMetrics metrics = new InternalTopMetrics(
+            "test",
+            SortOrder.ASC,
+            Arrays.asList("foo", "bar", "baz"),
+            1,
+            Arrays.asList(
+                new InternalTopMetrics.TopMetric(
+                    DocValueFormat.RAW,
+                    SortValue.from(1),
+                    Arrays.asList(
+                        new MetricValue(DocValueFormat.RAW, SortValue.from(1)),   // foo
+                        new MetricValue(DocValueFormat.RAW, SortValue.from(5.0)), // bar
+                        null                                                      // baz
+                    )
+                )
+            ),
+            null
+        );
+        assertThat(metrics.getProperty("foo"), equalTo(1L));
+        assertThat(metrics.getProperty("bar"), equalTo(5.0));
+        assertThat((Double) metrics.getProperty("baz"), notANumber());
     }
 
     @Override

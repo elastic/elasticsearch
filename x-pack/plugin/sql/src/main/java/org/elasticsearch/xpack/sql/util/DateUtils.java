@@ -177,7 +177,11 @@ public final class DateUtils {
         nano = nano - nano % (int) Math.pow(10, (9 - precision));
         return nano;
     }
-
+    
+    public static ZonedDateTime atTimeZone(LocalDate ld, ZoneId zoneId) {
+        return ld.atStartOfDay(zoneId);
+    }
+    
     public static ZonedDateTime atTimeZone(LocalDateTime ldt, ZoneId zoneId) {
         return ZonedDateTime.ofInstant(ldt, zoneId.getRules().getValidOffsets(ldt).get(0), zoneId);
     }
@@ -205,6 +209,8 @@ public final class DateUtils {
             return atTimeZone((OffsetTime) ta, zoneId);
         } else if (ta instanceof LocalTime) {
             return atTimeZone((LocalTime) ta, zoneId);
+        } else if (ta instanceof LocalDate) {
+            return atTimeZone((LocalDate) ta, zoneId);
         } else {
             return ta;
         }

@@ -1,0 +1,93 @@
+[[indices-get-template-v1]]
+=== Get index template API
+++++
+<titleabbrev>Get index template (legacy)</titleabbrev>
+++++
+
+IMPORTANT: This documentation is about legacy index templates, 
+which are deprecated and will be replaced by the composable templates introduced in {es} 7.8. 
+For information about composable templates, <<indices-templates>>.
+
+Retrieves information about one or more index templates.
+
+////
+[source,console]
+--------------------------------------------------
+PUT _template/template_1
+{
+ "index_patterns" : ["te*"],
+  "settings": {
+    "number_of_shards": 1
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _template/template_1
+--------------------------------------------------
+// TEARDOWN
+
+////
+
+[source,console]
+--------------------------------------------------
+GET /_template/template_1
+--------------------------------------------------
+
+
+[[get-template-v1-api-request]]
+==== {api-request-title}
+
+`GET /_template/<index-template>`
+
+
+[[get-template-v1-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-template]
++
+To return all index templates, omit this parameter
+or use a value of `_all` or `*`.
+
+
+[[get-template-v1-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[get-template-v1-api-example]]
+==== {api-examples-title}
+
+
+[[get-template-v1-api-multiple-ex]]
+===== Get multiple index templates
+
+[source,console]
+--------------------------------------------------
+GET /_template/template_1,template_2
+--------------------------------------------------
+
+
+[[get-template-v1-api-wildcard-ex]]
+===== Get index templates using a wildcard expression
+
+[source,console]
+--------------------------------------------------
+GET /_template/temp*
+--------------------------------------------------
+
+
+[[get-template-v1-api-all-ex]]
+===== Get all index templates
+
+[source,console]
+--------------------------------------------------
+GET /_template
+--------------------------------------------------

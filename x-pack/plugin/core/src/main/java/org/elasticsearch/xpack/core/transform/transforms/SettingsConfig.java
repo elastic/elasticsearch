@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SettingsConfig implements Writeable, ToXContentObject {
@@ -61,6 +63,18 @@ public class SettingsConfig implements Writeable, ToXContentObject {
 
     public Float getDocsPerSecond() {
         return docsPerSecond;
+    }
+
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        // TODO: make this dependent on search.max_buckets
+        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > 10_000)) {
+            validationException = addValidationError(
+                "settings.max_page_search_size [" + maxPageSearchSize + "] must be greater than 10 and less than 10,000",
+                validationException
+            );
+        }
+
+        return validationException;
     }
 
     public boolean isValid() {

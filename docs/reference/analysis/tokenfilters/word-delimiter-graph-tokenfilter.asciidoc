@@ -135,7 +135,7 @@ The following <<indices-create-index,create index API>> request uses the
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -270,6 +270,12 @@ If `true`, the filter includes tokens consisting of only alphabetical characters
 in the output. If `false`, the filter excludes these tokens from the output.
 Defaults to `true`.
 
+`ignore_keywords`::
+(Optional, boolean)
+If `true`, the filter skips tokens with
+a `keyword` attribute of `true`.
+Defaults to `false`.
+
 [[word-delimiter-graph-tokenfilter-preserve-original]]
 `preserve_original`::
 +
@@ -365,7 +371,7 @@ $ => DIGIT
 
 # in some cases you might not want to split on ZWJ
 # this also tests the case where we need a bigger byte[]
-# see http://en.wikipedia.org/wiki/Zero-width_joiner
+# see https://en.wikipedia.org/wiki/Zero-width_joiner
 \\u200D => ALPHANUM
 ----
 
@@ -402,7 +408,7 @@ filter that uses the following rules:
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

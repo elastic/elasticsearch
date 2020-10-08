@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.lookup;
 
+import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +74,7 @@ import java.util.Objects;
  * </ul>
  */
 public final class PainlessLookupUtility {
-    
+
     /**
      * The name for an anonymous class.
      */
@@ -359,7 +361,34 @@ public final class PainlessLookupUtility {
     public static String buildPainlessFieldKey(String fieldName) {
         return fieldName;
     }
-    
+
+    /**
+     * Constructs an array of injectable constants for a specific {@link PainlessMethod}
+     * derived from an {@link org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation}.
+     */
+    public static Object[] buildInjections(PainlessMethod painlessMethod, Map<String, Object> constants) {
+        if (painlessMethod.annotations.containsKey(InjectConstantAnnotation.class) == false) {
+            return new Object[0];
+        }
+
+        List<String> names = ((InjectConstantAnnotation)painlessMethod.annotations.get(InjectConstantAnnotation.class)).injects;
+        Object[] injections = new Object[names.size()];
+
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i);
+            Object constant = constants.get(name);
+
+            if (constant == null) {
+                throw new IllegalStateException("constant [" + name + "] not found for injection into method " +
+                        "[" + buildPainlessMethodKey(painlessMethod.javaMethod.getName(), painlessMethod.typeParameters.size()) + "]");
+            }
+
+            injections[i] = constant;
+        }
+
+        return injections;
+    }
+
     private PainlessLookupUtility() {
 
     }

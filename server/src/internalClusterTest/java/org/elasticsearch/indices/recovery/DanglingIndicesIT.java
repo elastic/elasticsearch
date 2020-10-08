@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDangli
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -39,14 +38,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
-import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * This class tests how dangling indices are handled, in terms of how they
@@ -63,63 +60,13 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test-idx-1";
     private static final String OTHER_INDEX_NAME = INDEX_NAME + "-other";
 
-    private Settings buildSettings(int maxTombstones, boolean writeDanglingIndices, boolean importDanglingIndices) {
+    private Settings buildSettings(int maxTombstones, boolean writeDanglingIndices) {
         return Settings.builder()
             // Limit the indices kept in the graveyard. This can be set to zero, so that
             // when we delete an index, it's definitely considered to be dangling.
             .put(SETTING_MAX_TOMBSTONES.getKey(), maxTombstones)
             .put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), writeDanglingIndices)
-            .put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), importDanglingIndices)
             .build();
-    }
-
-    /**
-     * Check that when the auto-recovery setting is enabled and a dangling index is
-     * discovered, then that index is recovered into the cluster.
-     */
-    public void testDanglingIndicesAreRecoveredWhenSettingIsEnabled() throws Exception {
-        final Settings settings = buildSettings(0, true, true);
-        internalCluster().startNodes(3, settings);
-
-        createIndices(INDEX_NAME);
-        ensurePendingDanglingIndicesWritten();
-
-        boolean refreshIntervalChanged = randomBoolean();
-        if (refreshIntervalChanged) {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put("index.refresh_interval", "42s").build())
-                .get();
-            ensurePendingDanglingIndicesWritten();
-        }
-
-        if (randomBoolean()) {
-            client().admin().indices().prepareClose(INDEX_NAME).get();
-        }
-        ensureGreen(INDEX_NAME);
-
-        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                internalCluster().validateClusterFormed();
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                return super.onNodeStopped(nodeName);
-            }
-        });
-
-        assertBusy(() -> assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME)));
-        if (refreshIntervalChanged) {
-            assertThat(
-                client().admin().indices().prepareGetSettings(INDEX_NAME).get().getSetting(INDEX_NAME, "index.refresh_interval"),
-                equalTo("42s")
-            );
-        }
-        ensureGreen(INDEX_NAME);
-        final IndexMetadata indexMetadata = clusterService().state().metadata().index(INDEX_NAME);
-        assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), notNullValue());
     }
 
     private void ensurePendingDanglingIndicesWritten() throws Exception {
@@ -130,35 +77,18 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that when dangling indices are discovered, then they are not recovered into
-     * the cluster when the recovery setting is disabled.
+     * Check that when dangling indices are not written, then they cannot be listed by the API
      */
-    public void testDanglingIndicesAreNotRecoveredWhenSettingIsDisabled() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, true, false));
+    public void testDanglingIndicesCannotBeListedWhenNotWritten() throws Exception {
+        internalCluster().startNodes(3, buildSettings(0, false));
 
         createDanglingIndices(INDEX_NAME);
 
         // Since index recovery is async, we can't prove index recovery will never occur, just that it doesn't occur within some reasonable
         // amount of time
         assertFalse(
-            "Did not expect dangling index " + INDEX_NAME + " to be recovered",
-            waitUntil(() -> indexExists(INDEX_NAME), 1, TimeUnit.SECONDS)
-        );
-    }
-
-    /**
-     * Check that when dangling indices are not written, then they cannot be recovered into the cluster.
-     */
-    public void testDanglingIndicesAreNotRecoveredWhenNotWritten() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, false, true));
-
-        createDanglingIndices(INDEX_NAME);
-
-        // Since index recovery is async, we can't prove index recovery will never occur, just that it doesn't occur within some reasonable
-        // amount of time
-        assertFalse(
-            "Did not expect dangling index " + INDEX_NAME + " to be recovered",
-            waitUntil(() -> indexExists(INDEX_NAME), 1, TimeUnit.SECONDS)
+            "Did not expect dangling index " + INDEX_NAME + " to be listed",
+            waitUntil(() -> listDanglingIndices().isEmpty() == false, 5, TimeUnit.SECONDS)
         );
     }
 
@@ -166,7 +96,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Check that when dangling indices are discovered, then they can be listed.
      */
     public void testDanglingIndicesCanBeListed() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, true, false));
+        internalCluster().startNodes(3, buildSettings(0, true));
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
 
@@ -192,48 +122,10 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that when dangling index auto imports are enabled, and a dangling index is is discovered
-     * but cannot be imported due to a name clash with an existing index, then that dangling index can
-     * still be listed through the API.
-     */
-    public void testDanglingIndicesCanBeListedWhenAutoImportEnabled() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, true, true));
-
-        createIndices(INDEX_NAME);
-        ensurePendingDanglingIndicesWritten();
-
-        // Restart node, deleting the indices in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                internalCluster().validateClusterFormed();
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-
-                // Create another index with the same name, which will prevent the dangling
-                // index from being restored, and also ensures that we are checking index
-                // existence by UUID, not name.
-                //
-                // Note: don't call `createIndices()` here as it calls `ensureGreen()`, which will
-                // fail while a node is offline
-                createIndex(INDEX_NAME);
-                ensurePendingDanglingIndicesWritten();
-
-                return super.onNodeStopped(nodeName);
-            }
-        });
-
-        final List<DanglingIndexInfo> danglingIndices = listDanglingIndices();
-
-        assertThat(danglingIndices, hasSize(1));
-        assertThat(danglingIndices.get(0).getIndexName(), equalTo(INDEX_NAME));
-    }
-
-    /**
      * Check that dangling indices can be imported.
      */
     public void testDanglingIndicesCanBeImported() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, true, false));
+        internalCluster().startNodes(3, buildSettings(0, true));
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
 
@@ -250,7 +142,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * being dangling.
      */
     public void testDanglingIndicesMustExistToBeImported() {
-        internalCluster().startNodes(1, buildSettings(0, true, false));
+        internalCluster().startNodes(1, buildSettings(0, true));
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest("NonExistentUUID", true);
 
@@ -266,7 +158,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Check that a dangling index can only be imported if "accept_data_loss" is set to true.
      */
     public void testMustAcceptDataLossToImportDanglingIndex() throws Exception {
-        internalCluster().startNodes(3, buildSettings(0, true, false));
+        internalCluster().startNodes(3, buildSettings(0, true));
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
         final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
@@ -290,7 +182,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * deleted through the API
      */
     public void testDanglingIndexCanBeDeleted() throws Exception {
-        final Settings settings = buildSettings(1, true, false);
+        final Settings settings = buildSettings(1, true);
         internalCluster().startNodes(3, settings);
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
@@ -308,61 +200,10 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that when dangling index auto imports are enabled, and a dangling index is is discovered
-     * but cannot be imported due to a name clash with an existing index, then that dangling index can
-     * still be deleted through the API.
-     */
-    public void testDanglingIndexCanBeDeletedWhenAutoImportEnabled() throws Exception {
-        final Settings settings = buildSettings(1, true, true);
-        internalCluster().startNodes(3, settings);
-
-        createIndices(INDEX_NAME, OTHER_INDEX_NAME);
-        ensurePendingDanglingIndicesWritten();
-
-        AtomicReference<String> stoppedNodeName = new AtomicReference<>();
-
-        // Restart node, deleting the indices in its absence, so that there is a dangling index to recover
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                internalCluster().validateClusterFormed();
-                stoppedNodeName.set(nodeName);
-
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-                assertAcked(client().admin().indices().prepareDelete(OTHER_INDEX_NAME));
-
-                // Create another index with the same name, which will prevent the dangling
-                // index from being restored, and also ensures that we are checking index
-                // existence by UUID, not name.
-                //
-                // Note: don't call `createIndices()` here as it calls `ensureGreen()`, which will
-                // fail while a node is offline
-                createIndex(INDEX_NAME);
-                ensurePendingDanglingIndicesWritten();
-
-                return super.onNodeStopped(nodeName);
-            }
-        });
-
-        final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName.get(), INDEX_NAME);
-
-        client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, true)).actionGet();
-
-        // The dangling index that we deleted ought to have been removed from disk. Check by
-        // creating and deleting another index, which creates a new tombstone entry, which should
-        // not cause the deleted dangling index to be considered "live" again, just because its
-        // tombstone has been pushed out of the graveyard.
-        createIndex("additional");
-        assertAcked(client().admin().indices().prepareDelete("additional"));
-        assertThat(listDanglingIndices(), is(empty()));
-    }
-
-    /**
      * Check that when a index is found to be dangling on more than one node, it can be deleted.
      */
     public void testDanglingIndexOverMultipleNodesCanBeDeleted() throws Exception {
-        final Settings settings = buildSettings(1, true, false);
+        final Settings settings = buildSettings(1, true);
         internalCluster().startNodes(3, settings);
 
         createIndices(INDEX_NAME, OTHER_INDEX_NAME);
@@ -416,7 +257,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * Check that when deleting a dangling index, it is required that the "accept_data_loss" flag is set.
      */
     public void testDeleteDanglingIndicesRequiresDataLossFlagToBeTrue() throws Exception {
-        final Settings settings = buildSettings(1, true, false);
+        final Settings settings = buildSettings(1, true);
         internalCluster().startNodes(3, settings);
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);

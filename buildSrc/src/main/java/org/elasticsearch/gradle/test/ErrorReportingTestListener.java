@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.test;
 import org.gradle.api.internal.tasks.testing.logging.FullExceptionFormatter;
 import org.gradle.api.internal.tasks.testing.logging.TestExceptionFormatter;
 import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.testing.TestDescriptor;
 import org.gradle.api.tasks.testing.TestListener;
 import org.gradle.api.tasks.testing.TestOutputEvent;
@@ -49,17 +48,18 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ErrorReportingTestListener implements TestOutputListener, TestListener {
-    private static final Logger LOGGER = Logging.getLogger(ErrorReportingTestListener.class);
     private static final String REPRODUCE_WITH_PREFIX = "REPRODUCE WITH";
 
     private final TestExceptionFormatter formatter;
     private final File outputDirectory;
+    private final Logger taskLogger;
     private Map<Descriptor, EventWriter> eventWriters = new ConcurrentHashMap<>();
     private Map<Descriptor, Deque<String>> reproductionLines = new ConcurrentHashMap<>();
     private Set<Descriptor> failedTests = new LinkedHashSet<>();
 
-    public ErrorReportingTestListener(TestLogging testLogging, File outputDirectory) {
+    public ErrorReportingTestListener(TestLogging testLogging, Logger taskLogger, File outputDirectory) {
         this.formatter = new FullExceptionFormatter(testLogging);
+        this.taskLogger = taskLogger;
         this.outputDirectory = outputDirectory;
     }
 
@@ -120,6 +120,15 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                     }
                 }
             }
+            if (suite.getParent() == null) {
+                // per test task top level gradle test run suite finished
+                if (getFailedTests().size() > 0) {
+                    taskLogger.lifecycle("\nTests with failures:");
+                    for (ErrorReportingTestListener.Descriptor failure : getFailedTests()) {
+                        taskLogger.lifecycle(" - " + failure.getFullName());
+                    }
+                }
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Error reading test suite output", e);
         } finally {
@@ -129,7 +138,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                 try {
                     writer.close();
                 } catch (IOException e) {
-                    LOGGER.error("Failed to close test suite output stream", e);
+                    taskLogger.error("Failed to close test suite output stream", e);
                 }
             }
         }

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -75,18 +76,26 @@ public final class SchemaUtil {
 
         config.getGroupConfig()
             .getGroups()
-            .forEach((destinationFieldName, group) -> {
-                // We will always need the field name for the grouping to create the mapping
-                fieldNamesForGrouping.put(destinationFieldName, group.getField());
-                // Sometimes the group config will supply a desired mapping as well
-                if (group.getMappingType() != null) {
-                    fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
-                }
-            });
+            .forEach(
+                (destinationFieldName, group) -> {
+                    // skip any fields that use scripts as there will be no source mapping
+                    if (group.getScriptConfig() != null) {
+                        return;
+                    }
 
+                    // We will always need the field name for the grouping to create the mapping
+                    fieldNamesForGrouping.put(destinationFieldName, group.getField());
+                    // Sometimes the group config will supply a desired mapping as well
+                    if (group.getMappingType() != null) {
+                        fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
+                    }
+                }
+            );
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
-            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = Aggregations.getAggregationInputAndOutputTypes(agg);
+            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+                agg
+            );
             aggregationSourceFieldNames.putAll(inputAndOutputTypes.v1());
             aggregationTypes.putAll(inputAndOutputTypes.v2());
         }
@@ -104,7 +113,7 @@ public final class SchemaUtil {
         getSourceFieldMappings(
             client,
             source,
-            allFieldNames.values().toArray(new String[0]),
+            allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
             ActionListener.wrap(
                 sourceMappings -> listener.onResponse(
                     resolveMappings(
@@ -157,25 +166,30 @@ public final class SchemaUtil {
         aggregationTypes.forEach((targetFieldName, aggregationName) -> {
             String sourceFieldName = aggregationSourceFieldNames.get(targetFieldName);
             String sourceMapping = sourceFieldName == null ? null : sourceMappings.get(sourceFieldName);
-            String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMapping);
+            String destinationMapping = TransformAggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
-            logger.debug(() -> new ParameterizedMessage(
-                "Deduced mapping for: [{}], agg type [{}] to [{}]",
-                targetFieldName,
-                aggregationName,
-                destinationMapping
-            ));
-
-            if (Aggregations.isDynamicMapping(destinationMapping)) {
-                logger.debug(() -> new ParameterizedMessage(
-                    "Dynamic target mapping set for field [{}] and aggregation [{}]",
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Deduced mapping for: [{}], agg type [{}] to [{}]",
                     targetFieldName,
-                    aggregationName
-                ));
+                    aggregationName,
+                    destinationMapping
+                )
+            );
+
+            if (TransformAggregations.isDynamicMapping(destinationMapping)) {
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "Dynamic target mapping set for field [{}] and aggregation [{}]",
+                        targetFieldName,
+                        aggregationName
+                    )
+                );
             } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [{}], fall back to dynamic mapping.", targetFieldName);
+                logger.warn("Failed to deduce mapping for [{}], fall back to dynamic mapping. " +
+                    "Create the destination index with complete mappings first to avoid deducing the mappings", targetFieldName);
             }
         });
 
@@ -185,7 +199,8 @@ public final class SchemaUtil {
             if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [{}], fall back to keyword.", targetFieldName);
+                logger.warn("Failed to deduce mapping for [{}], fall back to keyword. " +
+                    "Create the destination index with complete mappings first to avoid deducing the mappings", targetFieldName);
                 targetMapping.put(targetFieldName, KeywordFieldMapper.CONTENT_TYPE);
             }
         });

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -144,10 +145,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     }
 
     private static SyncConfig parseSyncConfig(XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         SyncConfig syncConfig = parser.namedObject(SyncConfig.class, parser.currentName(), ignoreUnknownFields);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return syncConfig;
     }
 
@@ -290,6 +291,15 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     public SettingsConfig getSettings() {
         return settings;
+    }
+
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (pivotConfig != null) {
+            validationException = pivotConfig.validate(validationException);
+        }
+        validationException = settings.validate(validationException);
+
+        return validationException;
     }
 
     public boolean isValid() {

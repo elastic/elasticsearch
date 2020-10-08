@@ -247,6 +247,7 @@ DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
+DATE_PARSE       |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
@@ -261,6 +262,7 @@ DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
 DOW              |SCALAR         
 DOY              |SCALAR
+FORMAT           |SCALAR
 HOUR             |SCALAR
 HOUR_OF_DAY      |SCALAR         
 IDOW             |SCALAR
@@ -2907,6 +2909,31 @@ schema::time:time
 // end::timeParse3
 ;
 
+dateParse1
+schema::date:date
+// tag::dateParse1
+SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS "date";
+
+   date
+-----------
+2020-04-07
+// end::dateParse1
+;
+
+dateParse2-Ignore
+schema::date:date
+// tag::dateParse2
+{
+    "query" : "SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS \"date\"",
+    "time_zone" : "Europe/Athens"
+}
+
+   date
+------------
+2020-04-07T00:00:00.000+03:00
+// end::dateParse2
+;
+
 datePartDateTimeYears
 // tag::datePartDateTimeYears
 SELECT DATE_PART('year', '2019-09-22T11:22:33.123Z'::datetime) AS "years";
@@ -3061,6 +3088,36 @@ SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
 ------------------
 +19 00:00:00
 // end::truncateIntervalDay
+;
+
+formatDate
+// tag::formatDate
+SELECT FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::formatDate
+;
+
+formatDateTime
+// tag::formatDateTime
+SELECT FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.ff') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.98
+// end::formatDateTime
+;
+
+formatTime
+// tag::formatTime
+SELECT FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.f') AS "time";
+
+      time
+------------------
+11 22 33.9
+// end::formatTime
 ;
 
 constantDayOfWeek

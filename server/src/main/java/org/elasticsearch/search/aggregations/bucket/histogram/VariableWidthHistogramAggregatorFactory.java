@@ -20,12 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -38,8 +36,11 @@ import java.util.Map;
 public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(VariableWidthHistogramAggregationBuilder.NAME, CoreValuesSourceType.NUMERIC,
-            (VariableWidthHistogramAggregatorSupplier) VariableWidthHistogramAggregator::new);
+        builder.register(
+            VariableWidthHistogramAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.NUMERIC,
+            VariableWidthHistogramAggregator::new,
+                true);
     }
 
     private final int numBuckets;
@@ -73,14 +74,9 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
                     + "] cannot be nested inside an aggregation that collects more than a single bucket."
             );
         }
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            VariableWidthHistogramAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof VariableWidthHistogramAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        return ((VariableWidthHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, shardSize, initialBuffer,
-            config, searchContext, parent, metadata);
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(VariableWidthHistogramAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, factories, numBuckets, shardSize, initialBuffer, config, searchContext, parent, metadata);
     }
 
     @Override

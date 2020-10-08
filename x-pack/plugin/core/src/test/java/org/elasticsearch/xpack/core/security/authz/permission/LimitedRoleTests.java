@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -40,6 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class LimitedRoleTests extends ESTestCase {
     List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors;
@@ -181,27 +183,27 @@ public class LimitedRoleTests extends ESTestCase {
 
     public void testAllowedIndicesMatcher() {
         Role fromRole = Role.builder("a-role").add(IndexPrivilege.READ, "ind-1*").build();
-        assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
-        assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-11"), is(true));
-        assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
+        assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
+        assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(true));
+        assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
 
         {
             Role limitedByRole = Role.builder("limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
-            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
-            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-11"), is(false));
-            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(true));
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(false));
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(true));
             Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
-            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
-            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-11"), is(false));
-            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(false));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
         }
         {
             Role limitedByRole = Role.builder("limited-role").add(IndexPrivilege.READ, "ind-*").build();
-            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
-            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(true));
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
+            assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(true));
             Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
-            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
-            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
+            assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
         }
     }
 
@@ -439,6 +441,14 @@ public class LimitedRoleTests extends ESTestCase {
 
     private void verifyResourcesPrivileges(ResourcePrivilegesMap resourcePrivileges, ResourcePrivilegesMap expectedAppPrivsByResource) {
         assertThat(resourcePrivileges, equalTo(expectedAppPrivsByResource));
+    }
+
+    private IndexAbstraction mockIndexAbstraction(String name) {
+        IndexAbstraction mock = mock(IndexAbstraction.class);
+        when(mock.getName()).thenReturn(name);
+        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
+                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        return mock;
     }
 
     private ApplicationPrivilege defineApplicationPrivilege(String app, String name, String... actions) {

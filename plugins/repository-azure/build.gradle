@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.test.InternalClusterTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
@@ -22,7 +23,8 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
@@ -106,18 +108,18 @@ Map<String, Object> expansions = [
   'base_path': azureBasePath + "_integration_tests"
 ]
 
-processTestResources {
+processYamlRestTestResources {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
 
-test {
+internalClusterTest {
   // this is tested explicitly in a separate test task
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
 }
 
 testClusters {
-  integTest {
+  yamlRestTest {
     keystore 'azure.client.integration_test.account', azureAccount
     if (azureKey != null && azureKey.isEmpty() == false) {
       keystore 'azure.client.integration_test.key', azureKey
@@ -134,7 +136,11 @@ testClusters {
 }
 
 task azureThirdPartyTest(type: Test) {
-  dependsOn tasks.integTest
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
+  dependsOn tasks.internalClusterTest
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
   systemProperty 'test.azure.key', azureKey ? azureKey : ""

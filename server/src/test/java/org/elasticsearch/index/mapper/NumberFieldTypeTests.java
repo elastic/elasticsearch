@@ -44,6 +44,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -54,6 +56,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -128,12 +131,15 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
     }
 
+    private static MappedFieldType unsearchable() {
+        return new NumberFieldType("field", NumberType.LONG, false, false, true, true, null, Collections.emptyMap());
+    }
+
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", null));
 
-        MappedFieldType unsearchable
-            = new NumberFieldType("field", NumberType.LONG, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = unsearchable();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("42", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -250,7 +256,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3));
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
 
-        MappedFieldType unsearchable = new NumberFieldType("field", NumberType.LONG, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = unsearchable();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -447,8 +453,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         // Create an index writer configured with the same index sort.
         NumberFieldType fieldType = new NumberFieldType("field", type);
-        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder("index")
-            .build(indexSettings, fieldType, null, null, null);
+        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder("index", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null);
         SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
@@ -492,7 +499,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseOutOfRangeValues() throws IOException {
-        final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
+        final List<OutOfRangeSpec> inputs = Arrays.asList(
             OutOfRangeSpec.of(NumberType.BYTE, "128", "out of range for a byte"),
             OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
@@ -534,7 +541,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             OutOfRangeSpec.of(NumberType.DOUBLE, Double.NEGATIVE_INFINITY, "[double] supports only finite values")
         );
 
-        for (OutOfRangeSpec<Object> item: inputs) {
+        for (OutOfRangeSpec item: inputs) {
             try {
                 item.type.parse(item.value, false);
                 fail("Parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
@@ -545,20 +552,28 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    static class OutOfRangeSpec<V> {
+    static class OutOfRangeSpec {
 
         final NumberType type;
-        final V value;
+        final Object value;
         final String message;
 
-        static <V> OutOfRangeSpec<V> of(NumberType t, V v, String m) {
-            return new OutOfRangeSpec<>(t, v, m);
+        static OutOfRangeSpec of(NumberType t, Object v, String m) {
+            return new OutOfRangeSpec(t, v, m);
         }
 
-        OutOfRangeSpec(NumberType t, V v, String m) {
+        OutOfRangeSpec(NumberType t, Object v, String m) {
             type = t;
             value = v;
             message = m;
+        }
+
+        public void write(XContentBuilder b) throws IOException {
+            if (value instanceof BigInteger) {
+                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
+            } else {
+                b.field("field", value);
+            }
         }
     }
 
@@ -626,5 +641,23 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             HalfFloatPoint.encodeDimension(value, bytes, 0);
             assertThat(NumberType.HALF_FLOAT.parsePoint(bytes), equalTo(value));
         }
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true)
+            .build(context)
+            .fieldType();
+        assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
+        assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
+
+        MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
+            .nullValue(2.71f)
+            .build(context)
+            .fieldType();
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 }

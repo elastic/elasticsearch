@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.autoscaling.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -18,14 +19,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisionService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.TreeMap;
 
 public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAction<
     GetAutoscalingDecisionAction.Request,
     GetAutoscalingDecisionAction.Response> {
+
+    private final AutoscalingDecisionService decisionService;
+    private final ClusterInfoService clusterInfoService;
 
     @Inject
     public TransportGetAutoscalingDecisionAction(
@@ -33,7 +36,9 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final AutoscalingDecisionService.Holder decisionServiceHolder,
+        final ClusterInfoService clusterInfoService
     ) {
         super(
             GetAutoscalingDecisionAction.NAME,
@@ -44,6 +49,9 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
             GetAutoscalingDecisionAction.Request::new,
             indexNameExpressionResolver
         );
+        this.decisionService = decisionServiceHolder.get();
+        this.clusterInfoService = clusterInfoService;
+        assert this.decisionService != null;
     }
 
     @Override
@@ -63,7 +71,7 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
         final ClusterState state,
         final ActionListener<GetAutoscalingDecisionAction.Response> listener
     ) {
-        listener.onResponse(new GetAutoscalingDecisionAction.Response(Collections.unmodifiableSortedMap(new TreeMap<>())));
+        listener.onResponse(new GetAutoscalingDecisionAction.Response(decisionService.decide(state, clusterInfoService.getClusterInfo())));
     }
 
     @Override

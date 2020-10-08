@@ -48,10 +48,11 @@ import java.util.Objects;
 
 import static java.util.Map.entry;
 
-public class AutoDateHistogramAggregationBuilder
-        extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
+public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
 
     public static final String NAME = "auto_date_histogram";
+    public static final ValuesSourceRegistry.RegistryKey<AutoDateHistogramAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, AutoDateHistogramAggregatorSupplier.class);
 
     private static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
     private static final ParseField MINIMUM_INTERVAL_FIELD = new ParseField("minimum_interval");
@@ -157,6 +158,11 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     public String getMinimumIntervalExpression() {

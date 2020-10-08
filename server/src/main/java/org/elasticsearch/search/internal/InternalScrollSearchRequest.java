@@ -33,21 +33,21 @@ import java.util.Map;
 
 public class InternalScrollSearchRequest extends TransportRequest {
 
-    private SearchContextId contextId;
+    private ShardSearchContextId contextId;
 
     private Scroll scroll;
 
     public InternalScrollSearchRequest() {
     }
 
-    public InternalScrollSearchRequest(SearchScrollRequest request, SearchContextId contextId) {
+    public InternalScrollSearchRequest(SearchScrollRequest request, ShardSearchContextId contextId) {
         this.contextId = contextId;
         this.scroll = request.scroll();
     }
 
     public InternalScrollSearchRequest(StreamInput in) throws IOException {
         super(in);
-        contextId = new SearchContextId(in);
+        contextId = new ShardSearchContextId(in);
         scroll = in.readOptionalWriteable(Scroll::new);
     }
 
@@ -58,7 +58,7 @@ public class InternalScrollSearchRequest extends TransportRequest {
         out.writeOptionalWriteable(scroll);
     }
 
-    public SearchContextId contextId() {
+    public ShardSearchContextId contextId() {
         return contextId;
     }
 

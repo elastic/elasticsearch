@@ -21,7 +21,7 @@ For example, you could use a custom node attribute to indicate a node's
 performance characteristics and use shard allocation filtering to route shards
 for a particular index to the most appropriate class of hardware.
 
-[float]
+[discrete]
 [[index-allocation-filters]]
 ==== Enabling index-level shard allocation filtering
 
@@ -74,7 +74,7 @@ PUT test/_settings
 // TEST[s/^/PUT test\n/]
 --
 
-[float]
+[discrete]
 [[index-allocation-settings]]
 ==== Index allocation filter settings
 

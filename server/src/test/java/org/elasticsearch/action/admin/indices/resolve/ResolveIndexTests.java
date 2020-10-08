@@ -28,11 +28,13 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Transpo
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -68,7 +70,8 @@ public class ResolveIndexTests extends ESTestCase {
     };
 
     private Metadata metadata = buildMetadata(dataStreams, indices);
-    private IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+    private IndexAbstractionResolver resolver = new IndexAbstractionResolver(
+        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
     public void testResolveStarWithDefaultOptions() {
         String[] names = new String[] {"*"};
@@ -77,7 +80,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
 
         validateIndices(indices,
             "logs-pgsql-prod-20200101",
@@ -104,7 +107,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
         validateIndices(indices,
             ".ds-logs-mysql-prod-000001",
             ".ds-logs-mysql-prod-000002",
@@ -136,7 +139,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
 
         validateIndices(indices,
             "logs-pgsql-prod-20200101",
@@ -160,7 +163,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
         validateIndices(indices, ".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");

@@ -50,8 +50,8 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
 
         ThreadPool threadPool = new TestThreadPool("test");
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, discoveryNode, clusterSettings);
-             SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY,
-                 FakeRetentionTask::new, clusterService, clock)) {
+             SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY, FakeRetentionTask::new, clock)) {
+            service.init(clusterService);
             assertThat(service.getScheduler().jobCount(), equalTo(0));
 
             service.onMaster();
@@ -81,23 +81,23 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
             Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
         ClockMock clock = new ClockMock();
         AtomicInteger invoked = new AtomicInteger(0);
-    
+
         ThreadPool threadPool = new TestThreadPool("test");
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, discoveryNode, clusterSettings);
              SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY,
                  () -> new FakeRetentionTask(event -> {
                      assertThat(event.getJobName(), equalTo(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID));
                      invoked.incrementAndGet();
-                 }), clusterService, clock)) {
-    
+                 }), clock)) {
+            service.init(clusterService);
             service.onMaster();
             service.triggerRetention();
             assertThat(invoked.get(), equalTo(1));
-    
+
             service.offMaster();
             service.triggerRetention();
             assertThat(invoked.get(), equalTo(1));
-    
+
             service.onMaster();
             service.triggerRetention();
             assertThat(invoked.get(), equalTo(2));

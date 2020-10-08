@@ -12,7 +12,7 @@ minimal:
         - create_index
         - indices:admin/refresh
         - read
-        - index
+        - write
         - view_index_metadata
         - indices:data/write/bulk
         - indices:data/write/index

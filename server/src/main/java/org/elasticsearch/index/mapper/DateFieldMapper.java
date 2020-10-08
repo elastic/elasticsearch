@@ -27,6 +27,7 @@ import org.apache.lucene.document.TwoPhaseDatePointMillis;
 import org.apache.lucene.document.TwoPhaseDatePointNanos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.queries.TwoPhaseDateRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
@@ -85,6 +86,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public long convertApprox(Instant instant) {
+                return instant.getEpochSecond();
+            }
+
+            @Override
             public Instant toInstant(long value) {
                 return Instant.ofEpochMilli(value);
             }
@@ -107,10 +113,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Override
             public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
                 if (hasDocValues) {
-                    Field[] fields = TwoPhaseDatePointMillis.createIndexableFields(name, toInstant(value));
-                    for (Field field : fields) {
-                        doc.add(field);
-                    }
+                    doc.add(new LongPoint(name, toInstant(value).getEpochSecond()));
                 } else {
                     doc.add(new LongPoint(name, value));
                 }
@@ -121,11 +124,22 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 if (hasDocValues) {
                     Instant minInstant = toInstant(min);
                     Instant maxInstant = toInstant(max);
-                    if ((min == Long.MIN_VALUE || min == convert(Instant.ofEpochSecond(minInstant.getEpochSecond()))) &&
-                        (max == Long.MAX_VALUE || max == convert(Instant.ofEpochSecond(maxInstant.getEpochSecond())))) {
-                        return LongPoint.newRangeQuery(field, minInstant.getEpochSecond(), maxInstant.getEpochSecond());
+                    if ((min == Long.MIN_VALUE || min == convert(Instant.ofEpochSecond(convertApprox(minInstant)))) &&
+                        (max == Long.MAX_VALUE || max == convert(Instant.ofEpochSecond(convertApprox(maxInstant))))) {
+                        return LongPoint.newRangeQuery(field, convertApprox(minInstant), convertApprox(maxInstant));
                     } else {
-                        return TwoPhaseDatePointMillis.newRangeQuery(field, minInstant, maxInstant);
+                        return new TwoPhaseDateRangeQuery(field, minInstant, maxInstant) {
+
+                            @Override
+                            protected long toApproxPrecision(Instant instant) {
+                                return convertApprox(instant);
+                            }
+
+                            @Override
+                            protected long toExactPrecision(Instant instant) {
+                                return convert(instant);
+                            }
+                        };
                     }
                 } else {
                     return LongPoint.newRangeQuery(field, min, max);
@@ -142,6 +156,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Override
             public long convert(Instant instant) {
                 return toLong(instant);
+            }
+
+            @Override
+            public long convertApprox(Instant instant) {
+                return instant.getEpochSecond();
             }
 
             @Override
@@ -167,10 +186,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Override
             public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
                 if (hasDocValues) {
-                    Field[] fields = TwoPhaseDatePointNanos.createIndexableFields(name, toInstant(value));
-                    for (Field field : fields) {
-                        doc.add(field);
-                    }
+                    doc.add(new LongPoint(name, toInstant(value).getEpochSecond()));
                 } else {
                     doc.add(new LongPoint(name, value));
                 }
@@ -181,11 +197,22 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 if (hasDocValues) {
                     Instant minInstant = toInstant(min);
                     Instant maxInstant = toInstant(max);
-                    if (min == convert(Instant.ofEpochSecond(minInstant.getEpochSecond())) &&
-                        max == convert(Instant.ofEpochSecond(maxInstant.getEpochSecond()))) {
-                        return LongPoint.newRangeQuery(field, minInstant.getEpochSecond(), maxInstant.getEpochSecond());
+                    if ((min == Long.MIN_VALUE || min == convert(Instant.ofEpochSecond(convertApprox(minInstant)))) &&
+                        (max == Long.MAX_VALUE || max == convert(Instant.ofEpochSecond(convertApprox(maxInstant))))) {
+                        return LongPoint.newRangeQuery(field, convertApprox(minInstant), convertApprox(maxInstant));
                     } else {
-                        return TwoPhaseDatePointNanos.newRangeQuery(field, minInstant, maxInstant);
+                        return new TwoPhaseDateRangeQuery(field, minInstant, maxInstant) {
+
+                            @Override
+                            protected long toApproxPrecision(Instant instant) {
+                                return convertApprox(instant);
+                            }
+
+                            @Override
+                            protected long toExactPrecision(Instant instant) {
+                                return convert(instant);
+                            }
+                        };
                     }
                 } else {
                     return LongPoint.newRangeQuery(field, min, max);
@@ -218,6 +245,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
          * Convert an {@linkplain Instant} into a long value in this resolution.
          */
         public abstract long convert(Instant instant);
+
+        /**
+         * Convert an {@linkplain Instant} into a long value in the approximated resolution.
+         */
+        public abstract long convertApprox(Instant instant);
 
         /**
          * Convert a long value in this resolution into an instant.

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -269,6 +270,10 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public IndexAnalyzers getIndexAnalyzers() {
         return mapperService.getIndexAnalyzers();
+    }
+
+    public Analyzer getIndexAnalyzer() {
+        return mapperService.indexAnalyzer();
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {

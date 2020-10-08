@@ -306,7 +306,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
      * one, it clears it as it means that the component just touches the dateline.
      *
      * @param edges    set of edges that may intersect with the dateline
-     * @param edges    The component to check
+     * @param component    The component to check
      * @return true if the component touches the dateline.
      */
     private static boolean clearComponentTouchingDateline(Edge[] edges, int component) {

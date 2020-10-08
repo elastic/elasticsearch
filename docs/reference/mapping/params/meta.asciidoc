@@ -30,26 +30,23 @@ than or equal to 50.
 NOTE: Field metadata is updatable by submitting a mapping update. The metadata
 of the update will override the metadata of the existing field.
 
-Elastic products standardize on the following metadata, which you may use too
-in order to get a better out-of-the-box experience with your data.
+Elastic products use the following standard metadata entries for fields. You  can follow these same metadata conventions to get a better out-of-the-box experience with your data. 
 
 unit::
 
-  The unit of the field. Recognizes `"byte"` as well as
-  <<time-units,time units>>. By default, fields are assumed to not have a unit.
-  This information may only be specified on numeric fields.
+  The unit associated with a numeric field: `"byte"` or a
+  <<time-units,time unit>>. By default, a field does not have a unit.
+  Only valid for numeric fields.
 
 metric_type::
 
-  The type of metric. Recognizes `"gauge"` and `"counter"`. A gauge is a
-  single-valued measurement that can go up or down over time, such as a
-  temperature. A counter is a single-valued cumulative counter that only goes
+  The  metric type of a numeric field: `"gauge"` or `"counter"`. A gauge is a
+  single-value measurement that can go up or down over time, such as a
+  temperature. A counter is a single-value cumulative counter that only goes
   up, such as the number of requests processed by a web server. By default,
-  fields are assumed to not be a metric. This information may only be
-  specified on numeric fields.
+ no metric type is associated with a field. Only valid for numeric fields.
 
 ratio::
 
-  Whether the field is a ratio. Recognizes `true` and `false` (default). The
-  value should not be `true` when a `unit` is also specified. This information
-  may only be specified on numeric fields.
+  A boolean value that indicates whether a field is a ratio. Defaults to `false`. The
+  Leave set to `false` if a `unit` is specified. Only valid for numeric fields.

@@ -47,7 +47,7 @@ To avoid errors, specify the `name` property when creating or granting API keys.
 [[breaking_710_indices_changes]]
 ==== Indices changes
 
-[[supplier-searchlookup-arg]]
+[[bc-deprecate-rest-api-access-to-system-indices]]
 .REST API access to system indices is now deprecated.
 [%collapsible]
 ====

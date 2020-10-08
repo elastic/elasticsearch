@@ -75,4 +75,5 @@ public class DeleteUserRequest extends ActionRequest implements UserRequest, Wri
         out.writeString(username);
         refreshPolicy.writeTo(out);
     }
+
 }

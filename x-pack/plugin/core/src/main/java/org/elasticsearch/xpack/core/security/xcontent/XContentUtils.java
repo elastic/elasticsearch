@@ -14,11 +14,6 @@ import java.util.List;
 
 public class XContentUtils {
 
-    public static final class AuditToXContentParams {
-        public static final String INCLUDE_CREDENTIALS = "include_credentials";
-        public static final String INCLUDE_REFRESH_POLICY = "include_refresh_policy";
-    }
-
     private XContentUtils() {
     }
 

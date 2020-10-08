@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
-import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -23,7 +22,7 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
     public In(Source source, Expression value, List<Expression> list) {
         super(source, value, list);
     }
-    
+
     public In(Source source, Expression value, List<Expression> list, ZoneId zoneId) {
         super(source, value, list, zoneId);
     }
@@ -52,6 +51,6 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
 
     @Override
     protected boolean areCompatible(DataType left, DataType right) {
-        return SqlDataTypes.areCompatible(left, right);
+        return SqlDataTypeConverter.canConvert(left, right);
     }
 }

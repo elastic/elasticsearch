@@ -38,12 +38,9 @@ public class In extends ScalarFunction {
     private final ZoneId zoneId;
 
     public In(Source source, Expression value, List<Expression> list) {
-        super(source, CollectionUtils.combine(list, value));
-        this.value = value;
-        this.list = new ArrayList<>(new LinkedHashSet<>(list));
-        this.zoneId = null;
+        this(source, value, list, null);
     }
-    
+
     public In(Source source, Expression value, List<Expression> list, ZoneId zoneId) {
         super(source, CollectionUtils.combine(list, value));
         this.value = value;
@@ -63,7 +60,7 @@ public class In extends ScalarFunction {
         }
         return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1), zoneId());
     }
-    
+
     public ZoneId zoneId() {
         return zoneId;
     }

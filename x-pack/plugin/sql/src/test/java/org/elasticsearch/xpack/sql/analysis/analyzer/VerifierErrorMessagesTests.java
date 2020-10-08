@@ -666,13 +666,9 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInWithDifferentDataTypes() {
-        assertEquals("1:8: 2nd argument of [1 IN (2, '3', 4)] must be [integer], found value ['3'] type [keyword]",
-            error("SELECT 1 IN (2, '3', 4)"));
-    }
-
-    public void testInWithDifferentDataTypesFromLeftValue() {
-        assertEquals("1:8: 1st argument of [1 IN ('foo', 'bar')] must be [integer], found value ['foo'] type [keyword]",
-            error("SELECT 1 IN ('foo', 'bar')"));
+        assertEquals("1:8: 1st argument of ['2000-02-02T02:02:02Z'::time IN ('00:00:00'::date)] must be [time], " +
+                "found value ['00:00:00'::date] type [date]",
+            error("SELECT '2000-02-02T02:02:02Z'::time IN ('00:00:00'::date)"));
     }
 
     public void testInWithFieldInListOfValues() {

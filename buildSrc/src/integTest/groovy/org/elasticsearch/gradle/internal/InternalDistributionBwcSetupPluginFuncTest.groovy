@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.internal
 
+import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.fixtures.AbstractGitAwareGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 

@@ -27,7 +27,7 @@ import org.junit.Before;
 
 public class SyncLoopTests extends ESTestCase {
 
-    private ThreadPool threadPool = new TestThreadPool(this.getTestName());
+    private ThreadPool threadPool;
 
     @Before
     public void setUpThreadPool() {

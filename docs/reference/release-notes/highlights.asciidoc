@@ -24,18 +24,127 @@ Other versions:
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
 
+tag::notable-highlights[]
+[discrete]
+=== Introduce point in time APIs
+Elasticsearch pit (point in time) is a lightweight view into the state of the
+data as it existed when initiated. A search request by default executes against
+the most recent point in time. In some cases, it is preferred to perform
+multiple search requests using the same point in time. For example, if
+refreshes happen between search_after requests, then the results of those
+requests might not be consistent as changes happening between searches are only
+visible to the more recent point in time.
 
-// Use the notable-highlights tag to mark entries that
-// should be featured in the Stack Installation and Upgrade Guide:
-// tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
-// end::notable-highlights[]
+A point in time must be opened before being used in search requests.
+The keep_alive parameter tells Elasticsearch how long it should keep a point in
+time around.
 
-// Omit the notable highlights tag for entries that only need to appear in the ES ref:
-// [discrete]
-// === Heading
-//
-// Description.
+```
+POST /my_index/_pit?keep_alive=1m
+```
+The response from the above request includes a id, which should be passed to
+the id of the pit parameter of search requests.
+
+```
+POST /_search
+{
+    "query": {
+        "match" : {
+            "title" : "elasticsearch"
+        }
+    },
+    "pit": {
+	    "id":  "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==",
+	    "keep_alive": "1m"
+    }
+}
+```
+
+Point-in-times are automatically closed when the keep_alive is elapsed.
+However, keeping point-in-times has a cost; hence, point-in-times should be
+closed as soon as they are no longer used in search requests.
+
+```
+DELETE /_pit
+{
+    "id" : "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWIBBXV1aWQyAAA="
+}
+```
+end::notable-highlights[]
+
+tag::notable-highlights[]
+[discrete]
+=== Request-level circuit breaker support on coordinating nodes
+
+Allow coordinating node to account the memory used to perform partial and final
+reduce of aggregations in the request circuit breaker. The search coordinator
+adds the memory that it used to save and reduce the results of shard
+aggregations in the request circuit breaker. Before any partial or final
+reduce, the memory needed to reduce the aggregations is estimated and a
+CircuitBreakingException is thrown if exceeds the maximum memory allowed in
+this breaker.
+This size is estimated as roughly 1.5 times the size of the serialized
+aggregations that need to be reduced. This estimation can be completely off for
+some aggregations but it is corrected with the real size after the reduce
+completes. If the reduce is successful, we update the circuit breaker to remove
+the size of the source aggregations and replace the estimation with the
+serialized size of the newly reduced result.
+
+end::notable-highlights[]
+
+[discrete]
+=== EQL: Introduce case-sensitive equality
+
+Introduce : and !: operator for doing case insensitive string
+comparisons. When dealing with non-string, the operator gets optimized
+to regular equals/not equals (== and !=) so that it can be combined
+with other operators (such as >).
+
+[discrete]
+=== Deprecate REST access to System Indices
+
+Add deprecation warnings when accessing System Indices via the REST layer. At
+this time, these warnings are only enabled for Snapshot builds by default, to
+allow projects external to Elasticsearch additional time to adjust their access
+patterns.
+
+Deprecation warnings will be triggered by all REST requests which access
+registered System Indices, except for purpose-specific APIs which access
+System Indices as an implementation detail a few specific APIs which will
+continue to allow access to system indices by default:
+```
+* GET _cluster/health
+* GET {index}/_recovery
+* GET _cluster/allocation/explain
+* GET _cluster/state
+* POST _cluster/reroute
+* GET {index}/_stats
+* GET {index}/_segments
+* GET {index}/_shard_stores
+* GET _cat/[indices,aliases,health,recovery,shards,segments]
+```
+Deprecation warnings for accessing system indices take the form:
+```
+this request accesses system indices: [.some_system_index], but in a future major version, direct access to system indices will be prevented by default
+```
+
+tag::notable-highlights[]
+[discreete]
+=== System index reads in separate threadpool
+
+7.10 introduces a new thread pool, `system_read`, which is
+intended for use by system indices for all read operations (get and
+search). The `system_read` pool is a fixed thread pool with a maximum
+number of threads equal to lesser of half of the available processors
+or 5. Given the combination of both get and read operations in this
+thread pool, the queue size has been set to 2000. The motivation for
+this change is to allow system read operations to be serviced in spite
+of the number of user searches.
+
+In order to avoid a significant performance hit due to pattern matching
+on all search requests, a new metadata flag is added to mark indices
+as system or non-system. Previously created system indices will have
+flag added to their metadata upon upgrade to a version with this
+capability.
+end::notable-highlights[]
+

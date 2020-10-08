@@ -91,8 +91,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
-
-    public static final String FAST_PHRASE_SUFFIX = "._index_phrase";
+    private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
 
     public static class Defaults {
         public static final double FIELDDATA_MIN_FREQUENCY = 0;

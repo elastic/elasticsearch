@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,6 +36,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
+
 public class TransportGetPipelineAction extends HandledTransportAction<GetPipelineRequest, GetPipelineResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetPipelineAction.class);
@@ -43,7 +46,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
     @Inject
     public TransportGetPipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(GetPipelineAction.NAME, transportService, actionFilters, GetPipelineRequest::new);
-        this.client = client;
+        this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 
     @Override

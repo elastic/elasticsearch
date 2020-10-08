@@ -102,7 +102,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     private static NestedHelper buildNestedHelper(MapperService mapperService) {
-        return new NestedHelper(mapperService::getObjectMapper, mapperService::fieldType);
+        return new NestedHelper(mapperService::getObjectMapper, field -> mapperService.fieldType(field) != null);
     }
 
     public void testMatchAll() {

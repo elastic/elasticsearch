@@ -201,7 +201,6 @@ import org.elasticsearch.client.ml.job.results.CategoryDefinition;
 import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.stats.JobStats;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -229,8 +228,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
@@ -3466,28 +3468,30 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                         .endObject()
                     .endObject()
                     .endObject());
-        TriFunction<String, String, Double, IndexRequest> indexRequest = (actualClass, predictedClass, p) -> {
+        BiFunction<String, String[], IndexRequest> indexRequest = (actualClass, topPredictedClasses) -> {
+            assert topPredictedClasses.length > 0;
             return new IndexRequest()
                 .source(XContentType.JSON,
                     "actual_class", actualClass,
-                    "predicted_class", predictedClass,
-                    "ml.top_classes", List.of(
-                        Map.of("class_name", predictedClass, "class_probability", p),
-                        Map.of("class_name", "other", "class_probability", 1 - p)));
+                    "predicted_class", topPredictedClasses[0],
+                    "ml.top_classes", IntStream.range(0, topPredictedClasses.length)
+                        // Consecutive assigned probabilities are: 0.5, 0.25, 0.125, etc.
+                        .mapToObj(i -> Map.of("class_name", topPredictedClasses[i], "class_probability", 1.0 / (2 << i)))
+                        .collect(toList()));
         };
         BulkRequest bulkRequest =
             new BulkRequest(indexName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(indexRequest.apply("cat", "cat", 0.9)) // #0
-                .add(indexRequest.apply("cat", "cat", 0.9)) // #1
-                .add(indexRequest.apply("cat", "cat", 0.9)) // #2
-                .add(indexRequest.apply("cat", "dog", 0.9)) // #3
-                .add(indexRequest.apply("cat", "fox", 0.9)) // #4
-                .add(indexRequest.apply("dog", "cat", 0.9)) // #5
-                .add(indexRequest.apply("dog", "dog", 0.9)) // #6
-                .add(indexRequest.apply("dog", "dog", 0.9)) // #7
-                .add(indexRequest.apply("dog", "dog", 0.9)) // #8
-                .add(indexRequest.apply("ant", "cat", 0.9)); // #9
+                .add(indexRequest.apply("cat", new String[]{"cat", "dog", "ant"})) // #0
+                .add(indexRequest.apply("cat", new String[]{"cat", "dog", "ant"})) // #1
+                .add(indexRequest.apply("cat", new String[]{"cat", "horse", "dog"})) // #2
+                .add(indexRequest.apply("cat", new String[]{"dog", "cat", "mule"})) // #3
+                .add(indexRequest.apply("cat", new String[]{"fox", "cat", "dog"})) // #4
+                .add(indexRequest.apply("dog", new String[]{"cat", "dog", "mule"})) // #5
+                .add(indexRequest.apply("dog", new String[]{"dog", "cat", "ant"})) // #6
+                .add(indexRequest.apply("dog", new String[]{"dog", "cat", "ant"})) // #7
+                .add(indexRequest.apply("dog", new String[]{"dog", "cat", "ant"})) // #8
+                .add(indexRequest.apply("ant", new String[]{"cat", "ant", "wasp"})); // #9
         RestHighLevelClient client = highLevelClient();
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -3527,7 +3531,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             AucRocMetric.Result aucRocResult = response.getMetricByName(AucRocMetric.NAME); // <10>
             double aucRocScore = aucRocResult.getScore(); // <11>
-            Long aucRocDocCount = aucRocResult.getDocCount(); // <12>
             // end::evaluate-data-frame-results-classification
 
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
@@ -3562,8 +3565,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(otherClassesCount, equalTo(0L));
 
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocScore, equalTo(0.2625));
-            assertThat(aucRocDocCount, equalTo(5L));
+            assertThat(aucRocScore, closeTo(0.6425, 1e-9));
         }
     }
 

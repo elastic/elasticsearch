@@ -37,7 +37,7 @@ public class ExternalMapperPlugin extends Plugin implements MapperPlugin {
                 EXTERNAL, ExternalMapper.parser(EXTERNAL, "foo"),
                 EXTERNAL_BIS, ExternalMapper.parser(EXTERNAL_BIS, "bar"),
                 EXTERNAL_UPPER, ExternalMapper.parser(EXTERNAL_UPPER, "FOO BAR"),
-                FakeStringFieldMapper.CONTENT_TYPE, new FakeStringFieldMapper.TypeParser());
+                FakeStringFieldMapper.CONTENT_TYPE, FakeStringFieldMapper.PARSER);
     }
 
     @Override

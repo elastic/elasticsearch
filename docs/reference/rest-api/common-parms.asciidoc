@@ -647,7 +647,7 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are 
+Defines how to aggregate the grouped data. The following aggregations are
 supported:
 +
 --
@@ -669,7 +669,7 @@ supported:
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
 
-IMPORTANT: {transforms-cap} support a subset of the functionality in 
+IMPORTANT: {transforms-cap} support a subset of the functionality in
 aggregations. See <<transform-limitations>>.
 
 --
@@ -681,7 +681,7 @@ Defines how to group the data. More than one grouping can be defined
 +
 --
 * <<_date_histogram,Date histogram>>
-* <<_geotile_grid,Geotile Grid>> 
+* <<_geotile_grid,Geotile Grid>>
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 

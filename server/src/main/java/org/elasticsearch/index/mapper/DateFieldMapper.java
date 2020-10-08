@@ -325,7 +325,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
 
-            return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+            return new SourceValueFetcher(name(), mapperService, nullValue) {
                 @Override
                 public String parseSourceValue(Object value) {
                     String date = value.toString();

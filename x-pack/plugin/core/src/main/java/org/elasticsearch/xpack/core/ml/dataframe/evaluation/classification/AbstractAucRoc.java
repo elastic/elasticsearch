@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

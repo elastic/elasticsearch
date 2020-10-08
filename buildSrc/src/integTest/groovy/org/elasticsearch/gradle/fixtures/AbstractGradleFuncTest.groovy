@@ -114,7 +114,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     void setupLocalGitRepo() {
         execute("git init")
         execute('git config user.email "build-tool@elastic.co"')
-        execute('git config --global user.name "Build tool"')
+        execute('git config user.name "Build tool"')
         execute("git add .")
         execute('git commit -m "Initial"')
     }

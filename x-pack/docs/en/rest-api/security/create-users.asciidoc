@@ -5,7 +5,7 @@
 <titleabbrev>Create or update users</titleabbrev>
 ++++
 
-Adds and updates users in the native realm. These users are commonly referred 
+Adds and updates users in the native realm. These users are commonly referred
 to as _native users_.
 
 
@@ -14,7 +14,7 @@ to as _native users_.
 
 `POST /_security/user/<username>` +
 
-`PUT /_security/user/<username>` 
+`PUT /_security/user/<username>`
 
 
 [[security-api-put-user-prereqs]]
@@ -26,12 +26,12 @@ to as _native users_.
 [[security-api-put-user-desc]]
 ==== {api-description-title}
 
-When updating a user, you can update everything but its `username` and `password`. 
-To change a user's password, use the 
-<<security-api-change-password, change password API>>.
+A `password` is required for adding a new user but is optional when updating an
+existing user. To change a user's password without updating any other fields,
+use the <<security-api-change-password, change password API>>.
 
-For more information about the native realm, see 
-<<realms>> and <<native-realm>>. 
+For more information about the native realm, see
+<<realms>> and <<native-realm>>.
 
 [[security-api-put-user-path-params]]
 ==== {api-path-parms-title}
@@ -73,7 +73,7 @@ The following parameters can be specified in the body of a POST or PUT request:
 (object) Arbitrary metadata that you want to associate with the user.
 
 `password`::
-(string) The user's password. Passwords must be at least 6 characters long.
+(Required<<not-always-required,*>>, string) The user's password. Passwords must be at least 6 characters long.
 +
 When adding a user, one of `password` or `password_hash` is required.
 When updating an existing user, the password is optional, so that other
@@ -98,6 +98,10 @@ used in the same request.
 access  permissions. To create a user without any roles, specify an empty list:
 `[]`.
 
+--
+[[not-always-required]]
+*Indicates that the setting is required in some, but not all situations.
+--
 
 [[security-api-put-user-example]]
 ==== {api-examples-title}

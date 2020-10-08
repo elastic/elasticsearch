@@ -177,8 +177,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public FlatObjectFieldMapper build(BuilderContext context) {
-            MappedFieldType ft
-                = new RootFlatObjectFieldType(buildFullName(context), indexed, hasDocValues, meta, splitQueriesOnWhitespace, nullValue);
+            MappedFieldType ft = new RootFlatObjectFieldType(
+                buildFullName(context), indexed, hasDocValues, meta, splitQueriesOnWhitespace);
             if (eagerGlobalOrdinals) {
                 ft.setEagerGlobalOrdinals(true);
             }
@@ -323,7 +323,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();  // TODO can we implement this?
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -438,15 +438,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
      */
     public static final class RootFlatObjectFieldType extends StringFieldType {
         private final boolean splitQueriesOnWhitespace;
-        private final String nullValue;
 
         public RootFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
-                                       boolean splitQueriesOnWhitespace, String nullValue) {
+                                       boolean splitQueriesOnWhitespace) {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            this.nullValue = nullValue;
         }
 
         @Override
@@ -474,7 +472,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), mapperService) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;

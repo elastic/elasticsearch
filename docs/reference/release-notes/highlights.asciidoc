@@ -23,7 +23,25 @@ Other versions:
 | {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
+// tag::notable-highlights[]
+[discrete]
+=== More space-efficient indices
 
+{es} 7.10 depends on Apache Lucene 8.7, which introduces higher compression of
+stored fields, the part of the index that notably stores the
+<<mapping-source-field,`_source`>>. On the various datasets that we benchmark
+against, we noticed space reductions between 0% and 10%. This change especially
+helps on datasets that have lots of redundant data across documents, which is
+typically the case of the documents that are produced by our Observability
+solutions, which repeat metadata about the host that produced the data on every
+document.
+
+Elasticsearch offers the ability to configure the <<index-codec,`index.codec`>>
+setting to tell Elasticsearch how aggressively to compressed stored fields. Both
+supported values `default` and `best_compression` will get better compression
+with this change.
+
+// end::notable-highlights[]
 
 // Use the notable-highlights tag to mark entries that
 // should be featured in the Stack Installation and Upgrade Guide:

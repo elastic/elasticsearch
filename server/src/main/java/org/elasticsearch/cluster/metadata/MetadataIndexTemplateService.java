@@ -827,7 +827,6 @@ public class MetadataIndexTemplateService {
                 .filter(alias.filter())
                 .indexRouting(alias.indexRouting())
                 .searchRouting(alias.searchRouting())
-                .writeIndex(alias.writeIndex())
                 .isHidden(alias.isHidden())
                 .build();
             templateBuilder.putAlias(aliasMetadata);
@@ -1337,6 +1336,10 @@ public class MetadataIndexTemplateService {
             if (indexPatterns.contains(alias.name())) {
                 throw new IllegalArgumentException("alias [" + alias.name() +
                     "] cannot be the same as any pattern in [" + String.join(", ", indexPatterns) + "]");
+            }
+
+            if (Boolean.TRUE.equals(alias.writeIndex())) {
+                throw new IllegalArgumentException("alias [" + alias.name() + "] cannot be a write alias");
             }
         }
     }

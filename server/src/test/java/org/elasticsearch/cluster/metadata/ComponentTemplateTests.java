@@ -85,15 +85,8 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta);
     }
 
-    public static Map<String, AliasMetadata> randomAliases() {
-        String aliasName = randomAlphaOfLength(5);
-        AliasMetadata aliasMeta = AliasMetadata.builder(aliasName)
-            .filter("{\"term\":{\"year\":" + randomIntBetween(1, 3000) + "}}")
-            .routing(randomBoolean() ? null : randomAlphaOfLength(3))
-            .isHidden(randomBoolean() ? null : randomBoolean())
-            .writeIndex(randomBoolean() ? null : randomBoolean())
-            .build();
-        return Collections.singletonMap(aliasName, aliasMeta);
+    static Map<String, AliasMetadata> randomAliases() {
+        return ComposableIndexTemplateTests.randomAliases();
     }
 
     private static CompressedXContent randomMappings() {

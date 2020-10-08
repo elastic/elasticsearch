@@ -186,13 +186,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
     public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
+        long bufferedBytesBeforeAdd = this.bufferedBytes;
+        if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
+            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
+        }
+
         final Translog.Location location;
-        final long bytesBufferedAfterAdd;
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
                 buffer = new ReleasableBytesStreamOutput(bigArrays);
             }
+            assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
             totalOffset += data.length();
             data.writeTo(buffer);
@@ -210,12 +215,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert assertNoSeqNumberConflict(seqNo, data);
 
             location = new Translog.Location(generation, offset, data.length());
-            bytesBufferedAfterAdd = buffer.size();
-            bufferedBytes = bytesBufferedAfterAdd;
-        }
-
-        if (bytesBufferedAfterAdd >= forceWriteThreshold) {
-            writeBufferedOps(Long.MAX_VALUE, bytesBufferedAfterAdd >= forceWriteThreshold * 4);
+            bufferedBytes = buffer.size();
         }
 
         return location;

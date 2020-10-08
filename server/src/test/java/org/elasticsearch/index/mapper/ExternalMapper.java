@@ -104,12 +104,7 @@ public class ExternalMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return new SourceValueFetcher(name(), mapperService) {
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    return value;
-                }
-            };
+            return SourceValueFetcher.identity(name(), mapperService, format);
         }
     }
 

@@ -42,6 +42,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleValueForQuery() {
+        return "test";
+    }
+
+    @Override
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
         assertNoFieldNamesField(fields);

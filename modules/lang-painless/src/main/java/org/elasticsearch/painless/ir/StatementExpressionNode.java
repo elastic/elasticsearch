@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -58,9 +57,10 @@ public class StatementExpressionNode extends StatementNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(getLocation());
-        expressionNode.write(classWriter, methodWriter, writeScope);
+        expressionNode.write(writeScope);
         methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
     }
 }

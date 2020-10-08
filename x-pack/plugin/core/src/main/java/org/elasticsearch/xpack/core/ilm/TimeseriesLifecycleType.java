@@ -157,16 +157,16 @@ public class TimeseriesLifecycleType implements LifecycleType {
         Map<String, LifecycleAction> actions = phase.getActions();
         switch (phase.getName()) {
             case HOT_PHASE:
-                return ORDERED_VALID_HOT_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_HOT_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
             case WARM_PHASE:
-                return ORDERED_VALID_WARM_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_WARM_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
             case COLD_PHASE:
-                return ORDERED_VALID_COLD_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
             case DELETE_PHASE:
-                return ORDERED_VALID_DELETE_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
             default:
                 throw new IllegalArgumentException("lifecycle type[" + TYPE + "] does not support phase[" + phase.getName() + "]");

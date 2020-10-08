@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -54,7 +55,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
     @Before
     public void createComponents() throws Exception {
         configProvider = new DataFrameAnalyticsConfigProvider(client(), xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), node().getNodeEnvironment().nodeId()));
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)));
         waitForMlTemplates();
     }
 

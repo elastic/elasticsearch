@@ -78,7 +78,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -280,7 +279,6 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (mapperService().hasNested()
-                && typeFilter == null // when a _type filter is set, it will automatically exclude nested docs
                 && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
                 && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
             filters.add(Queries.newNonNestedFilter(mapperService().getIndexSettings().getIndexVersionCreated()));
@@ -313,11 +311,11 @@ final class DefaultSearchContext extends SearchContext {
 
     private Query createTypeFilter(String[] types) {
         if (types != null && types.length >= 1) {
-            MappedFieldType ft = mapperService().fieldType(TypeFieldMapper.NAME);
-            if (ft != null) {
-                // ft might be null if no documents have been indexed yet
-                return ft.termsQuery(Arrays.asList(types), queryShardContext);
+            if (mapperService().documentMapper() == null) {
+                return null;
             }
+            TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType(mapperService().documentMapper().type());
+            return ft.typeFilter(types);
         }
         return null;
     }

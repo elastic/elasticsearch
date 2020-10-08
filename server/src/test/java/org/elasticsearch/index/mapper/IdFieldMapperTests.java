@@ -85,8 +85,9 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
 
         ft.fielddataBuilder("test", () -> {
             throw new UnsupportedOperationException();
-        }).build(null, null, mapperService);
+        }).build(null, null);
         assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
+        assertTrue(ft.isAggregatable());
 
         client().admin().cluster().prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), false))
@@ -95,8 +96,9 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
                 () -> ft.fielddataBuilder("test", () -> {
                     throw new UnsupportedOperationException();
-                }).build(null, null, mapperService));
+                }).build(null, null));
             assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
+            assertFalse(ft.isAggregatable());
         } finally {
             // unset cluster setting
             client().admin().cluster().prepareUpdateSettings()
@@ -104,5 +106,4 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
                 .get();
         }
     }
-
 }

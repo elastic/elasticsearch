@@ -7,19 +7,17 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.notifications.AnomalyDetectionAuditMessage;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.Date;
@@ -66,7 +64,7 @@ public class TransportForecastJobActionRequestTests extends ESTestCase {
 
     public void testAdjustLimit() {
         Job.Builder jobBuilder = createTestJob("forecast-adjust-limit");
-        NullAuditor auditor = new NullAuditor();
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
         {
             assertThat(TransportForecastJobAction.getAdjustedMemoryLimit(jobBuilder.build(), null, auditor), is(nullValue()));
             assertThat(TransportForecastJobAction.getAdjustedMemoryLimit(
@@ -109,8 +107,6 @@ public class TransportForecastJobActionRequestTests extends ESTestCase {
                 auditor),
                 equalTo(new ByteSizeValue(80, ByteSizeUnit.MB).getBytes() - 1L));
         }
-
-
     }
 
     private Job.Builder createTestJob(String jobId) {
@@ -125,24 +121,5 @@ public class TransportForecastJobActionRequestTests extends ESTestCase {
         jobBuilder.setAnalysisConfig(analysisConfig);
         jobBuilder.setDataDescription(dataDescription);
         return jobBuilder;
-    }
-
-    static class NullAuditor extends AbstractAuditor<AnomalyDetectionAuditMessage> {
-
-        protected NullAuditor() {
-            super(mock(Client.class), "test", "null", "foo", AnomalyDetectionAuditMessage::new);
-        }
-
-        @Override
-        public void info(String resourceId, String message) {
-        }
-
-        @Override
-        public void warning(String resourceId, String message) {
-        }
-
-        @Override
-        public void error(String resourceId, String message) {
-        }
     }
 }

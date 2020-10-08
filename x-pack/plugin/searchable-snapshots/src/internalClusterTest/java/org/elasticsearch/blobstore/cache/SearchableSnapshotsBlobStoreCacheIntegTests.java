@@ -50,6 +50,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -118,9 +119,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Path repositoryLocation = randomRepoPath();
-        createFsRepository(repositoryName, repositoryLocation);
+        createRepository(repositoryName, "fs", repositoryLocation);
 
-        final SnapshotId snapshot = createSnapshot(repositoryName, org.elasticsearch.common.collect.List.of(indexName));
+        final SnapshotId snapshot = createSnapshot(repositoryName, "test-snapshot", Collections.singletonList(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         // extract the list of blobs per shard from the snapshot directory on disk

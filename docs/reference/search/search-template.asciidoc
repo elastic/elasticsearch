@@ -29,17 +29,17 @@ GET _search/template
 [[search-template-api-desc]]
 ==== {api-description-title}
 
-The `/_search/template` endpoint allows you to use the mustache language to pre- 
-render search requests, before they are executed and fill existing templates 
+The `/_search/template` endpoint allows you to use the mustache language to pre-
+render search requests, before they are executed and fill existing templates
 with template parameters.
 
 For more information on how Mustache templating and what kind of templating you
 can do with it check out the https://mustache.github.io/mustache.5.html[online
 documentation of the mustache project].
 
-NOTE: The mustache language is implemented in {es} as a sandboxed scripting 
-language, hence it obeys settings that may be used to enable or disable scripts 
-per type and context as described in the 
+NOTE: The mustache language is implemented in {es} as a sandboxed scripting
+language, hence it obeys settings that may be used to enable or disable scripts
+per type and context as described in the
 <<allowed-script-types-setting, scripting docs>>.
 
 
@@ -57,17 +57,17 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 Defaults to `true`.
 
 `ccs_minimize_roundtrips`::
-  (Optional, boolean) If `true`, network round-trips are minimized for 
+  (Optional, boolean) If `true`, network round-trips are minimized for
  cross-cluster search requests. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 `explain`::
-  (Optional, boolean) If `true`, the response includes additional details about 
+  (Optional, boolean) If `true`, the response includes additional details about
   score computation as part of a hit. Defaults to `false`.
 
 `ignore_throttled`::
-  (Optional, boolean) If `true`, specified concrete, expanded or aliased indices 
+  (Optional, boolean) If `true`, specified concrete, expanded or aliased indices
   are not included in the response when throttled. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
@@ -75,11 +75,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
 `profile`::
-  (Optional, boolean) If `true`, the query execution is profiled. Defaults 
+  (Optional, boolean) If `true`, the query execution is profiled. Defaults
   to `false`.
 
 `rest_total_hits_as_int`::
-  (Optional, boolean) If `true`, `hits.total` are rendered as an integer in 
+  (Optional, boolean) If `true`, `hits.total` are rendered as an integer in
   the response. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
@@ -89,9 +89,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `typed_keys`::
-  (Optional, boolean) If `true`, aggregation and suggester names are 
+  (Optional, boolean) If `true`, aggregation and suggester names are
   prefixed by their respective types in the response. Defaults to `false`.
-  
+
 
 [[search-template-api-request-body]]
 ==== {api-request-body-title}
@@ -128,7 +128,7 @@ POST _scripts/<templateid>
 
 //////////////////////////
 
-The API returns the following result if the template has been successfully 
+The API returns the following result if the template has been successfully
 created:
 
 [source,console-result]
@@ -198,7 +198,7 @@ GET _search/template
 [[_validating_templates]]
 ==== Validating a search template
 
-A template can be rendered in a response with given parameters by using the 
+A template can be rendered in a response with given parameters by using the
 following request:
 
 [source,console]
@@ -603,7 +603,7 @@ query as a string instead:
 ===== Encoding URLs
 
 The `{{#url}}value{{/url}}` function can be used to encode a string value
-in a HTML encoding form as defined in by the 
+in a HTML encoding form as defined in by the
 https://www.w3.org/TR/html4/[HTML specification].
 
 As an example, it is useful to encode a URL:
@@ -657,7 +657,7 @@ Allows to execute several search template requests.
 [[multi-search-template-api-desc]]
 ==== {api-description-title}
 
-Allows to execute several search template requests within the same API using the 
+Allows to execute several search template requests within the same API using the
 `_msearch/template` endpoint.
 
 The format of the request is similar to the <<search-multi-search, Multi
@@ -672,10 +672,10 @@ body\n
 --------------------------------------------------
 // NOTCONSOLE
 
-The header part supports the same `index`, `search_type`, `preference`, and 
+The header part supports the same `index`, `search_type`, `preference`, and
 `routing` options as the Multi Search API.
 
-The body includes a search template body request and supports inline, stored and 
+The body includes a search template body request and supports inline, stored and
 file templates.
 
 
@@ -702,5 +702,5 @@ $ curl -H "Content-Type: application/x-ndjson" -XGET localhost:9200/_msearch/tem
 The response returns a `responses` array, which includes the search template
 response for each search template request matching its order in the original
 multi search template request. If there was a complete failure for that specific
-search template request, an object with `error` message will be returned in 
+search template request, an object with `error` message will be returned in
 place of the actual search response.

@@ -218,7 +218,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
             b.startObject("fields");
             {
                 b.startObject("geohash").field("type", "keyword").field("doc_values", false).endObject();  // test geohash as keyword
-                b.startObject("latlon").field("type", "text").field("doc_values", false).endObject();  // test geohash as text
+                b.startObject("latlon").field("type", "text").endObject();  // test geohash as text
             }
             b.endObject();
         }));

@@ -41,7 +41,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class);
     }
 
-    public void testSynonymsUpdateable() throws FileNotFoundException, IOException {
+    public void testSynonymsUpdateable() throws IOException {
         String synonymsFileName = "synonyms.txt";
         Path synonymsFile = setupSynonymsFile(synonymsFileName, "foo, baz");
 
@@ -192,7 +192,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
 
         final String indexName = "test";
         final String analyzerName = "my_synonym_analyzer";
-        
+
         MapperException ex = expectThrows(MapperException.class, () -> client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder()
                         .put("index.number_of_shards", 5)
@@ -205,7 +205,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                 .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
 
         assertEquals("Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
-                + "contains filters [synonym_filter] that are not allowed to run in all mode.", ex.getMessage());
+                + "contains filters [synonym_filter] that are not allowed to run in index time mode.", ex.getMessage());
 
         // same for synonym filters in multiplexer chain
         ex = expectThrows(MapperException.class,
@@ -222,7 +222,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                         .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
 
         assertEquals("Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
-                + "contains filters [my_multiplexer] that are not allowed to run in all mode.", ex.getMessage());
+                + "contains filters [my_multiplexer] that are not allowed to run in index time mode.", ex.getMessage());
     }
 
     private Path setupSynonymsFile(String synonymsFileName, String content) throws IOException {

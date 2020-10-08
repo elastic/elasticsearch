@@ -251,7 +251,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 //        assertSamePrinterOutput("E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"), javaTimeNow, dateTimeNow);
 //    }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63459")
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");
         assertSameDate("0", "epoch_second");
@@ -761,7 +760,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("2012-W1-1", "strict_weekyear_week_day");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63459")
     public void testSamePrinterOutput() {
         int year = randomIntBetween(1970, 2030);
         int month = randomIntBetween(1, 12);

@@ -115,9 +115,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Path repositoryLocation = randomRepoPath();
-        createFsRepository(repositoryName, repositoryLocation);
+        createRepository(repositoryName, "fs", repositoryLocation);
 
-        final SnapshotId snapshot = createSnapshot(repositoryName, List.of(indexName));
+        final SnapshotId snapshot = createSnapshot(repositoryName, "test-snapshot", List.of(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         // extract the list of blobs per shard from the snapshot directory on disk
@@ -214,12 +214,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                final boolean mayReadMoreThanHeader
                 // we read the header of each file contained within the .cfs file, which could be anywhere
-                    = indexInputStats.getFileName().endsWith(".cfs")
-                        // we read a couple of longs at the end of the .fdt file (see https://issues.apache.org/jira/browse/LUCENE-9456)
-                        // TODO revisit this when this issue is addressed in Lucene
-                        || indexInputStats.getFileName().endsWith(".fdt");
+                final boolean mayReadMoreThanHeader = indexInputStats.getFileName().endsWith(".cfs");
                 if (indexInputStats.getFileLength() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2
                     || mayReadMoreThanHeader == false) {
                     assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));

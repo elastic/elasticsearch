@@ -29,7 +29,9 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -48,6 +50,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -66,16 +69,17 @@ public abstract class MappedFieldType {
     private final String name;
     private final boolean docValues;
     private final boolean isIndexed;
+    private final boolean isStored;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
-    private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
 
-    public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
-        setBoost(1.0f);
+    public MappedFieldType(String name, boolean isIndexed, boolean isStored,
+                           boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
+        this.isStored = isStored;
         this.docValues = hasDocValues;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         this.meta = meta;
@@ -94,6 +98,11 @@ public abstract class MappedFieldType {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
+    /**
+     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
+     */
+    public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
+
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
 
@@ -104,14 +113,6 @@ public abstract class MappedFieldType {
 
     public String name() {
         return name;
-    }
-
-    public float boost() {
-        return boost;
-    }
-
-    public void setBoost(float boost) {
-        this.boost = boost;
     }
 
     public boolean hasDocValues() {
@@ -141,6 +142,13 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns true if the field is stored separately.
+     */
+    public boolean isStored() {
+        return isStored;
+    }
+
+    /**
      * If the field supports using the indexed data to speed up operations related to ordering of data, such as sorting or aggs, return
      * a function for doing that.  If it is unsupported for this field type, there is no need to override this method.
      *
@@ -166,8 +174,7 @@ public abstract class MappedFieldType {
     }
 
     /** Generates a query that will only match documents that contain the given value.
-     *  The default implementation returns a {@link TermQuery} over the value bytes,
-     *  boosted by {@link #boost()}.
+     *  The default implementation returns a {@link TermQuery} over the value bytes
      *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
      *      due to the way it is configured (eg. not indexed)
      *  @throws ElasticsearchParseException if {@code value} cannot be converted to the expected data type
@@ -176,6 +183,13 @@ public abstract class MappedFieldType {
      */
     // TODO: Standardize exception types
     public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
+
+
+    // Case insensitive form of term query (not supported by all fields so must be overridden to enable)
+    public Query termQueryCaseInsensitive(Object value, @Nullable QueryShardContext context) {
+        throw new QueryShardException(context, "[" + name + "] field which is of type [" + typeName() +
+            "], does not support case insensitive term queries");
+    }
 
     /** Build a constant-scoring query that matches all values. The default implementation uses a
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
@@ -206,14 +220,27 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    // Case sensitive form of prefix query
+    public final Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        return prefixQuery(value, method, false, context);
+    }
+
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, boolean caseInsensitve,
+        QueryShardContext context) {
         throw new QueryShardException(context, "Can only use prefix queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
+    // Case sensitive form of wildcard query
+    public final Query wildcardQuery(String value,
+        @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context
+    ) {
+        return wildcardQuery(value, method, false, context);
+    }
+
     public Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
-                               QueryShardContext context) {
+                               boolean caseInsensitve, QueryShardContext context) {
         throw new QueryShardException(context, "Can only use wildcard queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
@@ -224,7 +251,15 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public abstract Query existsQuery(QueryShardContext context);
+    public Query existsQuery(QueryShardContext context) {
+        if (hasDocValues()) {
+            return new DocValuesFieldExistsQuery(name());
+        } else if (getTextSearchInfo().hasNorms()) {
+            return new NormsFieldExistsQuery(name());
+        } else {
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        }
+    }
 
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
@@ -267,7 +302,7 @@ public abstract class MappedFieldType {
     public enum Relation {
         WITHIN,
         INTERSECTS,
-        DISJOINT;
+        DISJOINT
     }
 
     /** Return whether all values of the given {@link IndexReader} are within the range,
@@ -330,10 +365,6 @@ public abstract class MappedFieldType {
     public static Term extractTerm(Query termQuery) {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
-        }
-        if (termQuery instanceof TypeFieldMapper.TypesQuery) {
-            assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;
-            return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);
         }
         if (termQuery instanceof TermInSetQuery) {
             TermInSetQuery tisQuery = (TermInSetQuery) termQuery;

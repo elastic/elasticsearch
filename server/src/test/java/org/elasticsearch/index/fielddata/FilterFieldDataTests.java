@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -64,7 +65,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true);
-            MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
+            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", () -> Lucene.STANDARD_ANALYZER)
                     .fielddata(true)
                     .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
                     .build(builderCtx).fieldType();
@@ -79,7 +80,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
         {
             indexService.clearCaches(false, true);
-            MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
+            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", () -> Lucene.STANDARD_ANALYZER)
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, 201, 100)
                     .build(builderCtx).fieldType();
@@ -94,7 +95,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true);// test # docs with value
-            MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
+            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", () -> Lucene.STANDARD_ANALYZER)
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
@@ -110,7 +111,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true);
-            MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
+            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", () -> Lucene.STANDARD_ANALYZER)
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();

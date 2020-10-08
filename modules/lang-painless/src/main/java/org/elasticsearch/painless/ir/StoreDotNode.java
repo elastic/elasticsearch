@@ -20,13 +20,14 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
-public class StoreDotNode extends StoreAccessNode {
+public class StoreDotNode extends StoreNode {
 
     /* ---- begin node data ---- */
 
@@ -49,17 +50,20 @@ public class StoreDotNode extends StoreAccessNode {
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        getAccessNode().visit(irTreeVisitor, scope);
+        // do nothing; terminal node
     }
 
     /* ---- end visitor ---- */
 
+    public StoreDotNode(Location location) {
+        super(location);
+    }
+
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getAccessNode().write(classWriter, methodWriter, writeScope);
         getChildNode().write(classWriter, methodWriter, writeScope);
 
-        methodWriter.writeDebugInfo(location);
+        methodWriter.writeDebugInfo(getLocation());
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
             methodWriter.putStatic(Type.getType(

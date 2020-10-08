@@ -110,7 +110,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
                         if (key == previousKey) {
                             continue;
                         }
-                        if (hardBounds == null || hardBounds.contain(key)) {
+                        if (hardBounds == null || hardBounds.contain(key * interval)) {
                             long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
                             if (bucketOrd < 0) { // already seen
                                 bucketOrd = -1 - bucketOrd;

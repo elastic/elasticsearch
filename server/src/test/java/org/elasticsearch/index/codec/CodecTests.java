@@ -21,9 +21,9 @@ package org.elasticsearch.index.codec;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import org.apache.lucene.codecs.lucene86.Lucene86Codec;
+import org.apache.lucene.codecs.lucene87.Lucene87Codec;
+import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat.Mode;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -53,8 +53,8 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene86Codec.class));
-        assertThat(codecService.codec("Lucene86"), instanceOf(Lucene86Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene87Codec.class));
+        assertThat(codecService.codec("Lucene87"), instanceOf(Lucene87Codec.class));
     }
 
     public void testDefault() throws Exception {
@@ -78,7 +78,7 @@ public class CodecTests extends ESTestCase {
         iw.close();
         DirectoryReader ir = DirectoryReader.open(dir);
         SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
-        String v = sr.getSegmentInfo().info.getAttribute(Lucene50StoredFieldsFormat.MODE_KEY);
+        String v = sr.getSegmentInfo().info.getAttribute(Lucene87StoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
         assertEquals(expected, Mode.valueOf(v));
         ir.close();

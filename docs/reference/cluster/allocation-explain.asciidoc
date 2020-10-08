@@ -116,7 +116,7 @@ PUT /my-index-000001?master_timeout=1s&timeout=1s
 {
   "settings": {
     "index.routing.allocation.include._name": "non_existent_node",
-    "index.routing.allocation.include._tier": null
+    "index.routing.allocation.include._tier_preference": null
   }
 }
 

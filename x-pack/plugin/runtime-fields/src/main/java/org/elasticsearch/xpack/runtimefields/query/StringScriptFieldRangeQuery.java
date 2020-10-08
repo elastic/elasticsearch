@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.List;
 import java.util.Objects;
@@ -24,7 +24,7 @@ public class StringScriptFieldRangeQuery extends AbstractStringScriptFieldQuery 
 
     public StringScriptFieldRangeQuery(
         Script script,
-        StringScriptFieldScript.LeafFactory leafFactory,
+        StringFieldScript.LeafFactory leafFactory,
         String fieldName,
         String lowerValue,
         String upperValue,

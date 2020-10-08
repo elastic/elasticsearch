@@ -188,7 +188,7 @@ public class TrainedModelStatsService {
         if (stats.isEmpty()) {
             return;
         }
-        BulkRequest bulkRequest = new BulkRequest().requireAlias(true);
+        BulkRequest bulkRequest = new BulkRequest();
         stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(bulkRequest::add);
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         if (bulkRequest.requests().isEmpty()) {
@@ -254,7 +254,8 @@ public class TrainedModelStatsService {
                 // out of band. If there is MANY more than that, something strange is happening and it should fail.
                 .retryOnConflict(3)
                 .id(InferenceStats.docId(stats.getModelId(), stats.getNodeId()))
-                .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params));
+                .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params))
+                .setRequireAlias(true);
             return updateRequest;
         } catch (IOException ex) {
             logger.error(

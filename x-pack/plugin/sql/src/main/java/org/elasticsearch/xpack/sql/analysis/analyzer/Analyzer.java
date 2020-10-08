@@ -867,7 +867,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 boolean qualified = u.qualifier() != null;
                 for (Alias alias : aliases) {
                     // don't replace field with their own aliases (it creates infinite cycles)
-                    if (u != alias.child() &&
+                    if (alias.anyMatch(e -> e == u) == false &&
                            (qualified ?
                                Objects.equals(alias.qualifiedName(), u.qualifiedName()) :
                                Objects.equals(alias.name(), u.name()))) {

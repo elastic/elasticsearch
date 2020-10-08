@@ -30,7 +30,6 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
@@ -108,7 +107,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         array.setOnce(1, testSearchPhaseResult2);
         array.setOnce(2, testSearchPhaseResult3);
         AtomicInteger numFreed = new AtomicInteger(0);
-        String scrollId = TransportSearchHelper.buildScrollId(array, VersionUtils.randomVersion(random()));
+        String scrollId = TransportSearchHelper.buildScrollId(array);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(new ActionListener<ClearScrollResponse>() {
@@ -174,7 +173,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         AtomicInteger numFreed = new AtomicInteger(0);
         AtomicInteger numFailures = new AtomicInteger(0);
         AtomicInteger numConnectionFailures = new AtomicInteger(0);
-        String scrollId = TransportSearchHelper.buildScrollId(array, VersionUtils.randomVersion(random()));
+        String scrollId = TransportSearchHelper.buildScrollId(array);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
 

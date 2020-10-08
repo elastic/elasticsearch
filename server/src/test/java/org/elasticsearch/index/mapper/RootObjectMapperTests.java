@@ -369,8 +369,8 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
-        assertThat(e.getRootCause().getMessage(), equalTo("analyzer [foobar] not found for field [__dynamic__my_template]"));
+        assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getRootCause().getMessage(), equalTo("analyzer [foobar] has not been configured in mappings"));
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {

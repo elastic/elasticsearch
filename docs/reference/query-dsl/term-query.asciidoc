@@ -62,6 +62,10 @@ Boost values are relative to the default value of `1.0`. A boost value between
 `0` and `1.0` decreases the relevance score. A value greater than `1.0`
 increases the relevance score.
 
+`case_insensitive`::
+(Optional, boolean) allows ASCII case insensitive matching of the
+value with the indexed field values when set to true. Setting to false is disallowed.
+
 [[term-query-notes]]
 ==== Notes
 
@@ -84,7 +88,7 @@ The `term` query does *not* analyze the search term. The `term` query only
 searches for the *exact* term you provide. This means the `term` query may
 return poor or no results when searching `text` fields.
 
-To see the difference in search results, try the following example.  
+To see the difference in search results, try the following example.
 
 . Create an index with a `text` field called `full_text`.
 +

@@ -7,14 +7,13 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
 
-import java.io.IOException;
+import java.util.function.Function;
 
 public abstract class AbstractLongScriptFieldQueryTestCase<T extends AbstractLongScriptFieldQuery> extends AbstractScriptFieldQueryTestCase<
     T> {
-    protected final CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory = ctx -> null;
+    protected final Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> null;
 
     @Override
     public final void testVisit() {

@@ -44,6 +44,44 @@ To avoid errors, specify the `name` property when creating or granting API keys.
 ====
 
 [discrete]
+[[breaking_710_indices_changes]]
+==== Indices changes
+
+[[supplier-searchlookup-arg]]
+.REST API access to system indices is now deprecated.
+[%collapsible]
+====
+*Details* +
+We are deprecating REST API access to system indices. Most REST API requests
+that attempt to access system indices will return the following deprecation
+warning:
+
+[source,text]
+----
+this request accesses system indices: [.system_index_name], but in a future
+major version, direct access to system indices will be prevented by default
+----
+
+The following REST API endpoints access system indices as part of their
+implementation and will not return the deprecation warning:
+
+* `GET _cluster/health`
+* `GET {index}/_recovery`
+* `GET _cluster/allocation/explain`
+* `GET _cluster/state`
+* `POST _cluster/reroute`
+* `GET {index}/_stats`
+* `GET {index}/_segments`
+* `GET {index}/_shard_stores`
+* `GET _cat/[indices,aliases,health,recovery,shards,segments]`
+
+*Impact* +
+To avoid deprecation warnings, do not use unsupported REST APIs to access system
+indices.
+====
+
+
+[discrete]
 [[breaking_710_java_changes]]
 ==== Java changes
 

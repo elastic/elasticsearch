@@ -60,7 +60,7 @@ Mapping::
 * Introduce 64-bit unsigned long field type {es-pull}60050[#60050] (issue: {es-issue}32434[#32434])
 
 Search::
-* Add search 'fields' option to support high-level field retrieval. {es-pull}60100[#60100] (issues: {es-issue}49028[#49028], {es-issue}55363[#55363])
+* Add search 'fields' option to support high-level field retrieval {es-pull}60100[#60100] (issues: {es-issue}49028[#49028], {es-issue}55363[#55363])
 
 
 
@@ -101,7 +101,7 @@ Distributed::
 * Thread safe clean up of LocalNodeModeListeners {es-pull}59932[#59932] (issue: {es-issue}59801[#59801])
 
 Features/CAT APIs::
-* Adding Hit counts and Miss counts for QueryCache exposed through REST api. This resolves:#48645 {es-pull}60114[#60114] (issue: {es-issue}48645[#48645])
+* Adding Hit counts and Miss counts for QueryCache exposed through REST API {es-pull}60114[#60114] (issue: {es-issue}48645[#48645])
 
 Features/Features::
 * Add aggregation list to node info {es-pull}60074[#60074] (issue: {es-issue}52057[#52057])
@@ -130,7 +130,6 @@ Infra/Core::
 Infra/Logging::
 * Do not create two loggers for DeprecationLogger {es-pull}58435[#58435]
 * Header warning logging refactoring {es-pull}55941[#55941] (issues: {es-issue}52369[#52369], {es-issue}55699[#55699])
-* Write deprecation logs to a data stream {es-pull}58924[#58924] (issue: {es-issue}46106[#46106])
 * Write deprecation logs to a data stream {es-pull}61484[#61484] (issues: {es-issue}46106[#46106], {es-issue}61474[#61474])
 
 Infra/Packaging::
@@ -141,15 +140,14 @@ Infra/Resiliency::
 * Remove node from cluster when node locks broken {es-pull}61400[#61400] (issues: {es-issue}52680[#52680], {es-issue}58373[#58373])
 
 Infra/Scripting::
-* Scripting: Augment String with sha1 and sha256 {es-pull}59671[#59671] (issue: {es-issue}59633[#59633])
-* Scripting: Converts casting and def support {es-pull}61350[#61350] (issue: {es-issue}59647[#59647])
+* Augment String with sha1 and sha256 {es-pull}59671[#59671] (issue: {es-issue}59633[#59633])
+* Converts casting and def support {es-pull}61350[#61350] (issue: {es-issue}59647[#59647])
 
 Machine Learning::
 * Add a "verbose" option to the data frame analytics stats endpoint {es-pull}59589[#59589] (issue: {es-issue}59125[#59125])
 * Add new include flag to GET inference/<model_id> API for model training metadata {es-pull}61922[#61922]
 * Adds new feature_processors field for data frame analytics {es-pull}60528[#60528] (issue: {es-issue}59327[#59327])
 * Adds new n_gram_encoding custom processor {es-pull}61578[#61578]
-* Create new dynamic domain feature extractor processor {es-pull}61874[#61874]
 * Make MlDailyMaintenanceService delete jobs that are in deleting state anyway {es-pull}60121[#60121] (issue: {es-issue}42840[#42840])
 * Respect ML upgrade mode in TrainedModelStatsService {es-pull}61143[#61143]
 
@@ -169,18 +167,16 @@ SQL::
 * Add option to provide the delimiter for the CSV format {es-pull}59907[#59907] (issue: {es-issue}41634[#41634])
 * Implement DATE_PARSE function for parsing strings into DATE values {es-pull}57391[#57391] (issue: {es-issue}54962[#54962])
 * Implement FORMAT function {es-pull}55454[#55454] (issue: {es-issue}54965[#54965])
-* QL: Wildcard support {es-pull}59753[#59753]
 
 Search::
-* Avoid reloading _source for every inner hit. {es-pull}60494[#60494] (issue: {es-issue}32818[#32818])
+* Avoid reloading _source for every inner hit {es-pull}60494[#60494] (issue: {es-issue}32818[#32818])
 * Cancel multisearch when http connection closed {es-pull}61399[#61399]
 * Enable cancellation for msearch requests {es-pull}61337[#61337]
 * Executes incremental reduce in the search thread pool {es-pull}58461[#58461] (issues: {es-issue}51857[#51857], {es-issue}53411[#53411])
 * Introduce point in time APIs in x-pack basic {es-pull}61062[#61062] (issues: {es-issue}26472[#26472], {es-issue}46523[#46523])
-* Make multi search tasks cancellable {es-pull}44494[#44494]
 * ParametrizedFieldMapper to run validators against default value {es-pull}60042[#60042] (issue: {es-issue}59332[#59332])
-* Search - add case insensitive flag for "term" family of queries {es-pull}61596[#61596] (issue: {es-issue}61546[#61546])
-* Search - add case insensitive support for regex queries. {es-pull}59441[#59441]
+* Add case insensitive flag for "term" family of queries {es-pull}61596[#61596] (issue: {es-issue}61546[#61546])
+* Add case insensitive support for regex queries {es-pull}59441[#59441]
 * Tweak toXContent implementation of ParametrizedFieldMapper {es-pull}59968[#59968]
 
 Snapshot/Restore::
@@ -193,8 +189,6 @@ Snapshot/Restore::
 Store::
 * Report more details of unobtainable ShardLock {es-pull}61255[#61255] (issue: {es-issue}38807[#38807])
 
-Task Management::
-* Support task cancellation cross clusters {es-pull}55779[#55779]
 
 Transform::
 * Add support for missing bucket {es-pull}59591[#59591] (issues: {es-issue}42941[#42941], {es-issue}55102[#55102])
@@ -232,7 +226,7 @@ Features/ILM+SLM::
 * Fix ILM history index settings {es-pull}61880[#61880] (issues: {es-issue}61457[#61457], {es-issue}61863[#61863])
 
 Features/Java Low Level REST Client::
-* [client] Handle non-default port in Cloud-Id {es-pull}61581[#61581]
+* Handle non-default port in Cloud-Id {es-pull}61581[#61581]
 
 Features/Stats::
 * Remove sporadic min/max usage estimates from stats {es-pull}59755[#59755]
@@ -266,9 +260,8 @@ Network::
 
 Search::
 * Allows nanosecond resolution in search_after {es-pull}60328[#60328] (issue: {es-issue}52424[#52424])
-* Consolidate validation for 'docvalue_fields'. {es-pull}59473[#59473]
-* Correct how field retrieval handles multifields and copy_to. {es-pull}61309[#61309] (issue: {es-issue}61033[#61033])
-* In field retrieval, skip values that can't be parsed. {es-pull}60943[#60943]
+* Consolidate validation for 'docvalue_fields' {es-pull}59473[#59473]
+* Correct how field retrieval handles multifields and copy_to {es-pull}61309[#61309] (issue: {es-issue}61033[#61033])
 
 Snapshot/Restore::
 * Avoid listener call under SparseFileTracker#mutex {es-pull}61626[#61626] (issue: {es-issue}61520[#61520])
@@ -276,4 +269,3 @@ Snapshot/Restore::
 * Fix Test Failure in testCorrectCountsForDoneShards {es-pull}60254[#60254] (issue: {es-issue}60247[#60247])
 * Minimize cache file locking during prewarming {es-pull}61837[#61837] (issue: {es-issue}58658[#58658])
 * Prevent snapshots to be mounted as system indices {es-pull}61517[#61517] (issue: {es-issue}60522[#60522])
-

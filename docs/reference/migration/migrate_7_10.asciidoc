@@ -22,43 +22,31 @@ See also <<release-highlights>> and <<es-release-notes>>.
 === Authentication changes
 
 [discrete]
-=== Grant API key always requires the key name
-When using the grant API key action, it was possible to create a key without a
-name. This was because the name field is nested under `api_key` field, i.e.:
-```
+[[api-keys-require-name-property]]
+.API keys now require a `name` property.
+[%collapsible]
+====
+*Details* +
+The `name` property is now required to create or grant an API key.
+
+[source,js]
+----
 {
     "...": "...",
-    "api_key": {"name": "key-1"}
+    "api_key": {
+      "name": "key-1"
+    }
 }
-```
-The `name` is now required when creating or granting API keys.
+----
+// NOTCONSOLE
 
-[discrete]
-[[breaking_710_search_changes]]
-=== Search Changes
-
-[discrete]
-==== Missing checks for `index.max_docvalue_fields_search`
-The setting `index.max_docvalue_fields_search` limits the number of fields that
-can be retrieved through `docvalue_fields` in a search. Previously we only
-checked this limit when `docvalue_fields` appeared in the top-level search
-request body. Now we also enforce the limit when loading doc value fields in
-an `inner_hits` section or in a `top_hits` aggregation.
-
-[discrete]
-[[breaking_710_networking_changes]]
-=== Networking Changes
-
-[discrete]
-==== *.tcp.keep_idle and *.tcp.keep_interval now bounded
-The settings `{network,transport,http}.tcp.keep_idle` and
-`{network,transport,http}.tcp.keep_interval` are now limited to a maximum
-value of 300, which amounts to 5 minutes. This helps ensure that, if
-explicitly configured, only reasonable values are set.
+*Impact* +
+To avoid errors, specify the `name` property when creating or granting API keys.
+====
 
 [discrete]
 [[breaking_710_java_changes]]
-==== Breaking Java Changes
+==== Java changes
 
 [discrete]
 ==== Machine Learning: `allow_no_jobs` and `allow_no_datafeeds` deprecated in favor of `allow_no_match`
@@ -68,40 +56,93 @@ deprecation warning is emitted if the old parameter name is used in the request
 body or as a request param.
 High-level REST client classes will now send the new `allow_no_match` parameter.
 
-[discrete]
-==== Mapping: add `Supplier<SearchLookup>` argument to the existing `MappedFieldType#fielddataBuilder` method
-Runtime fields need to have a SearchLookup available, when building their
-fielddata implementations, so that they can look up other fields, runtime or
-not.
-To achieve that, we added a `Supplier<SearchLookup>` argument to the existing
-`MappedFieldType#fielddataBuilder` method.
-
-//end::notable-breaking-changes[]
-
-.Repository Stats API is deprecated
+[[supplier-searchlookup-arg]]
+.The `MappedFieldType#fielddataBuilder` method now accepts a `Supplier<SearchLookup>` argument.
 [%collapsible]
 ====
 *Details* +
-The Repository Stats API has been introduced in 7.8.0 as an experimental API
-and was never released. This API is superseded by the <<repositories-metering-apis,Repositories Metering APIs>>
-added in 7.10.0 which should be used instead. The Repository Stats API is
-deprecated starting 7.10.0 and will be removed in 8.0.0.
-
+For future feature development, we added a `Supplier<SearchLookup>` argument to
+the existing `MappedFieldType#fielddataBuilder` method.
+ 
 *Impact* +
-Use the <<repositories-metering-apis,Repositories Metering APIs>>.
+No action needed.
 ====
+
+[discrete]
+[[breaking_710_mapping_changes]]
+=== Mapping changes
 
 [[mapping-boosts]]
-.The `boost` parameter on field mappings has been deprecated
+.The `boost` parameter on field mappings has been deprecated.
 [%collapsible]
 ====
 *Details* +
-Index-time boosts have been deprecated since the 5x line, but it is still possible
+Index-time boosts have been deprecated since the 5.x line, but it is still possible
 to declare field-specific boosts in the mappings.  This is now deprecated as well,
 and will be removed entirely in 8.0.  Mappings containing field boosts will continue
 to work in 7.x but will emit a deprecation warning.
 
 *Impact* +
-The `boost` setting should be removed from templates and mappings.  Use boosts
+The `boost` setting should be removed from templates and mappings. Use boosts
 directly on queries instead.
 ====
+
+[discrete]
+[[breaking_710_networking_changes]]
+=== Networking Changes
+
+[discrete]
+.`*.tcp.keep_idle` and `*.tcp.keep_interval` are now limited to `300` seconds.
+[%collapsible]
+====
+*Details* +
+The settings `{network,transport,http}.tcp.keep_idle` and
+`{network,transport,http}.tcp.keep_interval` settings now have a maximum
+value of `300` seconds, equivalent to 5 minutes.
+
+*Impact* +
+If specified, ensure the `{network,transport,http}.tcp.keep_idle` and
+`{network,transport,http}.tcp.keep_interval` settings does not exceed `300`
+seconds. Setting `{network,transport,http}.tcp.keep_idle` or
+`{network,transport,http}.tcp.keep_interval` greater `300` seconds in
+`elasticsearch.yml` will result in an error on startup.
+====
+
+[discrete]
+[[breaking_710_search_changes]]
+=== Search Changes
+
+[discrete]
+[[max-doc-value-field-search-limits]]
+.The `index.max_docvalue_fields_search` setting now limits the number of retrieved through `inner_hits` or a `top_hits` aggregation.
+[%collapsible]
+====
+*Details* +
+The `index.max_docvalue_fields_search` setting limits the number of doc value
+fields retrieved through `docvalue_fields` in a search. Previously, this setting
+only applied to fields in an `inner_hits` section or `top_hits` aggregation.
+
+*Impact* +
+Ensure `index.max_docvalue_fields_search` is configured correctly for your use
+case.
+====
+
+[discrete]
+[[breaking_710_snapshot_restore_changes]]
+=== Snapshot and restore changes
+
+[[respository-stats-api-deprecated]]
+.The repository stats API has been deprecated.
+[%collapsible]
+====
+*Details* +
+The repository stats API was introduced as an experimental API in 7.8.0. The
+<<repositories-metering-apis,repositories metering APIs>> now replace the
+repository stats API. The repository stats API has been deprecated and will be
+removed in 8.0.0.
+
+*Impact* +
+Use the <<repositories-metering-apis,repositories metering APIs>>. Discontinue
+use of the repository stats API.
+====
+//end::notable-breaking-changes[]

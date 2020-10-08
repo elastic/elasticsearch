@@ -99,7 +99,7 @@ public class EqlSession {
         if(configuration.isCancelled()){
             throw new TaskCancelledException("cancelled");
         }
-        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.includeFrozen(), configuration.filter(),
+        indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.indicesOptions(), configuration.filter(),
             wrap(r -> {
                 listener.onResponse(preAnalyzer.preAnalyze(parsed, r));
             }, listener::onFailure));

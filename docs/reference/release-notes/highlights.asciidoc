@@ -124,7 +124,7 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-For more information, see the {ref}/eql-syntax-comparison-operators.html[EQL
+For more information, see the {ref}/eql-syntax.html[EQL
 syntax documentation].
 
 [discrete]

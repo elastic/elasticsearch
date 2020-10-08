@@ -36,7 +36,7 @@ dependencies {
 }
 
 // this is just a test fixture used by other projects and not in production
-['test', 'dependencyLicenses', 'thirdPartyAudit', 'dependenciesInfo'].each {
+['test', 'dependencyLicenses', 'thirdPartyAudit', 'dependenciesInfo', 'dependenciesGraph'].each {
   tasks.named(it).configure {
     enabled = false
   }

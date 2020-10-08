@@ -53,6 +53,7 @@ disableTasks('forbiddenApisMain')
 // No licenses for our benchmark deps (we don't ship benchmarks)
 tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
+dependenciesGraph.enabled = false
 
 thirdPartyAudit.ignoreViolations(
   // these classes intentionally use JDK internal API (and this is ok since the project is maintained by Oracle employees)

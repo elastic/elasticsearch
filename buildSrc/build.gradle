@@ -151,6 +151,7 @@ if (project != rootProject) {
   // build-tools is not ready for primetime with these...
   tasks.named("dependencyLicenses").configure { it.enabled = false }
   dependenciesInfo.enabled = false
+  dependenciesGraph.enabled = false
   disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false

@@ -54,6 +54,7 @@ testingConventions.enabled = false
 // this project doesn't get published
 tasks.named("dependencyLicenses").configure { it.enabled = false }
 tasks.dependenciesInfo.enabled = false
+tasks.dependenciesGraph.enabled = false
 
 tasks.thirdPartyAudit.ignoreMissingClasses()
 

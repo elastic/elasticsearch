@@ -161,9 +161,9 @@ implementation and will not return the deprecation warning:
 === New thread pools for system indices
 
 We've added two new thread pools for system indices: `system_read` and
-`system_write`. `system_read` is a `fixed` thread pool used to manage memory for
-read operations performed by system indices. Similarly, `system_write` is a
-`fixed` thread pool used to manage memory for write operations performed by
+`system_write`. `system_read` is a `fixed` thread pool used to manage resources for
+read operations targeting system indices. Similarly, `system_write` is a
+`fixed` thread pool used to manage resources for write operations targeting
 system indices. Both have a maximum number of threads equal to `5`
 or half of the available processors, whichever is smaller.
 
@@ -171,7 +171,7 @@ or half of the available processors, whichever is smaller.
 [[metadata-flag-system-indices]]
 === New metadata flag for system indices
 
-To prevent performance issues related to searches that accidentally target
+To prevent performance issues related to searches that target
 system indices, we've added a new metadata flag to mark system and non-system
 indices. {es} will automatically add this flag to an existing system indices
 during upgrade.

@@ -297,8 +297,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                         char next = pattern.charAt(i + 1);
                         if (next != '%' && next != '_') {
                             throw new ParsingException(source(ctx.value),
-                                    "Pattern [{}] is invalid as escape char [{}] at position {} can only escape wildcard chars [%_]; found [{}]",
-                                    pattern, escape, i, next);
+                                    "Pattern [{}] is invalid as escape char [{}] at position {} can only escape "
+                                    + "wildcard chars [%_]; found [{}]", pattern, escape, i, next);
                         }
                     }
                 }

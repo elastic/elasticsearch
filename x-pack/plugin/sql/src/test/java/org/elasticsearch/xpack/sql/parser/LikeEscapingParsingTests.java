@@ -63,7 +63,8 @@ public class LikeEscapingParsingTests extends ESTestCase {
 
     public void testEscapingWrongChar() {
         assertThat(error("'|string' ESCAPE '|'"),
-                is("line 1:11: Pattern [|string] is invalid as escape char [|] at position 0 can only escape wildcard chars [%_]; found [s]"));
+                is("line 1:11: Pattern [|string] is invalid as escape char [|] at position 0 can only escape "
+                   + "wildcard chars [%_]; found [s]"));
     }
 
     public void testEscapingTheEscapeCharacter() {

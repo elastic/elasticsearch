@@ -306,7 +306,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
 
         MappedFieldType fieldType = context.getFieldType(field);
         if (analyzer == null) {
-            suggestionContext.setAnalyzer(context.getSearchAnalyzer(fieldType));
+            suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().getSearchAnalyzer());
         } else {
             Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {

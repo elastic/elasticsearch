@@ -96,7 +96,7 @@ directly on queries instead.
 [%collapsible]
 ====
 *Details* +
-The settings `{network,transport,http}.tcp.keep_idle` and
+The `{network,transport,http}.tcp.keep_idle` and
 `{network,transport,http}.tcp.keep_interval` settings now have a maximum
 value of `300` seconds, equivalent to 5 minutes.
 

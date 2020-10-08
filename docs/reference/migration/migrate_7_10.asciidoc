@@ -65,7 +65,8 @@ To support future feature development, the existing
 `Supplier<SearchLookup>` argument.
  
 *Impact* +
-No action needed.
+If developing an {es} plugin, update your implementation of the
+`MappedFieldType#fielddataBuilder` method to accommodate the new signature.
 ====
 
 [discrete]
@@ -118,10 +119,10 @@ seconds in `elasticsearch.yml` will result in an error on startup.
 ====
 *Details* +
 The `index.max_docvalue_fields_search` setting limits the number of doc value
-fields retrieved by a search. Previously, this setting applied only to doc values
-returned by the `docvalue_fields` parameter in a top-level search. The setting
-now also applies to doc values returned by an `inner_hits` section or
-`top_hits` aggregation.
+fields retrieved by a search. Previously, this setting applied only to doc value
+fields returned by the `docvalue_fields` parameter in a top-level search. The
+setting now also applies to doc value fields returned by an `inner_hits` section
+or `top_hits` aggregation.
 
 *Impact* +
 If you use `inner_hits` or the `top_hits` aggregation, ensure

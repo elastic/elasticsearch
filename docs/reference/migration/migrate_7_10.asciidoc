@@ -65,7 +65,7 @@ To support future feature development, the existing
 `Supplier<SearchLookup>` argument.
  
 *Impact* +
-If developing or maintaining an {es} plugin, update your implementation of the
+If you develop or maintain a mapper plugin, update your implementation of the
 `MappedFieldType#fielddataBuilder` method to accommodate the new signature.
 ====
 

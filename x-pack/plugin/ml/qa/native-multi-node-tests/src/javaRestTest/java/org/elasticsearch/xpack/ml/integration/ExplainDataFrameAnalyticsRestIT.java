@@ -117,8 +117,7 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
             addSecondaryAuthHeader(options, ML_ADMIN);
             explain.setOptions(options);
             // Should throw
-            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(explain));
-            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            expectThrows(ResponseException.class, () -> client().performRequest(explain));
         }
         { // request with secondary headers with perms
             Request explain = explainRequestViaConfig(config);
@@ -160,8 +159,7 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
             addSecondaryAuthHeader(options, ML_ADMIN);
             explain.setOptions(options);
             // Should throw
-            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(explain));
-            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            expectThrows(ResponseException.class, () -> client().performRequest(explain));
         }
         { // request with secondary headers with perms
             Request explain = explainRequestConfigId(configId);

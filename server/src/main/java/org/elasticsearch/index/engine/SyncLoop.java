@@ -29,8 +29,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Comparator;
+import java.util.PriorityQueue;
 import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -43,7 +43,7 @@ public class SyncLoop {
     private final Translog translog;
     private final CheckedRunnable<IOException> postSyncCallback;
     private final Semaphore promiseSemaphore = new Semaphore(1);
-    private final ConcurrentLinkedQueue<Tuple<Translog.Location, Consumer<Exception>>> listeners = new ConcurrentLinkedQueue<>();
+    private final PriorityQueue<Tuple<Translog.Location, Consumer<Exception>>> listeners;
     private volatile Translog.Location lastSyncedLocation;
 
     public SyncLoop(ThreadPool threadPool, Translog translog, CheckedRunnable<IOException> postSyncCallback) {
@@ -51,6 +51,7 @@ public class SyncLoop {
         this.translog = translog;
         this.postSyncCallback = postSyncCallback;
         this.lastSyncedLocation = new Translog.Location(0, 0, Integer.MAX_VALUE);
+        this.listeners = new PriorityQueue<>(1024, Comparator.comparing(Tuple::v1));
     }
 
     public void maybeScheduleFlush() {
@@ -66,7 +67,7 @@ public class SyncLoop {
                         promiseSemaphore.release();
                     }
 
-                    while (listeners.isEmpty() == false && promiseSemaphore.tryAcquire()) {
+                    while (isListenersEmpty() == false && promiseSemaphore.tryAcquire()) {
                         doSyncAndNotify();
                     }
                 });
@@ -79,13 +80,15 @@ public class SyncLoop {
             listener.accept(null);
             return;
         }
-        listeners.add(new Tuple<>(location, preserveContext(listener)));
+        synchronized (listeners) {
+            listeners.add(new Tuple<>(location, preserveContext(listener)));
+        }
         final boolean promised = promiseSemaphore.tryAcquire();
         if (promised) {
             try {
                 threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
                     doSyncAndNotify();
-                    while (listeners.isEmpty() == false && promiseSemaphore.tryAcquire()) {
+                    while (isListenersEmpty() == false && promiseSemaphore.tryAcquire()) {
                         doSyncAndNotify();
                     }
                 });
@@ -98,7 +101,7 @@ public class SyncLoop {
 
     private void doSyncAndNotify() {
         Exception exception = null;
-        ArrayList<Consumer<Exception>> syncedListeners = new ArrayList<>(this.listeners.size());
+        ArrayList<Consumer<Exception>> syncedListeners = new ArrayList<>(listenerCount());
         try {
             doSync();
             drainListeners(syncedListeners, lastSyncedLocation);
@@ -118,15 +121,29 @@ public class SyncLoop {
         postSyncCallback.run();
     }
 
+    private int listenerCount() {
+        synchronized (listeners) {
+            return listeners.size();
+        }
+    }
+
+    private boolean isListenersEmpty() {
+        synchronized (listeners) {
+            return listeners.isEmpty();
+        }
+    }
+
     private void drainListeners(ArrayList<Consumer<Exception>> syncedListeners, Translog.Location syncedLocation) {
-        Tuple<Translog.Location, Consumer<Exception>> tuple;
-        while ((tuple = listeners.poll()) != null) {
-            // If the synced location is null, drain all the listeners
-            if (syncedLocation == null || syncedLocation.compareTo(tuple.v1()) > 0) {
-                syncedListeners.add(tuple.v2());
-            } else {
-//                listeners.put(entry.getKey(), entry.getValue());
-                break;
+        synchronized (listeners) {
+            Tuple<Translog.Location, Consumer<Exception>> tuple;
+            while ((tuple = listeners.poll()) != null) {
+                // If the synced location is null, drain all the listeners
+                if (syncedLocation == null || syncedLocation.compareTo(tuple.v1()) > 0) {
+                    syncedListeners.add(tuple.v2());
+                } else {
+                    listeners.add(tuple);
+                    break;
+                }
             }
         }
     }

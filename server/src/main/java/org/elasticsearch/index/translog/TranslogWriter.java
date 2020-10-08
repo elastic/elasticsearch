@@ -197,6 +197,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             if (buffer == null) {
                 buffer = new ReleasableBytesStreamOutput(bigArrays);
             }
+            assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
             totalOffset += data.length();
             data.writeTo(buffer);

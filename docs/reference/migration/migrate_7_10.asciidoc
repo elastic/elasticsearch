@@ -92,7 +92,7 @@ directly on queries instead.
 === Networking Changes
 
 [discrete]
-.`*.tcp.keep_idle` and `*.tcp.keep_interval` are now limited to `300` seconds.
+.The `*.tcp.keep_idle` and `*.tcp.keep_interval` settings are now limited to `300` seconds.
 [%collapsible]
 ====
 *Details* +

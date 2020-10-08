@@ -19,12 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.TwoPhaseDatePointMillis;
-import org.apache.lucene.document.TwoPhaseDatePointNanos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.queries.TwoPhaseDateRangeQuery;
@@ -96,8 +93,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Instant clampToValidRange(Instant instant) {
-                return instant;
+            public Instant toInstantFromApprox(long value) {
+                return Instant.ofEpochSecond(value);
             }
 
             @Override
@@ -109,48 +106,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
-
-            @Override
-            public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
-                if (hasDocValues) {
-                    doc.add(new LongPoint(name, toInstant(value).getEpochSecond()));
-                } else {
-                    doc.add(new LongPoint(name, value));
-                }
-            }
-
-            @Override
-            public Query rangeQuery(String field, long min, long max, boolean hasDocValues) {
-                if (hasDocValues) {
-                    Instant minInstant = toInstant(min);
-                    Instant maxInstant = toInstant(max);
-                    if ((min == Long.MIN_VALUE || min == convert(Instant.ofEpochSecond(convertApprox(minInstant)))) &&
-                        (max == Long.MAX_VALUE || max == convert(Instant.ofEpochSecond(convertApprox(maxInstant))))) {
-                        return LongPoint.newRangeQuery(field, convertApprox(minInstant), convertApprox(maxInstant));
-                    } else {
-                        return new TwoPhaseDateRangeQuery(field, minInstant, maxInstant) {
-
-                            @Override
-                            protected long toApproxPrecision(Instant instant) {
-                                return convertApprox(instant);
-                            }
-
-                            @Override
-                            protected long toExactPrecision(Instant instant) {
-                                return convert(instant);
-                            }
-                        };
-                    }
-                } else {
-                    return LongPoint.newRangeQuery(field, min, max);
-                }
-            }
-
-            @Override
-            public long toApprox(long exact) {
-                return toInstant(exact).getEpochSecond();
-            }
-
         },
         NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
             @Override
@@ -169,8 +124,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Instant clampToValidRange(Instant instant) {
-                return DateUtils.clampToNanosRange(instant);
+            public Instant toInstantFromApprox(long value) {
+                return Instant.ofEpochSecond(value);
             }
 
             @Override
@@ -181,47 +136,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Override
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
-            }
-
-            @Override
-            public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
-                if (hasDocValues) {
-                    doc.add(new LongPoint(name, toInstant(value).getEpochSecond()));
-                } else {
-                    doc.add(new LongPoint(name, value));
-                }
-            }
-
-            @Override
-            public Query rangeQuery(String field, long min, long max, boolean hasDocValues) {
-                if (hasDocValues) {
-                    Instant minInstant = toInstant(min);
-                    Instant maxInstant = toInstant(max);
-                    if ((min == Long.MIN_VALUE || min == convert(Instant.ofEpochSecond(convertApprox(minInstant)))) &&
-                        (max == Long.MAX_VALUE || max == convert(Instant.ofEpochSecond(convertApprox(maxInstant))))) {
-                        return LongPoint.newRangeQuery(field, convertApprox(minInstant), convertApprox(maxInstant));
-                    } else {
-                        return new TwoPhaseDateRangeQuery(field, minInstant, maxInstant) {
-
-                            @Override
-                            protected long toApproxPrecision(Instant instant) {
-                                return convertApprox(instant);
-                            }
-
-                            @Override
-                            protected long toExactPrecision(Instant instant) {
-                                return convert(instant);
-                            }
-                        };
-                    }
-                } else {
-                    return LongPoint.newRangeQuery(field, min, max);
-                }
-            }
-
-            @Override
-            public long toApprox(long exact) {
-                return toInstant(exact).getEpochSecond();
             }
         };
 
@@ -257,10 +171,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public abstract Instant toInstant(long value);
 
         /**
-         * Return the instant that this range can represent that is closest to
-         * the provided instant.
+         * Convert a long value in this resolution into an instant.
          */
-        public abstract Instant clampToValidRange(Instant instant);
+        public abstract Instant toInstantFromApprox(long value);
 
         /**
          * Decode the points representation of this field as milliseconds.
@@ -270,17 +183,42 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         /**
          * Add index fields to doc
          */
-        public abstract void index(ParseContext.Document doc, String name, long value, boolean hasDocValues);
+        public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
+            if (hasDocValues) {
+                doc.add(new LongPoint(name, convertApprox(toInstant(value))));
+            } else {
+                doc.add(new LongPoint(name, value));
+            }
+        }
 
         /**
          * Build range query
          */
-        public abstract Query rangeQuery(String field, long min, long max, boolean hasDocValues);
+        public Query rangeQuery(String field, long min, long max, boolean hasDocValues) {
+            if (hasDocValues) {
+                Instant minInstant = toInstant(min);
+                Instant maxInstant = toInstant(max);
+                if ((min == Long.MIN_VALUE || min == convert(toInstantFromApprox(convertApprox(minInstant)))) &&
+                    (max == Long.MAX_VALUE || max == convert(toInstantFromApprox(convertApprox(maxInstant))))) {
+                    return LongPoint.newRangeQuery(field, convertApprox(minInstant), convertApprox(maxInstant));
+                } else {
+                    return new TwoPhaseDateRangeQuery(field, minInstant, maxInstant) {
 
-        /**
-         * Build range query
-         */
-        public abstract long toApprox(long exact);
+                        @Override
+                        protected long toApproxPrecision(Instant instant) {
+                            return convertApprox(instant);
+                        }
+
+                        @Override
+                        protected long toExactPrecision(Instant instant) {
+                            return convert(instant);
+                        }
+                    };
+                }
+            } else {
+                return LongPoint.newRangeQuery(field, min, max);
+            }
+        }
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
@@ -598,8 +536,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             long approxFromInclusive;
             long approxToInclusive;
             if (hasDocValues()) {
-                approxFromInclusive = resolution.toApprox(fromInclusive);
-                approxToInclusive = resolution.toApprox(toInclusive);
+                approxFromInclusive = resolution.convertApprox(resolution.toInstant(fromInclusive));
+                approxToInclusive = resolution.convertApprox(resolution.toInstant(toInclusive));
                 if (minValue >= approxFromInclusive + 1 && maxValue <= approxToInclusive - 1) {
                     return Relation.WITHIN;
                 } else if (maxValue < approxFromInclusive || minValue > approxToInclusive) {

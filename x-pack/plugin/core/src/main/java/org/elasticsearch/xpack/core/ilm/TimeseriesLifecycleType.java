@@ -50,14 +50,11 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
     static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
-    private static final Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
-
-    static {
-        ALLOWED_ACTIONS.put(HOT_PHASE, VALID_HOT_ACTIONS);
-        ALLOWED_ACTIONS.put(WARM_PHASE, VALID_WARM_ACTIONS);
-        ALLOWED_ACTIONS.put(COLD_PHASE, VALID_COLD_ACTIONS);
-        ALLOWED_ACTIONS.put(DELETE_PHASE, VALID_DELETE_ACTIONS);
-    }
+    private static final Map<String, Set<String>> ALLOWED_ACTIONS = Map.of(
+        HOT_PHASE, VALID_HOT_ACTIONS,
+        WARM_PHASE, VALID_WARM_ACTIONS,
+        COLD_PHASE, VALID_COLD_ACTIONS,
+        DELETE_PHASE, VALID_DELETE_ACTIONS);
 
     private TimeseriesLifecycleType() {
     }

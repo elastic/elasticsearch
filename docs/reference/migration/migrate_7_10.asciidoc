@@ -111,15 +111,16 @@ seconds. Setting `{network,transport,http}.tcp.keep_idle` or
 [[breaking_710_search_changes]]
 === Search Changes
 
-[discrete]
 [[max-doc-value-field-search-limits]]
 .The `index.max_docvalue_fields_search` setting now limits the number of retrieved through `inner_hits` or a `top_hits` aggregation.
 [%collapsible]
 ====
 *Details* +
 The `index.max_docvalue_fields_search` setting limits the number of doc value
-fields retrieved through `docvalue_fields` in a search. Previously, this setting
-only applied to fields in an `inner_hits` section or `top_hits` aggregation.
+fields retrieved a search. by the `docvalue_fields` parameter in a search.
+Previously, this setting only applied to doc values retrieved by the
+`docvalue_fields` parameter in a top-level search. The setting now also applies
+to doc values retrieved by an `inner_hits` section or `top_hits` aggregation.
 
 *Impact* +
 Ensure `index.max_docvalue_fields_search` is configured correctly for your use

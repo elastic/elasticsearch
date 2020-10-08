@@ -26,7 +26,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
@@ -37,9 +36,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -62,11 +62,16 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
             PercolatorMatchedSlotSubFetchPhase phase = new PercolatorMatchedSlotSubFetchPhase();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(reader);
                 LeafReaderContext context = reader.leaves().get(0);
                 // A match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, null,  new HashMap<>());
+                    HitContext hit = new HitContext(
+                        new SearchHit(0),
+                        context,
+                        0,
+                        new SourceLookup(),
+                        new HashMap<>()
+                    );
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -74,7 +79,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
-                    SearchContext sc = mock(SearchContext.class);
+                    FetchContext sc = mock(FetchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
@@ -87,7 +92,13 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, null,  new HashMap<>());
+                    HitContext hit = new HitContext(
+                        new SearchHit(0),
+                        context,
+                        0,
+                        new SourceLookup(),
+                        new HashMap<>()
+                    );
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
@@ -95,7 +106,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
-                    SearchContext sc = mock(SearchContext.class);
+                    FetchContext sc = mock(FetchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
@@ -107,7 +118,13 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No query:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, null,  new HashMap<>());
+                    HitContext hit = new HitContext(
+                        new SearchHit(0),
+                        context,
+                        0,
+                        new SourceLookup(),
+                        new HashMap<>()
+                    );
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -115,7 +132,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
-                    SearchContext sc = mock(SearchContext.class);
+                    FetchContext sc = mock(FetchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);

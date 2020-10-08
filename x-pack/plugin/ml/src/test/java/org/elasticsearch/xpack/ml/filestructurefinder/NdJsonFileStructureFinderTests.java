@@ -11,7 +11,7 @@ import java.util.Collections;
 
 public class NdJsonFileStructureFinderTests extends FileStructureTestCase {
 
-    private FileStructureFinderFactory factory = new NdJsonFileStructureFinderFactory();
+    private final FileStructureFinderFactory factory = new NdJsonFileStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodJson() throws Exception {
         assertTrue(factory.canCreateFromSample(explanation, NDJSON_SAMPLE, 0.0));
@@ -39,5 +39,6 @@ public class NdJsonFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
         assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 }

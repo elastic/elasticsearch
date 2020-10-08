@@ -29,5 +29,4 @@ dependencies {
   testImplementation project(path: xpackModule('async'))
 }
 
-integTest.enabled = false
 

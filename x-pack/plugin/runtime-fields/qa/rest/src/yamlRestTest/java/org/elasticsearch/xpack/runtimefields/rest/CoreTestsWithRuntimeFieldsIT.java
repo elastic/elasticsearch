@@ -40,7 +40,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
 
     /**
      * Builds test parameters similarly to {@link ESClientYamlSuiteTestCase#createParameters()},
-     * replacing the body of index creation commands so that fields are {@code runtime_script}s
+     * replacing the body of index creation commands so that fields are {@code runtime}s
      * that load from {@code source} instead of their original type. Test configurations that
      * do are not modified to contain runtime fields are not returned as they are tested
      * elsewhere.
@@ -161,7 +161,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                     if (toLoad == null) {
                         continue;
                     }
-                    propertyMap.put("type", "runtime_script");
+                    propertyMap.put("type", "runtime");
                     propertyMap.put("runtime_type", type);
                     propertyMap.put("script", toLoad);
                     propertyMap.remove("store");
@@ -197,17 +197,17 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     }
 
     private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
-        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "emitValue(parse(value));"),
-        Map.entry(DateFieldMapper.CONTENT_TYPE, "emitValue(parse(value.toString()));"),
+        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "emit(parse(value));"),
+        Map.entry(DateFieldMapper.CONTENT_TYPE, "emit(parse(value.toString()));"),
         Map.entry(
             NumberType.DOUBLE.typeName(),
-            "emitValue(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
+            "emit(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
         ),
-        Map.entry(KeywordFieldMapper.CONTENT_TYPE, "emitValue(value.toString());"),
-        Map.entry(IpFieldMapper.CONTENT_TYPE, "emitValue(value.toString());"),
+        Map.entry(KeywordFieldMapper.CONTENT_TYPE, "emit(value.toString());"),
+        Map.entry(IpFieldMapper.CONTENT_TYPE, "emit(value.toString());"),
         Map.entry(
             NumberType.LONG.typeName(),
-            "emitValue(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
+            "emit(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
         )
     );
 
@@ -227,7 +227,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                     continue;
                 }
                 Map<String, Object> mapping = Map.ofEntries(
-                    Map.entry("type", "runtime_script"),
+                    Map.entry("type", "runtime"),
                     Map.entry("runtime_type", type),
                     Map.entry("script", painlessToLoadFromSource("{name}", type))
                 );

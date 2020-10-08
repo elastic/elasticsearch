@@ -110,8 +110,15 @@ setup:
         rest_total_hits_as_int: true
         index: date*
         body:
-          docvalue_fields: [ { "field": "date", "format" : "strict_date_optional_time" }, { "field": "date", "format": "epoch_millis" }, { "field" : "date", "format": "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX" } ]
-          sort: [ { "date": "desc" } ]
+          docvalue_fields:
+            - field: date
+              format: strict_date_optional_time
+            - field: date
+              format: epoch_millis
+            - field: date
+              format: uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX
+          sort:
+            - date: desc
 
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }

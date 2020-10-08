@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -36,10 +35,6 @@ integTest {
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
-
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
 
   keystore 's3.client.searchable_snapshots.access_key', 'access_key'
   keystore 's3.client.searchable_snapshots.secret_key', 'secret_key'

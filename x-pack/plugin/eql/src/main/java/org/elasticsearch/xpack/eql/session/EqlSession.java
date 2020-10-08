@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 
 public class EqlSession {
 
@@ -65,8 +66,7 @@ public class EqlSession {
     }
 
     public void eql(String eql, ParserParams params, ActionListener<Results> listener) {
-        eqlExecutable(eql, params, wrap(e -> e.execute(this, wrap(p -> listener.onResponse(Results.fromPayload(p)), listener::onFailure)),
-                listener::onFailure));
+        eqlExecutable(eql, params, wrap(e -> e.execute(this, map(listener, Results::fromPayload)), listener::onFailure));
     }
 
     public void eqlExecutable(String eql, ParserParams params, ActionListener<PhysicalPlan> listener) {
@@ -78,11 +78,11 @@ public class EqlSession {
     }
 
     public void physicalPlan(LogicalPlan optimized, ActionListener<PhysicalPlan> listener) {
-        optimizedPlan(optimized, wrap(o -> listener.onResponse(planner.plan(o)), listener::onFailure));
+        optimizedPlan(optimized, map(listener, planner::plan));
     }
 
     public void optimizedPlan(LogicalPlan verified, ActionListener<LogicalPlan> listener) {
-        analyzedPlan(verified, wrap(v -> listener.onResponse(optimizer.optimize(v)), listener::onFailure));
+        analyzedPlan(verified, map(listener, optimizer::optimize));
     }
 
     public void analyzedPlan(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
@@ -91,18 +91,18 @@ public class EqlSession {
             return;
         }
 
-        preAnalyze(parsed, wrap(p -> listener.onResponse(postAnalyze(analyzer.analyze(p))), listener::onFailure));
+        preAnalyze(parsed, map(listener, p -> postAnalyze(analyzer.analyze(p))));
     }
 
     private <T> void preAnalyze(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
         String indexWildcard = configuration.indexAsWildcard();
         if(configuration.isCancelled()){
-            throw new TaskCancelledException("cancelled");
+            listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
         }
         indexResolver.resolveAsMergedMapping(indexWildcard, null, configuration.includeFrozen(), configuration.filter(),
-            wrap(r -> {
-                listener.onResponse(preAnalyzer.preAnalyze(parsed, r));
-            }, listener::onFailure));
+            map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
+        );
     }
 
     private LogicalPlan postAnalyze(LogicalPlan verified) {

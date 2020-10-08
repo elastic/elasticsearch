@@ -250,7 +250,7 @@ setup:
           query:
             prefix:
               my_wildcard:
-                value: "hell*"
+                value: "hell"
 
 
   - match: {hits.total.value: 1}

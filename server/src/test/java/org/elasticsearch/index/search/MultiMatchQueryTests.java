@@ -131,20 +131,6 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testBlendTermsWithFieldBoosts() {
-        FakeFieldType ft1 = new FakeFieldType("foo");
-        ft1.setBoost(100);
-        FakeFieldType ft2 = new FakeFieldType("bar");
-        ft2.setBoost(10);
-        Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
-        float[] boosts = new float[] {200, 30};
-        Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
-        Query actual = MultiMatchQuery.blendTerm(
-                indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
-        assertEquals(expected, actual);
-    }
-
     public void testBlendTermsUnsupportedValueWithLenient() {
         FakeFieldType ft1 = new FakeFieldType("foo");
         FakeFieldType ft2 = new FakeFieldType("bar") {

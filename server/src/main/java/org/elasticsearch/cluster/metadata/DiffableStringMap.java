@@ -43,13 +43,14 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
     private final Map<String, String> innerMap;
 
-    DiffableStringMap(final Map<String, String> map) {
-        this.innerMap = Collections.unmodifiableMap(map);
+    @SuppressWarnings("unchecked")
+    public static DiffableStringMap readFrom(StreamInput in) throws IOException {
+        final Map<String, String> map = (Map) in.readMap();
+        return map.isEmpty() ? EMPTY : new DiffableStringMap(map);
     }
 
-    @SuppressWarnings("unchecked")
-    DiffableStringMap(final StreamInput in) throws IOException {
-        this((Map<String, String>) (Map) in.readMap());
+    DiffableStringMap(final Map<String, String> map) {
+        this.innerMap = Collections.unmodifiableMap(map);
     }
 
     @Override

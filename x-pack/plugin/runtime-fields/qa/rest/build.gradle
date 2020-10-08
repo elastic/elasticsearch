@@ -32,11 +32,10 @@ yamlRestTest {
   systemProperty 'tests.rest.blacklist',
     [
       /////// TO FIX ///////
-      'search/330_fetch_fields/*', // The whole API is not yet supported
       'search.highlight/40_keyword_ignore/Plain Highligher should skip highlighting ignored keyword values', // The plain highlighter is incompatible with runtime fields. Worth fixing?
       'search/115_multiple_field_collapsing/two levels fields collapsing', // Broken. Gotta fix.
       'field_caps/30_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
-      'search.aggregation/10_histogram/*', // runtime_script doesn't support sub-fields. Maybe it should?
+      'search.aggregation/10_histogram/*', // runtime doesn't support sub-fields. Maybe it should?
       'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',
       /////// TO FIX ///////
 
@@ -45,6 +44,7 @@ yamlRestTest {
       // Runtime fields don't have global ords
       'search.aggregation/20_terms/string profiler via global ordinals',
       'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
+      'search.aggregation/170_cardinality_metric/profiler string',
       /////// NOT SUPPORTED ///////
     ].join(',')
 }

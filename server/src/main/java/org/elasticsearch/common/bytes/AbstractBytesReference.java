@@ -72,7 +72,7 @@ public abstract class AbstractBytesReference implements BytesReference {
         return new BytesRefIterator() {
             BytesRef ref = length() == 0 ? null : toBytesRef();
             @Override
-            public BytesRef next() throws IOException {
+            public BytesRef next() {
                 BytesRef r = ref;
                 ref = null; // only return it once...
                 return r;
@@ -189,7 +189,7 @@ public abstract class AbstractBytesReference implements BytesReference {
     /**
      * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
      * generic stream access to {@link BytesReference} instances without materializing the
-     * underlying bytes reference.
+     * underlying bytes.
      */
     private final class BytesReferenceStreamInput extends StreamInput {
 
@@ -239,7 +239,8 @@ public abstract class AbstractBytesReference implements BytesReference {
                 throw new IndexOutOfBoundsException(
                         "Cannot read " + len + " bytes from stream with length " + length + " at offset " + offset);
             }
-            read(b, bOffset, len);
+            final int bytesRead = read(b, bOffset, len);
+            assert bytesRead == len : bytesRead + " vs " + len;
         }
 
         @Override
@@ -257,7 +258,7 @@ public abstract class AbstractBytesReference implements BytesReference {
             if (offset >= length) {
                 return -1;
             }
-            final int numBytesToCopy =  Math.min(len, length - offset);
+            final int numBytesToCopy = Math.min(len, length - offset);
             int remaining = numBytesToCopy; // copy the full length or the remaining part
             int destOffset = bOffset;
             while (remaining > 0) {
@@ -293,8 +294,11 @@ public abstract class AbstractBytesReference implements BytesReference {
 
         @Override
         public long skip(long n) throws IOException {
-            final int skip = (int) Math.min(Integer.MAX_VALUE, n);
-            final int numBytesSkipped =  Math.min(skip, length() - offset());
+            if (n <= 0L) {
+                return 0L;
+            }
+            assert offset() <= length() : offset() + " vs " + length();
+            final int numBytesSkipped = (int)Math.min(n, length() - offset()); // definitely >= 0 and <= Integer.MAX_VALUE so casting is ok
             int remaining = numBytesSkipped;
             while (remaining > 0) {
                 maybeNextSlice();
@@ -308,11 +312,16 @@ public abstract class AbstractBytesReference implements BytesReference {
 
         @Override
         public void reset() throws IOException {
-            iterator = iterator();
-            slice = iterator.next();
-            sliceStartOffset = 0;
-            sliceIndex = 0;
-            skip(mark);
+            if (sliceStartOffset <= mark) {
+                sliceIndex = mark - sliceStartOffset;
+            } else {
+                iterator = iterator();
+                slice = iterator.next();
+                sliceStartOffset = 0;
+                sliceIndex = 0;
+                final long skipped = skip(mark);
+                assert skipped == mark : skipped + " vs " + mark;
+            }
         }
 
         @Override
@@ -322,8 +331,7 @@ public abstract class AbstractBytesReference implements BytesReference {
 
         @Override
         public void mark(int readLimit) {
-            // readLimit is optional it only guarantees that the stream remembers data upto this limit but it can remember more
-            // which we do in our case
+            // We ignore readLimit since the data is all in-memory and therefore we can reset the mark no matter how far we advance.
             this.mark = offset();
         }
     }

@@ -75,7 +75,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         this.clusterAlias = clusterAlias;
         this.searchContextId = searchContextId;
         this.searchContextKeepAlive = searchContextKeepAlive;
-        assert (searchContextId == null) == (searchContextKeepAlive == null);
+        assert searchContextKeepAlive == null || searchContextId != null;
     }
 
     /**

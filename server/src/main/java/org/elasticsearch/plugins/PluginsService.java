@@ -50,6 +50,8 @@ import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -597,15 +599,31 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // reload SPI with any new services from the plugin
         reloadLuceneSPI(loader);
 
-        Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
-        if (loader != pluginClass.getClassLoader()) {
-            throw new IllegalStateException("Plugin [" + name + "] must reference a class loader local Plugin class ["
-                + bundle.plugin.getClassname()
-                + "] (class loader [" + pluginClass.getClassLoader() + "])");
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        try {
+            // Set context class loader to plugin's class loader so that plugins
+            // that have dependencies with their own SPI endpoints have a chance to load
+            // and initialize them appropriately.
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                Thread.currentThread().setContextClassLoader(loader);
+                return null;
+            });
+
+            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
+            if (loader != pluginClass.getClassLoader()) {
+                throw new IllegalStateException("Plugin [" + name + "] must reference a class loader local Plugin class ["
+                    + bundle.plugin.getClassname()
+                    + "] (class loader [" + pluginClass.getClassLoader() + "])");
+            }
+            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+            loaded.put(name, plugin);
+            return plugin;
+        } finally {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                Thread.currentThread().setContextClassLoader(cl);
+                return null;
+            });
         }
-        Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-        loaded.put(name, plugin);
-        return plugin;
     }
 
     /**
@@ -628,7 +646,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
         try {
-            return loader.loadClass(className).asSubclass(Plugin.class);
+            return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (ClassNotFoundException e) {
             throw new ElasticsearchException("Could not find plugin class [" + className + "]", e);
         }

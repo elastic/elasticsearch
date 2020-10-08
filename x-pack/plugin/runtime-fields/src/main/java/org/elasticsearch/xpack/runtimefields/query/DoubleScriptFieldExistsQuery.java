@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
 
 public class DoubleScriptFieldExistsQuery extends AbstractDoubleScriptFieldQuery {
-    public DoubleScriptFieldExistsQuery(Script script, DoubleScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    public DoubleScriptFieldExistsQuery(Script script, DoubleFieldScript.LeafFactory leafFactory, String fieldName) {
         super(script, leafFactory, fieldName);
     }
 

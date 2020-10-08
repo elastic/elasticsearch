@@ -102,7 +102,13 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        return new ProfilingLeafBucketCollector(delegate.getLeafCollector(ctx), profileBreakdown);
+        Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
+        timer.start();
+        try {
+            return new ProfilingLeafBucketCollector(delegate.getLeafCollector(ctx), profileBreakdown);
+        } finally {
+            timer.stop();
+        }
     }
 
     @Override
@@ -120,7 +126,13 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public void postCollection() throws IOException {
-        delegate.postCollection();
+        Timer timer = profileBreakdown.getTimer(AggregationTimingType.POST_COLLECTION);
+        timer.start();
+        try {
+            delegate.postCollection();
+        } finally {
+            timer.stop();
+        }
     }
 
     @Override

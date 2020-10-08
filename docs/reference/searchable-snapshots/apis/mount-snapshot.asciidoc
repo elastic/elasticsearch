@@ -6,9 +6,9 @@
 <titleabbrev>Mount snapshot</titleabbrev>
 ++++
 
-experimental[]
+beta::[]
 
-Mount a snapshot as a searchable index.
+Mount a snapshot as a snapshot backed index.
 
 [[searchable-snapshots-api-mount-request]]
 ==== {api-request-title}

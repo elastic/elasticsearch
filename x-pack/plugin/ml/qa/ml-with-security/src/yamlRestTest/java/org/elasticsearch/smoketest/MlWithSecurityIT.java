@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.xpack.test.rest.XPackRestIT;
+import org.elasticsearch.xpack.test.rest.AbstractXPackRestTest;
 
 import java.util.Collections;
 import java.util.Map;
@@ -19,7 +19,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 
-public class MlWithSecurityIT extends XPackRestIT {
+public class MlWithSecurityIT extends AbstractXPackRestTest {
 
     private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
 

@@ -6,7 +6,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
-
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
@@ -15,7 +14,6 @@ apply plugin: 'elasticsearch.rest-resources'
 testFixtures.useFixture()
 
 configurations {
-  dockerPlugins
   aarch64DockerSource
   dockerSource
   aarch64OssDockerSource
@@ -23,10 +21,10 @@ configurations {
 }
 
 dependencies {
-  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar")
-  dockerSource project(path: ":distribution:archives:linux-tar")
-  aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar")
-  ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
+  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
+  dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
+  aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar", configuration:"default")
+  ossDockerSource project(path: ":distribution:archives:oss-linux-tar", configuration:"default")
 }
 
 ext.expansions = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
@@ -146,8 +144,6 @@ void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase
         from configurations.dockerSource
       }
     }
-
-    from configurations.dockerPlugins
   }
 }
 

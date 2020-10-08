@@ -706,6 +706,10 @@ public enum RangeType {
     public abstract Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to,
                                        boolean includeFrom, boolean includeTo);
 
+    public final Mapper.TypeParser parser() {
+        return new ParametrizedFieldMapper.TypeParser((n, c) -> new RangeFieldMapper.Builder(n, this, c.getSettings()));
+    }
+
     public final String name;
     private final NumberFieldMapper.NumberType numberType;
     public final LengthType lengthType;

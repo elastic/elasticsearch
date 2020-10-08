@@ -36,7 +36,7 @@ based on which groups are potentially useful to future queries.  For example, th
 --------------------------------------------------
 // NOTCONSOLE
 
-Allows `date_histogram`'s to be used on the `"timestamp"` field, `terms` aggregations to be used on the `"hostname"` and `"datacenter"`
+Allows `date_histogram`s to be used on the `"timestamp"` field, `terms` aggregations to be used on the `"hostname"` and `"datacenter"`
 fields, and `histograms` to be used on any of `"load"`, `"net_in"`, `"net_out"` fields.
 
 Importantly, these aggs/fields can be used in any combination.  This aggregation:

@@ -52,7 +52,7 @@ This parameter supports two wildcard operators:
 
 WARNING: Avoid beginning patterns with `*` or `?`. This can increase
 the iterations needed to find matching terms and slow search performance.
--- 
+--
 
 `boost`::
 (Optional, float) Floating point number used to decrease or increase the
@@ -68,6 +68,10 @@ increases the relevance score.
 `rewrite`::
 (Optional, string) Method used to rewrite the query. For valid values and more information, see the
 <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
+
+`case_insensitive`::
+(Optional, boolean) allows case insensitive matching of the
+pattern with the indexed field values when set to true. Setting to false is disallowed.
 
 [[wildcard-query-notes]]
 ==== Notes

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.ingest.Processor;
@@ -30,8 +31,12 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -190,23 +195,26 @@ public class AppendProcessorTests extends ESTestCase {
 
     public void testAppendingToListWithDuplicatesDisallowed() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        List<String> list = new ArrayList<>();
         int size = randomIntBetween(0, 10);
-        for (int i = 0; i < size; i++) {
-            list.add(randomAlphaOfLengthBetween(1, 10));
-        }
+        List<String> list = Stream.generate(() -> randomAlphaOfLengthBetween(1, 10)).limit(size).collect(Collectors.toList());
         String originalField = RandomDocumentPicks.addRandomField(random(), ingestDocument, list);
         List<String> expectedValues = new ArrayList<>(list);
         List<String> existingValues = randomSubsetOf(list);
-        int uniqueValuesSize = randomIntBetween(0, 10);
-        List<String> uniqueValues = new ArrayList<>();
-        for (int i = 0; i < uniqueValuesSize; i++) {
-            uniqueValues.add(randomAlphaOfLengthBetween(1, 10));
-        }
+
+        // generate new values
+        int nonexistingValuesSize = randomIntBetween(0, 10);
+        Set<String> newValues = Stream.generate(() -> randomAlphaOfLengthBetween(1, 10))
+            .limit(nonexistingValuesSize)
+            .collect(Collectors.toSet());
+
+        // create a set using the new values making sure there are no overlapping values already present in the existing values
+        Set<String> nonexistingValues = Sets.difference(newValues, new HashSet<>(existingValues));
         List<String> valuesToAppend = new ArrayList<>(existingValues);
-        valuesToAppend.addAll(uniqueValues);
-        expectedValues.addAll(uniqueValues);
+        valuesToAppend.addAll(nonexistingValues);
+        expectedValues.addAll(nonexistingValues);
         Collections.sort(valuesToAppend);
+
+        // attempt to append both new and existing values
         Processor appendProcessor = createAppendProcessor(originalField, valuesToAppend, false);
         appendProcessor.execute(ingestDocument);
         List<?> fieldValue = ingestDocument.getFieldValue(originalField, List.class);

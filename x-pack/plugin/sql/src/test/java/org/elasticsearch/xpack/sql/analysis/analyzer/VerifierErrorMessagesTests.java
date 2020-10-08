@@ -665,10 +665,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
     }
 
-    public void testInWithDifferentDataTypes() {
-        assertEquals("1:8: 1st argument of ['2000-02-02T02:02:02Z'::time IN ('00:00:00'::date)] must be [time], " +
-                "found value ['00:00:00'::date] type [date]",
-            error("SELECT '2000-02-02T02:02:02Z'::time IN ('00:00:00'::date)"));
+    public void testInWithIncompatibleDataTypes() {
+        assertEquals("1:8: 1st argument of ['2000-02-02T00:00:00Z'::date IN ('02:02:02Z'::time)] must be [date], " +
+                "found value ['02:02:02Z'::time] type [time]",
+            error("SELECT '2000-02-02T00:00:00Z'::date IN ('02:02:02Z'::time)"));
     }
 
     public void testInWithFieldInListOfValues() {

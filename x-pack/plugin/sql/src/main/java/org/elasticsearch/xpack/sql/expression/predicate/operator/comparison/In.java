@@ -51,6 +51,7 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
 
     @Override
     protected boolean areCompatible(DataType left, DataType right) {
-        return SqlDataTypeConverter.canConvert(left, right);
+        // "left" is the reference type that all other values in the "right" IN-set need to convert to
+        return SqlDataTypeConverter.canConvert(right, left);
     }
 }

@@ -395,11 +395,12 @@ public final class ExpressionTranslators {
 
                 List<Expression> list = in.list();
                 Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(list.size()));
-                // TODO: this needs to be handled inside the optimizer
-                list.removeIf(e -> DataTypes.isNull(e.dataType()));
-                for (Expression e : list) {
-                    set.add(handler.convert(valueOf(e), dt));
-                }
+                list.forEach(e -> {
+                    // TODO: this needs to be handled inside the optimizer
+                    if (DataTypes.isNull(e.dataType()) == false) {
+                        set.add(handler.convert(valueOf(e), dt));
+                    }
+                });
 
                 if (dt == DATETIME) {
                     DateFormatter formatter = DateFormatter.forPattern(DATE_FORMAT);

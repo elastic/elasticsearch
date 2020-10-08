@@ -80,7 +80,7 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
         when(mapperService.fieldType(anyString())).thenReturn(mappedFieldType);
         QueryShardContext context = mock(QueryShardContext.class);
         if (mappedFieldType != null) {
-            when(context.fieldMapper(anyString())).thenReturn(mappedFieldType);
+            when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
             when(context.getSearchAnalyzer(any())).thenReturn(mappedFieldType.getTextSearchInfo().getSearchAnalyzer());
         }
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);

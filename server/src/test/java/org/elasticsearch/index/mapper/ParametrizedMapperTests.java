@@ -127,8 +127,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         protected Builder(String name) {
             super(name);
             // only output search analyzer if different to analyzer
-            searchAnalyzer.setShouldSerialize(
-                () -> Objects.equals(analyzer.getValue().name(), searchAnalyzer.getValue().name()) == false);
+            searchAnalyzer.setSerializerCheck(
+                (id, ic, v) -> Objects.equals(analyzer.getValue().name(), searchAnalyzer.getValue().name()) == false);
         }
 
         @Override

@@ -619,7 +619,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
     }
 
     public void testCopyFromMultiField() {
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(fieldMapping(b -> {
             b.field("type", "keyword");
             b.startObject("fields");
             {
@@ -633,7 +633,6 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(),
-            Matchers.containsString("copy_to in multi fields is not allowed. Found the copy_to in field [bar] " +
-                "which is within a multi field."));
+            Matchers.containsString("[copy_to] may not be used to copy from a multi-field: [field.bar]"));
     }
 }

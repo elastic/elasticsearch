@@ -80,9 +80,9 @@ public class WildcardFieldMapperTests extends ESTestCase {
     static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries, Version version) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        when(queryShardContext.indexVersionCreated()).thenReturn(version);        
+        when(queryShardContext.indexVersionCreated()).thenReturn(version);
         return queryShardContext;
-    }    
+    }
 
     private static final String KEYWORD_FIELD_NAME = "keyword_field";
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
@@ -152,7 +152,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();
     }
-    
+
     public void testBWCIndexVersion() throws IOException {
         // Create old format index using wildcard ngram analyzer used in 7.9 launch
         Directory dir = newDirectory();
@@ -169,14 +169,14 @@ public class WildcardFieldMapperTests extends ESTestCase {
         DirectoryReader reader = iw.getReader();
         IndexSearcher searcher = newSearcher(reader);
         iw.close();
-        
+
 
         // Unnatural circumstance - testing we fail if we were to use the new analyzer on old index
         Query oldWildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("a b", null, null);
         TopDocs oldWildcardFieldTopDocs = searcher.search(oldWildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(oldWildcardFieldTopDocs.totalHits.value, equalTo(0L));
-        
-        
+
+
         // Natural circumstance test we revert to the old analyzer for old indices
         Query wildcardFieldQuery = wildcardFieldType79.fieldType().wildcardQuery("a b", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
@@ -184,7 +184,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
 
         reader.close();
         dir.close();
-    }    
+    }
 
     //Test long query strings don't cause exceptions
     public void testTooBigQueryField() throws IOException {
@@ -893,7 +893,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 () -> randomNonNegativeLong(), null, null, () -> true, null) {
 
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType getFieldType(String name) {
                 return provideMappedFieldType(name);
             }
         };

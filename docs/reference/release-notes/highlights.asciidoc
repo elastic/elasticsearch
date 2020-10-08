@@ -88,13 +88,13 @@ For more information about using PITs in search, see
 [[support-for-request-level-circuit-breakers]]
 === Request-level circuit breakers on coordinating nodes
 
-Allow coordinating node to account the memory used to perform partial and final
-reduce of aggregations in the request circuit breaker. The search coordinator
-adds the memory that it used to save and reduce the results of shard
-aggregations in the request circuit breaker. Before any partial or final
-reduce, the memory needed to reduce the aggregations is estimated and a
-CircuitBreakingException is thrown if exceeds the maximum memory allowed in
-this breaker.
+You can now use a coordinating node to account for memory used to perform
+partial and final reduce of aggregations in the request circuit breaker. The
+search coordinator adds the memory that it used to save and reduce the results
+of shard aggregations in the request circuit breaker. Before any partial or
+final reduce, the memory needed to reduce the aggregations is estimated and a
+CircuitBreakingException is thrown if exceeds the maximum memory allowed in this
+breaker.
 
 This size is estimated as roughly 1.5 times the size of the serialized
 aggregations that need to be reduced. This estimation can be completely off for

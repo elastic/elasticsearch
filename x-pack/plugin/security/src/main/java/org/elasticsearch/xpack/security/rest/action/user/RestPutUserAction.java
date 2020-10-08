@@ -78,7 +78,7 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
         });
     }
 
-    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(Sets.newHashSet("password", "passwordHash"));
+    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(Sets.newHashSet("password", "password_hash"));
 
     @Override
     public Set<String> getFilteredFields() {

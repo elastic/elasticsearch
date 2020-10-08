@@ -225,7 +225,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             when(shardContext.getFieldType("field")).thenReturn(fieldType);
             CollapseBuilder builder = new CollapseBuilder("field");
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
-            assertEquals(exc.getMessage(), "unknown type for collapse field `field`, only keywords and numbers are accepted");
+            assertEquals(exc.getMessage(), "collapse is not supported on this field type");
         }
     }
 

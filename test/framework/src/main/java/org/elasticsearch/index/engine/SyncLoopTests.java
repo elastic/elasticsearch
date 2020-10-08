@@ -25,8 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-anslog;
-
 public class SyncLoopTests extends ESTestCase {
 
     private ThreadPool threadPool = new TestThreadPool(this.getTestName());

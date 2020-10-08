@@ -108,10 +108,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     public void testSnapshotShardSizes() throws Exception {
         final int maxConcurrentFetches = randomIntBetween(1, 10);
 
-        final AtomicInteger rerouteCount = new AtomicInteger(0);
+        final int numberOfShards = randomIntBetween(1, 50);
+        final CountDownLatch rerouteLatch = new CountDownLatch(numberOfShards);
         final RerouteService rerouteService = (reason, priority, listener) -> {
-            rerouteCount.incrementAndGet();
             listener.onResponse(clusterService.state());
+            assertThat(rerouteLatch.getCount(), greaterThanOrEqualTo(0L));
+            rerouteLatch.countDown();
         };
 
         final InternalSnapshotsInfoService snapshotsInfoService =
@@ -119,7 +121,6 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), maxConcurrentFetches)
                 .build(), clusterService, () -> repositoriesService, () -> rerouteService);
 
-        final int numberOfShards = randomIntBetween(1, 50);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final long[] expectedShardSizes = new long[numberOfShards];
         for (int i = 0; i < expectedShardSizes.length; i++) {
@@ -157,13 +158,10 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         latch.countDown();
 
-        assertBusy(() -> {
-            assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(numberOfShards));
-            assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
-            assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(), equalTo(0));
-            assertThat(rerouteCount.get(), equalTo(numberOfShards));
-        });
-
+        assertTrue(rerouteLatch.await(30L, TimeUnit.SECONDS));
+        assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(numberOfShards));
+        assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
+        assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(), equalTo(0));
         assertThat(getShardSnapshotStatusCount.get(), equalTo(numberOfShards));
 
         final SnapshotShardSizeInfo snapshotShardSizeInfo = snapshotsInfoService.snapshotShardSizes();

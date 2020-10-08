@@ -112,7 +112,7 @@ We've also added `:`, a new case-insensitive equal operator. Designed for
 security use cases, you can use the `:` operator to search for strings in
 Windows event logs and other event data containing a mix of letter cases.
 
-[console,eql]
+[source,console]
 ----
 GET /my-index-000001/_eql/search
 {
@@ -133,7 +133,7 @@ We are deprecating REST API access to system indices. Most REST API requests
 that attempt to access system indices will return the following deprecation
 warning:
 
-[console,text]
+[source,text]
 ----
 this request accesses system indices: [.system_index_name], but in a future major version, direct access to system indices will be prevented by default
 ----

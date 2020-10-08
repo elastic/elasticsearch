@@ -760,6 +760,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    public boolean shouldSync() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            return current.shouldSync();
+        }
+    }
+
     /**
      *  Returns <code>true</code> if an fsync is required to ensure durability of the translogs operations or it's metadata.
      */

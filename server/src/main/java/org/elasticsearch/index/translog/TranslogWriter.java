@@ -295,6 +295,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return bufferedBytes > forceWriteThreshold;
     }
 
+    public boolean shouldSync() {
+        return (totalOffset - lastSyncedCheckpoint.offset) > forceWriteThreshold;
+    }
+
     /**
      * write all buffered ops to disk and fsync file.
      *

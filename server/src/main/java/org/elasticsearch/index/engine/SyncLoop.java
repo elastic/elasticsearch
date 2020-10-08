@@ -59,12 +59,16 @@ public class SyncLoop {
             final boolean promised = promiseSemaphore.tryAcquire();
             if (promised) {
                 threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
-                    try {
-                        translog.flush();
-                    } catch (Exception e) {
-                        // Ignore, translog internally handles exceptions
-                    } finally {
-                        promiseSemaphore.release();
+                    if (translog.shouldSync()) {
+                        doSyncAndNotify();
+                    } else {
+                        try {
+                            translog.flush();
+                        } catch (Exception e) {
+                            // Ignore, translog internally handles exceptions
+                        } finally {
+                            promiseSemaphore.release();
+                        }
                     }
 
                     while (isListenersEmpty() == false && promiseSemaphore.tryAcquire()) {

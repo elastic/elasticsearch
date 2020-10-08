@@ -34,7 +34,9 @@ import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
@@ -108,5 +110,26 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
                 () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
                 "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        SearchAsYouTypeFieldType fieldType = createFieldType();
+        fieldType.setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
+
+        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
+
+        SearchAsYouTypeFieldMapper.PrefixFieldType prefixFieldType = new SearchAsYouTypeFieldMapper.PrefixFieldType(
+            fieldType.name(), fieldType.getTextSearchInfo(), 2, 10);
+        assertEquals(List.of("value"), fetchSourceValue(prefixFieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(prefixFieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(prefixFieldType, true));
+
+        SearchAsYouTypeFieldMapper.ShingleFieldType shingleFieldType = new SearchAsYouTypeFieldMapper.ShingleFieldType(
+            fieldType.name(), 5, fieldType.getTextSearchInfo());
+        assertEquals(List.of("value"), fetchSourceValue(shingleFieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(shingleFieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(shingleFieldType, true));
     }
 }

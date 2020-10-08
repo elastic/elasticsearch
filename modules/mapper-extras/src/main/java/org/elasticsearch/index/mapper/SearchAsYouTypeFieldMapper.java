@@ -265,7 +265,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
+            return SourceValueFetcher.toString(name(), mapperService, format);
         }
 
         @Override
@@ -376,7 +376,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
+            return SourceValueFetcher.toString(name(), mapperService, format);
         }
 
         @Override
@@ -480,7 +480,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
+            return SourceValueFetcher.toString(name(), mapperService, format);
         }
 
         @Override

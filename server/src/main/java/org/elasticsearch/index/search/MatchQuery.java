@@ -297,6 +297,8 @@ public class MatchQuery {
     }
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
+        // We check here that the field supports text searches and therefore has an analyzer -
+        // if it doesn't, we can bail out early without doing any further parsing.
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
         if (tsi == TextSearchInfo.NONE) {
             throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" + fieldType.typeName() +

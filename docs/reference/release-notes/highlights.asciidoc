@@ -28,7 +28,7 @@ Other versions:
 [[data-tiers]]
 === Data Tier Formalization
 7.10 introduces the concept of formalized data tiers within Elasticsearch. <<data-tiers,Data tiers>>
-are a simple, integrated approach that hopes to give users control over optimizing for cost,
+are a simple, integrated approach that gives users control over optimizing for cost,
 performance, and breadth/depth of data. Prior to this formalization, many users configured their own
 tier topology using custom node attributes as well as using {ilm-init} to manage the lifecycle and
 location of data within a cluster.
@@ -39,10 +39,10 @@ tier using <<data-tier-shard-filtering,index-level data tier allocation filterin
 make use of these tiers to <<automatically ilm-migrate,migrate>> data between nodes as an index goes
 through the phases of its lifecycle.
 
-Newly created indices *not* part of a <<data-stream,data stream>> will be allocated to
-`data_content` tier automatically, while indices abstracted by a data stream will be allocated to
-the `data_hot` tier automatically. Nodes with the pre-existing `data` role are considered to be part
-of all tiers.
+Newly created indices abstracted by a <<data-stream,data stream>> will be allocated to
+the `data_hot` tier automatically, while standalone indices will be allocated to
+the `data_content` tier automatically. Nodes with the pre-existing `data` role are 
+considered to be part of all tiers.
 // end::notable-highlights[]
 
 // Use the notable-highlights tag to mark entries that

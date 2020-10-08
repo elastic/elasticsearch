@@ -53,8 +53,10 @@ public class ConfigurationTests extends PackagingTestCase {
             startElasticsearch();
             stopElasticsearch();
         });
-        assertThat(FileUtils.slurp(installation.logs.resolve("elasticsearch_deprecation.log")),
-            containsString("The Java option es.xcontent.strict_duplicate_detection is set"));
+        assertThat(
+            FileUtils.slurp(installation.logs.resolve("elasticsearch_deprecation.log")),
+            containsString("The Java option es.xcontent.strict_duplicate_detection is set")
+        );
     }
 
     public void test60HostnameSubstitution() throws Exception {

@@ -117,9 +117,9 @@ seconds in `elasticsearch.yml` will result in an error on startup.
 ====
 *Details* +
 The `index.max_docvalue_fields_search` setting limits the number of doc value
-fields retrieved a search. Previously, this setting only applied to doc values
-retrieved by the `docvalue_fields` parameter in a top-level search. The setting
-now also applies to doc values retrieved by an `inner_hits` section or
+fields retrieved by a search. Previously, this setting applied only to doc values
+returned by the `docvalue_fields` parameter in a top-level search. The setting
+now also applies to doc values returned by an `inner_hits` section or
 `top_hits` aggregation.
 
 *Impact* +

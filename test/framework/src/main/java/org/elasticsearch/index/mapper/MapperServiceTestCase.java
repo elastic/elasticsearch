@@ -103,7 +103,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService.documentMapper();
     }
 
-    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
+    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(Version.CURRENT, mappings);
     }
 
@@ -224,11 +224,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     QueryShardContext createQueryShardContext(MapperService mapperService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getMapperService()).thenReturn(mapperService);
-        when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.isFieldMapped(anyString()))
+            .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(queryShardContext.getSearchQuoteAnalyzer(anyObject())).thenCallRealMethod();
-        when(queryShardContext.getSearchAnalyzer(anyObject())).thenCallRealMethod();
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())

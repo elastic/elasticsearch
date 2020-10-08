@@ -37,6 +37,7 @@ public class GetTrainedModelsRequest implements Validatable {
 
     private static final String DEFINITION = "definition";
     private static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
+    private static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
     public static final String ALLOW_NO_MATCH = "allow_no_match";
     public static final String FOR_EXPORT = "for_export";
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
@@ -102,6 +103,11 @@ public class GetTrainedModelsRequest implements Validatable {
 
     public GetTrainedModelsRequest includeTotalFeatureImportance() {
         this.includes.add(TOTAL_FEATURE_IMPORTANCE);
+        return this;
+    }
+
+    public GetTrainedModelsRequest includeFeatureImportanceBaseline() {
+        this.includes.add(FEATURE_IMPORTANCE_BASELINE);
         return this;
     }
 

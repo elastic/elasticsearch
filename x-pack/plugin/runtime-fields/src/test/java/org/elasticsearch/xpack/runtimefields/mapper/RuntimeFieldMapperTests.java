@@ -76,6 +76,11 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         b.startObject("script").field("source", "dummy_source").field("lang", "test").endObject();
     }
 
+    @Override
+    protected void registerParameters(ParameterChecker checker) {
+        // TODO need to be able to pass a completely new config rather than updating minimal mapping
+    }
+
     public void testRuntimeTypeIsRequired() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -318,12 +323,7 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> config.buildIndexSort(
-                field -> new KeywordScriptMappedFieldType(
-                    field,
-                    new Script(""),
-                    mock(StringFieldScript.Factory.class),
-                    Collections.emptyMap()
-                ),
+                field -> new KeywordScriptFieldType(field, new Script(""), mock(StringFieldScript.Factory.class), Collections.emptyMap()),
                 (fieldType, searchLookupSupplier) -> indexFieldDataService.getForField(fieldType, "index", searchLookupSupplier)
             )
         );

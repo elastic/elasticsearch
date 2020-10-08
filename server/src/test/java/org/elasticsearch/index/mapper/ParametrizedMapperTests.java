@@ -35,7 +35,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -128,8 +127,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         protected Builder(String name) {
             super(name);
             // only output search analyzer if different to analyzer
-            searchAnalyzer.setShouldSerialize(
-                () -> Objects.equals(analyzer.getValue().name(), searchAnalyzer.getValue().name()) == false);
+            searchAnalyzer.setSerializerCheck(
+                (id, ic, v) -> Objects.equals(analyzer.getValue().name(), searchAnalyzer.getValue().name()) == false);
         }
 
         @Override
@@ -190,11 +189,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         @Override
         protected void parseCreateField(ParseContext context) {
 
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return null;
         }
 
         @Override

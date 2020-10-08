@@ -26,6 +26,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.api.Augmentation;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
@@ -121,7 +122,6 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
@@ -636,7 +636,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         BlockNode irBlockNode = irCatchNode.getBlockNode();
 
         if (irBlockNode != null) {
-            visit(irBlockNode, writeScope.newTryScope(null, null, null));
+            visit(irBlockNode, writeScope.newBlockScope(true));
         }
 
         methodWriter.visitTryCatchBlock(
@@ -755,8 +755,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
             visit(irRightNode, writeScope);
+            methodWriter.push(irBinaryMathNode.getRegexLimit());
             visit(irLeftNode, writeScope);
-            methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
+            methodWriter.invokeStatic(org.objectweb.asm.Type.getType(Augmentation.class), WriterConstants.PATTERN_MATCHER);
 
             if (operation == Operation.FIND) {
                 methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_FIND);

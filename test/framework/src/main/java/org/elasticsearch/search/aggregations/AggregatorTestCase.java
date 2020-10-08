@@ -383,7 +383,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MapperService mapperService, CircuitBreakerService circuitBreakerService) {
         return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(
             mapperService.getIndexSettings().getIndex().getName(), searchLookup)
-            .build(new IndexFieldDataCache.None(), circuitBreakerService, mapperService);
+            .build(new IndexFieldDataCache.None(), circuitBreakerService);
     }
 
     /**
@@ -707,7 +707,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
         return fieldType.fielddataBuilder("", () -> {
             throw new UnsupportedOperationException();
-        }).build(null, null, null).getValuesSourceType();
+        }).build(null, null).getValuesSourceType();
     }
 
     /**

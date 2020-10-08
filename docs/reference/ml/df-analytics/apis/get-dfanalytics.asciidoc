@@ -71,6 +71,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
+`for_export`::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=for-export]
+
 [role="child_attributes"]
 [[ml-get-dfanalytics-results]]
 == {api-response-body-title}

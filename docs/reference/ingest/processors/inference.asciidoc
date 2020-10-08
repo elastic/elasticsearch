@@ -6,6 +6,8 @@
 <titleabbrev>{infer-cap}</titleabbrev>
 ++++
 
+experimental::[]
+
 Uses a pre-trained {dfanalytics} model to infer against the data that is being
 ingested in the pipeline.
 

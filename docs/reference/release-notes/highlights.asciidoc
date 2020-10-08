@@ -26,6 +26,7 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
+[[points-in-time-for-search]]
 === Points in time (PITs) for search
 
 In 7.10, we're introducing points in time (PITs), a lightweight way to preserve
@@ -127,7 +128,8 @@ For more information, see the {ref}/eql-syntax-comparison-operators.html[EQL
 syntax documentation].
 
 [discrete]
-=== Deprecating REST API access to system indices
+[[deprecate-rest-api-access-to-system-indices]]
+=== REST API access to system indices is now deprecated
 
 We are deprecating REST API access to system indices. Most REST API requests
 that attempt to access system indices will return the following deprecation

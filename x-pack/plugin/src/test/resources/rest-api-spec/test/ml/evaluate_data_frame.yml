@@ -207,7 +207,6 @@ setup:
             }
           }
   - match: { outlier_detection.auc_roc.score: 0.9899 }
-  - match: { outlier_detection.auc_roc.doc_count: 8 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -228,7 +227,6 @@ setup:
             }
           }
   - match: { outlier_detection.auc_roc.score: 0.9899 }
-  - match: { outlier_detection.auc_roc.doc_count: 8 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -249,7 +247,6 @@ setup:
             }
           }
   - match: { outlier_detection.auc_roc.score: 0.9899 }
-  - match: { outlier_detection.auc_roc.doc_count: 8 }
   - is_true: outlier_detection.auc_roc.curve
 
 ---
@@ -415,7 +412,6 @@ setup:
             }
           }
   - is_true: outlier_detection.auc_roc.score
-  - is_true: outlier_detection.auc_roc.doc_count
   - is_true: outlier_detection.precision.0\.25
   - is_true: outlier_detection.precision.0\.5
   - is_true: outlier_detection.precision.0\.75
@@ -689,7 +685,7 @@ setup:
 ---
 "Test classification auc_roc given predicted_class_field is never equal to mouse":
   - do:
-      catch: /\[auc_roc\] requires at least one \[ml.top_classes.class_name\] to have the value \[mouse\]/
+      catch: /\[auc_roc\] requires that \[mouse\] appears as one of the \[ml.top_classes.class_name\] for every document \(appeared in 0 out of 8\)./
       ml.evaluate_data_frame:
         body:  >
           {
@@ -726,7 +722,6 @@ setup:
             }
           }
   - match: { classification.auc_roc.score: 0.8050111095212122 }
-  - match: { classification.auc_roc.doc_count: 8 }
   - is_false: classification.auc_roc.curve
 ---
 "Test classification auc_roc with default top_classes_field":
@@ -747,7 +742,6 @@ setup:
             }
           }
   - match: { classification.auc_roc.score: 0.8050111095212122 }
-  - match: { classification.auc_roc.doc_count: 8 }
   - is_false: classification.auc_roc.curve
 ---
 "Test classification accuracy with missing predicted_field":

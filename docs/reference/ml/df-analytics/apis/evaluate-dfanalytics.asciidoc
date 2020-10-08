@@ -194,10 +194,8 @@ belongs.
     `class_name`::::
       (Required, string) Name of the only class that will be treated as
       positive during AUC ROC calculation. Other classes will be treated as
-      negative ("one-vs-all" strategy). Documents which do not have `class_name`
-      in the list of their top classes will not be taken into account for 
-      evaluation. The number of documents taken into account is returned in the 
-      evaluation result (`auc_roc.doc_count` field).
+      negative ("one-vs-all" strategy). All the evaluated documents must have `class_name`
+      in the list of their top classes.
 
     `include_curve`::::
       (Optional, boolean) Whether or not the curve should be returned in

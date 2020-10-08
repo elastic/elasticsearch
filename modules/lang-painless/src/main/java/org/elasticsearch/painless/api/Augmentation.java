@@ -720,8 +720,6 @@ public class Augmentation {
      * Convert a {@link TemporalAccessor} into millis since epoch like {@link Instant#toEpochMilli()}.
      */
     public static long toEpochMilli(TemporalAccessor v) {
-        long millis = Math.multiplyExact(v.getLong(ChronoField.INSTANT_SECONDS), 1_000);
-        millis = Math.addExact(millis, v.get(ChronoField.NANO_OF_SECOND) / 1_000_000);
-        return millis;
+        return v.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + v.get(ChronoField.NANO_OF_SECOND) / 1_000_000;
     }
 }

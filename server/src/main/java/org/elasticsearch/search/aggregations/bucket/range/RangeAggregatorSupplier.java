@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public interface RangeAggregatorSupplier {
-    Aggregator build(String name,
+    RangeAggregator build(String name,
                      AggregatorFactories factories,
                      ValuesSource.Numeric valuesSource,
                      DocValueFormat format,

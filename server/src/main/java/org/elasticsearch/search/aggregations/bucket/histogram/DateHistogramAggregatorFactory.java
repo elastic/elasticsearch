@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -42,11 +43,64 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         builder.register(
             DateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            DateHistogramAggregator::new,
+            DateHistogramAggregatorFactory::build,
                 true);
 
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
     }
+
+    private static Aggregator build(
+        String name,
+        AggregatorFactories factories,
+        Rounding rounding,
+        Rounding.Prepared preparedRounding,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        @Nullable LongBounds extendedBounds,
+        @Nullable LongBounds hardBounds,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        Aggregator optimized = DateHistogramAdaptedFromDateRangeAggregator.buildOptimizedOrNull(
+            name,
+            factories,
+            rounding,
+            preparedRounding,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            valuesSourceConfig,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+        if (optimized != null) {
+            return optimized;
+        }
+        return new DateHistogramAggregator(
+            name,
+            factories,
+            rounding,
+            preparedRounding,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            valuesSourceConfig,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+    };
 
     private final BucketOrder order;
     private final boolean keyed;

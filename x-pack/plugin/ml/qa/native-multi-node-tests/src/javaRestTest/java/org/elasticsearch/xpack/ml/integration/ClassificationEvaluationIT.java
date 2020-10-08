@@ -166,14 +166,12 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_AucRoc_DoNotIncludeCurve() {
         AucRoc.Result aucrocResult = evaluateAucRoc(false);
         assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
-        assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
         assertThat(aucrocResult.getCurve(), hasSize(0));
     }
 
     public void testEvaluate_AucRoc_IncludeCurve() {
         AucRoc.Result aucrocResult = evaluateAucRoc(true);
         assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
-        assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
         assertThat(aucrocResult.getCurve(), hasSize(greaterThan(0)));
     }
 

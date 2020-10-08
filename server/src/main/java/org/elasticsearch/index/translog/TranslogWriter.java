@@ -187,8 +187,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
-        if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
-            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
+        if (bufferedBytesBeforeAdd >= forceWriteThreshold * 4) {
+            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 16);
         }
 
         final Translog.Location location;

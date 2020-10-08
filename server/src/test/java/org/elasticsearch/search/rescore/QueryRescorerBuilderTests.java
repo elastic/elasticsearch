@@ -147,7 +147,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             null, null, null, null, null,
             xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null) {
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER);
                 return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
             }
@@ -191,7 +191,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 null, null, null, null, null,
                 xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null) {
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER);
                 return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
             }

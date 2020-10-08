@@ -453,7 +453,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             throw new IllegalStateException("no document to percolate");
         }
 
-        MappedFieldType fieldType = context.fieldMapper(field);
+        MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
             throw new QueryShardException(context, "field [" + field + "] does not exist");
         }

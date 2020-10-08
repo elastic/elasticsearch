@@ -166,7 +166,7 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
-defining the JDK Gradle uses by setting **Prefercences** > **Gradle** >
+defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
 **Advanced Options** > **Java home** to an appropriate version.
 
 IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`

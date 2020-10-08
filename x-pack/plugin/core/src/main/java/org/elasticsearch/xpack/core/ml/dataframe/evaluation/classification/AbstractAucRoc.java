@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -231,35 +230,23 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
     public static class Result implements EvaluationMetricResult {
 
         private static final String SCORE = "score";
-        private static final String DOC_COUNT = "doc_count";
         private static final String CURVE = "curve";
 
         private final double score;
-        private final Long docCount;
         private final List<AucRocPoint> curve;
 
-        public Result(double score, Long docCount, List<AucRocPoint> curve) {
+        public Result(double score, List<AucRocPoint> curve) {
             this.score = score;
-            this.docCount = docCount;
             this.curve = Objects.requireNonNull(curve);
         }
 
         public Result(StreamInput in) throws IOException {
             this.score = in.readDouble();
-            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-                this.docCount = in.readOptionalLong();
-            }  else {
-                this.docCount = null;
-            }
             this.curve = in.readList(AucRocPoint::new);
         }
 
         public double getScore() {
             return score;
-        }
-
-        public Long getDocCount() {
-            return docCount;
         }
 
         public List<AucRocPoint> getCurve() {
@@ -279,9 +266,6 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeDouble(score);
-            if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-                out.writeOptionalLong(docCount);
-            }
             out.writeList(curve);
         }
 
@@ -289,9 +273,6 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(SCORE, score);
-            if (docCount != null) {
-                builder.field(DOC_COUNT, docCount);
-            }
             if (curve.isEmpty() == false) {
                 builder.field(CURVE, curve);
             }
@@ -305,13 +286,12 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return score == that.score
-                && Objects.equals(docCount, that.docCount)
                 && Objects.equals(curve, that.curve);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(score, docCount, curve);
+            return Objects.hash(score, curve);
         }
     }
 }

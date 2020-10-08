@@ -78,7 +78,7 @@ No action needed.
 *Details* +
 Index-time boosts have been deprecated since the 5.x line, but it is still possible
 to declare field-specific boosts in the mappings.  This is now deprecated as well,
-and will be removed entirely in 8.0.  Mappings containing field boosts will continue
+and will be removed entirely in 8.0.0.  Mappings containing field boosts will continue
 to work in 7.x but will emit a deprecation warning.
 
 *Impact* +
@@ -101,10 +101,10 @@ value of `300` seconds, equivalent to 5 minutes.
 
 *Impact* +
 If specified, ensure the `{network,transport,http}.tcp.keep_idle` and
-`{network,transport,http}.tcp.keep_interval` settings does not exceed `300`
+`{network,transport,http}.tcp.keep_interval` settings do not exceed `300`
 seconds. Setting `{network,transport,http}.tcp.keep_idle` or
-`{network,transport,http}.tcp.keep_interval` greater `300` seconds in
-`elasticsearch.yml` will result in an error on startup.
+`{network,transport,http}.tcp.keep_interval` to a value greater than `300`
+seconds in `elasticsearch.yml` will result in an error on startup.
 ====
 
 [discrete]
@@ -117,14 +117,14 @@ seconds. Setting `{network,transport,http}.tcp.keep_idle` or
 ====
 *Details* +
 The `index.max_docvalue_fields_search` setting limits the number of doc value
-fields retrieved a search. by the `docvalue_fields` parameter in a search.
-Previously, this setting only applied to doc values retrieved by the
-`docvalue_fields` parameter in a top-level search. The setting now also applies
-to doc values retrieved by an `inner_hits` section or `top_hits` aggregation.
+fields retrieved a search. Previously, this setting only applied to doc values
+retrieved by the `docvalue_fields` parameter in a top-level search. The setting
+now also applies to doc values retrieved by an `inner_hits` section or
+`top_hits` aggregation.
 
 *Impact* +
-Ensure `index.max_docvalue_fields_search` is configured correctly for your use
-case.
+If you use `inner_hits` or the `top_hits` aggregation, ensure
+`index.max_docvalue_fields_search` is configured correctly for your use case.
 ====
 
 [discrete]

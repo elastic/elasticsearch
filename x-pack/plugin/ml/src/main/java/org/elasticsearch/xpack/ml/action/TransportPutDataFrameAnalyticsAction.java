@@ -93,6 +93,7 @@ public class TransportPutDataFrameAnalyticsAction
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             null,
+            null,
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
@@ -128,7 +129,7 @@ public class TransportPutDataFrameAnalyticsAction
             listener::onFailure
         );
 
-        sourceDestValidator.validate(clusterService.state(), config.getSource().getIndex(), config.getDest().getIndex(),
+        sourceDestValidator.validate(clusterService.state(), config.getSource().getIndex(), config.getDest().getIndex(), null,
             SourceDestValidations.ALL_VALIDATIONS, sourceDestValidationListener);
     }
 

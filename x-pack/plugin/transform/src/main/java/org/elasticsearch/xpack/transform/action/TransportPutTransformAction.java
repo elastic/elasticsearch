@@ -77,7 +77,6 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
-    private final IngestService ingestService;
 
     @Inject
     public TransportPutTransformAction(
@@ -142,10 +141,10 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             DiscoveryNode.isRemoteClusterClient(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
+            ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
-        this.ingestService = ingestService;
     }
 
     static HasPrivilegesRequest buildPrivilegeCheck(
@@ -229,6 +228,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
+            config.getDestination().getPipeline(),
             request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
             ActionListener.wrap(
                 validationResponse -> {
@@ -322,22 +322,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             if (request.isDeferValidation()) {
                 validationListener.onResponse(true);
             } else {
-                if (config.getDestination().getPipeline() != null) {
-                    if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
-                        return;
-                    }
-                }
-                if (request.isDeferValidation()) {
-                    validationListener.onResponse(true);
-                } else {
-                    function.validateQuery(client, config.getSource(), validationListener);
-                }
+                function.validateQuery(client, config.getSource(), validationListener);
             }
         }, listener::onFailure));
     }

@@ -135,6 +135,7 @@ public class TransportStartDataFrameAnalyticsAction
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             null,
+            null,
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
@@ -318,7 +319,7 @@ public class TransportStartDataFrameAnalyticsAction
 
                 // Validate source/dest are valid
                 sourceDestValidator.validate(clusterService.state(), startContext.config.getSource().getIndex(),
-                    startContext.config.getDest().getIndex(), SourceDestValidations.ALL_VALIDATIONS, ActionListener.wrap(
+                    startContext.config.getDest().getIndex(), null, SourceDestValidations.ALL_VALIDATIONS, ActionListener.wrap(
                         aBoolean -> toValidateExtractionPossibleListener.onResponse(startContext), finalListener::onFailure));
             },
             finalListener::onFailure

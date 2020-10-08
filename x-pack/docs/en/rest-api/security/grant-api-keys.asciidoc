@@ -104,7 +104,7 @@ POST /_security/api_key/grant
 {
   "grant_type": "password",
   "username" : "test_admin",
-  "password" : "x-pack-test-password"
+  "password" : "x-pack-test-password",
   "api_key" : {
     "name": "my-api-key",
     "expiration": "1d", 

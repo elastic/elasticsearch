@@ -120,7 +120,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         assertTrue(res.isAcknowledged());
 
         assertBusy(() -> {
-            client().admin().cluster().prepareReroute().get();
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
                 explainRequest).get();
@@ -133,7 +132,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         logger.info("starting a warm data node");
         internalCluster().startNode(warmNode(Settings.EMPTY));
         assertBusy(() -> {
-            client().admin().cluster().prepareReroute().get();
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
                 explainRequest).get();
@@ -148,7 +146,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
 
         // wait for lifecycle to complete in the cold phase after the index has been migrated to the cold node
         assertBusy(() -> {
-            client().admin().cluster().prepareReroute().get();
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
                 explainRequest).get();
@@ -184,7 +181,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         assertTrue(res.isAcknowledged());
 
         assertBusy(() -> {
-            client().admin().cluster().prepareReroute().get();
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
                 explainRequest).get();
@@ -208,7 +204,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         //  1. start another cold node so both the primary and replica can relocate to the cold nodes
         //  2. remove the tier routing setting from the index again (we're doing this below)
         assertBusy(() -> {
-            client().admin().cluster().prepareReroute().get();
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
                 explainRequest).get();
@@ -223,7 +218,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
 
         // wait for lifecycle to complete in the cold phase
         assertBusy(() -> {
-            client().admin().cluster().prepareReroute().get();
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
                 explainRequest).get();

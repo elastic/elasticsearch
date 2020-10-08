@@ -223,6 +223,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     @Override
+    public String getPluginName() {
+        return "searchable_snapshots";
+    }
+
+    @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesServiceSupplier.get();

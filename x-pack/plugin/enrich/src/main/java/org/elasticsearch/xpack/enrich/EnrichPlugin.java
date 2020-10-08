@@ -236,4 +236,9 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );
     }
+
+    @Override
+    public String getPluginName() {
+        return "enrich";
+    }
 }

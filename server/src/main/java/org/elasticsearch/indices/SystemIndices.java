@@ -48,7 +48,7 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
  */
 public class SystemIndices {
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
-        TaskResultsService.class.getName(), List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
+        TaskResultsService.class.getSimpleName(), List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
     );
 
     private final CharacterRunAutomaton runAutomaton;

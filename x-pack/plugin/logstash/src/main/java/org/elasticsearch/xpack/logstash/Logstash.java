@@ -100,4 +100,9 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
             new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME, "Contains data for Logstash Central Management")
         );
     }
+
+    @Override
+    public String getPluginName() {
+        return "logstash_management";
+    }
 }

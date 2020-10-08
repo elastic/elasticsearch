@@ -374,4 +374,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
         );
     }
+
+    @Override
+    public String getPluginName() {
+        return "transform";
+    }
 }

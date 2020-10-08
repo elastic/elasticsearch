@@ -76,6 +76,11 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
+    public String getPluginName() {
+        return "kibana";
+    }
+
+    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         RestController restController,

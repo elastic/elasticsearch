@@ -40,4 +40,6 @@ public interface SystemIndexPlugin extends ActionPlugin {
     default Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.emptyList();
     }
+
+    String getPluginName();
 }

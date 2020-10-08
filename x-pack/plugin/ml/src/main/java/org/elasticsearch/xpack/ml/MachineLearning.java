@@ -1095,6 +1095,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     @Override
+    public String getPluginName() {
+        return "machine_learning";
+    }
+
+    @Override
     public BreakerSettings getCircuitBreaker(Settings settings) {
         return BreakerSettings.updateFromSettings(
             new BreakerSettings(

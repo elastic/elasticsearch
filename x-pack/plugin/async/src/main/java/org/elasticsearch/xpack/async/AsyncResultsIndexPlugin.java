@@ -49,6 +49,11 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
     }
 
     @Override
+    public String getPluginName() {
+        return "async_search";
+    }
+
+    @Override
     public Collection<Object> createComponents(
         Client client,
         ClusterService clusterService,

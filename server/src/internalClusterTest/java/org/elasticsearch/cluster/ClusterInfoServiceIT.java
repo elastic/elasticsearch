@@ -92,6 +92,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
         }
+
+        @Override
+        public String getPluginName() {
+            return ClusterInfoServiceIT.class.getSimpleName();
+        }
     }
 
     public static class BlockingActionFilter extends org.elasticsearch.action.support.ActionFilter.Simple {

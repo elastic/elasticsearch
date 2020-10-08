@@ -95,7 +95,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
         Map<String, Collection<SystemIndexDescriptor>> pluginMap = Map.of(
-            TaskResultsService.class.getName(), List.of(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
+            TaskResultsService.class.getSimpleName(), List.of(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));

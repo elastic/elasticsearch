@@ -38,28 +38,17 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<ICUCollationKeywordFieldMapper.Builder> {
+public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
 
     private static final String FIELD_TYPE = "icu_collation_keyword";
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new AnalysisICUPlugin());
-    }
-
-    @Override
-    protected ICUCollationKeywordFieldMapper.Builder newBuilder() {
-        return new ICUCollationKeywordFieldMapper.Builder("icu");
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity");
     }
 
     @Override
@@ -226,7 +215,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
                 () -> createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index_options", indexOptions))));
             assertThat(
                 e.getMessage(),
-                containsString("The [" + FIELD_TYPE + "] field does not support positions, got [index_options]=" + indexOptions)
+                containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]")
             );
         }
     }
@@ -279,7 +268,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
             IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", FIELD_TYPE).field("language", "en")))
         );
-        assertThat(e.getMessage(), containsString("mapper [field] has different [collator]"));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [language] from [tr] to [en]"));
     }
 
 

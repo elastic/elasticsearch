@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ql.index;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -232,8 +231,8 @@ public class IndexResolver {
             }
 
             client.admin().indices().getIndex(indexRequest,
-                    wrap(response -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, listener),
-                            listener::onFailure));
+                wrap(response -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, listener),
+                    listener::onFailure));
 
         } else {
             filterResults(javaRegex, aliases, null, false, false, listener);

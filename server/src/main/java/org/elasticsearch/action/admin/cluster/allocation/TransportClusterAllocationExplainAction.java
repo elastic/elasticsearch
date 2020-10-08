@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -59,6 +60,7 @@ public class TransportClusterAllocationExplainAction
     private static final Logger logger = LogManager.getLogger(TransportClusterAllocationExplainAction.class);
 
     private final ClusterInfoService clusterInfoService;
+    private final SnapshotsInfoService snapshotsInfoService;
     private final AllocationDeciders allocationDeciders;
     private final ShardsAllocator shardAllocator;
     private final AllocationService allocationService;
@@ -67,11 +69,13 @@ public class TransportClusterAllocationExplainAction
     public TransportClusterAllocationExplainAction(TransportService transportService, ClusterService clusterService,
                                                    ThreadPool threadPool, ActionFilters actionFilters,
                                                    IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   ClusterInfoService clusterInfoService, AllocationDeciders allocationDeciders,
+                                                   ClusterInfoService clusterInfoService, SnapshotsInfoService snapshotsInfoService,
+                                                   AllocationDeciders allocationDeciders,
                                                    ShardsAllocator shardAllocator, AllocationService allocationService) {
         super(ClusterAllocationExplainAction.NAME, transportService, clusterService, threadPool, actionFilters,
             ClusterAllocationExplainRequest::new, indexNameExpressionResolver);
         this.clusterInfoService = clusterInfoService;
+        this.snapshotsInfoService = snapshotsInfoService;
         this.allocationDeciders = allocationDeciders;
         this.shardAllocator = shardAllocator;
         this.allocationService = allocationService;
@@ -98,7 +102,7 @@ public class TransportClusterAllocationExplainAction
         final RoutingNodes routingNodes = state.getRoutingNodes();
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
-                clusterInfo, System.nanoTime());
+                clusterInfo, snapshotsInfoService.snapshotShardSizes(), System.nanoTime());
 
         ShardRouting shardRouting = findShardToExplain(request, allocation);
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);

@@ -47,9 +47,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
-import org.elasticsearch.index.bulk.stats.BulkOperationListener;
-import org.elasticsearch.index.bulk.stats.BulkStats;
-import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -86,6 +83,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.bulk.stats.BulkOperationListener;
+import org.elasticsearch.index.bulk.stats.BulkStats;
+import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -1961,7 +1961,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
                                                     long toSeqNo, boolean requiredFullRange) throws IOException {
-        return getEngine().newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
+        return getEngine().newChangesSnapshot(source, mapperService == null ? null : mapperService::fieldType,
+            fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {

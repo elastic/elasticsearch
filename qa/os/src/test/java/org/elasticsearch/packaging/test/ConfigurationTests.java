@@ -39,7 +39,7 @@ import static org.junit.Assume.assumeFalse;
 public class ConfigurationTests extends PackagingTestCase {
 
     @Before
-    public void filterDistrosAndInstall() throws Exception{
+    public void filterDistrosAndInstall() throws Exception {
         assumeFalse("no docker", distribution.isDocker());
         install();
     }
@@ -63,9 +63,6 @@ public class ConfigurationTests extends PackagingTestCase {
     }
 
     public void test60HostnameSubstitution() throws Exception {
-        cleanup();
-        install();
-
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {

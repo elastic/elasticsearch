@@ -129,34 +129,33 @@ syntax documentation].
 [discrete]
 === Deprecating REST API access to system indices
 
-Add deprecation warnings when accessing System Indices via the REST layer. At
-this time, these warnings are only enabled for Snapshot builds by default, to
-allow projects external to Elasticsearch additional time to adjust their access
-patterns.
+We are deprecating REST API access to system indices. Most REST API requests
+that attempt to access system indices will return the following deprecation
+warning:
 
-Deprecation warnings will be triggered by all REST requests which access
-registered System Indices, except for purpose-specific APIs which access
-System Indices as an implementation detail a few specific APIs which will
-continue to allow access to system indices by default:
-```
-* GET _cluster/health
-* GET {index}/_recovery
-* GET _cluster/allocation/explain
-* GET _cluster/state
-* POST _cluster/reroute
-* GET {index}/_stats
-* GET {index}/_segments
-* GET {index}/_shard_stores
-* GET _cat/[indices,aliases,health,recovery,shards,segments]
-```
-Deprecation warnings for accessing system indices take the form:
-```
-this request accesses system indices: [.some_system_index], but in a future major version, direct access to system indices will be prevented by default
-```
+[console,text]
+----
+this request accesses system indices: [.system_index_name], but in a future major version, direct access to system indices will be prevented by default
+----
+
+To allow projects external to {es} additional time to adjust their access
+patterns, these warnings are currently enabled for snapshot builds only.
+
+The following REST API endpoints access system indices as part of their
+implementation and will not return the deprecation warning:
+
+* `GET _cluster/health`
+* `GET {index}/_recovery`
+* `GET _cluster/allocation/explain`
+* `GET _cluster/state`
+* `POST _cluster/reroute`
+* `GET {index}/_stats`
+* `GET {index}/_segments`
+* `GET {index}/_shard_stores`
+* `GET _cat/[indices,aliases,health,recovery,shards,segments]`
 
 [discrete]
 [[add-system-read-thread-pool]]
-
 === New thread pools for system indices
 
 We've added two new thread pools for system indices: `system_read` and

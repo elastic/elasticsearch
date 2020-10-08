@@ -436,15 +436,16 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             if (irIndexNode != null) {
                 // this load/store requires an index
                 BinaryImplNode binaryImplNode = new BinaryImplNode(location);
-                binaryImplNode.setExpressionType(void.class);
 
                 if (isNullSafe) {
                     // the null-safe structure is slightly different from the standard structure since
                     // both the index and expression are not written to the stack if the prefix is null
+                    binaryImplNode.setExpressionType(irExpressionNode.getExpressionType());
                     binaryImplNode.setLeftNode(irIndexNode);
                     binaryImplNode.setRightNode(irExpressionNode);
                     irExpressionNode = binaryImplNode;
                 } else {
+                    binaryImplNode.setExpressionType(void.class);
                     binaryImplNode.setLeftNode(irPrefixNode);
                     binaryImplNode.setRightNode(irIndexNode);
                     irPrefixNode = binaryImplNode;

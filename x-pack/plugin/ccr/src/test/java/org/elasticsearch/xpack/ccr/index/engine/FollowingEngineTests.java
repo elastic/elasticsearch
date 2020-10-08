@@ -527,7 +527,7 @@ public class FollowingEngineTests extends ESTestCase {
                     final long fromSeqNo = randomLongBetween(Math.max(lastSeqNo - 5, 0), lastSeqNo + 1);
                     final long toSeqNo = randomLongBetween(nextSeqNo, Math.min(nextSeqNo + 5, checkpoint));
                     try (Translog.Snapshot snapshot =
-                             shuffleSnapshot(leader.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true))) {
+                             shuffleSnapshot(leader.newChangesSnapshot("test", mapperService::fieldType, fromSeqNo, toSeqNo, true))) {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());
                         Translog.Operation op;
                         while ((op = snapshot.next()) != null) {

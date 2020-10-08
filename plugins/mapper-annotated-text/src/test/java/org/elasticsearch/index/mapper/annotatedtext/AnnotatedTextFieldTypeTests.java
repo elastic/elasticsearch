@@ -50,10 +50,7 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field")
-            .indexAnalyzer(Lucene.STANDARD_ANALYZER)
-            .searchAnalyzer(Lucene.STANDARD_ANALYZER)
-            .searchQuoteAnalyzer(Lucene.STANDARD_ANALYZER)
+        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", () -> Lucene.STANDARD_ANALYZER)
             .build(context)
             .fieldType();
 

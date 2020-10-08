@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -89,7 +90,8 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
         ClusterState cs = csBuilder.build();
         assertThat(
-            TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(cs, new IndexNameExpressionResolver(), indexName),
+            TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(cs,
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), indexName),
             empty());
 
         metadata = new Metadata.Builder(cs.metadata());
@@ -109,7 +111,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
         List<String> result = TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(csBuilder.build(),
-            new IndexNameExpressionResolver(), indexName);
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), indexName);
         assertThat(result, contains(indexName));
     }
 
@@ -229,7 +231,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             mock(DataFrameAnalyticsManager.class),
             mock(DataFrameAnalyticsAuditor.class),
             mock(MlMemoryTracker.class),
-            new IndexNameExpressionResolver(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
             mock(IndexTemplateConfig.class));
     }
 

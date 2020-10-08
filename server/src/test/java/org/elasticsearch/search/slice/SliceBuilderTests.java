@@ -145,7 +145,7 @@ public class SliceBuilderTests extends ESTestCase {
             }
         };
         QueryShardContext context = mock(QueryShardContext.class);
-        when(context.fieldMapper(fieldName)).thenReturn(fieldType);
+        when(context.getFieldType(fieldName)).thenReturn(fieldType);
         when(context.getIndexReader()).thenReturn(reader);
         when(context.getShardId()).thenReturn(shardId);
         IndexSettings indexSettings = createIndexSettings(indexVersionCreated, numShards);

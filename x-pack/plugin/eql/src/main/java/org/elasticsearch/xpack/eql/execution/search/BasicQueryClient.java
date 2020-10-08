@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
@@ -37,7 +38,7 @@ public class BasicQueryClient implements QueryClient {
 
     private static final Logger log = RuntimeUtils.QUERY_LOG;
 
-    private final EqlConfiguration cfg;
+    final EqlConfiguration cfg;
     final Client client;
     final String[] indices;
 
@@ -53,22 +54,37 @@ public class BasicQueryClient implements QueryClient {
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
 
-        if (log.isTraceEnabled()) {
-            log.trace("About to execute query {} on {}", StringUtils.toString(searchSource), indices);
-        }
-        if (cfg.isCancelled()) {
-            throw new TaskCancelledException("cancelled");
-        }
-
         SearchRequest search = prepareRequest(client, searchSource, false, indices);
         search(search, new BasicListener(listener));
     }
 
     protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
+        if (cfg.isCancelled()) {
+            listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
+        }
+
+        if (log.isTraceEnabled()) {
+            log.trace("About to execute query {} on {}", StringUtils.toString(search.source()), indices);
+        }
+
         client.search(search, listener);
     }
 
     protected void search(MultiSearchRequest search, ActionListener<MultiSearchResponse> listener) {
+        if (cfg.isCancelled()) {
+            listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
+        }
+
+        if (log.isTraceEnabled()) {
+            StringJoiner sj = new StringJoiner("\n");
+            for (SearchRequest request : search.requests()) {
+                sj.add(StringUtils.toString(request.source()));
+            }
+            log.trace("About to execute multi-queries {} on {}", sj, indices);
+        }
+
         client.multiSearch(search, listener);
     }
 

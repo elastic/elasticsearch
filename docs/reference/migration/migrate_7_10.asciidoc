@@ -60,8 +60,9 @@ High-level REST client classes will now send the new `allow_no_match` parameter.
 [%collapsible]
 ====
 *Details* +
-For future feature development, we added a `Supplier<SearchLookup>` argument to
-the existing `MappedFieldType#fielddataBuilder` method.
+To support future feature development, the existing
+`MappedFieldType#fielddataBuilder` method now accepts a new
+`Supplier<SearchLookup>` argument.
  
 *Impact* +
 No action needed.

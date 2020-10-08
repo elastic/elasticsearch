@@ -979,7 +979,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             AucRoc.Result aucRocResult = (AucRoc.Result) evaluateDataFrameResponse.getMetrics().get(1);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRoc.NAME.getPreferredName()));
             assertThat(aucRocResult.getScore(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
-            assertThat(aucRocResult.getDocCount(), allOf(greaterThanOrEqualTo(1L), lessThanOrEqualTo(350L)));
             assertThat(aucRocResult.getCurve(), hasSize(greaterThan(0)));
         }
 

@@ -77,7 +77,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     @AfterClass
-    public static void afterClass() throws Exception {
+    public static void afterClass() {
         namedWriteableRegistry = null;
         xContentRegistry = null;
     }
@@ -99,8 +99,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      * returns a random suggestion builder, setting the common options randomly
      */
     protected SB randomTestBuilder() {
-        SB randomSuggestion = randomSuggestionBuilder();
-        return randomSuggestion;
+        return randomSuggestionBuilder();
     }
 
     public static void setCommonPropertiesOnRandomBuilder(SuggestionBuilder<?> randomSuggestion) {

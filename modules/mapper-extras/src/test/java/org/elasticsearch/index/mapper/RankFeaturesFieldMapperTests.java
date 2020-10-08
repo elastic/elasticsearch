@@ -30,12 +30,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field("foo", 10).field("bar", 20).endObject();
+    protected Object getSampleValueForDocument() {
+        return Map.of("ten", 10, "twenty", 20);
     }
 
     @Override

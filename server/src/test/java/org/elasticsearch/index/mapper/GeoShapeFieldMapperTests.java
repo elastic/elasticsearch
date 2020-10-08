@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.junit.Before;
@@ -89,8 +90,8 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("POINT (14.0 15.0)");
+    protected Object getSampleValueForDocument() {
+        return "POINT (14.0 15.0)";
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -236,5 +237,10 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     @Override
     protected boolean supportsMeta() {
         return false;
+    }
+
+    @Override
+    protected void assertTermQuery(MappedFieldType fieldType, QueryShardContext queryShardContext) {
+        expectThrows(IllegalArgumentException.class, () -> super.assertTermQuery(fieldType, queryShardContext));
     }
 }

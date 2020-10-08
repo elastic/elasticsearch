@@ -113,7 +113,7 @@ seconds in `elasticsearch.yml` will result in an error on startup.
 === Search Changes
 
 [[max-doc-value-field-search-limits]]
-.The `index.max_docvalue_fields_search` setting now limits the number of retrieved through `inner_hits` or a `top_hits` aggregation.
+.The `index.max_docvalue_fields_search` setting now limits doc values returned by `inner_hits` or the `top_hits` aggregation.
 [%collapsible]
 ====
 *Details* +

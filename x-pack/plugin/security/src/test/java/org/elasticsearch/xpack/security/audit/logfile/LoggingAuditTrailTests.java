@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -39,12 +40,16 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -196,7 +201,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
-                .put("xpack.security.audit.logfile.events.emit_request_body", includeRequestBody)
+                .put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), includeRequestBody)
                 .build();
         localNode = mock(DiscoveryNode.class);
         when(localNode.getId()).thenReturn(randomAlphaOfLength(16));
@@ -285,6 +290,38 @@ public class LoggingAuditTrailTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class,
                 () -> LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace("filter4").get(settings4));
         assertThat(e, hasToString(containsString("invalid pattern [/no-inspiration]")));
+    }
+
+    public void testSecurityConfigChangeFormatting() throws Exception {
+        RoleDescriptor.IndicesPrivileges testIndicesPrivileges =
+                RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("test*")
+                        .privileges("read", "create_index")
+                        .grantedFields("grantedField1")
+                        .query("{match_all:{}}")
+                        .allowRestrictedIndices(true)
+                        .build();
+        ConfigurableClusterPrivilege testConfigurableClusterPrivilege =
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("app1"));
+        RoleDescriptor.ApplicationResourcePrivileges testApplicationResourcePrivileges =
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                        .privileges("app_read_priv", "app_write_priv").resources("res2").application("app2").build();
+        Map<String, Object> testMetadata = new HashMap<>();
+        testMetadata.put("string_meta", "test");
+        testMetadata.put("list_meta", List.of("one", "two"));
+        RoleDescriptor roleDescriptor = new RoleDescriptor("full_test_role", new String[] {"manage_ilm", "manage_security"},
+                new RoleDescriptor.IndicesPrivileges[] {testIndicesPrivileges},
+                new RoleDescriptor.ApplicationResourcePrivileges[] {testApplicationResourcePrivileges},
+                new ConfigurableClusterPrivilege[] {testConfigurableClusterPrivilege},
+                new String[] {"minnie"}, testMetadata, null);
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-name", List.of(roleDescriptor), TimeValue.timeValueHours(2));
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+        auditTrail.accessGranted(requestId, authentication, "_action", createApiKeyRequest, authorizationInfo);
+
+        //assertMsg(logger, Map.of(), Map.of());
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

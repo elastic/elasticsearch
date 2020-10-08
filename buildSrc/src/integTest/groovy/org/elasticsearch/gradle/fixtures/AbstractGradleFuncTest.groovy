@@ -116,7 +116,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         execute('git config user.email "build-tool@elastic.co"')
         execute('git config user.name "Build tool"')
         execute("git add .")
-        execute('git cmmit -m "Initial"')
+        execute('git commit -m "Initial"')
     }
 
     void execute(String command, File workingDir = testProjectDir.root) {

@@ -87,4 +87,34 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * {@link FieldMapper#parseCreateField} or {@link FieldMapper#parse}.
      */
     protected abstract Object parseSourceValue(Object value);
+
+    /**
+     * Creates a {@link SourceValueFetcher} that passes through source values unmodified.
+     */
+    public static SourceValueFetcher identity(String fieldName, MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(fieldName, mapperService) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value;
+            }
+        };
+    }
+
+    /**
+     * Creates a {@link SourceValueFetcher} that converts source values to strings.
+     */
+    public static SourceValueFetcher toString(String fieldName, MapperService mapperService, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
+        }
+        return new SourceValueFetcher(fieldName, mapperService) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
+    }
 }

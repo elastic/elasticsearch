@@ -319,8 +319,8 @@ POST _ml/data_frame/_evaluate
       "metrics": {  
         "r_squared": {},
         "mse": {},
-        "msle": {},
-        "huber": {}
+        "msle": {"offset": 10},
+        "huber": {"delta": 1.5}
       }
     }
   }

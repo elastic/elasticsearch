@@ -67,6 +67,18 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
+            List<String> plugins = new ArrayList<>();
+            int count = randomInt(3) + 1;
+
+            for (int i = 0; i < count; ++i) {
+                plugins.add(randomAlphaOfLength(randomInt(3) + 2));
+            }
+
+            original.pluginStates(plugins);
+        }
+
+
+        if (randomBoolean()) {
             original.partial(randomBoolean());
         }
 

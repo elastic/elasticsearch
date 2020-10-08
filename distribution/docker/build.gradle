@@ -6,6 +6,9 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+
+import java.security.MessageDigest
+
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
@@ -165,6 +168,30 @@ tasks.register("copyKeystore", Sync) {
   }
 }
 
+tasks.register("ensureLog4jConfigurationSync") {
+  /*
+   * Whenever the x-pack/plugin/core/src/main/config/log4j2.properties is changed it might be that the
+   * distribution/docker/src/docker/config/log4j2.properties file needs changing as well.
+   *
+   * This task fails if the x-pack/plugin/core/src/main/config/log4j2.properties file
+   * has been modified. Please ensure that the distribution/docker/src/docker/config/log4j2.properties
+   * file is also modified such that it reflects the same changes.
+   *
+   * SET THIS to the value of checksumOriginalLog4j after the two files have been confirmed as equivalent
+   */
+  def validatedChecksumOriginalLog4j = "+GJ/QjaApSAiejScjiwFEg=="
+  doLast {
+    def originalLog4j = project(":x-pack:plugin:core").file('src/main/config/log4j2.properties').getBytes()
+    def checksumOriginalLog4j = Base64.getEncoder().encodeToString(MessageDigest.getInstance("MD5").digest(originalLog4j))
+    if (false == validatedChecksumOriginalLog4j.equals(checksumOriginalLog4j)) {
+      throw new GradleException("The src/main/config/log4j2.properties file from the x-pack:plugin:core has been changed. " +
+        "Please ensure that the src/docker/config/log4j2.properties file is also modified to reflect the changes. " +
+        "To confirm that the two files are equivalent to one another replace [" + validatedChecksumOriginalLog4j + "] " +
+        "with [" + checksumOriginalLog4j + "] in this task's declaration.");
+    }
+  }
+}
+
 elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->
     Flavor.values().each { distroFlavor ->
@@ -225,6 +252,10 @@ void addBuildDockerImage(Architecture architecture, boolean oss, DockerBase base
     TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, base, "DockerContext"))
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
+
+    if (false == oss) {
+      dependsOn("ensureLog4jConfigurationSync")
+    }
 
     String version = VersionProperties.elasticsearch
     if (oss) {

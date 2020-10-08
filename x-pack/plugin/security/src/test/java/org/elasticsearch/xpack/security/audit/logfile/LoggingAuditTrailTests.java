@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -78,6 +79,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -208,7 +210,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
             arg0.updateLocalNodeInfo(localNode);
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
-        final ClusterSettings clusterSettings = mockClusterSettings();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings,
+                Set.of(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING, LoggingAuditTrail.EMIT_HOST_NAME_SETTING,
+                        LoggingAuditTrail.EMIT_NODE_NAME_SETTING, LoggingAuditTrail.EMIT_NODE_ID_SETTING,
+                        LoggingAuditTrail.INCLUDE_EVENT_SETTINGS, LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
+                        LoggingAuditTrail.INCLUDE_REQUEST_BODY, LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
+                        LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS, LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
+                        LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, Loggers.LOG_LEVEL_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode).commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
@@ -298,11 +306,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "anonymous_access_denied")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.anonymousAccessDenied(requestId, "_action", request);
         assertEmptyLog(logger);
     }
@@ -333,11 +340,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "anonymous_access_denied")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.anonymousAccessDenied(requestId, request);
         assertEmptyLog(logger);
     }
@@ -364,11 +370,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "authentication_failed")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.authenticationFailed(requestId, new MockToken(), "_action", request);
         assertEmptyLog(logger);
     }
@@ -393,11 +398,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "authentication_failed")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.authenticationFailed(requestId, "_action", request);
         assertEmptyLog(logger);
     }
@@ -437,11 +441,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "authentication_failed")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.authenticationFailed(requestId, new MockToken(), request);
         assertEmptyLog(logger);
     }
@@ -479,11 +482,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "authentication_failed")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.authenticationFailed(requestId, request);
         assertEmptyLog(logger);
     }
@@ -497,11 +499,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
 
         // test enabled
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                        .put(settings)
                        .put("xpack.security.audit.logfile.events.include", "realm_authentication_failed")
-                       .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                       .build());
         auditTrail.authenticationFailed(requestId, realm, mockToken, "_action", request);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
@@ -536,11 +537,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
 
         // test enabled
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.include", "realm_authentication_failed")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.authenticationFailed(requestId, realm, mockToken, request);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
@@ -608,11 +608,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "access_granted")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
         assertEmptyLog(logger);
     }
@@ -637,11 +636,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
 
         // enable system user for access granted events
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.include", "system_access_granted")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
 
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
 
@@ -694,11 +692,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
 
         // test enabled
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.include", "system_access_granted")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
@@ -763,11 +760,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
-                    .put(settings)
-                    .put("xpack.security.audit.logfile.events.exclude", "access_granted")
-                    .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+        updateLoggerSettings(Settings.builder()
+                .put(settings)
+                .put("xpack.security.audit.logfile.events.exclude", "access_granted")
+                .build());
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);
         assertEmptyLog(logger);
     }
@@ -817,11 +813,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "access_denied")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.accessDenied(requestId, authentication, "_action", request, authorizationInfo);
         assertEmptyLog(logger);
     }
@@ -858,11 +853,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "tampered_request")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.tamperedRequest(requestId, request);
         assertEmptyLog(logger);
     }
@@ -887,11 +881,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "tampered_request")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.tamperedRequest(requestId, "_action", request);
         assertEmptyLog(logger);
     }
@@ -937,11 +930,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "tampered_request")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.tamperedRequest(requestId, authentication, "_action", request);
         assertEmptyLog(logger);
     }
@@ -967,11 +959,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "connection_denied")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.connectionDenied(inetAddress, profile, rule);
         assertEmptyLog(logger);
     }
@@ -985,11 +976,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
 
         // test enabled
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.include", "connection_granted")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.connectionGranted(inetAddress, profile, rule);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.IP_FILTER_ORIGIN_FIELD_VALUE)
@@ -1036,11 +1026,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "run_as_granted")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.runAsGranted(requestId, authentication, "_action", request, authorizationInfo);
         assertEmptyLog(logger);
     }
@@ -1076,11 +1065,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.exclude", "run_as_denied")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.runAsDenied(requestId, authentication, "_action", request, authorizationInfo);
         assertEmptyLog(logger);
     }
@@ -1104,11 +1092,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationSuccess(requestId, authentication, request);
         assertEmptyLog(logger);
 
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(this.settings)
                 .put("xpack.security.audit.logfile.events.include", "authentication_success")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.authenticationSuccess(requestId, authentication, request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
                      .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
@@ -1166,11 +1153,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
         assertEmptyLog(logger);
 
-        settings = Settings.builder()
+        updateLoggerSettings(Settings.builder()
                 .put(this.settings)
                 .put("xpack.security.audit.logfile.events.include", "authentication_success")
-                .build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+                .build());
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
@@ -1261,6 +1247,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     "_action", request);
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
+        }
+    }
+
+    private void updateLoggerSettings(Settings settings) {
+        this.settings = settings;
+        // either create a new audit trail or update the settings on the existing one
+        if (randomBoolean()) {
+            this.auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+        } else {
+            this.clusterService.getClusterSettings().applySettings(settings);
         }
     }
 

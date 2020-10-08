@@ -6,6 +6,10 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -19,10 +23,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -44,15 +45,21 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             RateAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            RateAggregator::new,
+            Collections.singletonList(CoreValuesSourceType.NUMERIC),
+            NumericRateAggregator::new,
+            true
+        );
+        builder.register(
+            RateAggregationBuilder.REGISTRY_KEY,
+            Collections.singletonList(AnalyticsValuesSourceType.HISTOGRAM),
+            HistogramRateAggregator::new,
             true
         );
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new RateAggregator(name, config, rateUnit, searchContext, parent, metadata) {
+        return new AbstractRateAggregator(name, config, rateUnit, searchContext, parent, metadata) {
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;

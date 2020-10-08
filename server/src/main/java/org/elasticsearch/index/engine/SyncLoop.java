@@ -19,40 +19,58 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class SyncLoop {
 
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(SyncLoop.class);
 
     private final ThreadPool threadPool;
     private final Translog translog;
+    private final CheckedRunnable<IOException> postSyncCallback;
     private final Semaphore promiseSemaphore = new Semaphore(1);
-    private final ConcurrentSkipListMap<Translog.Location, Consumer<Exception>> listeners = new ConcurrentSkipListMap<>();
+    private final ConcurrentLinkedQueue<Tuple<Translog.Location, Consumer<Exception>>> listeners = new ConcurrentLinkedQueue<>();
     private volatile Translog.Location lastSyncedLocation;
 
-    public SyncLoop(Logger logger, ThreadPool threadPool, Translog translog) {
-        this.logger = logger;
+    public SyncLoop(ThreadPool threadPool, Translog translog, CheckedRunnable<IOException> postSyncCallback) {
         this.threadPool = threadPool;
         this.translog = translog;
+        this.postSyncCallback = postSyncCallback;
+        this.lastSyncedLocation = new Translog.Location(0, 0, Integer.MAX_VALUE);
     }
 
-    public void sync() {
+    public void maybeScheduleFlush() {
+        if (translog.flushNeeded()) {
+            final boolean promised = promiseSemaphore.tryAcquire();
+            if (promised) {
+                threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
+                    try {
+                        translog.flush();
+                    } catch (Exception e) {
+                        // Ignore, translog internally handles exceptions
+                    } finally {
+                        promiseSemaphore.release();
+                    }
 
-    }
-
-    public void scheduleWrite() {
-        final boolean promised = promiseSemaphore.tryAcquire();
-        if (promised) {
-//            translog.flush();
+                    while (listeners.isEmpty() == false && promiseSemaphore.tryAcquire()) {
+                        doSyncAndNotify();
+                    }
+                });
+            }
         }
     }
 
@@ -61,23 +79,15 @@ public class SyncLoop {
             listener.accept(null);
             return;
         }
-        listeners.put(location, listener);
+        listeners.add(new Tuple<>(location, preserveContext(listener)));
         final boolean promised = promiseSemaphore.tryAcquire();
         if (promised) {
             try {
                 threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
-                    Exception exception = null;
-                    ArrayList<Consumer<Exception>> syncedListeners = new ArrayList<>(this.listeners.size());
-                    try {
-                        doSync();
-                        drainListeners(syncedListeners, lastSyncedLocation);
-                    } catch (Exception e) {
-                        drainListeners(syncedListeners, null);
-                        exception = e;
-                    } finally {
-                        promiseSemaphore.release();
+                    doSyncAndNotify();
+                    while (listeners.isEmpty() == false && promiseSemaphore.tryAcquire()) {
+                        doSyncAndNotify();
                     }
-                    completeListeners(syncedListeners, exception);
                 });
             } catch (Exception e) {
                 promiseSemaphore.release();
@@ -86,19 +96,36 @@ public class SyncLoop {
         }
     }
 
+    private void doSyncAndNotify() {
+        Exception exception = null;
+        ArrayList<Consumer<Exception>> syncedListeners = new ArrayList<>(this.listeners.size());
+        try {
+            doSync();
+            drainListeners(syncedListeners, lastSyncedLocation);
+        } catch (Exception e) {
+            drainListeners(syncedListeners, null);
+            exception = e;
+        } finally {
+            promiseSemaphore.release();
+        }
+        completeListeners(syncedListeners, exception);
+        syncedListeners.clear();
+    }
+
     private void doSync() throws Exception {
         translog.sync();
         lastSyncedLocation = translog.getLastSyncedLocation();
+        postSyncCallback.run();
     }
 
     private void drainListeners(ArrayList<Consumer<Exception>> syncedListeners, Translog.Location syncedLocation) {
-        Map.Entry<Translog.Location, Consumer<Exception>> entry;
-        while ((entry = listeners.pollFirstEntry()) != null) {
+        Tuple<Translog.Location, Consumer<Exception>> tuple;
+        while ((tuple = listeners.poll()) != null) {
             // If the synced location is null, drain all the listeners
-            if (syncedLocation == null || entry.getKey().compareTo(syncedLocation) > 0) {
-                syncedListeners.add(entry.getValue());
+            if (syncedLocation == null || syncedLocation.compareTo(tuple.v1()) > 0) {
+                syncedListeners.add(tuple.v2());
             } else {
-                listeners.put(entry.getKey(), entry.getValue());
+//                listeners.put(entry.getKey(), entry.getValue());
                 break;
             }
         }
@@ -112,5 +139,14 @@ public class SyncLoop {
                 logger.warn("failed to notify fsync listener", ex);
             }
         }
+    }
+
+    private Consumer<Exception> preserveContext(Consumer<Exception> consumer) {
+        Supplier<ThreadContext.StoredContext> restorableContext = threadPool.getThreadContext().newRestorableContext(false);
+        return e -> {
+            try (ThreadContext.StoredContext ignore = restorableContext.get()) {
+                consumer.accept(e);
+            }
+        };
     }
 }

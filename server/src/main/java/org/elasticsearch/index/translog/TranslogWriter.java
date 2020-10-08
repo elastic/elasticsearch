@@ -86,7 +86,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final Object syncLock = new Object();
 
     private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
-    private final int forceWriteThreshold;
+    private final long forceWriteThreshold;
+    private volatile long bufferedBytes = 0;
     private ReleasableBytesStreamOutput buffer;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
@@ -210,6 +211,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             location = new Translog.Location(generation, offset, data.length());
             bytesBufferedAfterAdd = buffer.size();
+            bufferedBytes = bytesBufferedAfterAdd;
         }
 
         if (bytesBufferedAfterAdd >= forceWriteThreshold) {
@@ -280,16 +282,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * write all buffered ops to disk and fsync file.
-     *
-     * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
-     * raising the exception.
-     */
-    public void sync() throws IOException {
-        syncUpTo(Long.MAX_VALUE);
-    }
-
-    /**
      * flush all buffered ops to disk. Does not fsync.
      *
      * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
@@ -297,6 +289,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public void flush() throws IOException {
         writeBufferedOps(Long.MAX_VALUE, true);
+    }
+
+    public boolean flushNeeded() {
+        return bufferedBytes > forceWriteThreshold;
+    }
+
+    /**
+     * write all buffered ops to disk and fsync file.
+     *
+     * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
+     * raising the exception.
+     */
+    public void sync() throws IOException {
+        syncUpTo(Long.MAX_VALUE);
     }
 
     /**
@@ -468,6 +474,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         if (this.buffer != null) {
             ReleasableBytesStreamOutput toWrite = this.buffer;
             this.buffer = null;
+            this.bufferedBytes = 0;
             return new ReleasableBytesReference(toWrite.bytes(), toWrite);
         } else {
             return ReleasableBytesReference.wrap(BytesArray.EMPTY);
@@ -561,6 +568,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             synchronized (this) {
                 Releasables.closeWhileHandlingException(buffer);
                 buffer = null;
+                bufferedBytes = 0;
             }
             IOUtils.close(checkpointChannel, channel);
         }

@@ -113,6 +113,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -127,6 +128,7 @@ public class InternalEngine extends Engine {
     private volatile long lastDeleteVersionPruneTimeMSec;
 
     private final Translog translog;
+    private final SyncLoop syncLoop;
     private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
 
     private final IndexWriter indexWriter;
@@ -217,6 +219,7 @@ public class InternalEngine extends Engine {
                     });
                 assert translog.getGeneration() != null;
                 this.translog = translog;
+                this.syncLoop = new SyncLoop(engineConfig.getThreadPool(), translog, this::revisitIndexDeletionPolicyOnTranslogSynced);
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy =
                     new CombinedDeletionPolicy(logger, translogDeletionPolicy, softDeletesPolicy, translog::getLastSyncedGlobalCheckpoint);
@@ -528,6 +531,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public void scheduleTranslogSync(Translog.Location location, Consumer<Exception> listener) {
+        syncLoop.scheduleSync(location, listener);
+    }
+
+    @Override
     public void syncTranslog() throws IOException {
         translog.sync();
         revisitIndexDeletionPolicyOnTranslogSynced();
@@ -541,11 +549,6 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
         return getTranslog().getLastWriteLocation();
-    }
-
-    @Override
-    public boolean isLocationSynced(Translog.Location location) {
-        return getTranslog().isLocationSynced(location);
     }
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
@@ -903,6 +906,7 @@ public class InternalEngine extends Engine {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
+                        syncLoop.maybeScheduleFlush();
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
                         final NoOp noOp = new NoOp(indexResult.getSeqNo(), index.primaryTerm(), index.origin(),
@@ -1264,6 +1268,7 @@ public class InternalEngine extends Engine {
             if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
                 final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
                 deleteResult.setTranslogLocation(location);
+                syncLoop.maybeScheduleFlush();
             }
             localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
             if (deleteResult.getTranslogLocation() == null) {
@@ -1504,6 +1509,7 @@ public class InternalEngine extends Engine {
                 if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                     noOpResult.setTranslogLocation(location);
+                    syncLoop.maybeScheduleFlush();
                 }
             }
             localCheckpointTracker.markSeqNoAsProcessed(noOpResult.getSeqNo());

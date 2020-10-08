@@ -590,12 +590,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public Location getLastSyncedLocation() {
         try (ReleasableLock lock = readLock.acquire()) {
-            /*
-             * We use position = current - 1 and size = Integer.MAX_VALUE here instead of position current and size = 0 for two reasons:
-             * 1. Translog.Location's compareTo doesn't actually pay attention to size even though it's equals method does.
-             * 2. It feels more right to return a *position* that is before the next write's position rather than rely on the size.
-             */
-            return new Location(current.generation, current.getLastSyncedCheckpoint().offset - 1, Integer.MAX_VALUE);
+            return new Location(current.generation, current.getLastSyncedCheckpoint().offset, Integer.MAX_VALUE);
         }
     }
 
@@ -742,6 +737,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw ex;
+        }
+    }
+
+    public boolean flushNeeded() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            return current.flushNeeded();
         }
     }
 

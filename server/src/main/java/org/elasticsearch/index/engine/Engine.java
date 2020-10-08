@@ -95,6 +95,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -694,6 +695,8 @@ public abstract class Engine implements Closeable {
      */
     public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
 
+    public abstract void scheduleTranslogSync(Translog.Location location, Consumer<Exception> listener);
+
     public abstract void syncTranslog() throws IOException;
 
     /**
@@ -726,8 +729,6 @@ public abstract class Engine implements Closeable {
      * Returns the last location that the translog of this engine has written into.
      */
     public abstract Translog.Location getTranslogLastWriteLocation();
-
-    public abstract boolean isLocationSynced(Translog.Location location);
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {

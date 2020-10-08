@@ -20,8 +20,29 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
+
+anslog;
 
 public class SyncLoopTests extends ESTestCase {
 
+    private ThreadPool threadPool = new TestThreadPool(this.getTestName());
 
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        terminate(threadPool);
+    }
+
+    public void testThing() {
+        SyncLoop syncLoop = new SyncLoop(threadPool, null, () -> {});
+//        syncLoop.scheduleSync(new Translog.Location(0, 0, 4), (e) -> {});
+    }
 }

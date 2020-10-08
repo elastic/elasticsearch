@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -282,6 +283,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public void scheduleTranslogSync(Translog.Location location, Consumer<Exception> listener) {
+        listener.accept(null);
+    }
+
+    @Override
     public void syncTranslog() {
     }
 
@@ -315,11 +321,6 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
         return new Translog.Location(0,0,0);
-    }
-
-    @Override
-    public boolean isLocationSynced(Translog.Location location) {
-        return false;
     }
 
     @Override

@@ -3060,7 +3060,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
         verifyNotClosed();
-        translogSyncProcessor.put(location, syncListener);
+        getEngine().scheduleTranslogSync(location, syncListener);
     }
 
     public void sync() throws IOException {

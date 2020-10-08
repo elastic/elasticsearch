@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
+import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Files;
@@ -38,12 +39,14 @@ import static org.junit.Assume.assumeFalse;
 public class ConfigurationTests extends PackagingTestCase {
 
     @Before
-    public void filterDistros() {
+    public void filterDistrosAndInstall() throws Exception{
         assumeFalse("no docker", distribution.isDocker());
+        install();
     }
 
-    public void test10Install() throws Exception {
-        install();
+    @After
+    public void cleanInstall() throws Exception {
+        cleanup();
     }
 
     public void test50StrictDuplicateDetectionDeprecationWarning() throws Exception {
@@ -60,6 +63,9 @@ public class ConfigurationTests extends PackagingTestCase {
     }
 
     public void test60HostnameSubstitution() throws Exception {
+        cleanup();
+        install();
+
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {

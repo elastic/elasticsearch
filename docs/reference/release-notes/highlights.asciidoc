@@ -39,7 +39,7 @@ tier using <<data-tier-shard-filtering,index-level data tier allocation filterin
 make use of these tiers to <<ilm-migrate,automatically migrate>> data between nodes as an index goes
 through the phases of its lifecycle.
 
-Newly created indices abstracted by a <<data-stream,data stream>> will be allocated to
+Newly created indices abstracted by a <<data-streams,data stream>> will be allocated to
 the `data_hot` tier automatically, while standalone indices will be allocated to
 the `data_content` tier automatically. Nodes with the pre-existing `data` role are 
 considered to be part of all tiers.

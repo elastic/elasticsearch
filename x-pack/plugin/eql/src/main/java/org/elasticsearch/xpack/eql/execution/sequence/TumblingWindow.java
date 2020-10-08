@@ -264,7 +264,7 @@ public class TumblingWindow implements Executable {
             }
 
             // keep running the query runs out of the results (essentially returns less than what we want)
-            // however check if the window has been fully consumed consumed
+            // however check if the window has been fully consumed
             if (hits.size() == windowSize && request.after().before(boundary)) {
                 secondaryCriterion(window, currentStage, listener);
             }

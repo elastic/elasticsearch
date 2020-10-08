@@ -72,7 +72,6 @@ Aggregations::
 * Adds hard_bounds to histogram aggregations {es-pull}59175[#59175] (issue: {es-issue}50109[#50109])
 * Allocate slightly less per bucket {es-pull}59740[#59740]
 * Improve reduction of terms aggregations {es-pull}61779[#61779] (issue: {es-issue}51857[#51857])
-* Multi-bucket aggregator wrapper is slow and uses a ton of memory {es-pull}56487[#56487]
 * Speed up date_histogram by precomputing ranges {es-pull}61467[#61467]
 
 Analysis::

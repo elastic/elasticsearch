@@ -41,21 +41,22 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * An aggregator that computes approximate counts of unique values.
+ * An aggregator that computes approximate counts of unique values
+ * using global ords.
  */
 public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ValuesSource.Bytes.WithOrdinals valuesSource;
+    private final BigArrays bigArrays;
+    private final int maxOrd;
+    private final int precision;
 
     // Build at post-collection phase
     @Nullable
     private HyperLogLogPlusPlusSparse counts;
-
-    private final BigArrays bigArrays;
     private SortedSetDocValues values;
-    private final int maxOrd;
     private ObjectArray<BitArray> visitedOrds;
-    private final int precision;
+
 
     public GlobalOrdCardinalityAggregator(
             String name,
@@ -103,15 +104,15 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     @Override
     protected void doPostCollection() throws IOException {
         counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
-        try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
-            for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
-                final BitArray bits = visitedOrds.get(bucket);
-                if (bits != null) {
-                    allVisitedOrds.or(bits);
+        try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
+            try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
+                for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
+                    final BitArray bits = visitedOrds.get(bucket);
+                    if (bits != null) {
+                        allVisitedOrds.or(bits);
+                    }
                 }
-            }
 
-            try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
                 final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
                 for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE;
                      ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : Long.MAX_VALUE) {
@@ -119,22 +120,22 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                     MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                     hashes.set(ord, hash.h1);
                 }
-                for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
-                    try (BitArray bits = visitedOrds.get(bucket)){
-                        if (bits != null) {
-                            visitedOrds.set(bucket, null); // remove Bitset from array
-                            counts.ensureCapacity(bucket, bits.cardinality());
-                            for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
-                                 ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
-                                counts.collect(bucket, hashes.get(ord));
-                            }
+            }
+            for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
+                try (BitArray bits = visitedOrds.get(bucket)) {
+                    if (bits != null) {
+                        visitedOrds.set(bucket, null); // remove bitset from array
+                        counts.ensureCapacity(bucket, bits.cardinality());
+                        for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
+                             ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                            counts.collect(bucket, hashes.get(ord));
                         }
                     }
                 }
-                // free resources
-                Releasables.close(visitedOrds);
-                visitedOrds = null;
             }
+            // free resources
+            Releasables.close(visitedOrds);
+            visitedOrds = null;
         }
     }
 

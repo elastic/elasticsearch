@@ -21,7 +21,6 @@ See also <<release-highlights>> and <<es-release-notes>>.
 [[breaking_710_security_changes]]
 === Authentication changes
 
-[discrete]
 [[api-keys-require-name-property]]
 .API keys now require a `name` property.
 [%collapsible]
@@ -91,7 +90,7 @@ directly on queries instead.
 [[breaking_710_networking_changes]]
 === Networking Changes
 
-[discrete]
+[keep-idle-and-keep-internal-limits]
 .The `*.tcp.keep_idle` and `*.tcp.keep_interval` settings are now limited to `300` seconds.
 [%collapsible]
 ====

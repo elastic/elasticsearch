@@ -92,7 +92,7 @@ public class CatchNode extends StatementNode {
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (blockNode != null) {
-            blockNode.write(writeScope.newTryScope(null, null, null));
+            blockNode.write(writeScope.newBlockScope(true));
         }
 
         methodWriter.visitTryCatchBlock(

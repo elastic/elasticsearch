@@ -137,11 +137,9 @@ warning:
 
 [source,text]
 ----
-this request accesses system indices: [.system_index_name], but in a future major version, direct access to system indices will be prevented by default
+this request accesses system indices: [.system_index_name], but in a future
+major version, direct access to system indices will be prevented by default
 ----
-
-To allow projects external to {es} additional time to adjust their access
-patterns, these warnings are currently enabled for snapshot builds only.
 
 The following REST API endpoints access system indices as part of their
 implementation and will not return the deprecation warning:

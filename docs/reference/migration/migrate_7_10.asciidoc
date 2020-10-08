@@ -18,6 +18,22 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //tag::notable-breaking-changes[]
 
 [discrete]
+[[breaking_710_security_changes]]
+=== Authentication changes
+
+[discrete]
+=== Grant API key always requires the key name
+When using the grant API key action, it was possible to create a key without a
+name. This was because the name field is nested under `api_key` field, i.e.:
+```
+{
+    "...": "...",
+    "api_key": {"name": "key-1"}
+}
+```
+The `name` is now required when creating or granting API keys.
+
+[discrete]
 [[breaking_710_search_changes]]
 === Search Changes
 
@@ -39,6 +55,26 @@ The settings `{network,transport,http}.tcp.keep_idle` and
 `{network,transport,http}.tcp.keep_interval` are now limited to a maximum
 value of 300, which amounts to 5 minutes. This helps ensure that, if
 explicitly configured, only reasonable values are set.
+
+[discrete]
+[[breaking_710_java_changes]]
+==== Breaking Java Changes
+
+[discrete]
+==== Machine Learning: `allow_no_jobs` and `allow_no_datafeeds` deprecated in favor of `allow_no_match`
+`allow_no_jobs` and `allow_no_datafeeds` API parameters are deprecated in favor
+of `allow_no_match`. The old parameters are still accepted by the APIs but the
+deprecation warning is emitted if the old parameter name is used in the request
+body or as a request param.
+High-level REST client classes will now send the new `allow_no_match` parameter.
+
+[discrete]
+==== Mapping: add `Supplier<SearchLookup>` argument to the existing `MappedFieldType#fielddataBuilder` method
+Runtime fields need to have a SearchLookup available, when building their
+fielddata implementations, so that they can look up other fields, runtime or
+not.
+To achieve that, we added a `Supplier<SearchLookup>` argument to the existing
+`MappedFieldType#fielddataBuilder` method.
 
 //end::notable-breaking-changes[]
 

@@ -118,7 +118,7 @@ Windows event logs and other event data containing a mix of letter cases.
 GET /my-index-000001/_eql/search
 {
   "query": """
-    process where process.executable : "c:\\windows\\system32\\cmd.exe"
+    process where process.executable : "c:\\\\windows\\\\system32\\\\cmd.exe"
   """
 }
 ----

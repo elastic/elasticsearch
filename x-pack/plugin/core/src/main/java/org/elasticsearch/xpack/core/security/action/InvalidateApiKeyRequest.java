@@ -243,5 +243,4 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     public int hashCode() {
         return Objects.hash(realmName, userName, ids, name, ownedByAuthenticatedUser);
     }
-
 }

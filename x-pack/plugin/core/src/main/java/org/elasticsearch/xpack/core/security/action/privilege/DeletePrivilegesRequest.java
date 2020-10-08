@@ -96,4 +96,5 @@ public final class DeletePrivilegesRequest extends ActionRequest
         out.writeStringArray(privileges);
         refreshPolicy.writeTo(out);
     }
+
 }

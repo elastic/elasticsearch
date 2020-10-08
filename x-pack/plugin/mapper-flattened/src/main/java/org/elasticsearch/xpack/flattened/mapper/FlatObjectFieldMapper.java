@@ -469,15 +469,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-            }
-            return new SourceValueFetcher(name(), mapperService) {
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    return value;
-                }
-            };
+            return SourceValueFetcher.identity(name(), mapperService, format);
         }
     }
 

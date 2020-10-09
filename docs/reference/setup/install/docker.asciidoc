@@ -26,6 +26,10 @@ ifeval::["{release-state}"=="unreleased"]
 WARNING: Version {version} of {es} has not yet been released, so no
 Docker image is currently available for this version.
 
+TIP: If you see `unauthorized: authentication required` when pulling the image, 
+you may need to first refresh stale credentials with 
+`docker logout docker.elastic.co` then try again.
+
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]

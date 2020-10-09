@@ -125,7 +125,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             PutTransformAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         this.licenseState = licenseState;
         this.client = client;
@@ -187,11 +188,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
         privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
         return privRequest;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

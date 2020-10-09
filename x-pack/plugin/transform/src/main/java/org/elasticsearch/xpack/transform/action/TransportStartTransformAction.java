@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.ingest.IngestService;
@@ -56,7 +55,6 @@ import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Map;
@@ -128,7 +126,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             threadPool,
             actionFilters,
             StartTransformAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            StartTransformAction.Response::new,
+            ThreadPool.Names.SAME
         );
         this.licenseState = licenseState;
         this.transformConfigManager = transformServices.getConfigManager();
@@ -145,16 +145,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             License.OperationMode.BASIC.description()
         );
         this.ingestService = ingestService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected StartTransformAction.Response read(StreamInput in) throws IOException {
-        return new StartTransformAction.Response(in);
     }
 
     @Override

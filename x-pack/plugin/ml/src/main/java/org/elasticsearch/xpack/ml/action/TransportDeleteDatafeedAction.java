@@ -52,17 +52,12 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
                                          Client client, PersistentTasksService persistentTasksService,
                                          NamedXContentRegistry xContentRegistry) {
         super(DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteDatafeedAction.Request::new, indexNameExpressionResolver);
+                DeleteDatafeedAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = client;
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.persistentTasksService = persistentTasksService;
         this.clusterService = clusterService;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

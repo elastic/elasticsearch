@@ -66,16 +66,12 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
             threadPool,
             actionFilters,
             DeleteEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         this.client = client;
         this.enrichPolicyLocks = enrichPolicyLocks;
         this.ingestService = ingestService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

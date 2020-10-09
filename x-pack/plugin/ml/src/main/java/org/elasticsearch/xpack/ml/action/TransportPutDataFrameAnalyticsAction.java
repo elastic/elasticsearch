@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -77,7 +76,8 @@ public class TransportPutDataFrameAnalyticsAction
                                                 ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 DataFrameAnalyticsConfigProvider configProvider, DataFrameAnalyticsAuditor auditor) {
         super(PutDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
+                PutDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, PutDataFrameAnalyticsAction.Response::new,
+                ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.configProvider = configProvider;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -100,16 +100,6 @@ public class TransportPutDataFrameAnalyticsAction
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
         this.maxModelMemoryLimit = maxModelMemoryLimit;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutDataFrameAnalyticsAction.Response read(StreamInput in) throws IOException {
-        return new PutDataFrameAnalyticsAction.Response(in);
     }
 
     @Override

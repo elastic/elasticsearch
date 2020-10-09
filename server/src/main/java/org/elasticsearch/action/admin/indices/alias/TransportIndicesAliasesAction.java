@@ -77,15 +77,9 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final RequestValidators<IndicesAliasesRequest> requestValidators) {
         super(IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesAliasesRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.indexAliasesService = indexAliasesService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away...
-        return ThreadPool.Names.SAME;
     }
 
     @Override

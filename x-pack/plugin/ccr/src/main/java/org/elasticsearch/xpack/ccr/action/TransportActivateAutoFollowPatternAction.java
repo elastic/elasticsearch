@@ -9,7 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -26,11 +25,10 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.Request;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportActivateAutoFollowPatternAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     @Inject
     public TransportActivateAutoFollowPatternAction(TransportService transportService, ClusterService clusterService,
@@ -42,11 +40,6 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(final StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -62,7 +55,7 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
 
                 @Override
                 protected AcknowledgedResponse newResponse(final boolean acknowledged) {
-                    return new AcknowledgedResponse(acknowledged);
+                    return AcknowledgedResponse.of(acknowledged);
                 }
 
                 @Override

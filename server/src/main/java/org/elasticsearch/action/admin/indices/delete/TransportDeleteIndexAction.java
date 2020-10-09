@@ -26,7 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,13 +34,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -48,7 +46,7 @@ import java.util.Set;
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexAction extends TransportMasterNodeAction<DeleteIndexRequest, AcknowledgedResponse> {
+public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeAction<DeleteIndexRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
 
@@ -72,11 +70,6 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
     protected void doExecute(Task task, DeleteIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
@@ -92,7 +85,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
                                    final ActionListener<AcknowledgedResponse> listener) {
         final Set<Index> concreteIndices = new HashSet<>(Arrays.asList(indexNameExpressionResolver.concreteIndices(state, request)));
         if (concreteIndices.isEmpty()) {
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
 
@@ -104,7 +97,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
+                listener.onResponse(AcknowledgedResponse.of(response.isAcknowledged()));
             }
 
             @Override

@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
@@ -60,14 +59,13 @@ import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class TransportPutTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
 
@@ -197,11 +195,6 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
 
         if (!licenseState.checkFeature(XPackLicenseState.Feature.TRANSFORM)) {
@@ -291,7 +284,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
             logger.debug("[{}] created transform", config.getId());
             auditor.info(config.getId(), "Created transform.");
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(AcknowledgedResponse.TRUE);
         }, listener::onFailure);
 
         // <2> Put our transform

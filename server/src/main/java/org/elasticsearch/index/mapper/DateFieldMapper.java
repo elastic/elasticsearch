@@ -205,7 +205,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 long minApprox = convertApprox(min);
                 long maxApprox = convertApprox(max);
                 if ((min == Long.MIN_VALUE || min == convertExact(minApprox)) &&
-                    (max == Long.MAX_VALUE || max == convertExact(maxApprox))) { // +1?
+                    (max == Long.MAX_VALUE || max + 1 == convertExact(maxApprox))) { // + 1, should not be included
                     return LongPoint.newRangeQuery(field, minApprox, maxApprox);
                 } else {
                     return new TwoPhaseLongRangeQuery(field, min, max, minApprox, maxApprox);
@@ -431,6 +431,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                         u = Long.MAX_VALUE;
                     }
                 } catch (IOException e) {
+                    throw new IllegalArgumentException(e);
                     // let's ignore for now
                 }
                 Query query = resolution.rangeQuery(name(), l, u, hasDocValues());
@@ -523,11 +524,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                                            Object from, Object to, boolean includeLower, boolean includeUpper,
                                            ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
 
-            if (PointValues.size(reader, name()) == 0) {
-                // no points, so nothing matches
-                return Relation.DISJOINT;
-            }
-
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -552,6 +548,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     }
                     --toInclusive;
                 }
+            }
+
+            if (PointValues.size(reader, name()) == 0) {
+                // no points, so nothing matches
+                return Relation.DISJOINT;
             }
 
             long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);

@@ -89,12 +89,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public long convertApprox(long value) {
+            public long convertToIndex(long value) {
                 return value / 1000L;
             }
 
             @Override
-            public long convertExact(long value) {
+            public long convertToDocValue(long value) {
                 return value * 1000L;
             }
 
@@ -119,12 +119,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public long convertApprox(long value) {
+            public long convertToIndex(long value) {
                 return value / 1000000000L;
             }
 
             @Override
-            public long convertExact(long value) {
+            public long convertToDocValue(long value) {
                 return value * 1000000000L;
             }
 
@@ -172,48 +172,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public abstract Instant toInstant(long value);
 
         /**
-         * Convert an exact long value into a long value in the approximated resolution.
-         */
-        public abstract long convertApprox(long value);
-
-        /**
-         * Convert an exact approximated value into a long value in the exact resolution.
-         */
-        public abstract long convertExact(long value);
-
-        /**
          * Decode the points representation of this field as milliseconds.
          */
         public abstract long parsePointAsMillis(byte[] value);
-
-        /**
-         * Add index fields to doc
-         */
-        public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
-            if (hasDocValues) {
-                doc.add(new LongPoint(name, convertApprox(value)));
-            } else {
-                doc.add(new LongPoint(name, value));
-            }
-        }
-
-        /**
-         * Build range query
-         */
-        public Query rangeQuery(String field, long min, long max, boolean hasDocValues) {
-            if (hasDocValues) {
-                long minApprox = convertApprox(min);
-                long maxApprox = convertApprox(max);
-                if ((min == Long.MIN_VALUE || min == convertExact(minApprox)) &&
-                    (max == Long.MAX_VALUE || max + 1 == convertExact(maxApprox))) { // + 1, should not be included
-                    return LongPoint.newRangeQuery(field, minApprox, maxApprox);
-                } else {
-                    return new TwoPhaseLongRangeQuery(field, min, max, minApprox, maxApprox);
-                }
-            } else {
-                return LongPoint.newRangeQuery(field, min, max);
-            }
-        }
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
@@ -224,13 +185,56 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             throw new IllegalArgumentException("unknown resolution ordinal [" + ord + "]");
         }
 
+        /**
+         * Convert the given long value in this resolution into the index resolution
+         */
+        public abstract long convertToIndex(long value);
+
+        /**
+         * Convert the given long value in the index resolution into this resolution
+         */
+        public abstract long convertToDocValue(long value);
+
+        /**
+         * Add index fields in the provided doc
+         */
+        public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
+            if (hasDocValues) {
+                doc.add(new LongPoint(name, convertToIndex(value)));
+            } else {
+                doc.add(new LongPoint(name, value));
+            }
+        }
+
+        /**
+         * Build range query
+         */
+        protected Query rangeQuery(String field, long min, long max, boolean hasDocValues) {
+            if (hasDocValues) {
+                final long minApprox = convertToIndex(min);
+                final long maxApprox = convertToIndex(max);
+                // I have my doubts here, probably the upper bound must be unbounded??
+                if ((min == Long.MIN_VALUE || min == convertToDocValue(minApprox)) &&
+                    (max == Long.MAX_VALUE || max + 1 == convertToDocValue(maxApprox))) { // + 1, should not be included
+                    return LongPoint.newRangeQuery(field, minApprox, maxApprox);
+                } else {
+                    return new TwoPhaseLongRangeQuery(field, min, max, minApprox, maxApprox);
+                }
+            } else {
+                return LongPoint.newRangeQuery(field, min, max);
+            }
+        }
+
+        /**
+         * Build Distance feature query
+         */
         protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot, boolean hasDocValues) {
             if (hasDocValues) {
-                long originApprox = convertApprox(origin);
+                long originApprox = convertToIndex(origin);
                 Query query = new TwoPhaseLongDistanceFeatureQuery(field, origin, convert(pivot), originApprox) {
                     @Override
                     public long convertDistance(long distanceExact) {
-                        return convertApprox(distanceExact);
+                        return convertToIndex(distanceExact);
                     }
                 };
                 if (boost != 1f) {
@@ -239,6 +243,28 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 return query;
             } else {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
+            }
+        }
+
+        protected MappedFieldType.Relation isWithin(long fromInclusive, long toInclusive, long minValue, long maxValue, boolean hasDocValues) {
+            if (hasDocValues) {
+                final long approxFromInclusive = convertToIndex(fromInclusive);
+                final long approxToInclusive = convertToIndex(toInclusive);
+                if (minValue > approxFromInclusive + 1 && maxValue <= approxToInclusive) {
+                    return MappedFieldType.Relation.WITHIN;
+                } else if (maxValue < approxFromInclusive - 1 || minValue > approxToInclusive) {
+                    return MappedFieldType.Relation.DISJOINT;
+                } else {
+                    return MappedFieldType.Relation.INTERSECTS;
+                }
+            } else {
+                if (minValue >= fromInclusive && maxValue <= toInclusive) {
+                    return MappedFieldType.Relation.WITHIN;
+                } else if (maxValue < fromInclusive || minValue > toInclusive) {
+                    return MappedFieldType.Relation.DISJOINT;
+                } else {
+                    return MappedFieldType.Relation.INTERSECTS;
+                }
             }
         }
     }
@@ -420,20 +446,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     : forcedDateParser;
 
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                // if l <= min value on the index or u >= max value on the index, we should change it to Long.MAX_VALUE / Long.MIN_VALUE
-                try {
-                    long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(context.getIndexReader(), name()), 0);
-                    if (l < resolution.convertExact(minValue)) {
-                        l = Long.MIN_VALUE;
-                    }
-                    long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(context.getIndexReader(), name()), 0);
-                    if (u > resolution.convertExact(maxValue)) {
-                        u = Long.MAX_VALUE;
-                    }
-                } catch (IOException e) {
-                    throw new IllegalArgumentException(e);
-                    // let's ignore for now
-                }
+                // if l < min value on the index or u > max value on the index, we should change it to Long.MAX_VALUE / Long.MIN_VALUE.
+                // This would help in choosing to use a cheaper query??
                 Query query = resolution.rangeQuery(name(), l, u, hasDocValues());
                 if (hasDocValues()) {
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
@@ -555,30 +569,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 return Relation.DISJOINT;
             }
 
-            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
-
-            long approxFromInclusive;
-            long approxToInclusive;
-            if (hasDocValues()) {
-                approxFromInclusive = resolution.convertApprox(fromInclusive);
-                approxToInclusive = resolution.convertApprox(toInclusive);
-                if (minValue > approxFromInclusive + 1 && maxValue <= approxToInclusive) {
-                    return Relation.WITHIN;
-                } else if (maxValue < approxFromInclusive - 1 || minValue > approxToInclusive) {
-                    return Relation.DISJOINT;
-                } else {
-                    return Relation.INTERSECTS;
-                }
-            } else {
-                if (minValue >= fromInclusive && maxValue <= toInclusive) {
-                    return Relation.WITHIN;
-                } else if (maxValue < fromInclusive || minValue > toInclusive) {
-                    return Relation.DISJOINT;
-                } else {
-                    return Relation.INTERSECTS;
-                }
-            }
+            final long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            final long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
+            return resolution.isWithin(fromInclusive, toInclusive, minValue, maxValue, hasDocValues());
         }
 
         @Override

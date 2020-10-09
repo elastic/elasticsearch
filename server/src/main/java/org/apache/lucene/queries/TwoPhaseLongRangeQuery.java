@@ -38,10 +38,8 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.time.DateUtils;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -56,25 +54,28 @@ import java.util.Objects;
  * <p>
  * For a single-dimensional field this query is a simple range query; in a multi-dimensional field it's a box shape.
  * @see PointValues
- * @lucene.experimental
  */
-public abstract class TwoPhaseDateRangeQuery extends Query {
+public class TwoPhaseLongRangeQuery extends Query {
   final String field;
-  final Instant lower;
-  final Instant upper;
+  final long lowerExact;
+  final long upperExact;
+  final long lowerApprox;
+  final long upperApprox;
 
   /**
    * Expert: create a multidimensional range query for point values.
    *
    * @param field field name. must not be {@code null}.
-   * @param lower lower portion of the range (inclusive).
-   * @param upper upper portion of the range (inclusive).
+   * @param lowerExact lower portion of the range (inclusive).
+   * @param upperExact upper portion of the range (inclusive).
    * @throws IllegalArgumentException if {@code field} is null, or if {@code lowerValue.length != upperValue.length}
    */
-  public TwoPhaseDateRangeQuery(String field, Instant lower, Instant upper) {
-    this.field = field;
-    this.lower = lower;
-    this.upper = upper;
+  public TwoPhaseLongRangeQuery(String field, long lowerExact, long upperExact, long lowerApprox, long upperApprox) {
+      this.field = field;
+      this.lowerExact = lowerExact;
+      this.upperExact = upperExact;
+      this.lowerApprox = lowerApprox;
+      this.upperApprox = upperApprox;
   }
 
   @Override
@@ -84,25 +85,16 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
     }
   }
 
-  protected abstract long toApproxPrecision(Instant instant);
-
-  protected abstract long toExactPrecision(Instant instant);
-
   @Override
-  public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-
-      // We don't use RandomAccessWeight here: it's no good to approximate with "match all docs".
-      // This is an inverted structure and should be used in the first pass:
-      long l = toApproxPrecision(lower);
-      long u = toApproxPrecision(upper);
+  public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
       byte[] lowerInc = new byte[Long.BYTES];
-      NumericUtils.longToSortableBytes(l + 1, lowerInc, 0);
+      NumericUtils.longToSortableBytes(lowerApprox + 1, lowerInc, 0);
       byte[] lowerExc = new byte[Long.BYTES];
-      NumericUtils.longToSortableBytes(l, lowerExc, 0);
+      NumericUtils.longToSortableBytes(lowerApprox, lowerExc, 0);
       byte[] upperInc = new byte[Long.BYTES];
-      NumericUtils.longToSortableBytes(u - 1, upperInc, 0);
+      NumericUtils.longToSortableBytes(upperApprox - 1, upperInc, 0);
       byte[] upperExc = new byte[Long.BYTES];
-      NumericUtils.longToSortableBytes(u, upperExc, 0);
+      NumericUtils.longToSortableBytes(upperApprox, upperExc, 0);
 
       final ApproximatedQuery phase1 = new ApproximatedQuery(lowerInc, lowerExc, upperInc, upperExc);
 
@@ -129,9 +121,8 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
               if (values.getDocCount() == reader.maxDoc()) {
                   final byte[] fieldPackedLower = values.getMinPackedValue();
                   final byte[] fieldPackedUpper = values.getMaxPackedValue();
-                  // equals??
-                  if (Arrays.compareUnsigned(lowerExc, 0, Long.BYTES, fieldPackedLower, 0, Long.BYTES) <= 0
-                      && Arrays.compareUnsigned(upperExc, 0, Long.BYTES, fieldPackedUpper, 0, Long.BYTES) >= 0) {
+                  if (Arrays.compareUnsigned(lowerExc, 0, Long.BYTES, fieldPackedLower, 0, Long.BYTES) < 0
+                      && Arrays.compareUnsigned(upperExc, 0, Long.BYTES, fieldPackedUpper, 0, Long.BYTES) > 0) {
                       return new ScorerSupplier() {
                           @Override
                           public Scorer get(long leadCost) {
@@ -159,20 +150,32 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
                   approx.set(0, reader.maxDoc());
                   int[] cost = new int[] { reader.maxDoc() };
                   phase1.execute(values, result, approx, cost);
-                  exactIterator = new BitSetIterator(result, cost[0]);;
-                  approxDISI = new BitSetIterator(approx, cost[0]);
+                  exactIterator = new BitSetIterator(result, cost[0]);
+                  approxDISI = phase1.hasApproximated ? new BitSetIterator(approx, cost[0]) : null;
               } else {
                   DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, field);
                   DocIdSetBuilder approximation = new DocIdSetBuilder(reader.maxDoc(), values, field);
                   phase1.execute(values, result, approximation);
                   exactIterator = result.build().iterator();
-                  approxDISI = approximation.build().iterator();
+                  approxDISI = phase1.hasApproximated ? approximation.build().iterator() : null;
+              }
+
+              if (approxDISI == null) {
+                  return new ScorerSupplier() {
+
+                      @Override
+                      public Scorer get(long leadCost) {
+                          return new ConstantScoreScorer(weight, score(), scoreMode, exactIterator);
+                      }
+
+                      @Override
+                      public long cost() {
+                          return exactIterator.cost();
+                      }
+                  };
               }
 
               final SortedNumericDocValues docValues = reader.getSortedNumericDocValues(field);
-              final long upperLong = toExactPrecision(upper);
-              final long lowerLong = toExactPrecision(lower);
-
               final TwoPhaseIterator twoPhaseIterator = new TwoPhaseIterator(approxDISI) {
 
                   @Override
@@ -194,7 +197,7 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
                           int count = docValues.docValueCount();
                           for (int i = 0; i < count; i++) {
                               final long value = docValues.nextValue();
-                              if (value <= upperLong && value >= lowerLong) {
+                              if (value <= upperExact && value >= lowerExact) {
                                   return true;
                               }
                           }
@@ -238,18 +241,19 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
       };
   }
 
-
   public String getField() {
     return field;
   }
 
   @Override
   public final int hashCode() {
-    int hash = classHash();
-    hash = 31 * hash + field.hashCode();
-    hash = 31 * hash + Long.hashCode(toExactPrecision(upper));
-    hash = 31 * hash + Long.hashCode(toExactPrecision(lower));
-    return hash;
+      int hash = classHash();
+      hash = 31 * hash + field.hashCode();
+      hash = 31 * hash + Long.hashCode(upperExact);
+      hash = 31 * hash + Long.hashCode(lowerExact);
+      hash = 31 * hash + Long.hashCode(upperApprox);
+      hash = 31 * hash + Long.hashCode(lowerApprox);
+      return hash;
   }
 
   @Override
@@ -258,9 +262,10 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
            equalsTo(getClass().cast(o));
   }
 
-  private boolean equalsTo(TwoPhaseDateRangeQuery other) {
+  private boolean equalsTo(TwoPhaseLongRangeQuery other) {
     return Objects.equals(field, other.field) &&
-        Objects.equals(lower, other.lower) && Objects.equals(upper, other.upper);
+        upperExact == other.upperExact && lowerExact == other.lowerExact &&
+        upperApprox == other.upperApprox && lowerApprox == other.lowerApprox;
   }
 
   @Override
@@ -271,9 +276,9 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
       sb.append(':');
     }
     sb.append('[');
-    sb.append(toExactPrecision(lower));
+    sb.append(lowerExact);
     sb.append(" TO ");
-    sb.append(toExactPrecision(upper));
+    sb.append(upperExact);
     sb.append(']');
     return sb.toString();
   }
@@ -283,6 +288,7 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
       private final byte[] lowerPointExc;
       private final byte[] upperPointInc;
       private final byte[] upperPointExc;
+      private boolean hasApproximated;
       private long cost;
 
       ApproximatedQuery(byte[] lowerPointInc, byte[] lowerPointExc, byte[] upperPointInc, byte[] upperPointExc) {
@@ -336,6 +342,8 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
                       adderApprox.add(docID);
                       if (addToExact(packedValue)) {
                           adderExact.add(docID);
+                      } else {
+                          hasApproximated = true;
                       }
                   }
               }
@@ -349,6 +357,8 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
                           adderApprox.add(docID);
                           if (addExact) {
                               adderExact.add(docID);
+                          } else {
+                              hasApproximated = true;
                           }
                       }
                   }
@@ -377,6 +387,8 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
                       exact.clear(docID);
                       if (matches(packedValue) == false) {
                           approx.clear(docID);
+                      } else {
+                          hasApproximated = true;
                       }
                   }
               }
@@ -391,6 +403,8 @@ public abstract class TwoPhaseDateRangeQuery extends Query {
                           exact.clear(docID);
                           if (matches == false) {
                               approx.clear(docID);
+                          } else {
+                              hasApproximated = true;
                           }
                       }
                   }

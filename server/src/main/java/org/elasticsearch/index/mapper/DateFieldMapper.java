@@ -24,7 +24,9 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.queries.TwoPhaseDateRangeQuery;
+import org.apache.lucene.queries.TwoPhaseLongDistanceFeatureQuery;
+import org.apache.lucene.queries.TwoPhaseLongRangeQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
@@ -82,9 +84,18 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 return instant.toEpochMilli();
             }
 
+            public long convert(TimeValue timeValue) {
+                return timeValue.getMillis();
+            }
+
             @Override
-            public long convertApprox(Instant instant) {
-                return instant.getEpochSecond();
+            public long convertApprox(long value) {
+                return value / 1000L;
+            }
+
+            @Override
+            public long convertExact(long value) {
+                return value * 1000L;
             }
 
             @Override
@@ -93,18 +104,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Instant toInstantFromApprox(long value) {
-                return Instant.ofEpochSecond(value);
-            }
-
-            @Override
             public long parsePointAsMillis(byte[] value) {
                 return LongPoint.decodeDimension(value, 0);
-            }
-
-            @Override
-            protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
-                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
         },
         NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
@@ -113,9 +114,18 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 return toLong(instant);
             }
 
+            public long convert(TimeValue timeValue) {
+                return timeValue.getNanos();
+            }
+
             @Override
-            public long convertApprox(Instant instant) {
-                return instant.getEpochSecond();
+            public long convertApprox(long value) {
+                return value / 1000000000L;
+            }
+
+            @Override
+            public long convertExact(long value) {
+                return value * 1000000000L;
             }
 
             @Override
@@ -124,19 +134,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Instant toInstantFromApprox(long value) {
-                return Instant.ofEpochSecond(value);
-            }
-
-            @Override
             public long parsePointAsMillis(byte[] value) {
                 return DateUtils.toMilliSeconds(LongPoint.decodeDimension(value, 0));
             }
 
-            @Override
-            protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
-                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
-            }
         };
 
         private final String type;
@@ -161,9 +162,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public abstract long convert(Instant instant);
 
         /**
-         * Convert an {@linkplain Instant} into a long value in the approximated resolution.
+         * Convert an {@linkplain TimeValue} into a long value in this resolution.
          */
-        public abstract long convertApprox(Instant instant);
+        public abstract long convert(TimeValue timeValue);
 
         /**
          * Convert a long value in this resolution into an instant.
@@ -171,9 +172,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public abstract Instant toInstant(long value);
 
         /**
-         * Convert a long value in this resolution into an instant.
+         * Convert an exact long value into a long value in the approximated resolution.
          */
-        public abstract Instant toInstantFromApprox(long value);
+        public abstract long convertApprox(long value);
+
+        /**
+         * Convert an exact approximated value into a long value in the exact resolution.
+         */
+        public abstract long convertExact(long value);
 
         /**
          * Decode the points representation of this field as milliseconds.
@@ -185,7 +191,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
          */
         public void index(ParseContext.Document doc, String name, long value, boolean hasDocValues) {
             if (hasDocValues) {
-                doc.add(new LongPoint(name, convertApprox(toInstant(value))));
+                doc.add(new LongPoint(name, convertApprox(value)));
             } else {
                 doc.add(new LongPoint(name, value));
             }
@@ -196,24 +202,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
          */
         public Query rangeQuery(String field, long min, long max, boolean hasDocValues) {
             if (hasDocValues) {
-                Instant minInstant = toInstant(min);
-                Instant maxInstant = toInstant(max);
-                if ((min == Long.MIN_VALUE || min == convert(toInstantFromApprox(convertApprox(minInstant)))) &&
-                    (max == Long.MAX_VALUE || max == convert(toInstantFromApprox(convertApprox(maxInstant))))) {
-                    return LongPoint.newRangeQuery(field, convertApprox(minInstant), convertApprox(maxInstant));
+                long minApprox = convertApprox(min);
+                long maxApprox = convertApprox(max);
+                if ((min == Long.MIN_VALUE || min == convertExact(convertApprox(minApprox))) &&
+                    (max == Long.MAX_VALUE || max + 1 == convertExact(convertApprox(maxApprox))) ) {
+                    return LongPoint.newRangeQuery(field, minApprox, maxApprox);
                 } else {
-                    return new TwoPhaseDateRangeQuery(field, minInstant, maxInstant) {
-
-                        @Override
-                        protected long toApproxPrecision(Instant instant) {
-                            return convertApprox(instant);
-                        }
-
-                        @Override
-                        protected long toExactPrecision(Instant instant) {
-                            return convert(instant);
-                        }
-                    };
+                    return new TwoPhaseLongRangeQuery(field, min, max, minApprox, maxApprox);
                 }
             } else {
                 return LongPoint.newRangeQuery(field, min, max);
@@ -229,7 +224,23 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             throw new IllegalArgumentException("unknown resolution ordinal [" + ord + "]");
         }
 
-        protected abstract Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot);
+        protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot, boolean hasDocValues) {
+            if (hasDocValues) {
+                long originApprox = convertApprox(origin);
+                Query query = new TwoPhaseLongDistanceFeatureQuery(field, origin, convert(pivot), originApprox) {
+                    @Override
+                    public long convertDistance(long distanceExact) {
+                        return convertApprox(distanceExact);
+                    }
+                };
+                if (boost != 1f) {
+                    query = new BoostQuery(query, boost);
+                }
+                return query;
+            } else {
+                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
+            }
+        }
     }
 
     private static DateFieldMapper toType(FieldMapper in) {
@@ -491,7 +502,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
-            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
+            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime, hasDocValues());
         }
 
         @Override
@@ -536,11 +547,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             long approxFromInclusive;
             long approxToInclusive;
             if (hasDocValues()) {
-                approxFromInclusive = resolution.convertApprox(resolution.toInstant(fromInclusive));
-                approxToInclusive = resolution.convertApprox(resolution.toInstant(toInclusive));
-                if (minValue >= approxFromInclusive + 1 && maxValue <= approxToInclusive - 1) {
+                approxFromInclusive = resolution.convertApprox(fromInclusive);
+                approxToInclusive = resolution.convertApprox(toInclusive);
+                if (minValue > approxFromInclusive + 1 && maxValue <= approxToInclusive) {
                     return Relation.WITHIN;
-                } else if (maxValue < approxFromInclusive || minValue > approxToInclusive) {
+                } else if (maxValue < approxFromInclusive - 1 || minValue > approxToInclusive) {
                     return Relation.DISJOINT;
                 } else {
                     return Relation.INTERSECTS;

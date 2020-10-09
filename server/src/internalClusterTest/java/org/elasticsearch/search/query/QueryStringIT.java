@@ -43,6 +43,8 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -114,6 +116,29 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
 
         resp = client().prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\" \"2015/09/01\"")).get();
+        assertHits(resp.getHits(), "1", "2");
+        assertHitCount(resp, 2L);
+    }
+
+    public void testExactDate() throws Exception {
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("test2").setId("1").setSource("f1", "foo", "f_date", "2015-09-02T00:00:00.000"));
+        reqs.add(client().prepareIndex("test2").setId("2").setSource("f1", "bar", "f_date", "2015-09-02T00:00:00.001"));
+        reqs.add(client().prepareIndex("test2").setId("3").setSource("f1", "bar", "f_date", "2015-09-01T23:59:59.999"));
+        indexRandom(true, false, reqs);
+
+        SearchResponse resp = client().prepareSearch("test2").setQuery(rangeQuery("f_date")
+            .from("2015-09-02T00:00:00.000").to("2015-09-02T00:00:00.000").includeLower(true).includeUpper(true)).get();
+        assertHits(resp.getHits(), "1");
+        assertHitCount(resp, 1L);
+        resp = client().prepareSearch("test2").setQuery(rangeQuery("f_date")
+            .from("2015-09-02T00:00:00.000").to("2015-09-02T00:00:00.001").includeLower(true).includeUpper(false)).get();
+        assertHits(resp.getHits(), "1");
+        resp = client().prepareSearch("test2").setQuery(rangeQuery("f_date")
+            .from("2015-09-02T00:00:00.000").to("2015-09-02T00:00:00.001").includeLower(false).includeUpper(true)).get();
+        assertHits(resp.getHits(), "2");
+        resp = client().prepareSearch("test2").setQuery(rangeQuery("f_date")
+            .from("2015-09-02T00:00:00.000").to("2015-09-02T00:00:00.001").includeLower(true).includeUpper(true)).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
     }

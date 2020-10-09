@@ -148,7 +148,7 @@ syntax documentation].
 
 [discrete]
 [[deprecate-rest-api-access-to-system-indices]]
-=== REST API access to system indices is now deprecated
+=== REST API access to system indices is deprecated
 
 We are deprecating REST API access to system indices. Most REST API requests
 that attempt to access system indices will return the following deprecation

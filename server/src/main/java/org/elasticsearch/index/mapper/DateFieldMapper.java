@@ -204,8 +204,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             if (hasDocValues) {
                 long minApprox = convertApprox(min);
                 long maxApprox = convertApprox(max);
-                if ((min == Long.MIN_VALUE || min == convertExact(convertApprox(minApprox))) &&
-                    (max == Long.MAX_VALUE || max + 1 == convertExact(convertApprox(maxApprox))) ) {
+                if ((min == Long.MIN_VALUE || min == convertExact(minApprox)) &&
+                    (max == Long.MAX_VALUE || max == convertExact(maxApprox))) { // +1?
                     return LongPoint.newRangeQuery(field, minApprox, maxApprox);
                 } else {
                     return new TwoPhaseLongRangeQuery(field, min, max, minApprox, maxApprox);
@@ -420,6 +420,19 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     : forcedDateParser;
 
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
+                // if l <= min value on the index or u >= max value on the index, we should change it to Long.MAX_VALUE / Long.MIN_VALUE
+                try {
+                    long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(context.getIndexReader(), name()), 0);
+                    if (l < resolution.convertExact(minValue)) {
+                        l = Long.MIN_VALUE;
+                    }
+                    long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(context.getIndexReader(), name()), 0);
+                    if (u > resolution.convertExact(maxValue)) {
+                        u = Long.MAX_VALUE;
+                    }
+                } catch (IOException e) {
+                    // let's ignore for now
+                }
                 Query query = resolution.rangeQuery(name(), l, u, hasDocValues());
                 if (hasDocValues()) {
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);

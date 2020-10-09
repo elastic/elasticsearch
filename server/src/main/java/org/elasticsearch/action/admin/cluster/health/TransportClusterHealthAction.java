@@ -63,7 +63,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                                         ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, AllocationService allocationService) {
         super(ClusterHealthAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-            ClusterHealthRequest::new, indexNameExpressionResolver,ClusterHealthResponse::new, ThreadPool.Names.SAME);
+                ClusterHealthRequest::new, indexNameExpressionResolver, ClusterHealthResponse::new, ThreadPool.Names.SAME);
         this.allocationService = allocationService;
     }
 

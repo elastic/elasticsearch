@@ -15,8 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
@@ -30,7 +28,6 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 
@@ -105,12 +102,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
         String[] indices = request.indices();
         if (CollectionUtils.isEmpty(indices) == false) {
             request.indices(Strings.EMPTY_ARRAY);
-            BoolQueryBuilder indexFilter = boolQuery().filter(termsQuery(GetResult._INDEX, indices));
-            QueryBuilder query = source.query();
-            if (query != null) {
-                indexFilter.must(query);
-            }
-            source.query(indexFilter);
+            RuntimeUtils.addFilter(termsQuery(GetResult._INDEX, indices), source);
         }
     }
 
@@ -123,11 +115,11 @@ public class PITAwareQueryClient extends BasicQueryClient {
             },
             // always close PIT in case of exceptions
             e -> {
-                if (pitId != null) {
-                    close(wrap(b -> {
-                    }, listener::onFailure));
-                }
                 listener.onFailure(e);
+                if (pitId != null && cfg.isCancelled() == false) {
+                    // ignore any success/failure to avoid obfuscating the response
+                    close(wrap(b -> {}, ex -> {}));
+                }
             });
     }
 

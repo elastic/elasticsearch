@@ -95,6 +95,9 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(Quantiles.TYPE.getPreferredName());
         overridden.add(TimingStats.TYPE.getPreferredName());
         overridden.add(DatafeedTimingStats.TYPE.getPreferredName());
+        // This is a special case so that categorical job results can be paired easily with anomaly results
+        // This is acceptable as both mappings are keyword for the results documents and for category definitions
+        overridden.add(CategoryDefinition.MLCATEGORY.getPreferredName());
 
         Set<String> expected = collectResultsDocFieldNames();
         expected.removeAll(overridden);

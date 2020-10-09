@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.AckedRequest;
@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,13 +31,11 @@ import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 
-import java.io.IOException;
-
-public class TransportWatcherServiceAction extends TransportMasterNodeAction<WatcherServiceRequest, AcknowledgedResponse> {
+public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNodeAction<WatcherServiceRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportWatcherServiceAction.class);
 
-    private AckedRequest ackedRequest = new AckedRequest() {
+    private static final AckedRequest ackedRequest = new AckedRequest() {
         @Override
         public TimeValue ackTimeout() {
             return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
@@ -64,11 +61,6 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
     protected void masterOperation(Task task, WatcherServiceRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         switch (request.getCommand()) {
@@ -89,7 +81,7 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
 
                     @Override
                     protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                        return new AcknowledgedResponse(acknowledged);
+                        return AcknowledgedResponse.of(acknowledged);
                     }
 
                     @Override

@@ -12,24 +12,21 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.slm.SnapshotRetentionService;
 
-import java.io.IOException;
-
 public class TransportExecuteSnapshotRetentionAction
-    extends TransportMasterNodeAction<ExecuteSnapshotRetentionAction.Request, AcknowledgedResponse> {
+    extends AcknowledgedTransportMasterNodeAction<ExecuteSnapshotRetentionAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportExecuteSnapshotRetentionAction.class);
 
@@ -49,18 +46,13 @@ public class TransportExecuteSnapshotRetentionAction
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
     protected void masterOperation(final Task task, final ExecuteSnapshotRetentionAction.Request request,
                                    final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
             logger.info("manually triggering SLM snapshot retention");
             this.retentionService.triggerRetention();
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(AcknowledgedResponse.TRUE);
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchException("failed to execute snapshot lifecycle retention", e));
         }

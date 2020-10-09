@@ -25,7 +25,7 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/upgrade_mode";
 
     private SetUpgradeModeAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

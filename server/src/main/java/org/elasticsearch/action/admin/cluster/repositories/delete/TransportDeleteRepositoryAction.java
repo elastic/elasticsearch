@@ -22,25 +22,22 @@ package org.elasticsearch.action.admin.cluster.repositories.delete;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
 /**
  * Transport action for unregister repository operation
  */
-public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<DeleteRepositoryRequest, AcknowledgedResponse> {
+public class TransportDeleteRepositoryAction extends AcknowledgedTransportMasterNodeAction<DeleteRepositoryRequest> {
 
     private final RepositoriesService repositoriesService;
 
@@ -59,11 +56,6 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(DeleteRepositoryRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
@@ -74,6 +66,6 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
         repositoriesService.unregisterRepository(
             request, ActionListener.delegateFailure(listener,
                 (delegatedListener, unregisterRepositoryResponse) ->
-                    delegatedListener.onResponse(new AcknowledgedResponse(unregisterRepositoryResponse.isAcknowledged()))));
+                    delegatedListener.onResponse(AcknowledgedResponse.of(unregisterRepositoryResponse.isAcknowledged()))));
     }
 }

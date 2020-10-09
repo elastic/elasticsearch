@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
@@ -39,8 +37,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportFinalizeJobExecutionAction extends TransportMasterNodeAction<FinalizeJobExecutionAction.Request,
-    AcknowledgedResponse> {
+public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMasterNodeAction<FinalizeJobExecutionAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportFinalizeJobExecutionAction.class);
 
@@ -58,11 +55,6 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -93,7 +85,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
         voidChainTaskExecutor.execute(ActionListener.wrap(
                 aVoids ->  {
                     logger.debug("finalized job [{}]", jobIdString);
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    listener.onResponse(AcknowledgedResponse.TRUE);
                 },
                 listener::onFailure
         ));

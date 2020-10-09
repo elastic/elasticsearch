@@ -407,7 +407,7 @@ public final class ExpressionTranslators {
 
                     q = null;
                     for (Object o : set) {
-                        assert o instanceof ZonedDateTime;
+                        assert o instanceof ZonedDateTime : "expected a ZonedDateTime, but got: " + o.getClass().getName();
                         // see comment in Ranges#doTranslate() as to why formatting as String is required
                         String zdt = formatter.format((ZonedDateTime) o);
                         RangeQuery right = new RangeQuery(in.source(), fa.exactAttribute().name(),

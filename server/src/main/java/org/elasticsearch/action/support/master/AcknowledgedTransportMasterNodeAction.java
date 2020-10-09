@@ -29,6 +29,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Base class for the common case of a {@link TransportMasterNodeAction} that responds with an {@link AcknowledgedResponse}.
+ */
 public abstract class AcknowledgedTransportMasterNodeAction<Request extends MasterNodeRequest<Request>>
         extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 

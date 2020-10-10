@@ -86,7 +86,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final Object syncLock = new Object();
 
     private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
-    private final long forceWriteThreshold;
+    private final long inMemoryBufferSize;
     private volatile long bufferedBytes = 0;
     private ReleasableBytesStreamOutput buffer;
 
@@ -110,7 +110,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert initialCheckpoint.offset == channel.position() :
             "initial checkpoint offset [" + initialCheckpoint.offset + "] is different than current channel position ["
                 + channel.position() + "]";
-        this.forceWriteThreshold = Math.toIntExact(bufferSize.getBytes());
+        this.inMemoryBufferSize = Math.toIntExact(bufferSize.getBytes());
         this.shardId = shardId;
         this.checkpointChannel = checkpointChannel;
         this.checkpointPath = checkpointPath;
@@ -187,8 +187,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
-        if (bufferedBytesBeforeAdd >= forceWriteThreshold * 4) {
-            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 16);
+        if (bufferedBytesBeforeAdd >= inMemoryBufferSize * 16) {
+            writeBufferedOps(Long.MAX_VALUE, true);
         }
 
         final Translog.Location location;
@@ -292,11 +292,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     public boolean flushNeeded() {
-        return bufferedBytes > forceWriteThreshold;
+        return bufferedBytes > inMemoryBufferSize;
     }
 
     public boolean shouldSync() {
-        return (totalOffset - lastSyncedCheckpoint.offset) > forceWriteThreshold;
+        return (totalOffset - lastSyncedCheckpoint.offset) > inMemoryBufferSize;
     }
 
     /**

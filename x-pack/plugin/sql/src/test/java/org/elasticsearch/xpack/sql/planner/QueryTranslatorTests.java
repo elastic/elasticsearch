@@ -981,6 +981,60 @@ public class QueryTranslatorTests extends ESTestCase {
             sc.script().toString());
         assertEquals("[{v=int}, {v=2}, {v=[10.0, null, 20.0]}]", sc.script().params().toString());
     }
+    
+    public void testTranslateInExpression_WhereClause_OneDatetimeValue() {
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date IN ('1969-05-13T12:34:56Z'::DATETIME)", zoneId);
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = translate(condition);
+        Query query = translation.query;
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+        assertEquals("1969-05-13T12:34:56Z", rq.upper().toString());
+        assertEquals("1969-05-13T12:34:56Z", rq.lower().toString());
+        assertTrue(rq.includeLower());
+        assertTrue(rq.includeUpper());
+        assertEquals(DATE_FORMAT, rq.format());
+        assertEquals(zoneId, rq.zoneId());
+    }
+    
+    public void testTranslateInExpression_WhereClause_MultipleDatetimeValues() {
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date IN ('1969-05-13T12:34:56Z'::DATETIME, '1994-01-26T12:34:56Z'::DATETIME)", zoneId);
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = translate(condition);
+        Query query = translation.query;
+        assertTrue(query instanceof BoolQuery);
+        BoolQuery bq = (BoolQuery) query;
+        assertFalse(bq.isAnd());
+        assertTrue(bq.left() instanceof RangeQuery);
+        assertTrue(bq.right() instanceof RangeQuery);
+    
+        RangeQuery lq = (RangeQuery) bq.left();
+        assertEquals("date", lq.field());
+        assertEquals("1969-05-13T12:34:56Z", lq.upper().toString());
+        assertEquals("1969-05-13T12:34:56Z", lq.lower().toString());
+        assertTrue(lq.includeLower());
+        assertTrue(lq.includeUpper());
+        assertEquals(DATE_FORMAT, lq.format());
+        assertEquals(zoneId, lq.zoneId());
+        
+        RangeQuery rq = (RangeQuery) bq.right();
+        assertEquals("date", rq.field());
+        assertEquals("1994-01-26T12:34:56Z", rq.upper().toString());
+        assertEquals("1994-01-26T12:34:56Z", rq.lower().toString());
+        assertTrue(rq.includeLower());
+        assertTrue(rq.includeUpper());
+        assertEquals(DATE_FORMAT, rq.format());
+        assertEquals(zoneId, rq.zoneId());
+    }
 
     public void testTranslateInExpression_HavingClause_Painless() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, 20, 30 - 10)");

@@ -129,3 +129,8 @@ whereWithInAndNullHandling1
 SELECT last_name l FROM "test_emp" WHERE languages in (2, 10)AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;
 whereWithInAndNullHandling2
 SELECT last_name l FROM "test_emp" WHERE languages in (2, null, 10) AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;
+
+whereWithInAndOneDatetimeValue
+SELECT birth_date FROM "test_emp" WHERE birth_date IN ('1959-12-25T12:12:12.000Z'::datetime);
+whereWithInAndMultipleDatetimeValues
+SELECT birth_date FROM "test_emp" WHERE birth_date IN ('1959-12-25T12:12:12.000Z'::datetime, '1959-07-23T12:12:12.000Z'::datetime);

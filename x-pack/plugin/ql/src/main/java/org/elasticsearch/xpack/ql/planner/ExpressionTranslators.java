@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ql.planner;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -335,7 +337,7 @@ public final class ExpressionTranslators {
             return query;
         }
     }
-
+    private static final Logger logger = LogManager.getLogger(ExpressionTranslator.class);
     public static class InComparisons extends ExpressionTranslator<In> {
 
         protected Query asQuery(In in, TranslatorHandler handler) {
@@ -358,10 +360,15 @@ public final class ExpressionTranslators {
                     set.add(handler.convert(valueOf(e), dt));
                 }
 
-                if (dt == DATETIME) {
+                Object value = valueOf(list.get(0));
+                if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
+                    DateFormatter formatter;
                     q = null;
-                    DateFormatter formatter = DateFormatter.forPattern(DATE_FORMAT);
-        
+                    if (value instanceof ZonedDateTime) {
+                        formatter = DateFormatter.forPattern(DATE_FORMAT);
+                    } else {
+                        formatter = DateFormatter.forPattern(TIME_FORMAT);
+                    }
                     for (Object o : set) {
                         RangeQuery right = new RangeQuery(in.source(), fa.exactAttribute().name(),
                                 o, true, o, true, formatter.pattern(), in.zoneId());

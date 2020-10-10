@@ -185,12 +185,13 @@ public abstract class InternalOrder extends BucketOrder {
                     .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
                     .collect(toList());
             return (lhs, rhs) -> {
-                Iterator<Comparator<T>> itr = comparators.iterator();
-                int result;
-                do {
-                    result = itr.next().compare(lhs, rhs);
-                } while (result == 0 && itr.hasNext());
-                return result;
+                for (Comparator<T> c : comparators) {
+                    int result = c.compare(lhs, rhs);
+                    if (result != 0) {
+                        return result;
+                    }
+                }
+                return 0;
             };
         }
 
@@ -198,12 +199,13 @@ public abstract class InternalOrder extends BucketOrder {
         public Comparator<Bucket> comparator() {
             List<Comparator<Bucket>> comparators = orderElements.stream().map(BucketOrder::comparator).collect(toList());
             return (lhs, rhs) -> {
-                Iterator<Comparator<Bucket>> itr = comparators.iterator();
-                int result;
-                do {
-                    result = itr.next().compare(lhs, rhs);
-                } while (result == 0 && itr.hasNext());
-                return result;
+                for (Comparator<Bucket> c : comparators) {
+                    int result = c.compare(lhs, rhs);
+                    if (result != 0) {
+                        return result;
+                    }
+                }
+                return 0;
             };
         }
 

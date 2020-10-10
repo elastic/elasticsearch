@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
@@ -53,57 +53,78 @@ public class ForLoopNode extends LoopNode {
     /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitForLoop(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitForLoop(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        if (initializerNode != null) {
+            initializerNode.visit(irTreeVisitor, scope);
+        }
+
+        if (getConditionNode() != null) {
+            getConditionNode().visit(irTreeVisitor, scope);
+        }
+
+        if (afterthoughtNode != null) {
+            afterthoughtNode.visit(irTreeVisitor, scope);
+        }
+
+        if (getBlockNode() != null) {
+            getBlockNode().visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
+    public ForLoopNode(Location location) {
+        super(location);
+    }
 
-        writeScope = writeScope.newScope();
+    @Override
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeStatementOffset(getLocation());
+
+        writeScope = writeScope.newBlockScope();
 
         Label start = new Label();
         Label begin = afterthoughtNode == null ? start : new Label();
         Label end = new Label();
 
         if (initializerNode instanceof DeclarationBlockNode) {
-            initializerNode.write(classWriter, methodWriter, writeScope);
+            initializerNode.write(writeScope);
         } else if (initializerNode instanceof ExpressionNode) {
             ExpressionNode initializer = (ExpressionNode)this.initializerNode;
 
-            initializer.write(classWriter, methodWriter, writeScope);
+            initializer.write(writeScope);
             methodWriter.writePop(MethodWriter.getType(initializer.getExpressionType()).getSize());
         }
 
         methodWriter.mark(start);
 
         if (getConditionNode() != null && isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, writeScope);
+            getConditionNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
         Variable loop = writeScope.getInternalVariable("loop");
 
         if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), location);
+            methodWriter.writeLoopCounter(loop.getSlot(), getLocation());
         }
 
         boolean allEscape = false;
 
         if (getBlockNode() != null) {
             allEscape = getBlockNode().doAllEscape();
-
-            getBlockNode().continueLabel = begin;
-            getBlockNode().breakLabel = end;
-            getBlockNode().write(classWriter, methodWriter, writeScope);
+            getBlockNode().write(writeScope.newLoopScope(begin, end));
         }
 
         if (afterthoughtNode != null) {
             methodWriter.mark(begin);
-            afterthoughtNode.write(classWriter, methodWriter, writeScope);
+            afterthoughtNode.write(writeScope);
             methodWriter.writePop(MethodWriter.getType(afterthoughtNode.getExpressionType()).getSize());
         }
 

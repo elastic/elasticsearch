@@ -284,12 +284,12 @@ public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
             "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":false}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
         String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": {\"@timestamp2\": "
             + "{\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, parser, "cannot update enabled setting for [_data_stream_timestamp]");
+        assertConflicts(mapping1, mapping2, parser, "Mapper for [_data_stream_timestamp]", "[enabled] from [false] to [true]");
 
         mapping1 = "{\"type\":{\"properties\":{\"@timestamp\": {\"type\": \"date\"}}}}}";
         mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": "
             + "{\"@timestamp2\": {\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, parser, "cannot update enabled setting for [_data_stream_timestamp]");
+        assertConflicts(mapping1, mapping2, parser, "Mapper for [_data_stream_timestamp]", "[enabled] from [false] to [true]");
     }
 
 }

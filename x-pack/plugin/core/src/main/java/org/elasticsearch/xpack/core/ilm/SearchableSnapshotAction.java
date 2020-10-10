@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -18,7 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,15 +32,17 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final String NAME = "searchable_snapshot";
 
     public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
+    public static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
     public static final String RESTORED_INDEX_PREFIX = "restored-";
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new SearchableSnapshotAction((String) a[0]));
+        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_REPOSITORY);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX);
     }
 
     public static SearchableSnapshotAction parse(XContentParser parser) {
@@ -47,22 +50,34 @@ public class SearchableSnapshotAction implements LifecycleAction {
     }
 
     private final String snapshotRepository;
+    private final boolean forceMergeIndex;
 
-    public SearchableSnapshotAction(String snapshotRepository) {
+    public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex) {
         if (Strings.hasText(snapshotRepository) == false) {
             throw new IllegalArgumentException("the snapshot repository must be specified");
         }
         this.snapshotRepository = snapshotRepository;
+        this.forceMergeIndex = forceMergeIndex;
+    }
+
+    public SearchableSnapshotAction(String snapshotRepository) {
+        this(snapshotRepository, true);
     }
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
-        this(in.readString());
+        this(in.readString(), in.getVersion().onOrAfter(Version.V_7_10_0) ? in.readBoolean() : true);
+    }
+
+    boolean isForceMergeIndex() {
+        return forceMergeIndex;
     }
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey checkNoWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
+        StepKey forceMergeStepKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
+        StepKey waitForSegmentCountKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
         StepKey generateSnapshotNameKey = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey cleanSnapshotKey = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
         StepKey createSnapshotKey = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
@@ -77,8 +92,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
         CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNoWriteIndex,
             waitForNoFollowerStepKey);
-        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, generateSnapshotNameKey,
-            client);
+        final WaitForNoFollowersStep waitForNoFollowersStep;
+        if (forceMergeIndex) {
+            waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, forceMergeStepKey, client);
+        } else {
+            waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, generateSnapshotNameKey, client);
+        }
+        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeStepKey, waitForSegmentCountKey, client, 1);
+        SegmentCountStep segmentCountStep = new SegmentCountStep(waitForSegmentCountKey, generateSnapshotNameKey, client, 1);
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey,
             snapshotRepository);
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
@@ -108,9 +129,25 @@ public class SearchableSnapshotAction implements LifecycleAction {
         SwapAliasesAndDeleteSourceIndexStep swapAliasesAndDeleteSourceIndexStep = new SwapAliasesAndDeleteSourceIndexStep(swapAliasesKey,
             null, client, RESTORED_INDEX_PREFIX);
 
-        return Arrays.asList(checkNoWriteIndexStep, waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep,
-            createSnapshotBranchingStep, mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep, copySettingsStep,
-            isDataStreamBranchingStep, replaceDataStreamBackingIndex, deleteSourceIndexStep, swapAliasesAndDeleteSourceIndexStep);
+        List<Step> steps = new ArrayList<>();
+        steps.add(checkNoWriteIndexStep);
+        steps.add(waitForNoFollowersStep);
+        if (forceMergeIndex) {
+            steps.add(forceMergeStep);
+            steps.add(segmentCountStep);
+        }
+        steps.add(generateSnapshotNameStep);
+        steps.add(cleanupSnapshotStep);
+        steps.add(createSnapshotBranchingStep);
+        steps.add(mountSnapshotStep);
+        steps.add(waitForGreenIndexHealthStep);
+        steps.add(copyMetadataStep);
+        steps.add(copySettingsStep);
+        steps.add(isDataStreamBranchingStep);
+        steps.add(replaceDataStreamBackingIndex);
+        steps.add(deleteSourceIndexStep);
+        steps.add(swapAliasesAndDeleteSourceIndexStep);
+        return steps;
     }
 
     @Override
@@ -126,12 +163,16 @@ public class SearchableSnapshotAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(forceMergeIndex);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(SNAPSHOT_REPOSITORY.getPreferredName(), snapshotRepository);
+        builder.field(FORCE_MERGE_INDEX.getPreferredName(), forceMergeIndex);
         builder.endObject();
         return builder;
     }

@@ -35,68 +35,67 @@ First of all, DON'T PANIC. It will take 5 minutes to get the gist of what Elasti
 
 * https://www.elastic.co/downloads/elasticsearch[Download] and unpack the Elasticsearch official distribution.
 * Run `bin/elasticsearch` on Linux or macOS. Run `bin\elasticsearch.bat` on Windows.
-* Run `curl -X GET http://localhost:9200/`.
-* Start more servers ...
+* Run `curl -X GET http://localhost:9200/` to verify Elasticsearch is running.
 
 === Indexing
 
-Let's try and index some twitter like information. First, let's index some tweets (the `twitter` index will be created automatically):
+First, index some sample JSON documents. The first request automatically creates
+the `my-index-000001` index.
 
 ----
-curl -XPUT 'http://localhost:9200/twitter/_doc/1?pretty' -H 'Content-Type: application/json' -d '
+curl -X POST 'http://localhost:9200/my-index-000001/_doc?pretty' -H 'Content-Type: application/json' -d '
 {
-  "user": "kimchy",
-  "post_date": "2009-11-15T13:12:00",
-  "message": "Trying out Elasticsearch, so far so good?"
+  "@timestamp": "2099-11-15T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
 }'
 
-curl -XPUT 'http://localhost:9200/twitter/_doc/2?pretty' -H 'Content-Type: application/json' -d '
+curl -X POST 'http://localhost:9200/my-index-000001/_doc?pretty' -H 'Content-Type: application/json' -d '
 {
-  "user": "kimchy",
-  "post_date": "2009-11-15T14:12:12",
-  "message": "Another tweet, will it be indexed?"
+  "@timestamp": "2099-11-15T14:12:12",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "elkbee"
+  }
 }'
 
-curl -XPUT 'http://localhost:9200/twitter/_doc/3?pretty' -H 'Content-Type: application/json' -d '
+curl -X POST 'http://localhost:9200/my-index-000001/_doc?pretty' -H 'Content-Type: application/json' -d '
 {
-  "user": "elastic",
-  "post_date": "2010-01-15T01:46:38",
-  "message": "Building the site, should be kewl"
-}'
-----
-
-Now, let's see if the information was added by GETting it:
-
-----
-curl -XGET 'http://localhost:9200/twitter/_doc/1?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/_doc/2?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/_doc/3?pretty=true'
-----
-
-=== Searching
-
-Mmm search..., shouldn't it be elastic?
-Let's find all the tweets that `kimchy` posted:
-
-----
-curl -XGET 'http://localhost:9200/twitter/_search?q=user:kimchy&pretty=true'
-----
-
-We can also use the JSON query language Elasticsearch provides instead of a query string:
-
-----
-curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
-{
-  "query" : {
-    "match" : { "user": "kimchy" }
+  "@timestamp": "2099-11-15T01:46:38",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "elkbee"
   }
 }'
 ----
 
-Just for kicks, let's get all the documents stored (we should see the tweet from `elastic` as well):
+=== Search
+
+Next, use a search request to find any documents with a `user.id` of `kimchy`.
 
 ----
-curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
+curl -X GET 'http://localhost:9200/my-index-000001/_search?q=user.id:kimchy&pretty=true'
+----
+
+Instead of a query string, you can use Elasticsearch's
+https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html[Query
+DSL] in the request body.
+
+----
+curl -X GET 'http://localhost:9200/my-index-000001/_search?pretty=true' -H 'Content-Type: application/json' -d '
+{
+  "query" : {
+    "match" : { "user.id": "kimchy" }
+  }
+}'
+----
+
+You can also retrieve all documents in `my-index-000001`.
+
+----
+curl -X GET 'http://localhost:9200/my-index-000001/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
   "query" : {
     "match_all" : {}
@@ -104,64 +103,61 @@ curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type:
 }'
 ----
 
-We can also do range search (the `post_date` was automatically identified as date)
+During indexing, Elasticsearch automatically mapped the `@timestamp` field as a
+date. This lets you run a range search.
 
 ----
-curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
+curl -X GET 'http://localhost:9200/my-index-000001/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
   "query" : {
     "range" : {
-      "post_date" : { "from" : "2009-11-15T13:00:00", "to" : "2009-11-15T14:00:00" }
+      "@timestamp": {
+        "from": "2099-11-15T13:00:00",
+        "to": "2099-11-15T14:00:00"
+      }
     }
   }
 }'
 ----
 
-There are many more options to perform search, after all, it's a search product no? All the familiar Lucene queries are available through the JSON query language, or through the query parser.
+=== Multiple indices
 
-=== Multi Tenant and Indices
+Elasticsearch supports multiple indices. The previous examples used an index
+called `my-index-000001`. You can create another index, `my-index-000002`, to
+store additional data when `my-index-000001` reaches a certain age or size. You
+can also use separate indices to store different types of data.
 
-Man, that twitter index might get big (in this case, index size == valuation). Let's see if we can structure our twitter system a bit differently in order to support such large amounts of data.
-
-Elasticsearch supports multiple indices. In the previous example we used an index called `twitter` that stored tweets for every user.
-
-Another way to define our simple twitter system is to have a different index per user (note, though that each index has an overhead). Here is the indexing curl's in this case:
-
-----
-curl -XPUT 'http://localhost:9200/kimchy/_doc/1?pretty' -H 'Content-Type: application/json' -d '
-{
-  "user": "kimchy",
-  "post_date": "2009-11-15T13:12:00",
-  "message": "Trying out Elasticsearch, so far so good?"
-}'
-
-curl -XPUT 'http://localhost:9200/kimchy/_doc/2?pretty' -H 'Content-Type: application/json' -d '
-{
-  "user": "kimchy",
-  "post_date": "2009-11-15T14:12:12",
-  "message": "Another tweet, will it be indexed?"
-}'
-----
-
-The above will index information into the `kimchy` index. Each user will get their own special index.
-
-Complete control on the index level is allowed. As an example, in the above case, we might want to change from the default 1 shard with 1 replica per index, to 2 shards with 1 replica per index (because this user tweets a lot). Here is how this can be done (the configuration can be in yaml as well):
+You can configure each index differently. The following request
+creates `my-index-000002` with two primary shards rather than the default of
+one. This may be helpful for larger indices.
 
 ----
-curl -XPUT http://localhost:9200/another_user?pretty -H 'Content-Type: application/json' -d '
+curl -X PUT 'http://localhost:9200/my-index-000002?pretty' -H 'Content-Type: application/json' -d '
 {
   "settings" : {
-    "index.number_of_shards" : 2,
-    "index.number_of_replicas" : 1
+    "index.number_of_shards" : 2
   }
 }'
 ----
 
-Search (and similar operations) are multi index aware. This means that we can easily search on more than one
-index (twitter user), for example:
+You can then add a document to `my-index-000002`.
 
 ----
-curl -XGET 'http://localhost:9200/kimchy,another_user/_search?pretty=true' -H 'Content-Type: application/json' -d '
+curl -X POST 'http://localhost:9200/my-index-000002/_doc?pretty' -H 'Content-Type: application/json' -d '
+{
+  "@timestamp": "2099-11-16T13:12:00",
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "user": {
+    "id": "kimchy"
+  }
+}'
+----
+
+You can search and perform other operations on multiple indices with a single
+request. The following request searches `my-index-000001` and `my-index-000002`.
+
+----
+curl -X GET 'http://localhost:9200/my-index-000001,my-index-000002/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
   "query" : {
     "match_all" : {}
@@ -169,10 +165,10 @@ curl -XGET 'http://localhost:9200/kimchy,another_user/_search?pretty=true' -H 'C
 }'
 ----
 
-Or on all the indices:
+You can omit the index from the request path to search all indices.
 
 ----
-curl -XGET 'http://localhost:9200/_search?pretty=true' -H 'Content-Type: application/json' -d '
+curl -X GET 'http://localhost:9200/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
   "query" : {
     "match_all" : {}
@@ -180,9 +176,7 @@ curl -XGET 'http://localhost:9200/_search?pretty=true' -H 'Content-Type: applica
 }'
 ----
 
-And the cool part about that? You can easily search on multiple twitter users (indices), with different boost levels per user (index), making social search so much simpler (results from my friends rank higher than results from friends of my friends).
-
-=== Distributed, Highly Available
+=== Distributed, highly available
 
 Let's face it, things will fail....
 
@@ -194,7 +188,7 @@ In order to play with the distributed nature of Elasticsearch, simply bring more
 
 We have just covered a very small portion of what Elasticsearch is all about. For more information, please refer to the https://www.elastic.co/products/elasticsearch[elastic.co] website. General questions can be asked on the https://discuss.elastic.co[Elastic Forum] or https://ela.st/slack[on Slack]. The Elasticsearch GitHub repository is reserved for bug reports and feature requests only.
 
-=== Building from Source
+=== Building from source
 
 Elasticsearch uses https://gradle.org[Gradle] for its build system.
 

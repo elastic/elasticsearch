@@ -109,7 +109,7 @@ public class BootstrapForTesting {
                 Permissions perms = new Permissions();
                 Security.addClasspathPermissions(perms);
                 // java.io.tmpdir
-                FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
+                FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete", false);
                 // custom test config file
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
                     FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(System.getProperty("tests.config")), "read,readlink");
@@ -139,6 +139,8 @@ public class BootstrapForTesting {
 
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
+                // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
+                addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
                     addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
@@ -147,7 +149,7 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true);
+                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {

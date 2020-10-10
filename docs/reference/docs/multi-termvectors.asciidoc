@@ -12,12 +12,12 @@ POST /_mtermvectors
 {
    "docs": [
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "_id": "2",
          "term_statistics": true
       },
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "_id": "1",
          "fields": [
             "message"
@@ -26,7 +26,7 @@ POST /_mtermvectors
    ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-multi-termvectors-api-request]]
 ==== {api-request-title}
@@ -89,7 +89,7 @@ in the request body:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_mtermvectors
+POST /my-index-000001/_mtermvectors
 {
    "docs": [
       {
@@ -105,14 +105,14 @@ POST /twitter/_mtermvectors
    ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 If all requested documents are in same index and the parameters are the same, you can use the
 following simplified syntax:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_mtermvectors
+POST /my-index-000001/_mtermvectors
 {
   "ids": [ "1", "2" ],
   "parameters": {
@@ -123,7 +123,7 @@ POST /twitter/_mtermvectors
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-multi-termvectors-artificial-doc]]
 ===== Artificial documents
@@ -137,20 +137,18 @@ POST /_mtermvectors
 {
    "docs": [
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "doc" : {
-            "user" : "John Doe",
-            "message" : "twitter test test test"
+            "message" : "test test test"
          }
       },
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "doc" : {
-           "user" : "Jane Doe",
-           "message" : "Another twitter test ..."
+           "message" : "Another test ..."
          }
       }
    ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]

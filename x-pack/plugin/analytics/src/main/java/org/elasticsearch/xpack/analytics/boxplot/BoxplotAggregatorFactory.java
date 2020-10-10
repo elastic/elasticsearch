@@ -7,12 +7,10 @@
 package org.elasticsearch.xpack.analytics.boxplot;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -29,9 +27,11 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final double compression;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(BoxplotAggregationBuilder.NAME,
+        builder.register(
+            BoxplotAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM),
-            (BoxplotAggregatorSupplier) BoxplotAggregator::new);
+            BoxplotAggregator::new,
+                true);
     }
 
     BoxplotAggregatorFactory(String name,
@@ -54,18 +54,14 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            BoxplotAggregationBuilder.NAME);
-
-        if (aggregatorSupplier instanceof BoxplotAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected BoxplotAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        return ((BoxplotAggregatorSupplier) aggregatorSupplier).build(name, config.getValuesSource(), config.format(), compression,
-            searchContext, parent, metadata);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return queryShardContext.getValuesSourceRegistry()
+            .getAggregator(BoxplotAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, config.getValuesSource(), config.format(), compression, searchContext, parent, metadata);
     }
 }

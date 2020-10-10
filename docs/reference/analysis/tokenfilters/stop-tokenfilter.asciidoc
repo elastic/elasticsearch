@@ -4,7 +4,7 @@
 <titleabbrev>Stop</titleabbrev>
 ++++
 
-Removes https://en.wikipedia.org/wiki/Stop_words[stop words] from a token
+Removes {wikipedia}/Stop_words[stop words] from a token
 stream.
 
 When not customized, the filter removes the following English stop words by

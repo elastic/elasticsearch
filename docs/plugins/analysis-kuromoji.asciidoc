@@ -33,9 +33,8 @@ characters, such as `ｏ` and `ｆ`. If a text contains full-width characters,
 the tokenizer can produce unexpected tokens.
 
 For example, the `kuromoji_tokenizer` tokenizer converts the text
-`Ｃｕｌｔｕｒｅ　ｏｆ　Ｊａｐａｎ` to the tokens `[ culture, o, f, japan ]` by
-default. However, a user may expect the tokenizer to instead produce 
-`[ culture, of, japan ]`.
+`Ｃｕｌｔｕｒｅ　ｏｆ　Ｊａｐａｎ` to the tokens `[ culture, o, f, japan ]`
+instead of `[ culture, of, japan ]`.
 
 To avoid this, add the <<analysis-icu-normalization-charfilter,`icu_normalizer`
 character filter>> to a custom analyzer based on the `kuromoji` analyzer. The

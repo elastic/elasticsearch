@@ -37,7 +37,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -85,11 +84,6 @@ public interface IndexFieldData<FD extends LeafFieldData> {
      */
     BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode,
             Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra);
-
-    /**
-     * Clears any resources associated with this field data.
-     */
-    void clear();
 
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
@@ -251,14 +245,14 @@ public interface IndexFieldData<FD extends LeafFieldData> {
 
     interface Builder {
 
-        IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService);
+        IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService);
     }
 
     interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 
-        IndexFieldData<FD> localGlobalDirect(DirectoryReader indexReader) throws Exception;
+        IndexFieldData<FD> loadGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     }
 }

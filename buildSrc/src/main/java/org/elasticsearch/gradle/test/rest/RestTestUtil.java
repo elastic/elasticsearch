@@ -21,11 +21,13 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.bundling.Zip;
 
@@ -36,54 +38,39 @@ public class RestTestUtil {
 
     private RestTestUtil() {}
 
-    /**
-     * Creates a task with the source set name of type {@link RestIntegTestTask}
-     */
-    static RestIntegTestTask setupTask(Project project, String sourceSetName) {
-        // create task - note can not use .register due to the work in RestIntegTestTask's constructor :(
-        // see: https://github.com/elastic/elasticsearch/issues/47804
-        RestIntegTestTask testTask = project.getTasks().create(sourceSetName, RestIntegTestTask.class);
-        testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-        testTask.setDescription("Runs the REST tests against an external cluster");
-        // make the new test run after unit tests
-        testTask.mustRunAfter(project.getTasks().named("test"));
-        return testTask;
+    static ElasticsearchCluster createTestCluster(Project project, SourceSet sourceSet) {
+        // eagerly create the testCluster container so it is easily available for configuration
+        @SuppressWarnings("unchecked")
+        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
+            .getExtensions()
+            .getByName(TestClustersPlugin.EXTENSION_NAME);
+        return testClusters.create(sourceSet.getName());
     }
 
     /**
-     * Creates the runner task and configures the test clusters
+     * Creates a task with the source set name of type {@link RestIntegTestTask}
      */
-    static RestTestRunnerTask setupRunnerTask(Project project, RestIntegTestTask testTask, SourceSet sourceSet) {
-        RestTestRunnerTask runner = testTask.getRunner();
-        runner.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
-        runner.setClasspath(sourceSet.getRuntimeClasspath());
-
-        // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
-        project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
-            Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
-            testTask.dependsOn(bundle);
-            if (project.getPath().startsWith(":modules:")) {
-                runner.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
-            } else {
-                runner.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
-            }
+    static Provider<RestIntegTestTask> registerTask(Project project, SourceSet sourceSet) {
+        // lazily create the test task
+        Provider<RestIntegTestTask> testProvider = project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
+            testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+            testTask.setDescription("Runs the REST tests against an external cluster");
+            testTask.mustRunAfter(project.getTasks().named("test"));
+            testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
+            testTask.setClasspath(sourceSet.getRuntimeClasspath());
+            // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
+            project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
+                Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
+                testTask.dependsOn(bundle);
+                if (project.getPath().contains("modules:")) {
+                    testTask.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
+                } else {
+                    testTask.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
+                }
+            });
         });
 
-        // es-plugins may declare dependencies on additional modules, add those to the test cluster too.
-        project.afterEvaluate(p -> {
-            PluginPropertiesExtension pluginPropertiesExtension = project.getExtensions().findByType(PluginPropertiesExtension.class);
-            if (pluginPropertiesExtension != null) { // not all projects are defined as plugins
-                pluginPropertiesExtension.getExtendedPlugins().forEach(pluginName -> {
-                    Project extensionProject = project.getProject().findProject(":modules:" + pluginName);
-                    if (extensionProject != null) { // extension plugin may be defined, but not required to be a module
-                        Zip extensionBundle = (Zip) extensionProject.getTasks().getByName("bundlePlugin");
-                        testTask.dependsOn(extensionBundle);
-                        runner.getClusters().forEach(c -> c.module(extensionBundle.getArchiveFile()));
-                    }
-                });
-            }
-        });
-        return runner;
+        return testProvider;
     }
 
     /**

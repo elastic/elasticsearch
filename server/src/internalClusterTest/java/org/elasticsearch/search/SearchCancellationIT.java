@@ -20,14 +20,18 @@
 package org.elasticsearch.search;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +42,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.LeafFieldsLookup;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -52,10 +57,12 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchCancellationIT extends ESIntegTestCase {
@@ -245,6 +252,26 @@ public class SearchCancellationIT extends ESIntegTestCase {
         client().prepareClearScroll().addScrollId(scrollId).get();
     }
 
+    public void testCancelMultiSearch() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+        ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch().add(client().prepareSearch("test")
+            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+            .execute();
+        awaitForBlock(plugins);
+        cancelSearch(MultiSearchAction.NAME);
+        disableBlocks(plugins);
+        for (MultiSearchResponse.Item item : msearchResponse.actionGet()) {
+            if (item.getFailure() != null) {
+                assertThat(ExceptionsHelper.unwrap(item.getFailure(), TaskCancelledException.class), notNullValue());
+            } else {
+                assertFailures(item.getResponse());
+                for (ShardSearchFailure shardFailure : item.getResponse().getShardFailures()) {
+                    assertThat(ExceptionsHelper.unwrap(shardFailure.getCause(), TaskCancelledException.class), notNullValue());
+                }
+            }
+        }
+    }
 
     public static class ScriptedBlockPlugin extends MockScriptPlugin {
         static final String SCRIPT_NAME = "search_block";

@@ -128,7 +128,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
         Map<String, Set<AliasMetadata>> aliases = new HashMap<>();
 
         String currentFieldName;
@@ -143,7 +143,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
 
                 if ("status".equals(currentFieldName)) {
                     if ((token = parser.nextToken()) != Token.FIELD_NAME) {
-                        ensureExpectedToken(Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        ensureExpectedToken(Token.VALUE_NUMBER, token, parser);
                         status = RestStatus.fromCode(parser.intValue());
                     }
                 } else if ("error".equals(currentFieldName)) {

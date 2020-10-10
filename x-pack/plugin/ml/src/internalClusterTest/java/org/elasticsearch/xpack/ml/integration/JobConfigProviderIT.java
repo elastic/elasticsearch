@@ -257,7 +257,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get().getMessage(), containsString("I don't like this update"));
     }
 
-    public void testAllowNoJobs() throws InterruptedException {
+    public void testAllowNoMatch() throws InterruptedException {
         AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 

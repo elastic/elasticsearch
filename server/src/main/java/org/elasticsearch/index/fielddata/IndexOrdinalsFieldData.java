@@ -40,7 +40,7 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<LeafOrdina
      * Load a global view of the ordinals for the given {@link IndexReader}.
      */
     @Override
-    IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception;
+    IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     /**
      * Returns the underlying {@link OrdinalMap} for this fielddata

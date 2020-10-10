@@ -6,7 +6,7 @@
 
 The `edge_ngram` tokenizer first breaks text down into words whenever it
 encounters one of a list of specified characters, then it emits
-https://en.wikipedia.org/wiki/N-gram[N-grams] of each word where the start of
+{wikipedia}/N-gram[N-grams] of each word where the start of
 the N-gram is anchored to the beginning of the word.
 
 Edge N-Grams are useful for _search-as-you-type_ queries.

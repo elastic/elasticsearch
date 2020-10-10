@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -21,8 +20,11 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults.PREDICTION_PROBABILITY;
+import static org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults.PREDICTION_SCORE;
 import static org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults.FEATURE_IMPORTANCE;
 
 
@@ -43,8 +45,8 @@ public class ParsedInference extends ParsedAggregation {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ParsedInference, Void> PARSER =
         new ConstructingObjectParser<>(ParsedInference.class.getSimpleName(), true,
-            args -> new ParsedInference(args[0], (List<FeatureImportance>) args[1],
-                (List<TopClassEntry>) args[2], (String) args[3]));
+            args -> new ParsedInference(args[0], (List<Map<String, Object>>) args[1],
+                (List<TopClassEntry>) args[2], (String) args[3], (Double) args[4], (Double) args[5]));
 
     static {
         PARSER.declareField(optionalConstructorArg(), (p, n) -> {
@@ -63,11 +65,13 @@ public class ParsedInference extends ParsedAggregation {
             }
             return o;
         }, CommonFields.VALUE, ObjectParser.ValueType.VALUE);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> FeatureImportance.fromXContent(p),
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.map(),
             new ParseField(SingleValueInferenceResults.FEATURE_IMPORTANCE));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TopClassEntry.fromXContent(p),
             new ParseField(ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD));
         PARSER.declareString(optionalConstructorArg(), new ParseField(WarningInferenceResults.NAME));
+        PARSER.declareDouble(optionalConstructorArg(), new ParseField(PREDICTION_PROBABILITY));
+        PARSER.declareDouble(optionalConstructorArg(), new ParseField(PREDICTION_SCORE));
         declareAggregationFields(PARSER);
     }
 
@@ -78,25 +82,31 @@ public class ParsedInference extends ParsedAggregation {
     }
 
     private final Object value;
-    private final List<FeatureImportance> featureImportance;
+    private final List<Map<String, Object>> featureImportance;
     private final List<TopClassEntry> topClasses;
     private final String warning;
+    private final Double predictionProbability;
+    private final Double predictionScore;
 
     ParsedInference(Object value,
-                    List<FeatureImportance> featureImportance,
+                    List<Map<String, Object>> featureImportance,
                     List<TopClassEntry> topClasses,
-                    String warning) {
+                    String warning,
+                    Double predictionProbability,
+                    Double predictionScore) {
         this.value = value;
         this.warning = warning;
         this.featureImportance = featureImportance;
         this.topClasses = topClasses;
+        this.predictionProbability = predictionProbability;
+        this.predictionScore = predictionScore;
     }
 
     public Object getValue() {
         return value;
     }
 
-    public List<FeatureImportance> getFeatureImportance() {
+    public List<Map<String, Object>> getFeatureImportance() {
         return featureImportance;
     }
 
@@ -119,6 +129,12 @@ public class ParsedInference extends ParsedAggregation {
             }
             if (featureImportance != null && featureImportance.size() > 0) {
                 builder.field(FEATURE_IMPORTANCE, featureImportance);
+            }
+            if (predictionProbability != null) {
+                builder.field(PREDICTION_PROBABILITY, predictionProbability);
+            }
+            if (predictionScore != null) {
+                builder.field(PREDICTION_SCORE, predictionScore);
             }
         }
         return builder;

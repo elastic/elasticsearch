@@ -92,6 +92,13 @@ public interface Function {
          * @return the position, null in case the collector is exhausted
          */
         Map<String, Object> getBucketPosition();
+
+        /**
+         * Whether the collector optimizes change detection by narrowing the required query.
+         *
+         * @return true if the collector optimizes change detection
+         */
+        boolean isOptimized();
     }
 
     /**

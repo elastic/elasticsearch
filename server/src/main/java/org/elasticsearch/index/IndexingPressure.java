@@ -55,11 +55,11 @@ public class IndexingPressure {
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
 
-    public Releasable markCoordinatingOperationStarted(long bytes) {
+    public Releasable markCoordinatingOperationStarted(long bytes, boolean forceExecution) {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
-        if (totalBytes > primaryAndCoordinatingLimits) {
+        if (forceExecution == false && totalBytes > primaryAndCoordinatingLimits) {
             long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
@@ -146,6 +146,6 @@ public class IndexingPressure {
         return new IndexingPressureStats(totalCombinedCoordinatingAndPrimaryBytes.get(), totalCoordinatingBytes.get(),
             totalPrimaryBytes.get(), totalReplicaBytes.get(), currentCombinedCoordinatingAndPrimaryBytes.get(),
             currentCoordinatingBytes.get(), currentPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingRejections.get(),
-            primaryRejections.get(), replicaRejections.get());
+            primaryRejections.get(), replicaRejections.get(), primaryAndCoordinatingLimits);
     }
 }

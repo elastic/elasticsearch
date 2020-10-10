@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -44,23 +44,34 @@ public class BooleanNode extends BinaryNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitBoolean(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitBoolean(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getLeftNode().visit(irTreeVisitor, scope);
+        getRightNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */
 
+    public BooleanNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeDebugInfo(getLocation());
 
         if (operation == Operation.AND) {
             Label fals = new Label();
             Label end = new Label();
 
-            getLeftNode().write(classWriter, methodWriter, writeScope);
+            getLeftNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            getRightNode().write(classWriter, methodWriter, writeScope);
+            getRightNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.push(true);
@@ -73,9 +84,9 @@ public class BooleanNode extends BinaryNode {
             Label fals = new Label();
             Label end = new Label();
 
-            getLeftNode().write(classWriter, methodWriter, writeScope);
+            getLeftNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            getRightNode().write(classWriter, methodWriter, writeScope);
+            getRightNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.mark(tru);

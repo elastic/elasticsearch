@@ -41,6 +41,8 @@ import java.util.Objects;
 public class ExtendedStatsAggregationBuilder
         extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ExtendedStatsAggregationBuilder> {
     public static final String NAME = "extended_stats";
+    public static final ValuesSourceRegistry.RegistryKey<ExtendedStatsAggregatorProvider> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, ExtendedStatsAggregatorProvider.class);
 
     public static final ObjectParser<ExtendedStatsAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, ExtendedStatsAggregationBuilder::new);
@@ -129,5 +131,10 @@ public class ExtendedStatsAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

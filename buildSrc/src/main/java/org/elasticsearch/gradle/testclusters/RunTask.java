@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
@@ -34,6 +35,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -131,11 +133,13 @@ public class RunTask extends DefaultTestClustersTask {
     @TaskAction
     public void runAndWait() throws IOException {
         List<BufferedReader> toRead = new ArrayList<>();
+        List<BooleanSupplier> aliveChecks = new ArrayList<>();
         try {
             for (ElasticsearchCluster cluster : getClusters()) {
                 for (ElasticsearchNode node : cluster.getNodes()) {
                     BufferedReader reader = Files.newBufferedReader(node.getEsStdoutFile());
                     toRead.add(reader);
+                    aliveChecks.add(node::isProcessAlive);
                 }
             }
 
@@ -146,6 +150,10 @@ public class RunTask extends DefaultTestClustersTask {
                         readData = true;
                         logger.lifecycle(bufferedReader.readLine());
                     }
+                }
+
+                if (aliveChecks.stream().allMatch(BooleanSupplier::getAsBoolean) == false) {
+                    throw new GradleException("Elasticsearch cluster died");
                 }
 
                 if (readData == false) {

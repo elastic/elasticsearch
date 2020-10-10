@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 
@@ -18,6 +19,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * Represents the lifecycle of an index from creation to deletion. A
@@ -39,15 +42,15 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
         ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
-        AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
+        AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
-        FreezeAction.NAME, SearchableSnapshotAction.NAME);
+        MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
     static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
-    private static Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
+    private static final Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
 
     static {
         ALLOWED_ACTIONS.put(HOT_PHASE, VALID_HOT_ACTIONS);
@@ -81,10 +84,31 @@ public class TimeseriesLifecycleType implements LifecycleType {
                     actionMap.put(UnfollowAction.NAME, new UnfollowAction());
                     phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
                 }
+
+                if (shouldInjectMigrateStepForPhase(phase)) {
+                    Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
+                    actionMap.put(MigrateAction.NAME, new MigrateAction(true));
+                    phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
+                }
+
                 orderedPhases.add(phase);
             }
         }
         return orderedPhases;
+    }
+
+    static boolean shouldInjectMigrateStepForPhase(Phase phase) {
+        AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
+        if (allocateAction != null) {
+            if (definesAllocationRules(allocateAction)) {
+                // we won't automatically migrate the data if an allocate action that defines any allocation rule is present
+                return false;
+            }
+        }
+
+        MigrateAction migrateAction = (MigrateAction) phase.getActions().get(MigrateAction.NAME);
+        // if the user configured the {@link MigrateAction} already we won't automatically configure it
+        return migrateAction == null;
     }
 
     @Override
@@ -116,7 +140,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
             throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
         } else {
             // Find the previous phase before `index` that exists in `phases` and return it
-            while (--index >=0) {
+            while (--index >= 0) {
                 String phaseName = VALID_PHASES.get(index);
                 if (phases.containsKey(phaseName)) {
                     return phaseName;
@@ -134,16 +158,16 @@ public class TimeseriesLifecycleType implements LifecycleType {
         switch (phase.getName()) {
             case HOT_PHASE:
                 return ORDERED_VALID_HOT_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
-                    .filter(Objects::nonNull).collect(Collectors.toList());
+                    .filter(Objects::nonNull).collect(toList());
             case WARM_PHASE:
-                return ORDERED_VALID_WARM_ACTIONS.stream() .map(a -> actions.getOrDefault(a, null))
-                    .filter(Objects::nonNull).collect(Collectors.toList());
+                return ORDERED_VALID_WARM_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                    .filter(Objects::nonNull).collect(toList());
             case COLD_PHASE:
                 return ORDERED_VALID_COLD_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
-                    .filter(Objects::nonNull).collect(Collectors.toList());
+                    .filter(Objects::nonNull).collect(toList());
             case DELETE_PHASE:
                 return ORDERED_VALID_DELETE_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
-                    .filter(Objects::nonNull).collect(Collectors.toList());
+                    .filter(Objects::nonNull).collect(toList());
             default:
                 throw new IllegalArgumentException("lifecycle type[" + TYPE + "] does not support phase[" + phase.getName() + "]");
         }
@@ -172,7 +196,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         int index = orderedActionNames.indexOf(currentActionName);
         if (index < 0) {
             throw new IllegalArgumentException("[" + currentActionName + "] is not a valid action for phase [" + phase.getName()
-                    + "] in lifecycle type [" + TYPE + "]");
+                + "] in lifecycle type [" + TYPE + "]");
         } else {
             // Find the next action after `index` that exists in the phase and return it
             while (++index < orderedActionNames.size()) {
@@ -197,7 +221,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
             phase.getActions().forEach((actionName, action) -> {
                 if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
                     throw new IllegalArgumentException("invalid action [" + actionName + "] " +
-                        "defined in phase [" + phase.getName() +"]");
+                        "defined in phase [" + phase.getName() + "]");
                 }
             });
         });
@@ -215,5 +239,24 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 "] action may not be used in the [" + HOT_PHASE +
                 "] phase without an accompanying [" + RolloverAction.NAME + "] action");
         }
+
+        // look for phases that have the migrate action enabled and also specify allocation rules via the AllocateAction
+        String phasesWithConflictingMigrationActions = phases.stream()
+            .filter(phase -> phase.getActions().containsKey(MigrateAction.NAME) &&
+                ((MigrateAction) phase.getActions().get(MigrateAction.NAME)).isEnabled() &&
+                phase.getActions().containsKey(AllocateAction.NAME) &&
+                definesAllocationRules((AllocateAction) phase.getActions().get(AllocateAction.NAME))
+            )
+            .map(Phase::getName)
+            .collect(Collectors.joining(","));
+        if (Strings.hasText(phasesWithConflictingMigrationActions)) {
+            throw new IllegalArgumentException("phases [" + phasesWithConflictingMigrationActions + "] specify an enabled " +
+                MigrateAction.NAME + " action and an " + AllocateAction.NAME + " action with allocation rules. specify only a single " +
+                "data migration in each phase");
+        }
+    }
+
+    private static boolean definesAllocationRules(AllocateAction action) {
+        return action.getRequire().isEmpty() == false || action.getInclude().isEmpty() == false || action.getExclude().isEmpty() == false;
     }
 }

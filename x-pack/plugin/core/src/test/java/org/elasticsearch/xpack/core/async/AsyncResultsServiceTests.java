@@ -154,7 +154,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         TestTask task = (TestTask) taskManager.register("test", "test", new TestRequest("test request"));
         try {
             boolean shouldExpire = randomBoolean();
-            long expirationTime = System.currentTimeMillis() + randomLongBetween(1000, 10000) * (shouldExpire ? -1 : 1);
+            long expirationTime = System.currentTimeMillis() + randomLongBetween(100000, 1000000) * (shouldExpire ? -1 : 1);
             task.setExpirationTime(expirationTime);
 
             if (updateInitialResultsInStore) {

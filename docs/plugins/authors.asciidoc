@@ -116,5 +116,5 @@ AccessController.doPrivileged(
 );
 --------------------------------------------------
 
-See http://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
+See https://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
 for more information.

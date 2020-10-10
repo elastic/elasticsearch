@@ -11,9 +11,9 @@ information for the stream's backing indices.
 
 [source,console]
 ----
-GET /twitter/_shard_stores
+GET /my-index-000001/_shard_stores
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-shard-stores-api-request]]

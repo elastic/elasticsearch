@@ -19,13 +19,18 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -37,21 +42,38 @@ import java.util.Set;
 public final class FetchFieldsPhase implements FetchSubPhase {
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) {
-        FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
+        FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
         if (fetchFieldsContext == null) {
-            return;
+            return null;
         }
 
-        SearchHit hit = hitContext.hit();
-        SourceLookup sourceLookup = context.lookup().source();
-        FieldValueRetriever fieldValueRetriever = fetchFieldsContext.fieldValueRetriever();
-
-        Set<String> ignoredFields = getIgnoredFields(hit);
-        Map<String, DocumentField> documentFields = fieldValueRetriever.retrieve(sourceLookup, ignoredFields);
-        for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
-            hit.setDocumentField(entry.getKey(), entry.getValue());
+        MapperService mapperService = fetchContext.mapperService();
+        SearchLookup searchLookup = fetchContext.searchLookup();
+        if (fetchContext.mapperService().documentMapper().sourceMapper().enabled() == false) {
+            throw new IllegalArgumentException("Unable to retrieve the requested [fields] since _source is disabled " +
+                "in the mappings for index [" + fetchContext.getIndexName() + "]");
         }
+
+        FieldFetcher fieldFetcher = FieldFetcher.create(mapperService, searchLookup, fetchFieldsContext.fields());
+        return new FetchSubPhaseProcessor() {
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {
+                fieldFetcher.setNextReader(readerContext);
+            }
+
+            @Override
+            public void process(HitContext hitContext) throws IOException {
+                SearchHit hit = hitContext.hit();
+                SourceLookup sourceLookup = hitContext.sourceLookup();
+
+                Set<String> ignoredFields = getIgnoredFields(hit);
+                Map<String, DocumentField> documentFields = fieldFetcher.fetch(sourceLookup, ignoredFields);
+                for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
+                    hit.setDocumentField(entry.getKey(), entry.getValue());
+                }
+            }
+        };
     }
 
     private Set<String> getIgnoredFields(SearchHit hit) {

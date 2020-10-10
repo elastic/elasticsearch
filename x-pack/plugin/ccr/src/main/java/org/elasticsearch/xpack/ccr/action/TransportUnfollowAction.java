@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -44,12 +43,11 @@ import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
-public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowAction.Request, AcknowledgedResponse> {
+public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeAction<UnfollowAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportUnfollowAction.class);
 
@@ -77,11 +75,6 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -127,7 +120,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                                         "[{}] removed retention lease [{}] on all leader primary shards",
                                         indexMetadata.getIndex(),
                                         retentionLeaseId);
-                                listener.onResponse(new AcknowledgedResponse(true));
+                                listener.onResponse(AcknowledgedResponse.TRUE);
                             }
 
                             @Override

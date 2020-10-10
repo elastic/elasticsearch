@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -79,21 +79,31 @@ public class UnaryMathNode extends UnaryNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitUnaryMath(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitUnaryMath(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getChildNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */
 
+    public UnaryMathNode(Location location) {
+        super(location);
+    }
+
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+    public void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeDebugInfo(getLocation());
 
         if (operation == Operation.NOT) {
             Label fals = new Label();
             Label end = new Label();
 
-            getChildNode().write(classWriter, methodWriter, writeScope);
+            getChildNode().write(writeScope);
 
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
@@ -103,7 +113,7 @@ public class UnaryMathNode extends UnaryNode {
             methodWriter.push(true);
             methodWriter.mark(end);
         } else {
-            getChildNode().write(classWriter, methodWriter, writeScope);
+            getChildNode().write(writeScope);
 
             // Def calls adopt the wanted return value. If there was a narrowing cast,
             // we need to flag that so that it's done at runtime.

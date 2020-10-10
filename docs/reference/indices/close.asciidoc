@@ -8,9 +8,9 @@ Closes an index.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_close
+POST /my-index-000001/_close
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[close-index-api-request]]

@@ -4,7 +4,7 @@
 <titleabbrev>CJK bigram</titleabbrev>
 ++++
 
-Forms https://en.wikipedia.org/wiki/Bigram[bigrams] out of CJK (Chinese,
+Forms {wikipedia}/Bigram[bigrams] out of CJK (Chinese,
 Japanese, and Korean) tokens.
 
 This filter is included in {es}'s built-in <<cjk-analyzer,CJK language
@@ -161,7 +161,7 @@ All non-CJK input is passed through unmodified.
 `output_unigrams`
 (Optional, boolean)
 If `true`, emit tokens in both bigram and
-https://en.wikipedia.org/wiki/N-gram[unigram] form. If `false`, a CJK character
+{wikipedia}/N-gram[unigram] form. If `false`, a CJK character
 is output in unigram form when it has no adjacent characters. Defaults to
 `false`.
 

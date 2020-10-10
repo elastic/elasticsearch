@@ -140,7 +140,7 @@ openssl pkcs12 -export -in client.crt -inkey private_key.pem \
         -name "client" -out client.p12
 ```
 
-If no explicit configuration is provided, the http://docs.oracle.com/javase/7/docs/technotes/guides/security/jsse/JSSERefGuide.html#CustomizingStores[system default configuration]
+If no explicit configuration is provided, the https://docs.oracle.com/javase/7/docs/technotes/guides/security/jsse/JSSERefGuide.html#CustomizingStores[system default configuration]
 will be used.
 
 === Others
@@ -154,11 +154,11 @@ indefinitely and negative hostname resolutions for ten seconds.  If the resolved
 addresses of the hosts to which you are connecting the client to vary with time
 then you might want to modify the default JVM behavior. These can be modified by
 adding
-http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
+https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
 and
-http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
+https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
 to your
-http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
+https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
 security policy].
 
 === Node selector

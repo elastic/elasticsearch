@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -32,6 +33,10 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
     private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = { '[', ']', '>' };
 
     public static GroupConfig randomGroupConfig() {
+        return randomGroupConfig(Version.CURRENT);
+    }
+
+    public static GroupConfig randomGroupConfig(Version version) {
         Map<String, Object> source = new LinkedHashMap<>();
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
@@ -44,16 +49,16 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
                 Type type = randomFrom(SingleGroupSource.Type.values());
                 switch (type) {
                     case TERMS:
-                        groupBy = TermsGroupSourceTests.randomTermsGroupSource();
+                        groupBy = TermsGroupSourceTests.randomTermsGroupSource(version);
                         break;
                     case HISTOGRAM:
-                        groupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
+                        groupBy = HistogramGroupSourceTests.randomHistogramGroupSource(version);
                         break;
                     case DATE_HISTOGRAM:
-                        groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
+                        groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource(version);
                         break;
                     case GEOTILE_GRID:
-                        groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
+                        groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource(version);
                         break;
                     default:
                         fail("unknown group source type, please implement tests and add support here");
@@ -122,6 +127,28 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         try (XContentParser parser = createParser(source)) {
             Exception e = expectThrows(ParsingException.class, () -> GroupConfig.fromXContent(parser, false));
             assertTrue(e.getMessage().startsWith("Invalid group name"));
+        }
+    }
+
+    public void testInvalidGroupSourceValidation() throws IOException {
+        XContentBuilder source = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject(randomAlphaOfLengthBetween(1, 20))
+            .startObject("terms")
+            .endObject()
+            .endObject()
+            .endObject();
+
+        // lenient, passes but reports invalid
+        try (XContentParser parser = createParser(source)) {
+            GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
+            assertFalse(groupConfig.isValid());
+        }
+
+        // strict throws
+        try (XContentParser parser = createParser(source)) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> GroupConfig.fromXContent(parser, false));
+            assertTrue(e.getMessage().startsWith("Required one of fields [field, script], but none were specified."));
         }
     }
 

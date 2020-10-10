@@ -19,7 +19,7 @@ This allows for very fast execution, even faster than if you had written a `nati
 
 Expressions support a subset of javascript syntax: a single expression.
 
-See the link:http://lucene.apache.org/core/6_0_0/expressions/index.html?org/apache/lucene/expressions/js/package-summary.html[expressions module documentation]
+See the https://lucene.apache.org/core/{lucene_version_path}/expressions/index.html?org/apache/lucene/expressions/js/package-summary.html[expressions module documentation]
 for details on what operators and functions are available.
 
 Variables in `expression` scripts are available to access:

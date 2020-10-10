@@ -77,7 +77,7 @@ heap size check, you must configure the <<heap-size,heap size>>.
 === File descriptor check
 
 File descriptors are a Unix construct for tracking open "files". In Unix
-though, https://en.wikipedia.org/wiki/Everything_is_a_file[everything is
+though, {wikipedia}/Everything_is_a_file[everything is
 a file]. For example, "files" could be a physical file, a virtual file
 (e.g., `/proc/loadavg`), or network sockets. Elasticsearch requires
 lots of file descriptors (e.g., every shard is composed of multiple

@@ -219,7 +219,7 @@ Painless's native support for regular expressions has syntax constructs:
 
 * `/pattern/`: Pattern literals create patterns. This is the only way to create
 a pattern in painless. The pattern inside the ++/++'s are just
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expressions].
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expressions].
 See <<pattern-flags>> for more.
 * `=~`: The find operator return a `boolean`, `true` if a subsequence of the
 text matches, `false` otherwise.
@@ -281,7 +281,7 @@ POST hockey/_update_by_query
 ----------------------------------------------------------------
 
 `Matcher.replaceAll` is just a call to Java's `Matcher`'s
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#replaceAll-java.lang.String-[replaceAll]
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#replaceAll-java.lang.String-[replaceAll]
 method so it supports `$1` and `\1` for replacements:
 
 [source,console]

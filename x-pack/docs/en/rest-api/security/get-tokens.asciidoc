@@ -125,24 +125,24 @@ seconds) that the token expires in, and the type:
   "type" : "Bearer",
   "expires_in" : 1200,
   "authentication" : {
-          "username" : "test_admin",
-          "roles" : [
-            "superuser"
-          ],
-          "full_name" : null,
-          "email" : null,
-          "metadata" : { },
-          "enabled" : true,
-          "authentication_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "lookup_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "authentication_type" : "realm"
-        }
+   "username" : "test_admin",
+   "roles" : [
+    "superuser"
+   ],
+  "full_name" : null,
+  "email" : null,
+  "metadata" : { },
+  "enabled" : true,
+  "authentication_realm" : {
+   "name" : "file",
+   "type" : "file"
+  },
+  "lookup_realm" : {
+   "name" : "file",
+   "type" : "file"
+  },
+  "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
@@ -182,24 +182,24 @@ seconds) that the token expires in, the type, and the refresh token:
   "expires_in" : 1200,
   "refresh_token": "vLBPvmAB6KvwvJZr27cS",
   "authentication" : {
-          "username" : "test_admin",
-          "roles" : [
-            "superuser"
-          ],
-          "full_name" : null,
-          "email" : null,
-          "metadata" : { },
-          "enabled" : true,
-          "authentication_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "lookup_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "authentication_type" : "realm"
-        }
+   "username" : "test_admin",
+   "roles" : [
+    "superuser"
+    ],
+   "full_name" : null,
+   "email" : null,
+   "metadata" : { },
+   "enabled" : true,
+   "authentication_realm" : {
+    "name" : "file",
+    "type" : "file"
+    },
+   "lookup_realm" : {
+    "name" : "file",
+    "type" : "file"
+   },
+   "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
@@ -232,24 +232,24 @@ be used one time.
   "expires_in" : 1200,
   "refresh_token": "vLBPvmAB6KvwvJZr27cS",
   "authentication" : {
-        "username" : "test_admin",
-        "roles" : [
-          "superuser"
-        ],
-        "full_name" : null,
-        "email" : null,
-        "metadata" : { },
-        "enabled" : true,
-        "authentication_realm" : {
-          "name" : "file",
-          "type" : "file"
-        },
-        "lookup_realm" : {
-          "name" : "file",
-          "type" : "file"
-        },
-        "authentication_type" : "token"
-      }
+   "username" : "test_admin",
+   "roles" : [
+    "superuser"
+    ],
+   "full_name" : null,
+   "email" : null,
+   "metadata" : { },
+   "enabled" : true,
+   "authentication_realm" : {
+    "name" : "file",
+    "type" : "file"
+    },
+   "lookup_realm" : {
+    "name" : "file",
+    "type" : "file"
+    },
+   "authentication_type" : "token"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
@@ -282,24 +282,24 @@ Each refresh token may only be used one time. When the mutual authentication is 
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
   "kerberos_authentication_response_token": "YIIB6wYJKoZIhvcSAQICAQBuggHaMIIB1qADAg",
   "authentication" : {
-          "username" : "test_admin",
-          "roles" : [
-            "superuser"
-          ],
-          "full_name" : null,
-          "email" : null,
-          "metadata" : { },
-          "enabled" : true,
-          "authentication_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "lookup_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "authentication_type" : "realm"
-        }
+   "username" : "test_admin",
+   "roles" : [
+    "superuser"
+    ],
+   "full_name" : null,
+   "email" : null,
+   "metadata" : { },
+   "enabled" : true,
+   "authentication_realm" : {
+    "name" : "file",
+    "type" : "file"
+    },
+   "lookup_realm" : {
+    "name" : "file",
+    "type" : "file"
+   },
+   "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

@@ -85,24 +85,24 @@ The get token API returns the following information about the access token:
   "type" : "Bearer",
   "expires_in" : 1200,
   "authentication" : {
-          "username" : "test_admin",
-          "roles" : [
-            "superuser"
-          ],
-          "full_name" : null,
-          "email" : null,
-          "metadata" : { },
-          "enabled" : true,
-          "authentication_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "lookup_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "authentication_type" : "realm"
-        }
+    "username" : "test_admin",
+    "roles" : [
+      "superuser"
+      ],
+    "full_name" : null,
+    "email" : null,
+    "metadata" : { },
+    "enabled" : true,
+    "authentication_realm" : {
+      "name" : "file",
+      "type" : "file"
+      },
+    "lookup_realm" : {
+      "name" : "file",
+      "type" : "file"
+      },
+    "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
@@ -143,24 +143,24 @@ The get token API returns the following information:
   "expires_in" : 1200,
   "refresh_token": "vLBPvmAB6KvwvJZr27cS",
   "authentication" : {
-          "username" : "test_admin",
-          "roles" : [
-            "superuser"
-          ],
-          "full_name" : null,
-          "email" : null,
-          "metadata" : { },
-          "enabled" : true,
-          "authentication_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "lookup_realm" : {
-            "name" : "file",
-            "type" : "file"
-          },
-          "authentication_type" : "realm"
-        }
+    "username" : "test_admin",
+    "roles" : [
+      "superuser"
+      ],
+    "full_name" : null,
+    "email" : null,
+    "metadata" : { },
+    "enabled" : true,
+    "authentication_realm" : {
+      "name" : "file",
+      "type" : "file"
+      },
+    "lookup_realm" : {
+      "name" : "file",
+      "type" : "file"
+      },
+    "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]

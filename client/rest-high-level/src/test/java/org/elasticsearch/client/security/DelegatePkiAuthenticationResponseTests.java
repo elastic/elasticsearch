@@ -59,7 +59,7 @@ public class DelegatePkiAuthenticationResponseTests extends
         assertThat(serverTestInstance.getAccessToken(), is(clientInstance.getAccessToken()));
         assertThat(serverTestInstance.getExpiresIn(), is(clientInstance.getExpiresIn()));
         assertThat(clientInstance.getType(), is("Bearer"));
-        AuthenticateResponse serverAuthenticationResponse = CreateServerAuthenticationResponse(serverTestInstance.getAuthentication());
+        AuthenticateResponse serverAuthenticationResponse = createServerAuthenticationResponse(serverTestInstance.getAuthentication());
         User user = serverTestInstance.getAuthentication().getUser();
         assertThat(serverAuthenticationResponse, equalTo(clientInstance.getAuthenticationResponse()));
     }
@@ -94,7 +94,7 @@ public class DelegatePkiAuthenticationResponseTests extends
             new Authentication.RealmRef(lookupRealmName, lookupRealmType, nodeName), Version.CURRENT, authenticationType, metadata);
     }
 
-    AuthenticateResponse CreateServerAuthenticationResponse(Authentication authentication){
+    AuthenticateResponse createServerAuthenticationResponse(Authentication authentication){
         User user = authentication.getUser();
         org.elasticsearch.client.security.user.User cUser = new org.elasticsearch.client.security.user.User(user.principal(),
             Arrays.asList(user.roles()), user.metadata(), user.fullName(), user.email());

@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 
 public class RestGetTokenActionTests extends ESTestCase {
 
@@ -89,6 +90,9 @@ public class RestGetTokenActionTests extends ESTestCase {
         assertThat(map, hasEntry("expires_in", Math.toIntExact(createTokenResponse.getExpiresIn().seconds())));
         assertThat(map, hasEntry("refresh_token", createTokenResponse.getRefreshToken()));
         assertThat(map, hasEntry("kerberos_authentication_response_token", createTokenResponse.getKerberosAuthenticationResponseToken()));
+        assertThat(map, hasKey("authentication"));
+        assertThat((Map<String, Object>)(map.get("authentication")),
+            hasEntry("username", createTokenResponse.getAuthentication().getUser().principal()));
         assertEquals(6, map.size());
     }
 

@@ -40,9 +40,10 @@ public class CreateTokenResponseTests extends ESTestCase {
         final String scope = randomBoolean() ? null : randomAlphaOfLength(4);
         final String type = randomAlphaOfLength(6);
         final String kerberosAuthenticationResponseToken = randomBoolean() ? null : randomAlphaOfLength(7);
-        final AuthenticateResponse authenticateResponse = new AuthenticateResponse(new User("abcdefg", Arrays.asList( "kdjklsd" )),
-            true, new AuthenticateResponse.RealmInfo("abcd", "ghjk" ), new AuthenticateResponse.RealmInfo("xfhfhgc", "sgdhfhg" ),
-            "realm");
+        final AuthenticateResponse authenticateResponse = new AuthenticateResponse(new User(randomAlphaOfLength(7),
+            Arrays.asList( randomAlphaOfLength(9) )),
+            true, new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7) ),
+            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5) ), "realm");
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);

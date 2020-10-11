@@ -84,7 +84,9 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         out.writeOptionalString(scope);
         out.writeOptionalString(refreshToken);
         out.writeOptionalString(kerberosAuthenticationResponseToken);
-        authentication.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            authentication.writeTo(out);
+        }
     }
 
     @Override

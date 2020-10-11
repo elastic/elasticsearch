@@ -65,6 +65,8 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         out.writeString(accessTokenString);
         out.writeString(refreshTokenString);
         out.writeTimeValue(expiresIn);
-        authentication.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            authentication.writeTo(out);
+        }
     }
 }

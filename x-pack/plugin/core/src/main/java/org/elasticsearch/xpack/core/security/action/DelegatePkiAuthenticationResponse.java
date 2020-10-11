@@ -67,7 +67,9 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(accessToken);
         out.writeTimeValue(expiresIn);
-        authentication.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            authentication.writeTo(out);
+        }
     }
 
     @Override

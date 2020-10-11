@@ -87,7 +87,7 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Authentication, Void> AuthPARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<Authentication, Void> AUTH_PARSER = new ConstructingObjectParser<>(
         "authentication", true,
         a -> new Authentication(new User((String) a[0], ((ArrayList<String>) a[1]).toArray(new String[0]), (String) a[2], (String) a[3],
             (Map<String, Object>) a[4], (boolean) a[5]), (Authentication.RealmRef) a[6], (Authentication.RealmRef) a[7], Version.CURRENT,
@@ -97,19 +97,19 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
             a -> new Authentication.RealmRef((String) a[0], (String) a[1], "node_name"));
         realmInfoParser.declareString(ConstructingObjectParser.constructorArg(), User.Fields.REALM_NAME);
         realmInfoParser.declareString(ConstructingObjectParser.constructorArg(), User.Fields.REALM_TYPE);
-        AuthPARSER.declareString(ConstructingObjectParser.constructorArg(), User.Fields.USERNAME);
-        AuthPARSER.declareStringArray(ConstructingObjectParser.constructorArg(), User.Fields.ROLES);
-        AuthPARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), User.Fields.FULL_NAME);
-        AuthPARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), User.Fields.EMAIL);
-        AuthPARSER.declareObject(ConstructingObjectParser.constructorArg(), (parser, c) -> parser.map(), User.Fields.METADATA);
-        AuthPARSER.declareBoolean(ConstructingObjectParser.constructorArg(), User.Fields.ENABLED);
-        AuthPARSER.declareObject(ConstructingObjectParser.constructorArg(), realmInfoParser, User.Fields.AUTHENTICATION_REALM);
-        AuthPARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), realmInfoParser, User.Fields.LOOKUP_REALM);
-        AuthPARSER.declareString(ConstructingObjectParser.constructorArg(), User.Fields.AUTHENTICATION_TYPE);
+        AUTH_PARSER.declareString(ConstructingObjectParser.constructorArg(), User.Fields.USERNAME);
+        AUTH_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), User.Fields.ROLES);
+        AUTH_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), User.Fields.FULL_NAME);
+        AUTH_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), User.Fields.EMAIL);
+        AUTH_PARSER.declareObject(ConstructingObjectParser.constructorArg(), (parser, c) -> parser.map(), User.Fields.METADATA);
+        AUTH_PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), User.Fields.ENABLED);
+        AUTH_PARSER.declareObject(ConstructingObjectParser.constructorArg(), realmInfoParser, User.Fields.AUTHENTICATION_REALM);
+        AUTH_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), realmInfoParser, User.Fields.LOOKUP_REALM);
+        AUTH_PARSER.declareString(ConstructingObjectParser.constructorArg(), User.Fields.AUTHENTICATION_TYPE);
     }
 
     public static Authentication parseAuthentication(final XContentParser parser) throws IOException {
-        return AuthPARSER.apply(parser, null);
+        return AUTH_PARSER.apply(parser, null);
     }
 
     public static Authentication createAuthentication() {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -327,11 +328,12 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             Environment env,
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
+            BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
             return Collections.singletonMap(
                 "tracking",
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
+                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
 
                     @Override
                     protected void assertSnapshotOrGenericThread() {

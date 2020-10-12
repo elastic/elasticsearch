@@ -24,6 +24,7 @@ import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ProcessInfo;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
@@ -35,10 +36,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
@@ -62,13 +61,11 @@ import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -465,7 +462,7 @@ public class DockerTests extends PackagingTestCase {
         final Result result = sh.runIgnoreExitCode("elasticsearch-setup-passwords auto");
 
         assertFalse("elasticsearch-setup-passwords command should have failed", result.isSuccess());
-        assertThat(result.stdout, containsString("java.net.UnknownHostException: this.is.not.valid: Name or service not known"));
+        assertThat(result.stdout, containsString("java.net.UnknownHostException: this.is.not.valid"));
     }
 
     /**
@@ -535,7 +532,7 @@ public class DockerTests extends PackagingTestCase {
         // expected group.
         final Shell localSh = new Shell();
         final String findResults = localSh.run(
-            "docker run --rm --tty " + getImageName(distribution) + " bash -c ' touch data/test && find . -not -gid 0 ' "
+            "docker run --rm --tty " + getImageName(distribution) + " bash -c ' touch data/test && find . \\! -group 0 ' "
         ).stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
@@ -631,16 +628,13 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Java process running inside the container has the expected UID, GID and username.
      */
     public void test130JavaHasCorrectOwnership() {
-        final List<String> processes = sh.run("ps -o uid,gid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
+        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "java");
 
-        assertThat("Expected a single java process", processes, hasSize(1));
+        assertThat("Incorrect UID", info.uid, equalTo(1000));
+        assertThat("Incorrect username", info.username, equalTo("elasticsearch"));
 
-        final String[] fields = processes.get(0).trim().split("\\s+");
-
-        assertThat(fields, arrayWithSize(3));
-        assertThat("Incorrect UID", fields[0], equalTo("1000"));
-        assertThat("Incorrect GID", fields[1], equalTo("0"));
-        assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
+        assertThat("Incorrect GID", info.gid, equalTo(0));
+        assertThat("Incorrect group", info.group, equalTo("root"));
     }
 
     /**
@@ -648,17 +642,15 @@ public class DockerTests extends PackagingTestCase {
      * The PID is particularly important because PID 1 handles signal forwarding and child reaping.
      */
     public void test131InitProcessHasCorrectPID() {
-        final List<String> processes = sh.run("ps -o pid,uid,gid,user -p 1").stdout.lines().skip(1).collect(Collectors.toList());
+        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "tini");
 
-        assertThat("Expected a single process", processes, hasSize(1));
+        assertThat("Incorrect PID", info.pid, equalTo(1));
 
-        final String[] fields = processes.get(0).trim().split("\\s+");
+        assertThat("Incorrect UID", info.uid, equalTo(1000));
+        assertThat("Incorrect username", info.username, equalTo("elasticsearch"));
 
-        assertThat(fields, arrayWithSize(4));
-        assertThat("Incorrect PID", fields[0], equalTo("1"));
-        assertThat("Incorrect UID", fields[1], equalTo("1000"));
-        assertThat("Incorrect GID", fields[2], equalTo("0"));
-        assertThat("Incorrect username", fields[3], equalTo("elasticsearch"));
+        assertThat("Incorrect GID", info.gid, equalTo(0));
+        assertThat("Incorrect group", info.group, equalTo("root"));
     }
 
     /**

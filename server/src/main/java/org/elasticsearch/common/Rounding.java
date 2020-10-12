@@ -1263,7 +1263,7 @@ public abstract class Rounding implements Writeable {
 
                 @Override
                 public long[] fixedRoundingPoints() {
-                    // NOCOMMIT we can pick real rounding points
+                    // TODO we can likely translate here
                     return null;
                 }
             };

@@ -53,7 +53,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         String name,
         AggregatorFactories factories,
         Rounding rounding,
-        Rounding.Prepared preparedRounding,
         BucketOrder order,
         boolean keyed,
         long minDocCount,
@@ -65,6 +64,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
+        Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
         Aggregator optimized = DateHistogramAdaptedFromDateRangeAggregator.buildOptimizedOrNull(
             name,
             factories,
@@ -165,7 +165,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, hardBounds,
+        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
             config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

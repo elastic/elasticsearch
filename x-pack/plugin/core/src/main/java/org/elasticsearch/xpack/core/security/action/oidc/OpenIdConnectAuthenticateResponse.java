@@ -36,7 +36,7 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         accessTokenString = in.readString();
         refreshTokenString = in.readString();
         expiresIn = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
             authentication = new Authentication(in);
         }
     }
@@ -65,7 +65,7 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         out.writeString(accessTokenString);
         out.writeString(refreshTokenString);
         out.writeTimeValue(expiresIn);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             authentication.writeTo(out);
         }
     }

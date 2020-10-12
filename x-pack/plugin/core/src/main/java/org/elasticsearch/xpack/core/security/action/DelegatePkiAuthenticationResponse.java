@@ -46,7 +46,7 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         super(input);
         accessToken = input.readString();
         expiresIn = input.readTimeValue();
-        if (input.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (input.getVersion().onOrAfter(Version.V_7_11_0)) {
             authentication = new Authentication(input);
         }
     }
@@ -67,7 +67,7 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(accessToken);
         out.writeTimeValue(expiresIn);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             authentication.writeTo(out);
         }
     }

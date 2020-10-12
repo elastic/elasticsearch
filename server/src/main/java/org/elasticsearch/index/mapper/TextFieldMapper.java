@@ -57,6 +57,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -460,6 +461,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public IndexFieldCapabilities fieldCaps() {
+            return null;    // don't show impl sub-fields in fieldcaps
+        }
+
+        @Override
         public String typeName() {
             return "phrase";
         }
@@ -490,6 +496,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
+        }
+
+        @Override
+        public IndexFieldCapabilities fieldCaps() {
+            return null;    // don't show impl subfields in field caps
         }
 
         @Override

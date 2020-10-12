@@ -8,6 +8,12 @@ setup:
                 properties:
                   text:
                     type:     text
+                  text_with_subs:
+                    type:     text
+                    index_prefixes:
+                      min_chars: 2
+                      max_chars: 3
+                    index_phrases: true
                   keyword:
                     type:     keyword
                   number:
@@ -316,3 +322,18 @@ setup:
   - match: {fields.misc.unmapped.searchable:            false}
   - match: {fields.misc.unmapped.aggregatable:          false}
   - match: {fields.misc.unmapped.indices:               ["test2", "test3"]}
+
+---
+"Field caps exclude text implementation subfields":
+  - skip:
+      version: " - 8.0.0"
+      reason: subfields excluded in 7.11
+
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: [ text_with_subs ]
+
+  - match: { fields.text_with_subs: true }
+  - match: { fields.text_with_subs._index_prefix: false }
+  - match: { fields.text_with_subs._index_phrase: false }

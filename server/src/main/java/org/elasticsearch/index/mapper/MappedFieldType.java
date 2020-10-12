@@ -39,6 +39,7 @@ import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
@@ -109,6 +110,10 @@ public abstract class MappedFieldType {
     /** Returns the field family type, as used in field capabilities */
     public String familyTypeName() {
         return typeName();
+    }
+
+    public IndexFieldCapabilities fieldCaps() {
+        return new IndexFieldCapabilities(name, familyTypeName(), isSearchable(), isAggregatable(), meta);
     }
 
     public String name() {

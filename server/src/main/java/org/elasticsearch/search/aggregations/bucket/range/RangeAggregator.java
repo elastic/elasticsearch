@@ -232,15 +232,19 @@ public class RangeAggregator extends BucketsAggregator {
         this.format = format;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
-
         this.ranges = ranges;
+        collector = hasOverlap() ? new OverlapCollector() : new NoOverlapCollector();
+    }
 
-        double[] maxTo = new double[this.ranges.length];
-        maxTo[0] = this.ranges[0].to;
+    private boolean hasOverlap() {
+        double lastEnd = ranges[0].to;
         for (int i = 1; i < this.ranges.length; ++i) {
-            maxTo[i] = Math.max(this.ranges[i].to,maxTo[i-1]);
+            if (ranges[i].from < lastEnd) {
+                return true;
+            }
+            lastEnd = ranges[i].to;
         }
-        collector = new OverlapCollector(maxTo);
+        return false;
     }
 
     @Override
@@ -328,11 +332,34 @@ public class RangeAggregator extends BucketsAggregator {
         int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException;
     }
 
+    private class NoOverlapCollector implements Collector {
+        @Override
+        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
+            int lo = lowBound, hi = ranges.length - 1;
+            while (lo <= hi) {
+                final int mid = (lo + hi) >>> 1;
+                if (value < ranges[mid].from) {
+                    hi = mid - 1;
+                } else if (value >= ranges[mid].to) {
+                    lo = mid + 1;
+                } else {
+                    collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, mid));
+                    return mid;
+                }
+            }
+            return lo;
+        }
+    }
+
     private class OverlapCollector implements Collector {
         private final double[] maxTo;
 
-        public OverlapCollector(double[] maxTo) {
-            this.maxTo = maxTo;
+        public OverlapCollector() {
+            maxTo = new double[ranges.length];
+            maxTo[0] = ranges[0].to;
+            for (int i = 1; i < ranges.length; ++i) {
+                maxTo[i] = Math.max(ranges[i].to, maxTo[i - 1]);
+            }
         }
 
         @Override

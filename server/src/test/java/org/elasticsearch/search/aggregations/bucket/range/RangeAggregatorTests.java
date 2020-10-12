@@ -48,6 +48,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class RangeAggregatorTests extends AggregatorTestCase {
 
@@ -293,6 +294,34 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             pc = ranges.get(1).getAggregations().get("c");
             assertThat(pc.cardinality().map(i -> i), equalTo(2));
         });
+    }
+
+    public void testOverlappingRanges() throws IOException {
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");
+        aggregationBuilder.field(NUMBER_FIELD_NAME);
+        aggregationBuilder.addRange(0d, 5d);
+        aggregationBuilder.addRange(10d, 20d);
+        aggregationBuilder.addRange(0d, 20d);
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 11)));
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 2)));
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 3)));
+        }, result -> {
+            InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertThat(ranges, hasSize(3));
+            assertThat(ranges.get(0).getFrom(), equalTo(0d));
+            assertThat(ranges.get(0).getTo(), equalTo(5d));
+            assertThat(ranges.get(0).getDocCount(), equalTo(2L));
+            assertThat(ranges.get(1).getFrom(), equalTo(00d));
+            assertThat(ranges.get(1).getTo(), equalTo(20d));
+            assertThat(ranges.get(1).getDocCount(), equalTo(4L));
+            assertThat(ranges.get(2).getFrom(), equalTo(10d));
+            assertThat(ranges.get(2).getTo(), equalTo(20d));
+            assertThat(ranges.get(2).getDocCount(), equalTo(1L));
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER));
     }
 
     private void testCase(Query query,

@@ -302,7 +302,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents
         // in its child space
+<<<<<<< Updated upstream
         NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::isFieldMapped);
+=======
+        NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::fieldMapper);
+>>>>>>> Stashed changes
         if (nestedHelper.mightMatchNonNestedDocs(innerQuery, path)) {
             innerQuery = Queries.filtered(innerQuery, nestedObjectMapper.nestedTypeFilter());
         }

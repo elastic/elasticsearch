@@ -300,12 +300,20 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
     protected void populateCommonFields(QueryShardContext context, SuggestionSearchContext.SuggestionContext suggestionContext) {
 
         Objects.requireNonNull(field, "field must not be null");
+<<<<<<< Updated upstream
         if (context.isFieldMapped(field) == false) {
             throw new IllegalArgumentException("no mapping found for field [" + field + "]");
         }
 
         MappedFieldType fieldType = context.getFieldType(field);
         if (analyzer == null) {
+=======
+
+        MappedFieldType fieldType = context.fieldMapper(field);
+        if (fieldType == null) {
+            throw new IllegalArgumentException("no mapping found for field [" + field + "]");
+        } else if (analyzer == null) {
+>>>>>>> Stashed changes
             suggestionContext.setAnalyzer(context.getSearchAnalyzer(fieldType));
         } else {
             Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);

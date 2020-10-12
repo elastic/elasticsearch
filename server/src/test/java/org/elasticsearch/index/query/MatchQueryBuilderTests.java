@@ -290,14 +290,14 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testExactOnUnsupportedField() throws Exception {
         MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: " +
             "[mapped_geo_point]", e.getMessage());
         query.lenient(true);
         query.toQuery(context); // no exception
     }
 
-    public void testParseFailsWithMultipleFields() throws IOException {
+    public void testParseFailsWithMultipleFields() {
         String json = "{\n" +
             "  \"match\" : {\n" +
             "    \"message1\" : {\n" +
@@ -321,7 +321,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
-    public void testParseFailsWithTermsArray() throws Exception {
+    public void testParseFailsWithTermsArray() {
         String json1 = "{\n" +
             "  \"match\" : {\n" +
             "    \"message1\" : {\n" +

@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -42,6 +41,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Everything used to build and execute aggregations and the
+ * {@link ValuesSource data sources} that power them.
+ * <p>
+ * In production we always use the {@link ProductionAggregationContext} but
+ * this is {@code abstract} so that tests can build it without creating the
+ * massing {@link QueryShardContext}.
+ */
 public abstract class AggregationContext {
     /**
      * The query at the top level of the search in which these aggregations are running.
@@ -146,85 +153,93 @@ public abstract class AggregationContext {
     public abstract NestedScope nestedScope();
 
     /**
-     * Build a {@link AggregationContext} wrapping a {@link SearchContext} and the
-     * top level {@link Query}.
+     * Implementation of {@linkplain AggregationContext} for production usage
+     * that wraps our ubiquitous {@link QueryShardContext} and the top level
+     * {@link Query}. Unit tests should avoid using this because it requires
+     * a <strong>huge</strong> portion of a real Elasticsearch node.
      */
-    public static AggregationContext from(QueryShardContext context, Query query) {
-        return new AggregationContext() {
-            @Override
-            public Query query() {
-                return query;
-            }
+    public static class ProductionAggregationContext extends AggregationContext {
+        private final QueryShardContext context;
+        private final Query query;
 
-            @Override
-            public long nowInMillis() {
-                return context.nowInMillis();
-            }
+        public ProductionAggregationContext(QueryShardContext context, Query query) {
+            this.context = context;
+            this.query = query;
+        }
 
-            @Override
-            protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return context.getForField(ft);
-            }
+        @Override
+        public Query query() {
+            return query;
+        }
 
-            @Override
-            public MappedFieldType getFieldType(String path) {
-                return context.getFieldType(path);
-            }
+        @Override
+        public long nowInMillis() {
+            return context.nowInMillis();
+        }
 
-            @Override
-            public Mapper getMapper(String path) {
-                return context.getMapperService().documentMapper().mappers().getMapper(path);
-            }
+        @Override
+        protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
+            return context.getForField(ft);
+        }
 
-            @Override
-            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> scriptContext) {
-                return context.compile(script, scriptContext);
-            }
+        @Override
+        public MappedFieldType getFieldType(String path) {
+            return context.getFieldType(path);
+        }
 
-            @Override
-            public SearchLookup lookup() {
-                return context.lookup();
-            }
+        @Override
+        public Mapper getMapper(String path) {
+            return context.getMapperService().documentMapper().mappers().getMapper(path);
+        }
 
-            @Override
-            public ValuesSourceRegistry getValuesSourceRegistry() {
-                return context.getValuesSourceRegistry();
-            }
+        @Override
+        public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> scriptContext) {
+            return context.compile(script, scriptContext);
+        }
 
-            @Override
-            public BigArrays bigArrays() {
-                return context.bigArrays();
-            }
+        @Override
+        public SearchLookup lookup() {
+            return context.lookup();
+        }
 
-            @Override
-            public IndexSearcher searcher() {
-                return context.searcher();
-            }
+        @Override
+        public ValuesSourceRegistry getValuesSourceRegistry() {
+            return context.getValuesSourceRegistry();
+        }
 
-            @Override
-            public Query buildQuery(QueryBuilder builder) throws IOException {
-                return builder.toQuery(context);
-            }
+        @Override
+        public BigArrays bigArrays() {
+            return context.bigArrays();
+        }
 
-            @Override
-            public IndexSettings getIndexSettings() {
-                return context.getIndexSettings();
-            }
+        @Override
+        public IndexSearcher searcher() {
+            return context.searcher();
+        }
 
-            @Override
-            public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
-                return SortBuilder.buildSort(sortBuilders, context);
-            }
+        @Override
+        public Query buildQuery(QueryBuilder builder) throws IOException {
+            return builder.toQuery(context);
+        }
 
-            @Override
-            public ObjectMapper getObjectMapper(String path) {
-                return context.getObjectMapper(path);
-            }
+        @Override
+        public IndexSettings getIndexSettings() {
+            return context.getIndexSettings();
+        }
 
-            @Override
-            public NestedScope nestedScope() {
-                return context.nestedScope();
-            }
-        };
+        @Override
+        public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
+            return SortBuilder.buildSort(sortBuilders, context);
+        }
+
+        @Override
+        public ObjectMapper getObjectMapper(String path) {
+            return context.getObjectMapper(path);
+        }
+
+        @Override
+        public NestedScope nestedScope() {
+            return context.nestedScope();
+        }
     }
 }

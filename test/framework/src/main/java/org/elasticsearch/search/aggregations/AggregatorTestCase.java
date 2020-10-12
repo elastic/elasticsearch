@@ -111,6 +111,7 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -250,7 +251,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         throws IOException {
         @SuppressWarnings("unchecked")
         A aggregator = (A) aggregationBuilder.rewrite(searchContext.getQueryShardContext())
-            .build(AggregationContext.from(searchContext.getQueryShardContext(), searchContext.query()), null)
+            .build(new ProductionAggregationContext(searchContext.getQueryShardContext(), searchContext.query()), null)
             .create(searchContext, null, CardinalityUpperBound.ONE);
         return aggregator;
     }

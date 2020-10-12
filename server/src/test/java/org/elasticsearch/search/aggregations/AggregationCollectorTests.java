@@ -23,7 +23,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -62,7 +62,7 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
             aggParser.nextToken();
             SearchContext context = createSearchContext(index);
             final AggregatorFactories factories = AggregatorFactories.parseAggregators(aggParser)
-                .build(AggregationContext.from(context.getQueryShardContext(), new MatchAllDocsQuery()), null);
+                .build(new ProductionAggregationContext(context.getQueryShardContext(), new MatchAllDocsQuery()), null);
             final Aggregator[] aggregators = factories.createTopLevelAggregators(context);
             assertEquals(1, aggregators.length);
             return aggregators[0].scoreMode().needsScores();

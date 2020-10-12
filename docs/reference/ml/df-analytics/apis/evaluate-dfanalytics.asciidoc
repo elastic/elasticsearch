@@ -316,7 +316,9 @@ POST _ml/data_frame/_evaluate
       "predicted_field": "ml.price_prediction", <4>
       "metrics": {  
         "r_squared": {},
-        "mse": {}
+        "mse": {},
+        "msle": {"offset": 10},
+        "huber": {"delta": 1.5}
       }
     }
   }
@@ -353,7 +355,9 @@ POST _ml/data_frame/_evaluate
       "predicted_field": "ml.G3_prediction", <3>
       "metrics": {  
         "r_squared": {},
-        "mse": {}
+        "mse": {},
+        "msle": {},
+        "huber": {}
       }
     }
   }
@@ -392,7 +396,9 @@ POST _ml/data_frame/_evaluate
       "predicted_field": "ml.G3_prediction", <3>
       "metrics": {  
         "r_squared": {},
-        "mse": {}
+        "mse": {},
+        "msle": {},
+        "huber": {}
       }
     }
   }

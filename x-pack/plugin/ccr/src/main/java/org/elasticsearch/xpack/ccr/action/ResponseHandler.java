@@ -55,7 +55,7 @@ final class ResponseHandler {
             }
 
             if (error == null) {
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 listener.onFailure(error);
             }

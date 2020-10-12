@@ -97,7 +97,7 @@ public class TwoPhaseLongRangeQueryTests extends LuceneTestCase {
      */
     protected Instant randomInstant() {
         //return Instant.ofEpochSecond(randomLongBetween(0, 3000000000L), randomLongBetween(0, 999999999));
-        return Instant.ofEpochMilli(randomLongBetween(0, 3000L));
+        return Instant.ofEpochMilli(randomLongBetween(2000000L, 2100000L));
     }
 
     public static long randomLongBetween(long min, long max) {

@@ -246,27 +246,26 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-//        protected MappedFieldType.Relation isWithin(long fromInclusive, long toInclusive, long minValue, long maxValue, boolean hasDocValues) {
-//            if (hasDocValues) {
-//                final long approxFromInclusive = convertToIndex(fromInclusive);
-//                final long approxToInclusive = convertToIndex(toInclusive);
-//                if (minValue > approxFromInclusive + 1 && maxValue <= approxToInclusive) {
-//                    return MappedFieldType.Relation.WITHIN;
-//                } else if (maxValue < approxFromInclusive - 1 || minValue > approxToInclusive) {
-//                    return MappedFieldType.Relation.DISJOINT;
-//                } else {
-//                    return MappedFieldType.Relation.INTERSECTS;
-//                }
-//            } else {
-//                if (minValue >= fromInclusive && maxValue <= toInclusive) {
-//                    return MappedFieldType.Relation.WITHIN;
-//                } else if (maxValue < fromInclusive || minValue > toInclusive) {
-//                    return MappedFieldType.Relation.DISJOINT;
-//                } else {
-//                    return MappedFieldType.Relation.INTERSECTS;
-//                }
-//            }
-//        }
+        /**
+         * Build Distance feature query from index values
+         */
+        public Query distanceFeatureQuery(String field, float boost, long origin, long pivotFromIndex, boolean hasDocValues) {
+            if (hasDocValues) {
+                long originApprox = convertToIndex(origin);
+                Query query = new TwoPhaseLongDistanceFeatureQuery(field, origin, convertToDocValue(pivotFromIndex), originApprox) {
+                    @Override
+                    public long convertDistance(long distanceExact) {
+                        return convertToIndex(distanceExact);
+                    }
+                };
+                if (boost != 1f) {
+                    query = new BoostQuery(query, boost);
+                }
+                return query;
+            } else {
+                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivotFromIndex);
+            }
+        }
 
         protected MappedFieldType.Relation isToWithin(long toInclusive, long minValue, long maxValue, boolean hasDocValues) {
             if (hasDocValues) {

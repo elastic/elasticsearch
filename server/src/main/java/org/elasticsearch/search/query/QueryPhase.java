@@ -471,6 +471,7 @@ public class QueryPhase {
             if (shortcutTotalHitCount(reader, query) == -1) return null;
         }
 
+
         byte[] minValueBytes = PointValues.getMinPackedValue(reader, fieldName);
         byte[] maxValueBytes = PointValues.getMaxPackedValue(reader, fieldName);
         if ((maxValueBytes == null) || (minValueBytes == null)) return null;
@@ -487,7 +488,12 @@ public class QueryPhase {
             if (pivotDistance == 0) { // 0 if maxValue = (minValue + 1)
                 pivotDistance = 1;
             }
-            rewrittenQuery = LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
+            if (fieldType instanceof DateFieldType) {
+                rewrittenQuery = ((DateFieldType)fieldType).resolution()
+                    .distanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance, fieldType.hasDocValues());
+            } else {
+                rewrittenQuery = LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
+            }
         }
         rewrittenQuery = new BooleanQuery.Builder()
             .add(query, BooleanClause.Occur.FILTER) // filter for original query

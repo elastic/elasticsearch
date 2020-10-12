@@ -121,7 +121,7 @@ public class TwoPhaseLongRangeQuery extends Query {
               if (values.getDocCount() == reader.maxDoc()) {
                   final byte[] fieldPackedLower = values.getMinPackedValue();
                   final byte[] fieldPackedUpper = values.getMaxPackedValue();
-                  if (Arrays.compareUnsigned(lowerExc, 0, Long.BYTES, fieldPackedLower, 0, Long.BYTES) < 0
+                  if (Arrays.compareUnsigned(lowerExc, 0, Long.BYTES, fieldPackedLower, 0, Long.BYTES) <= 0
                       && Arrays.compareUnsigned(upperExc, 0, Long.BYTES, fieldPackedUpper, 0, Long.BYTES) > 0) {
                       return new ScorerSupplier() {
                           @Override

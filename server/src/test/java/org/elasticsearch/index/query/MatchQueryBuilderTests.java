@@ -294,14 +294,14 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals("Field [mapped_geo_point] of type [geo_point] does not support match queries", e.getMessage());
         query.lenient(true);
-        query.toQuery(context); // no exception
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testLenientFlag() throws Exception {
         MatchQueryBuilder query = new MatchQueryBuilder(BINARY_FIELD_NAME, "test");
         QueryShardContext context = createShardContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
-        assertEquals("Field [mapped_binary] of type [binary does not support match queries", e.getMessage());
+        assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
         query.lenient(true);
         query.toQuery(context);
         assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));

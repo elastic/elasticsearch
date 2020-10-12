@@ -500,17 +500,14 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
-        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
-            actualProcessor.getDescription(), ingestDocument, null);
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
         expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
 
         verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId);
 
-        assertThat(resultList.size(), equalTo(3));
-        assertNull(resultList.get(0).getConditionalWithResult());
-        assertThat(resultList.get(0).getType(), equalTo("pipeline"));
-        assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
-        assertThat(resultList.get(2).getFailure(), equalTo(exception));
+        assertThat(resultList.size(), equalTo(2));
+        assertTrue(resultList.get(0).getIngestDocument().hasField(key1));
+        assertThat(resultList.get(1).getFailure(), equalTo(exception));
     }
 
     public void testActualPipelineProcessorWithCycle() throws Exception {

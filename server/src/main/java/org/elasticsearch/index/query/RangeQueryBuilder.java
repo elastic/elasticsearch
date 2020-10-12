@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -427,7 +428,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     // Overridable for testing only
-    protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected MappedFieldType.Relation getMinRelation(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
         if (shardContext != null) {
             final MappedFieldType fieldType = shardContext.getFieldType(fieldName);
@@ -438,10 +439,30 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 // No reader, this may happen e.g. for percolator queries.
                 return MappedFieldType.Relation.INTERSECTS;
             }
-
             DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(shardContext.getIndexReader(), from, to, includeLower,
-                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
+            return fieldType.isFieldMinWithinQuery(shardContext.getIndexReader(), from, includeLower,
+                timeZone, dateMathParser, queryRewriteContext);
+        }
+
+        // Not on the shard, we have no way to know what the relation is.
+        return MappedFieldType.Relation.INTERSECTS;
+    }
+
+    // Overridable for testing only
+    protected MappedFieldType.Relation getMaxRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+        if (shardContext != null) {
+            final MappedFieldType fieldType = shardContext.getFieldType(fieldName);
+            if (fieldType == null) {
+                return MappedFieldType.Relation.DISJOINT;
+            }
+            if (shardContext.getIndexReader() == null) {
+                // No reader, this may happen e.g. for percolator queries.
+                return MappedFieldType.Relation.INTERSECTS;
+            }
+            DateMathParser dateMathParser = getForceDateParser();
+            return fieldType.isFieldMaxWithinQuery(shardContext.getIndexReader(), to, includeUpper,
+                timeZone, dateMathParser, queryRewriteContext);
         }
 
         // Not on the shard, we have no way to know what the relation is.
@@ -450,11 +471,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
-        switch (relation) {
-        case DISJOINT:
-            return new MatchNoneQueryBuilder();
-        case WITHIN:
+        final MappedFieldType.Relation minRelation = getMinRelation(queryRewriteContext);
+        final MappedFieldType.Relation maxRelation = getMaxRelation(queryRewriteContext);
+        if (minRelation == MappedFieldType.Relation.WITHIN && maxRelation == MappedFieldType.Relation.WITHIN) {
             if (from != null || to != null || format != null || timeZone != null) {
                 RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
                 newRangeQuery.from(null);
@@ -462,14 +481,23 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 newRangeQuery.format = null;
                 newRangeQuery.timeZone = null;
                 return newRangeQuery;
-            } else {
-                return this;
             }
-        case INTERSECTS:
-            return this;
-        default:
-            throw new AssertionError();
+        } else if (minRelation == MappedFieldType.Relation.WITHIN || maxRelation == MappedFieldType.Relation.WITHIN) {
+            Object from = (minRelation == MappedFieldType.Relation.WITHIN) ? null : this.from;
+            Object to = (maxRelation == MappedFieldType.Relation.WITHIN) ? null : this.to;
+            if (from != this.from || to != this.from) {
+                RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
+                newRangeQuery.from(from);
+                newRangeQuery.to(to);
+                newRangeQuery.format = format;
+                newRangeQuery.timeZone = timeZone;
+                return newRangeQuery;
+            }
+        } else if (minRelation == MappedFieldType.Relation.DISJOINT || maxRelation == MappedFieldType.Relation.DISJOINT) {
+            return new MatchNoneQueryBuilder();
         }
+        return this;
+
     }
 
     @Override

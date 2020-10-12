@@ -246,21 +246,63 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        protected MappedFieldType.Relation isWithin(long fromInclusive, long toInclusive, long minValue, long maxValue, boolean hasDocValues) {
+//        protected MappedFieldType.Relation isWithin(long fromInclusive, long toInclusive, long minValue, long maxValue, boolean hasDocValues) {
+//            if (hasDocValues) {
+//                final long approxFromInclusive = convertToIndex(fromInclusive);
+//                final long approxToInclusive = convertToIndex(toInclusive);
+//                if (minValue > approxFromInclusive + 1 && maxValue <= approxToInclusive) {
+//                    return MappedFieldType.Relation.WITHIN;
+//                } else if (maxValue < approxFromInclusive - 1 || minValue > approxToInclusive) {
+//                    return MappedFieldType.Relation.DISJOINT;
+//                } else {
+//                    return MappedFieldType.Relation.INTERSECTS;
+//                }
+//            } else {
+//                if (minValue >= fromInclusive && maxValue <= toInclusive) {
+//                    return MappedFieldType.Relation.WITHIN;
+//                } else if (maxValue < fromInclusive || minValue > toInclusive) {
+//                    return MappedFieldType.Relation.DISJOINT;
+//                } else {
+//                    return MappedFieldType.Relation.INTERSECTS;
+//                }
+//            }
+//        }
+
+        protected MappedFieldType.Relation isToWithin(long toInclusive, long minValue, long maxValue, boolean hasDocValues) {
             if (hasDocValues) {
-                final long approxFromInclusive = convertToIndex(fromInclusive);
                 final long approxToInclusive = convertToIndex(toInclusive);
-                if (minValue > approxFromInclusive + 1 && maxValue <= approxToInclusive) {
+                if (maxValue < approxToInclusive - 1) {
                     return MappedFieldType.Relation.WITHIN;
-                } else if (maxValue < approxFromInclusive - 1 || minValue > approxToInclusive) {
+                } else if (minValue > approxToInclusive + 1) {
                     return MappedFieldType.Relation.DISJOINT;
                 } else {
                     return MappedFieldType.Relation.INTERSECTS;
                 }
             } else {
-                if (minValue >= fromInclusive && maxValue <= toInclusive) {
+                if (maxValue <= toInclusive) {
                     return MappedFieldType.Relation.WITHIN;
-                } else if (maxValue < fromInclusive || minValue > toInclusive) {
+                } else if (minValue > toInclusive) {
+                    return MappedFieldType.Relation.DISJOINT;
+                } else {
+                    return MappedFieldType.Relation.INTERSECTS;
+                }
+            }
+        }
+
+        protected MappedFieldType.Relation isFromWithin(long fromInclusive, long minValue, long maxValue, boolean hasDocValues) {
+            if (hasDocValues) {
+                final long approxFromInclusive = convertToIndex(fromInclusive);
+                if (minValue >= approxFromInclusive) {
+                    return MappedFieldType.Relation.WITHIN;
+                } else if (maxValue < approxFromInclusive) {
+                    return MappedFieldType.Relation.DISJOINT;
+                } else {
+                    return MappedFieldType.Relation.INTERSECTS;
+                }
+            } else {
+                if (minValue >= fromInclusive) {
+                    return MappedFieldType.Relation.WITHIN;
+                } else if (maxValue < fromInclusive) {
                     return MappedFieldType.Relation.DISJOINT;
                 } else {
                     return MappedFieldType.Relation.INTERSECTS;
@@ -439,11 +481,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                        "] does not support DISJOINT ranges");
+                    "] does not support DISJOINT ranges");
             }
             DateMathParser parser = forcedDateParser == null
-                    ? dateMathParser
-                    : forcedDateParser;
+                ? dateMathParser
+                : forcedDateParser;
 
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
                 // if l < min value on the index or u > max value on the index, we should change it to Long.MAX_VALUE / Long.MIN_VALUE.
@@ -534,10 +576,9 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Relation isFieldWithinQuery(IndexReader reader,
-                                           Object from, Object to, boolean includeLower, boolean includeUpper,
-                                           ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
-
+        public Relation isFieldMinWithinQuery(IndexReader reader,
+                                              Object from, boolean includeLower,
+                                              ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -551,6 +592,25 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     }
                     ++fromInclusive;
                 }
+            }
+
+            if (PointValues.size(reader, name()) == 0) {
+                // no points, so nothing matches
+                return Relation.DISJOINT;
+            }
+
+            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
+
+            return resolution.isFromWithin(fromInclusive, minValue, maxValue, hasDocValues());
+        }
+
+        @Override
+        public Relation isFieldMaxWithinQuery(IndexReader reader,
+                                              Object to, boolean includeUpper,
+                                              ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+            if (dateParser == null) {
+                dateParser = this.dateMathParser;
             }
 
             long toInclusive = Long.MAX_VALUE;
@@ -569,9 +629,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 return Relation.DISJOINT;
             }
 
-            final long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
-            final long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
-            return resolution.isWithin(fromInclusive, toInclusive, minValue, maxValue, hasDocValues());
+            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
+
+            return resolution.isToWithin(toInclusive, minValue, maxValue, hasDocValues());
         }
 
         @Override
@@ -627,13 +688,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final Version indexCreatedVersion;
 
     private DateFieldMapper(
-            String simpleName,
-            MappedFieldType mappedFieldType,
-            MultiFields multiFields,
-            CopyTo copyTo,
-            Long nullValue,
-            Resolution resolution,
-            Builder builder) {
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Long nullValue,
+        Resolution resolution,
+        Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();

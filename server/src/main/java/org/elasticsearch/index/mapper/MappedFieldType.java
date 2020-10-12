@@ -305,15 +305,45 @@ public abstract class MappedFieldType {
         DISJOINT
     }
 
+    /** Return whether all values of the given {@link IndexReader} are within the min range,
+     *  outside the min range or cross the min range. The default implementation returns
+     *  {@link Relation#INTERSECTS}, which is always fine to return when there is
+     *  no way to check whether values are actually within bounds. */
+    public Relation isFieldMaxWithinQuery(
+        IndexReader reader, Object to, boolean includeUpper,
+        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+        return Relation.INTERSECTS;
+    }
+
     /** Return whether all values of the given {@link IndexReader} are within the range,
      *  outside the range or cross the range. The default implementation returns
      *  {@link Relation#INTERSECTS}, which is always fine to return when there is
      *  no way to check whether values are actually within bounds. */
     public Relation isFieldWithinQuery(
-            IndexReader reader,
-            Object from, Object to,
-            boolean includeLower, boolean includeUpper,
-            ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+        IndexReader reader,
+        Object from, Object to,
+        boolean includeLower, boolean includeUpper,
+        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+
+        final Relation minRelation = isFieldMinWithinQuery(reader, from, includeLower, timeZone, dateMathParser, context);
+       final  Relation maxRelation = isFieldMaxWithinQuery(reader, to, includeUpper, timeZone, dateMathParser, context);
+        if (minRelation == Relation.DISJOINT || maxRelation == Relation.DISJOINT) {
+            return Relation.DISJOINT;
+        } else if (minRelation == Relation.WITHIN && maxRelation == Relation.WITHIN) {
+            return Relation.WITHIN;
+        } else {
+            return Relation.INTERSECTS;
+        }
+    }
+
+    /** Return whether all values of the given {@link IndexReader} are within the max range,
+     *  outside the max range or cross the max range. The default implementation returns
+     *  {@link Relation#INTERSECTS}, which is always fine to return when there is
+     *  no way to check whether values are actually within bounds. */
+    public Relation isFieldMinWithinQuery(
+        IndexReader reader,
+        Object from, boolean includeLower,
+        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 

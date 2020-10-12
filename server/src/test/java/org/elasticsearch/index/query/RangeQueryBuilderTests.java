@@ -393,7 +393,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = DATE_FIELD_NAME;
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getMinRelation(QueryRewriteContext queryRewriteContext) {
+                return Relation.WITHIN;
+            }
+
+            @Override
+            protected MappedFieldType.Relation getMaxRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.WITHIN;
             }
         };
@@ -428,7 +433,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = DATE_FIELD_NAME;
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getMinRelation(QueryRewriteContext queryRewriteContext) {
+                return Relation.WITHIN;
+            }
+
+            @Override
+            protected MappedFieldType.Relation getMaxRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.WITHIN;
             }
         };
@@ -453,7 +463,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getMinRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.DISJOINT;
             }
         };
@@ -470,7 +480,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getMinRelation(QueryRewriteContext queryRewriteContext) {
+                return Relation.INTERSECTS;
+            }
+
+            @Override
+            protected MappedFieldType.Relation getMaxRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.INTERSECTS;
             }
         };
@@ -487,7 +502,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
+            protected MappedFieldType.Relation getMinRelation(QueryRewriteContext queryRewriteContext) {
+                return Relation.INTERSECTS;
+            }
+            @Override
+            protected MappedFieldType.Relation getMaxRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.INTERSECTS;
             }
         };

@@ -43,7 +43,8 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null, null, indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(),
             null, new IndexSearcher(reader), null, null, null, () -> true, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
-        assertEquals(Relation.DISJOINT, range.getRelation(context));
+        assertEquals(Relation.DISJOINT, range.getMinRelation(context));
+        assertEquals(Relation.DISJOINT, range.getMaxRelation(context));
     }
 
     public void testRewriteMissingReader() throws Exception {
@@ -62,7 +63,8 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
                 null, null, null, null, null, () -> true, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
-        assertEquals(Relation.INTERSECTS, range.getRelation(context));
+        assertEquals(Relation.INTERSECTS, range.getMinRelation(context));
+        assertEquals(Relation.INTERSECTS, range.getMaxRelation(context));
     }
 
     public void testRewriteEmptyReader() throws Exception {
@@ -82,6 +84,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
                 null, new IndexSearcher(reader), null, null, null, () -> true, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT
-        assertEquals(Relation.DISJOINT, range.getRelation(context));
+        assertEquals(Relation.DISJOINT, range.getMinRelation(context));
+        assertEquals(Relation.DISJOINT, range.getMaxRelation(context));
     }
 }

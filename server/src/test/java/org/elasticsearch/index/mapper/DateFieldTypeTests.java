@@ -85,11 +85,15 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        Document doc = new Document();
-        LongPoint field = new LongPoint("my_date", ft.parse("2015-10-12"));
-        doc.add(field);
+        //Document doc = new Document();
+        ParseContext.Document doc = new ParseContext.Document();
+        ft.resolution().index(doc, "my_date", ft.parse("2015-10-12"), true);
+        //LongPoint field = new LongPoint("my_date", ft.parse("2015-10-12"));
+        //doc.add(field);
         w.addDocument(doc);
-        field.setLongValue(ft.parse("2016-04-03"));
+        doc = new ParseContext.Document();
+        ft.resolution().index(doc, "my_date", ft.parse("2016-04-03"), true);
+        //field.setLongValue(ft.parse("2016-04-03"));
         w.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(w);
 
@@ -167,11 +171,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
                 BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
                 xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
-        MappedFieldType ft = new DateFieldType("field");
+        DateFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
-                LongPoint.newRangeQuery("field", instant, instant + 999),
+                ft.resolution().rangeQuery("field", instant, instant + 999, true),
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999));
         assertEquals(expected, ft.termQuery(date, context));
 
@@ -189,14 +193,14 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
                 BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
                 null, null, () -> nowInMillis, null, null, () -> true, null);
-        MappedFieldType ft = new DateFieldType("field");
+        DateFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
         long instant1 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date1)).toInstant().toEpochMilli();
         long instant2 =
             DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli() + 999;
         Query expected = new IndexOrDocValuesQuery(
-                LongPoint.newRangeQuery("field", instant1, instant2),
+                ft.resolution().rangeQuery("field", instant1, instant2, true),
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2));
         assertEquals(expected,
                 ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
@@ -204,7 +208,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         instant1 = nowInMillis;
         instant2 = instant1 + 100;
         expected = new DateRangeIncludingNowQuery(new IndexOrDocValuesQuery(
-            LongPoint.newRangeQuery("field", instant1, instant2),
+            ft.resolution().rangeQuery("field", instant1, instant2, true),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
         ));
         assertEquals(expected,
@@ -234,13 +238,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
             null, null, () -> 0L, null, null, () -> true, null);
 
-        MappedFieldType ft = new DateFieldType("field");
+        DateFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
         long instant1 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli() + 999;
 
-        Query pointQuery = LongPoint.newRangeQuery("field", instant1, instant2);
+        Query pointQuery = ft.resolution().rangeQuery("field", instant1, instant2, true);
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
         Query expected = new IndexSortSortedNumericDocValuesRangeQuery("field",  instant1, instant2,
             new IndexOrDocValuesQuery(pointQuery, dvQuery));

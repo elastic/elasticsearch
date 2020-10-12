@@ -40,7 +40,28 @@ Elasticsearch offers the ability to configure the <<index-codec,`index.codec`>>
 setting to tell Elasticsearch how aggressively to compressed stored fields. Both
 supported values `default` and `best_compression` will get better compression
 with this change.
+// end::notable-highlights[]
 
+// tag::notable-highlights[]
+[discrete]
+[[data-tier-formalization]]
+=== Data Tier Formalization
+7.10 introduces the concept of formalized data tiers within Elasticsearch. <<data-tiers,Data tiers>>
+are a simple, integrated approach that gives users control over optimizing for cost,
+performance, and breadth/depth of data. Prior to this formalization, many users configured their own
+tier topology using custom node attributes as well as using {ilm-init} to manage the lifecycle and
+location of data within a cluster.
+
+With this formalization, data tiers (content, hot, warm, and cold) can be explicitly configured
+using <<node-roles,node roles>>, and indices can be configured to be allocated within a specific
+tier using <<data-tier-shard-filtering,index-level data tier allocation filtering>>. {ilm-init} will
+make use of these tiers to <<ilm-migrate,automatically migrate>> data between nodes as an index goes
+through the phases of its lifecycle.
+
+Newly created indices abstracted by a <<data-streams,data stream>> will be allocated to
+the `data_hot` tier automatically, while standalone indices will be allocated to
+the `data_content` tier automatically. Nodes with the pre-existing `data` role are 
+considered to be part of all tiers.
 // end::notable-highlights[]
 
 // Use the notable-highlights tag to mark entries that

@@ -3,7 +3,7 @@
 [[eql-ex-threat-detection]]
 == Example: Detect threats with EQL
 
-experimental::[]
+beta::[]
 
 This example tutorial shows you how you can use EQL to detect security threats
 and other suspicious behavior. In the scenario, you're tasked with detecting

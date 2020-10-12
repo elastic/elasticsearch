@@ -504,7 +504,7 @@ a `predicted_class`.
 --------------------------------------------------
 POST _ml/data_frame/_evaluate
 {
-   "index": "auc-roc-class",
+   "index": "animal_classification",
    "evaluation": {
       "classification": { <1>
          "actual_field": "animal_class", <2>
@@ -543,6 +543,8 @@ The API returns the following result:
   }
 }
 --------------------------------------------------
+// TEST[skip:TBD]
+
 <1> AUC ROC score.
 <2> The number of documents that are used for calculating the AUC ROC score. 
 These documents have the target class – in this case `dog` – in the list of 

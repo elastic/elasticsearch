@@ -265,11 +265,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
-     * Creates a {@link CompositeValuesSourceConfig} for this source.
-     * @param context  The shard context for this source.
-     * @param config   The {@link ValuesSourceConfig} for this source.
+     * Actually build the values source and its associated configuration.
      */
-    protected abstract CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry context,
+    protected abstract CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry,
                                                                 ValuesSourceConfig config) throws IOException;
 
     protected abstract ValuesSourceType getDefaultValuesSourceType();

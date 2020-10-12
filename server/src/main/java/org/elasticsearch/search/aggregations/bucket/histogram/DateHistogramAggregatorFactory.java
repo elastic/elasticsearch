@@ -90,7 +90,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     ) throws IOException {
         DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry()
             .getAggregator(DateHistogramAggregationBuilder.REGISTRY_KEY, config);
-        // TODO: Is there a reason not to get the prepared rounding in the supplier itself?
         return aggregatorSupplier.build(
             name,
             factories,

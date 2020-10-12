@@ -84,7 +84,7 @@ public abstract class ValuesSource {
      * This returns a {@linkplain Function} because auto date histogram will
      * need to call it many times over the course of running the aggregation.
      */
-    public abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
+    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
 
     /**
      * Check if this values source supports using global ordinals

@@ -86,7 +86,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
-        this.preparedRounding = valuesSourceConfig.getValuesSource().roundingPreparer().apply(rounding);
+        this.preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
         this.order = order;
         order.validate(this);
         this.keyed = keyed;

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -28,6 +29,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.function.Function;
 
@@ -357,6 +359,16 @@ public class ValuesSourceConfig {
 
     public ValuesSource getValuesSource() {
         return valuesSource;
+    }
+
+    /**
+     * Build a function prepares rounding values to be called many times.
+     * <p>
+     * This returns a {@linkplain Function} because auto date histogram will
+     * need to call it many times over the course of running the aggregation.
+     */
+    public Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+        return valuesSource.roundingPreparer();
     }
 
     public boolean hasGlobalOrdinals() {

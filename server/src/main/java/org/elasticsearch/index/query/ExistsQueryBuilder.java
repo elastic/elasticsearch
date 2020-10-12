@@ -194,8 +194,10 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     private static Query newFieldExistsQuery(QueryShardContext context, String field) {
-        MappedFieldType fieldType = context.fieldMapper(field);
-        if (fieldType == null) {
+        if (context.isFieldMapped(field)) {
+            Query filter = context.fieldMapper(field).existsQuery(context);
+            return new ConstantScoreQuery(filter);
+        } else {
             // The field does not exist as a leaf but could be an object so
             // check for an object mapper
             if (context.getObjectMapper(field) != null) {
@@ -203,8 +205,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             }
             return Queries.newMatchNoDocsQuery("User requested \"match_none\" query.");
         }
-        Query filter = fieldType.existsQuery(context);
-        return new ConstantScoreQuery(filter);
     }
 
     private static Query newObjectFieldExistsQuery(QueryShardContext context, String objField) {
@@ -222,10 +222,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
      * @return return collection of fields if exists else return empty.
      */
     private static Collection<String> getMappedField(QueryShardContext context, String fieldPattern) {
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-            .fieldMapper(FieldNamesFieldMapper.NAME);
-
-        if (fieldNamesFieldType == null) {
+        if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
             // can only happen when no types exist, so no docs exist either
             return Collections.emptySet();
         }
@@ -241,8 +238,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
         if (fields.size() == 1) {
             String field = fields.iterator().next();
-            MappedFieldType fieldType = context.fieldMapper(field);
-            if (fieldType == null) {
+            if (context.isFieldMapped(field) == false) {
                 // The field does not exist as a leaf but could be an object so
                 // check for an object mapper
                 if (context.getObjectMapper(field) == null) {

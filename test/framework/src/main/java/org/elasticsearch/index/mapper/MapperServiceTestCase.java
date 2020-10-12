@@ -229,6 +229,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.isFieldMapped(anyString()))
+            .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(

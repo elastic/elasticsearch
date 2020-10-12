@@ -51,7 +51,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
-
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
 
@@ -60,5 +59,4 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);
     }
-
 }

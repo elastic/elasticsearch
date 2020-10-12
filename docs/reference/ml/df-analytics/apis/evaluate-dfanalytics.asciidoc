@@ -192,10 +192,10 @@ belongs.
     positive.
 
     `class_name`::::
-      (Required, string) Name of the only class that will be treated as
-      positive during AUC ROC calculation. Other classes will be treated as
-      negative ("one-vs-all" strategy). All the evaluated documents must have `class_name`
-      in the list of their top classes.
+      (Required, string) Name of the only class that is treated as positive 
+      during AUC ROC calculation. Other classes are treated as negative 
+      ("one-vs-all" strategy). All the evaluated documents must have 
+      `class_name` in the list of their top classes.
 
     `include_curve`::::
       (Optional, boolean) Whether or not the curve should be returned in
@@ -497,3 +497,50 @@ predictions associated with the class.
 <5> The number of cats in the dataset that are incorrectly classified as dogs.
 <6> The number of documents that are classified as a class that is not listed as 
 a `predicted_class`.
+
+
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+   "index": "auc-roc-class",
+   "evaluation": {
+      "classification": { <1>
+         "actual_field": "animal_class", <2>
+         "predicted_field": "ml.animal_class_prediction", <3>
+         "metrics": {
+            "auc_roc" : { <4>
+              "class_name": "dog" <5>
+            }
+         }
+      }
+   }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The evaluation type.
+<2> The field that contains the ground truth value for the actual animal 
+classification. This is required in order to evaluate results.
+<3> The field that contains the predicted value for animal classification by 
+the {classanalysis}.
+<4> Specifies the metric for the evaluation.
+<5> Specifies the class name that is treated as positive during the evaluation, 
+all the other classes are treated as negative.
+
+[source,console]
+--------------------------------------------------
+{
+  "classification" : {
+    "auc_roc" : {
+      "score" : 0.8941788639536681, <1>
+      "doc_count" : 4169 <2>
+    }
+  }
+}
+--------------------------------------------------
+<1> AUC ROC score.
+<2> The number of documents that are used for calculating the AUC ROC score. 
+These documents have the target class – in this case `dog` – in the list of 
+their top classes.

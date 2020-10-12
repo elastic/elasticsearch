@@ -5,7 +5,7 @@ setup:
 
   - skip:
       features: headers
-      version: " - 7.10.00"
+      version: " - 7.10.0"
       reason: "version field is added to 7.10"
 
   - do:
@@ -51,7 +51,7 @@ setup:
             - '{"version": "v3.1.0" }'
             - '{ "index" : { "_index" : "test_malformed", "_id" : "4" } }'
             - '{"version": "1.el6" }'
-            
+
   - do:
         search:
           index: test_malformed
@@ -89,7 +89,7 @@ setup:
             query: { "range" : { "version" : { "gte" : "1.1.0", "lt" : "9999" } } }
 
   - match: { hits.total.value: 3 }
-  
+
   - do:
         search:
           index: test_index
@@ -97,7 +97,7 @@ setup:
             query: { "range" : { "version" : { "gte" : "2.0.0", "lt" : "9999" } } }
 
   - match: { hits.total.value: 1 }
-  
+
   - do:
         search:
           index: test_index

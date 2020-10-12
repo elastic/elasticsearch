@@ -81,7 +81,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     /**
-     * Returns the {@link ParentJoinFieldMapper} associated with the <code>service</code> or null
+     * Returns the {@link ParentJoinFieldMapper} associated with the {@code context} or null
      * if there is no parent-join field in this mapping.
      */
     public static ParentJoinFieldMapper getMapper(QueryShardContext context) {

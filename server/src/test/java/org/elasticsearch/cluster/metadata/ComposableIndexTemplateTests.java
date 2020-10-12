@@ -100,12 +100,13 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
             dataStreamTemplate);
     }
 
-    static Map<String, AliasMetadata> randomAliases() {
+    private static Map<String, AliasMetadata> randomAliases() {
         String aliasName = randomAlphaOfLength(5);
         AliasMetadata aliasMeta = AliasMetadata.builder(aliasName)
             .filter("{\"term\":{\"year\":" + randomIntBetween(1, 3000) + "}}")
             .routing(randomBoolean() ? null : randomAlphaOfLength(3))
             .isHidden(randomBoolean() ? null : randomBoolean())
+            .writeIndex(randomBoolean() ? null : randomBoolean())
             .build();
         return Collections.singletonMap(aliasName, aliasMeta);
     }

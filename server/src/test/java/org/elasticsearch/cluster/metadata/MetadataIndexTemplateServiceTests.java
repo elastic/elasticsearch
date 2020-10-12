@@ -86,11 +86,9 @@ import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 
@@ -241,7 +239,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .filter(randomBoolean() ? null : "{\"term\":{\"user_id\":12}}")
             .indexRouting(randomBoolean() ? null : "route1")
             .searchRouting(randomBoolean() ? null :"route2")
-            .isHidden(randomBoolean() ? null : randomBoolean());
+            .isHidden(randomBoolean() ? null : randomBoolean())
+            .writeIndex(randomBoolean() ? null : randomBoolean());
         Set<Alias> aliases = new HashSet<>();
         aliases.add(alias);
         request.aliases(aliases);
@@ -259,23 +258,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(metaAlias.indexRouting(), equalTo(alias.indexRouting()));
         assertThat(metaAlias.searchRouting(), equalTo(alias.searchRouting()));
         assertThat(metaAlias.isHidden(), equalTo(alias.isHidden()));
-        assertThat(metaAlias.writeIndex(), is(nullValue()));
-    }
-
-    public void testValidateAliasWithWriteIndex() throws Exception {
-        final String templateName = "template_with_write_alias";
-        final String aliasName = "invalid_alias";
-        PutRequest request = new PutRequest("api", templateName);
-        request.patterns(singletonList("te*"));
-        request.mappings("{}");
-        Alias alias = new Alias(aliasName).writeIndex(true);
-        request.aliases(Collections.singleton(alias));
-
-        List<Throwable> errors = putTemplateDetail(request);
-        assertThat(errors, hasSize(1));
-        assertThat(errors.get(0), instanceOf(IllegalArgumentException.class));
-        assertThat(errors.get(0).getMessage(),
-            containsString("alias [invalid_alias] cannot be a write alias"));
+        assertThat(metaAlias.writeIndex(), equalTo(alias.writeIndex()));
     }
 
     public void testFindTemplates() throws Exception {
@@ -1129,7 +1112,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         service.putComponentTemplate("api", randomBoolean(), "good", TimeValue.timeValueSeconds(5), ct,
             ActionListener.wrap(r -> ctLatch.countDown(), e -> {
                 logger.error("unexpected error", e);
-                fail("unexpected error: " + e.getMessage());
+                fail("unexpected error");
             }));
         ctLatch.await(5, TimeUnit.SECONDS);
         InvalidIndexTemplateException e = expectThrows(InvalidIndexTemplateException.class,

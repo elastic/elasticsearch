@@ -37,6 +37,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -67,10 +68,10 @@ public final class HdfsRepository extends BlobStoreRepository {
         final RepositoryMetadata metadata,
         final Environment environment,
         final NamedXContentRegistry namedXContentRegistry,
-        final ClusterService clusterService,
+        final ClusterService clusterService, BigArrays bigArrays,
         final RecoverySettings recoverySettings) {
         super(metadata, metadata.settings().getAsBoolean("compress", false), namedXContentRegistry, clusterService,
-            recoverySettings);
+                bigArrays, recoverySettings);
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);

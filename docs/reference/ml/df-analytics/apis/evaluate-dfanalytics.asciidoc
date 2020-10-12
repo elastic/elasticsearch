@@ -532,7 +532,7 @@ all the other classes are treated as negative.
 
 The API returns the following result:
 
-[source,console]
+[source,console-result]
 --------------------------------------------------
 {
   "classification" : {

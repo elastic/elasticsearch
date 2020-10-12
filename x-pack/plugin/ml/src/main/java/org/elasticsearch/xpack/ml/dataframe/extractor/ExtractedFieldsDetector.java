@@ -376,8 +376,10 @@ public class ExtractedFieldsDetector {
         if (preferSource) {
             extractedFields = fetchFromSourceIfSupported(extractedFields);
             if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
-                throw ExceptionsHelper.badRequestException("[{}] fields must be retrieved from doc_values but the limit is [{}]; " +
-                        "please adjust the index level setting [{}]", extractedFields.getDocValueFields().size(), docValueFieldsLimit,
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] fields must be retrieved from doc_values and this is greater than the configured limit. " +
+                        "Please adjust the index level setting [{}]",
+                    extractedFields.getDocValueFields().size(),
                     IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
             }
         }

@@ -142,7 +142,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getPhase(), is("warm"));
             assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         logger.info("starting a warm data node");
         internalCluster().startNode(warmNode(Settings.EMPTY));
@@ -154,7 +154,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
             assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         logger.info("starting a cold data node");
         internalCluster().startNode(coldNode(Settings.EMPTY));
@@ -168,7 +168,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
             assertThat(indexLifecycleExplainResponse.getStep(), is("complete"));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testUserOptsOutOfTierMigration() throws Exception {

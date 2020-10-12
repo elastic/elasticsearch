@@ -410,13 +410,13 @@ public class RoundingTests extends ESTestCase {
             long max = mainDate + 2 * interval;
 
             /*
-             * Prepare a rounding with one extra interval of range because
-             * in the tests far below we call round(round(min)). The first
-             * round might spit out a time below the min if min is near a
-             * daylight savings time transition. So we request an extra big
+             * Prepare a rounding with two extra intervals of range because
+             * in the tests far below we call round(round(min) - 1). The first
+             * round might spit out a time below min - interval if min is near
+             * a daylight savings time transition. So we request an extra big
              * range just in case.
              */
-            Rounding.Prepared prepared = rounding.prepare(min - interval, max);
+            Rounding.Prepared prepared = rounding.prepare(min - 2 * interval, max);
 
             // Round a whole bunch of dates and make sure they line up with the known good java time implementation
             Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
@@ -768,7 +768,7 @@ public class RoundingTests extends ESTestCase {
 
     /**
      * Tests for DST transitions that cause the rounding to jump "backwards" because they round
-     * from one back to the previous day. Usually these rounding start before 
+     * from one back to the previous day. Usually these rounding start before
      */
     public void testForwardsBackwardsTimeZones() {
         for (String zoneId : JAVA_ZONE_IDS) {
@@ -1075,7 +1075,7 @@ public class RoundingTests extends ESTestCase {
         if (tz.getId().equals("Pacific/Guam") || tz.getId().equals("Pacific/Saipan")) {
             // Clocks went back at 00:01 in 1969, causing overlapping days.
             return t <= time("1969-01-25T00:00:00Z")
-                || t >= time("1969-01-26T00:00:00Z");  
+                || t >= time("1969-01-26T00:00:00Z");
         }
 
         return true;

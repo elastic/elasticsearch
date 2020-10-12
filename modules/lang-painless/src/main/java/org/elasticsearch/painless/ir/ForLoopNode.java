@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -84,28 +83,29 @@ public class ForLoopNode extends LoopNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(getLocation());
 
-        writeScope = writeScope.newScope();
+        writeScope = writeScope.newBlockScope();
 
         Label start = new Label();
         Label begin = afterthoughtNode == null ? start : new Label();
         Label end = new Label();
 
         if (initializerNode instanceof DeclarationBlockNode) {
-            initializerNode.write(classWriter, methodWriter, writeScope);
+            initializerNode.write(writeScope);
         } else if (initializerNode instanceof ExpressionNode) {
             ExpressionNode initializer = (ExpressionNode)this.initializerNode;
 
-            initializer.write(classWriter, methodWriter, writeScope);
+            initializer.write(writeScope);
             methodWriter.writePop(MethodWriter.getType(initializer.getExpressionType()).getSize());
         }
 
         methodWriter.mark(start);
 
         if (getConditionNode() != null && isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, writeScope);
+            getConditionNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
@@ -119,15 +119,12 @@ public class ForLoopNode extends LoopNode {
 
         if (getBlockNode() != null) {
             allEscape = getBlockNode().doAllEscape();
-
-            getBlockNode().continueLabel = begin;
-            getBlockNode().breakLabel = end;
-            getBlockNode().write(classWriter, methodWriter, writeScope);
+            getBlockNode().write(writeScope.newLoopScope(begin, end));
         }
 
         if (afterthoughtNode != null) {
             methodWriter.mark(begin);
-            afterthoughtNode.write(classWriter, methodWriter, writeScope);
+            afterthoughtNode.write(writeScope);
             methodWriter.writePop(MethodWriter.getType(afterthoughtNode.getExpressionType()).getSize());
         }
 

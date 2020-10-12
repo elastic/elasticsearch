@@ -49,7 +49,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -238,9 +237,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                     () -> { throw new UnsupportedOperationException(); },
                     null
                 );
-                final MapperService mapperService = context.getMapperService();
-                final Text typeText = mapperService.documentMapper().typeText();
-
+                final Text typeText = context.getMapperService().documentMapper().typeText();
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
                     final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
@@ -260,7 +257,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
                         visitor.reset();
                         searcher.doc(scoreDoc.doc, visitor);
-                        visitor.postProcess(mapperService);
+                        visitor.postProcess(context::fieldMapper, context.getMapperService().documentMapper());
                         final SearchHit hit = new SearchHit(
                             scoreDoc.doc,
                             visitor.uid().id(),

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -76,16 +75,13 @@ public class CatchNode extends StatementNode {
 
     /* ---- end visitor ---- */
 
-    Label begin = null;
-    Label end = null;
-    Label exception = null;
-
     public CatchNode(Location location) {
         super(location);
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(getLocation());
 
         Variable variable = writeScope.defineVariable(exceptionType, symbol);
@@ -96,15 +92,14 @@ public class CatchNode extends StatementNode {
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (blockNode != null) {
-            blockNode.continueLabel = continueLabel;
-            blockNode.breakLabel = breakLabel;
-            blockNode.write(classWriter, methodWriter, writeScope);
+            blockNode.write(writeScope.newBlockScope(true));
         }
 
-        methodWriter.visitTryCatchBlock(begin, end, jump, variable.getAsmType().getInternalName());
+        methodWriter.visitTryCatchBlock(
+                writeScope.getTryBeginLabel(), writeScope.getTryEndLabel(), jump, variable.getAsmType().getInternalName());
 
-        if (exception != null && (blockNode == null || blockNode.doAllEscape() == false)) {
-            methodWriter.goTo(exception);
+        if (writeScope.getCatchesEndLabel() != null && (blockNode == null || blockNode.doAllEscape() == false)) {
+            methodWriter.goTo(writeScope.getCatchesEndLabel());
         }
     }
 }

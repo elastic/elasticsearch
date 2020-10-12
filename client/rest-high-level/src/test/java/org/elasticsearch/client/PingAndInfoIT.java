@@ -56,7 +56,8 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(versionMap.get("lucene_version"), info.getVersion().getLuceneVersion());
     }
 
-    public void testXPackInfo() throws IOException {
+    public void testXPackInfo() throws Exception {
+        waitForActiveLicense(client());
         XPackInfoRequest request = new XPackInfoRequest();
         request.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
         request.setVerbose(true);

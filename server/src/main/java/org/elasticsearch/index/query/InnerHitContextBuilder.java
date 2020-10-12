@@ -89,12 +89,11 @@ public abstract class InnerHitContextBuilder {
             innerHitsContext.storedFieldsContext(innerHitBuilder.getStoredFieldsContext());
         }
         if (innerHitBuilder.getDocValueFields() != null) {
-            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(
-                queryShardContext.getMapperService(), innerHitBuilder.getDocValueFields());
+            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(queryShardContext::simpleMatchToIndexNames,
+                queryShardContext.getIndexSettings().getMaxDocvalueFields(), innerHitBuilder.getDocValueFields());
             innerHitsContext.docValuesContext(docValuesContext);
         }
         if (innerHitBuilder.getFetchFields() != null) {
-            String indexName = queryShardContext.index().getName();
             FetchFieldsContext fieldsContext = new FetchFieldsContext(innerHitBuilder.getFetchFields());
             innerHitsContext.fetchFieldsContext(fieldsContext);
         }

@@ -41,13 +41,8 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
     public DeletePipelineTransportAction(ThreadPool threadPool, IngestService ingestService, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeletePipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, DeletePipelineRequest::new, indexNameExpressionResolver);
+            threadPool, actionFilters, DeletePipelineRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.ingestService = ingestService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

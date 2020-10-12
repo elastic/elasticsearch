@@ -41,14 +41,10 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
             threadPool,
             actionFilters,
             CreateDataStreamAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         this.metadataCreateDataStreamService = metadataCreateDataStreamService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

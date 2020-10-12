@@ -60,14 +60,10 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             threadPool,
             actionFilters,
             DeleteDataStreamAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         this.deleteIndexService = deleteIndexService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

@@ -31,12 +31,7 @@ public class TransportStartILMAction extends AcknowledgedTransportMasterNodeActi
     public TransportStartILMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(StartILMAction.NAME, transportService, clusterService, threadPool, actionFilters, StartILMRequest::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
+            indexNameExpressionResolver, ThreadPool.Names.SAME);
     }
 
     @Override

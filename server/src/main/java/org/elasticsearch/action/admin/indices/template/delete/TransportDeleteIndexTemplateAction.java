@@ -50,14 +50,8 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
                                               ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteIndexTemplateRequest::new, indexNameExpressionResolver);
+            DeleteIndexTemplateRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.indexTemplateService = indexTemplateService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
     }
 
     @Override

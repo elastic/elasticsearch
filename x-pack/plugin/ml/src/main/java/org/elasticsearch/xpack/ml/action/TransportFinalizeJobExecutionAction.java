@@ -48,13 +48,8 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                Client client) {
         super(FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                FinalizeJobExecutionAction.Request::new, indexNameExpressionResolver);
+                FinalizeJobExecutionAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

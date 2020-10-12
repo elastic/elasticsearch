@@ -49,13 +49,9 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutAutoscalingPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

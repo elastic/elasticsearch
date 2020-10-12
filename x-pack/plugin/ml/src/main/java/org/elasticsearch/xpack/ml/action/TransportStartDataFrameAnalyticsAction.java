@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -84,7 +83,6 @@ import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -123,7 +121,7 @@ public class TransportStartDataFrameAnalyticsAction
                                                   DataFrameAnalyticsConfigProvider configProvider, MlMemoryTracker memoryTracker,
                                                   DataFrameAnalyticsAuditor auditor) {
         super(StartDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                StartDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
+            StartDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, NodeAcknowledgedResponse::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.client = client;
         this.persistentTasksService = persistentTasksService;
@@ -138,18 +136,6 @@ public class TransportStartDataFrameAnalyticsAction
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
-    }
-
-    @Override
-    protected String executor() {
-        // This api doesn't do heavy or blocking operations (just delegates PersistentTasksService),
-        // so we can do this on the network thread
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected NodeAcknowledgedResponse read(StreamInput in) throws IOException {
-        return new NodeAcknowledgedResponse(in);
     }
 
     @Override

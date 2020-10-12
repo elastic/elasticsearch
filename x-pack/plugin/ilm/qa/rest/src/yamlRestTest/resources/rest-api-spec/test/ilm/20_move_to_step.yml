@@ -62,30 +62,6 @@ teardown:
         policy: "my_moveable_timeseries_lifecycle"
 
 ---
-"Test Basic Move To Step":
-
-  - do:
-      ilm.move_to_step:
-        index: "my_index"
-        body:
-          current_step:
-            phase: "new"
-            action: "complete"
-            name: "complete"
-          next_step:
-            phase: "completed"
-            action: "completed"
-            name: "completed"
-
-  - do:
-        ilm.explain_lifecycle:
-          index: "my_index"
-  - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.my_index.step: "completed" }
-  - match: { indices.my_index.action: "completed" }
-  - match: { indices.my_index.phase: "completed" }
-
----
 "Test Invalid Move To Step With Incorrect Current Step":
 
   - do:

@@ -26,8 +26,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
-import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 

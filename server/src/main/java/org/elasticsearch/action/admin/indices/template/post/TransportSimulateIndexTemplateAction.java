@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -49,7 +48,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -69,7 +67,7 @@ public class TransportSimulateIndexTemplateAction
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
-    private AliasValidator aliasValidator;
+    private final AliasValidator aliasValidator;
 
     @Inject
     public TransportSimulateIndexTemplateAction(TransportService transportService, ClusterService clusterService,
@@ -77,21 +75,11 @@ public class TransportSimulateIndexTemplateAction
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 NamedXContentRegistry xContentRegistry, IndicesService indicesService) {
         super(SimulateIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            SimulateIndexTemplateRequest::new, indexNameExpressionResolver);
+            SimulateIndexTemplateRequest::new, indexNameExpressionResolver, SimulateIndexTemplateResponse::new, ThreadPool.Names.SAME);
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected SimulateIndexTemplateResponse read(StreamInput in) throws IOException {
-        return new SimulateIndexTemplateResponse(in);
     }
 
     @Override

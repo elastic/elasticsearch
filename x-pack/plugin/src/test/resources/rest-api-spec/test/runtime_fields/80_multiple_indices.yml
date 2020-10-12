@@ -24,7 +24,7 @@ setup:
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
-                      emit(toEpochMilli(dt.plus(params.days, ChronoUnit.DAYS)));
+                      emit(dt.plus(params.days, ChronoUnit.DAYS).toEpochMilli());
                     }
                   params:
                     days: 1

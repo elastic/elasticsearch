@@ -17,6 +17,8 @@
  * under the License.
  */
 
+rootProject.name = "root"
+
 include ":distribution:bwc:bugfix"
 include ":distribution:bwc:minor"
 include ":distribution:archives:darwin-tar"

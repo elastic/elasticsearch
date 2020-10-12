@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -29,8 +28,6 @@ import org.elasticsearch.xpack.core.ilm.action.RetryAction;
 import org.elasticsearch.xpack.core.ilm.action.RetryAction.Request;
 import org.elasticsearch.xpack.core.ilm.action.RetryAction.Response;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
-
-import java.io.IOException;
 
 public class TransportRetryAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -42,18 +39,9 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
     public TransportRetryAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                 IndexLifecycleService indexLifecycleService) {
-        super(RetryAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
+        super(RetryAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver,
+                Response::new, ThreadPool.Names.SAME);
         this.indexLifecycleService = indexLifecycleService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response read(StreamInput in) throws IOException {
-        return new Response(in);
     }
 
     @Override

@@ -80,15 +80,11 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
             threadPool,
             actionFilters,
             DeleteDanglingIndexRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.GENERIC
         );
         this.settings = settings;
         this.nodeClient = nodeClient;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
     }
 
     @Override

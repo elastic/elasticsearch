@@ -529,6 +529,9 @@ the {classanalysis}.
 <5> Specifies the class name that is treated as positive during the evaluation, 
 all the other classes are treated as negative.
 
+
+The API returns the following result:
+
 [source,console]
 --------------------------------------------------
 {

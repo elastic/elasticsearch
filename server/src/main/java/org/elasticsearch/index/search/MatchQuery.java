@@ -308,6 +308,7 @@ public class MatchQuery {
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
+        assert tsi != TextSearchInfo.NONE;
         if (analyzer == null) {
             return quoted ? tsi.getSearchQuoteAnalyzer() : tsi.getSearchAnalyzer();
         } else {

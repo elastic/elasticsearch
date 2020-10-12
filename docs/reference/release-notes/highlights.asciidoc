@@ -49,11 +49,18 @@ considered to be part of all tiers.
 === Points in time (PITs) for search
 
 In 7.10, we're introducing points in time (PITs), a lightweight way to preserve
-index state over searches. If you're
-{ref}/paginate-search-results.html#search-after[using `search_after` to paginate
-search results] over multiple requests, a refresh could change the order of your
-results and cause inconsistent results across pages. To prevent this, you can
-now create a PIT to maintain the same index state over multiple searches.
+index state over searches. PITs improve end-user experience by making UIs more
+reactive.
+
+By default, a search request waits for complete results before returning a
+response. For example, a search request that retrieves top hits and aggregations
+returns a response only after both top hits and aggregations are computed.
+However, aggregations are usually slower and more expensive to compute than to
+top hits. Instead of sending a combined request, you can send two separate
+requests: one for top hits and another one for aggregations. With separate
+requests, a UI can display top hits as soon as they're available and display
+aggregation data after the slower aggregation request completes. You can use a
+PIT to ensure both search requests run on the same data and index state.
 
 To use a PIT in a search, you must first explicitly create the PIT using the new
 {ref}/point-in-time-api.html[open PIT API]. PITs get automatically garbage-collected

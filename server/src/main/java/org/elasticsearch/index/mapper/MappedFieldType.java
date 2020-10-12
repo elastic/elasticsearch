@@ -112,6 +112,12 @@ public abstract class MappedFieldType {
         return typeName();
     }
 
+    /**
+     * Returns the capabilities of this field.
+     *
+     * If the field should not be returned as part of a Field Capabilities call,
+     * implementations can return {@code null}
+     */
     public IndexFieldCapabilities fieldCaps() {
         return new IndexFieldCapabilities(name, familyTypeName(), isSearchable(), isAggregatable(), meta);
     }

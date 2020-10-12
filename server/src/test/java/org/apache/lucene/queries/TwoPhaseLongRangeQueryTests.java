@@ -34,8 +34,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 
-import java.time.Instant;
-
 public class TwoPhaseLongRangeQueryTests extends LuceneTestCase {
 
     public void testIndexAndQuerySmall() throws Exception {

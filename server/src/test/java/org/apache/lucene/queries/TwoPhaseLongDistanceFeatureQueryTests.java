@@ -36,7 +36,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 
-import java.time.Instant;
 
 public class TwoPhaseLongDistanceFeatureQueryTests extends LuceneTestCase {
 
@@ -63,11 +62,11 @@ public class TwoPhaseLongDistanceFeatureQueryTests extends LuceneTestCase {
         IndexWriter w = new IndexWriter(dir, iwc);
         for (int id = 0; id < numPoints; id++) {
             Document doc = new Document();
-            Instant instant  = randomInstant();
-            doc.add(new LongPoint("exact", instant.toEpochMilli()));
-            doc.add(new SortedNumericDocValuesField("exact", instant.toEpochMilli()));
-            doc.add(new LongPoint("approx", instant.getEpochSecond()));
-            doc.add(new SortedNumericDocValuesField("approx", instant.toEpochMilli()));
+            long value  = randomLongBetween(2000000L, 3000000L);
+            doc.add(new LongPoint("exact",value));
+            doc.add(new SortedNumericDocValuesField("exact", value));
+            doc.add(new LongPoint("approx", approximate(value)));
+            doc.add(new SortedNumericDocValuesField("approx", value));
             w.addDocument(doc);
         }
 
@@ -79,14 +78,14 @@ public class TwoPhaseLongDistanceFeatureQueryTests extends LuceneTestCase {
 
         IndexSearcher s = newSearcher(r);
         for ( int i = 0; i < 100; i++) {
-            Instant origin  = randomInstant();
-            long distance = randomLongBetween(0, 10000);
+            long origin  = randomLongBetween(2000000L, 3000000L);
+            long distance = randomLongBetween(1, 10000);
 
-            Query q1 = LongPoint.newDistanceFeatureQuery("exact", 2f, origin.toEpochMilli(), distance);
-            Query q2 = new TwoPhaseLongDistanceFeatureQuery("approx", origin.toEpochMilli(), distance, origin.getEpochSecond()) {
+            Query q1 = LongPoint.newDistanceFeatureQuery("exact", 2f, origin, distance);
+            Query q2 = new TwoPhaseLongDistanceFeatureQuery("approx", origin, distance, approximate(origin)) {
                 @Override
                 public long convertDistance(long distanceExact) {
-                    return distanceExact/1000;
+                    return approximate(distanceExact);
                 }
             };
             q2 = new BoostQuery(q2, 2f);
@@ -107,8 +106,8 @@ public class TwoPhaseLongDistanceFeatureQueryTests extends LuceneTestCase {
     /**
      * @return a random instant between 1970 and ca 2065
      */
-    protected Instant randomInstant() {
-        return Instant.ofEpochMilli(randomLongBetween(0, 3000L));
+    protected long approximate(long value) {
+        return value / 60000L;
     }
 
     public static long randomLongBetween(long min, long max) {

@@ -51,6 +51,7 @@ import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -294,6 +295,16 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertEquals("Field [mapped_geo_point] of type [geo_point] does not support match queries", e.getMessage());
         query.lenient(true);
         query.toQuery(context); // no exception
+    }
+
+    public void testLenientFlag() throws Exception {
+        MatchQueryBuilder query = new MatchQueryBuilder(BINARY_FIELD_NAME, "test");
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_binary] of type [binary does not support match queries", e.getMessage());
+        query.lenient(true);
+        query.toQuery(context);
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testParseFailsWithMultipleFields() {

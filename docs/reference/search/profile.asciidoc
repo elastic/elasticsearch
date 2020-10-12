@@ -305,7 +305,7 @@ explanation text for the query, and is made available to help differentiating
 between parts of your query (e.g. both `message:get` and `message:search` are 
 TermQuery's and would appear identical otherwise.
 
-The `time_in_nanos` field shows that this query took ~1.8ms for the entire 
+The `time_in_nanos` field shows that this query took ~11.9ms for the entire 
 BooleanQuery to execute.  The recorded time is inclusive of all children.
 
 The `breakdown` field will give detailed stats about how the time was spent, 

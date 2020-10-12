@@ -70,14 +70,14 @@ public class LocateProcessorTests extends AbstractWireSerializingTestCase<Locate
     }
     
     public void testLocateFunctionInputsOutOfRange() {
-        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(-2147483647)).makePipe().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(Integer.MIN_VALUE + 1)).makePipe().asProcessor().process(null));
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Locate(EMPTY, l("bar"), l("foobarbar"), l(-2147483648)).makePipe().asProcessor().process(null));
+                () -> new Locate(EMPTY, l("bar"), l("foobarbar"), l(Integer.MIN_VALUE)).makePipe().asProcessor().process(null));
         assertEquals("[start] has the value [-2147483648] out of allowed range [-2147483647..2147483647]", siae.getMessage());
     
-        assertEquals(0, new Locate(EMPTY, l("bar"), l("foobarbar"), l(2147483647)).makePipe().asProcessor().process(null));
+        assertEquals(0, new Locate(EMPTY, l("bar"), l("foobarbar"), l(Integer.MAX_VALUE)).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Locate(EMPTY, l("bar"), l("foobarbar"), l(2147483648L)).makePipe().asProcessor().process(null));
+                () -> new Locate(EMPTY, l("bar"), l("foobarbar"), l((long) Integer.MAX_VALUE + 1)).makePipe().asProcessor().process(null));
         assertEquals("[start] has the value [2147483648] out of allowed range [-2147483647..2147483647]", siae.getMessage());
     }
 }

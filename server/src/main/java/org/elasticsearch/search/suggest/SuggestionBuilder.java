@@ -304,9 +304,9 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
             throw new IllegalArgumentException("no mapping found for field [" + field + "]");
         }
 
-        MappedFieldType fieldType = context.fieldMapper(field);
+        MappedFieldType fieldType = context.getFieldType(field);
         if (analyzer == null) {
-            suggestionContext.setAnalyzer(context.getSearchAnalyzer(fieldType));
+            suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().getSearchAnalyzer());
         } else {
             Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {

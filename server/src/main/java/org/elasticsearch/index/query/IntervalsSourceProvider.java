@@ -147,7 +147,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer, false));
             }
@@ -530,7 +530,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, analyzer, true));
             }
@@ -645,7 +645,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 checkPositions(fieldType);
                 if (this.analyzer == null) {
@@ -782,7 +782,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 checkPositions(fieldType);
                 if (this.analyzer == null) {

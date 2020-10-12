@@ -177,7 +177,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             } else {
                 seed = this.seed;
             }
-            return new RandomScoreFunction(seed, salt, context.getForField(context.fieldMapper(fieldName)));
+            return new RandomScoreFunction(seed, salt, context.getForField(context.getFieldType(fieldName)));
         }
     }
 

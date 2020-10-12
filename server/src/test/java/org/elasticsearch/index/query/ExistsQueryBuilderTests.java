@@ -78,11 +78,11 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                     BooleanClause booleanClause = booleanQuery.clauses().get(i);
                     assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
-            } else if (context.fieldMapper(field).hasDocValues()) {
+            } else if (context.getFieldType(field).hasDocValues()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
                 DocValuesFieldExistsQuery dvExistsQuery = (DocValuesFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, dvExistsQuery.getField());
-            } else if (context.fieldMapper(field).getTextSearchInfo().hasNorms()) {
+            } else if (context.getFieldType(field).getTextSearchInfo().hasNorms()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(NormsFieldExistsQuery.class));
                 NormsFieldExistsQuery normsExistsQuery = (NormsFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, normsExistsQuery.getField());

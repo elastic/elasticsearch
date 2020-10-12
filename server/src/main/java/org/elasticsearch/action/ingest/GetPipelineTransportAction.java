@@ -28,13 +28,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 public class GetPipelineTransportAction extends TransportMasterNodeReadAction<GetPipelineRequest, GetPipelineResponse> {
 
@@ -43,17 +40,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
                                       TransportService transportService, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, GetPipelineRequest::new,
-                indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetPipelineResponse read(StreamInput in) throws IOException {
-        return new GetPipelineResponse(in);
+                indexNameExpressionResolver, GetPipelineResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override

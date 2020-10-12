@@ -173,11 +173,7 @@ public class AucRoc extends AbstractAucRoc {
 
         List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
         double aucRocScore = calculateAucScore(aucRocCurve);
-        result.set(
-            new Result(
-                aucRocScore,
-                classAgg.getDocCount() + restAgg.getDocCount(),
-                includeCurve ? aucRocCurve : Collections.emptyList()));
+        result.set(new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList()));
     }
 
     @Override

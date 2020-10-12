@@ -72,7 +72,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +89,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2605,18 +2603,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                    ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver) {
             super(UPDATE_SNAPSHOT_STATUS_ACTION_NAME, false, transportService, clusterService, threadPool,
-                    actionFilters, UpdateIndexShardSnapshotStatusRequest::new, indexNameExpressionResolver
+                    actionFilters, UpdateIndexShardSnapshotStatusRequest::new, indexNameExpressionResolver,
+                    in -> UpdateIndexShardSnapshotStatusResponse.INSTANCE, ThreadPool.Names.SAME
             );
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
-            return UpdateIndexShardSnapshotStatusResponse.INSTANCE;
         }
 
         @Override

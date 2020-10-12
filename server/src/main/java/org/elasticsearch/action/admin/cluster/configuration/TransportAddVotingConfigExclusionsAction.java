@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -46,10 +45,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -69,7 +66,8 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                                                     ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                                     IndexNameExpressionResolver indexNameExpressionResolver) {
         super(AddVotingConfigExclusionsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            AddVotingConfigExclusionsRequest::new, indexNameExpressionResolver);
+            AddVotingConfigExclusionsRequest::new, indexNameExpressionResolver, AddVotingConfigExclusionsResponse::new,
+                ThreadPool.Names.SAME);
 
         maxVotingConfigExclusions = MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING, this::setMaxVotingConfigExclusions);
@@ -77,16 +75,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
 
     private void setMaxVotingConfigExclusions(int maxVotingConfigExclusions) {
         this.maxVotingConfigExclusions = maxVotingConfigExclusions;
-    }
-
-    @Override
-    protected String executor() {
-        return Names.SAME;
-    }
-
-    @Override
-    protected AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-        return new AddVotingConfigExclusionsResponse(in);
     }
 
     @Override

@@ -110,6 +110,8 @@ import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuil
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -249,7 +251,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         throws IOException {
         @SuppressWarnings("unchecked")
         A aggregator = (A) aggregationBuilder.rewrite(searchContext.getQueryShardContext())
-            .build(searchContext.getQueryShardContext(), null)
+            .build(new ProductionAggregationContext(searchContext.getQueryShardContext(), searchContext.query()), null)
             .create(searchContext, null, CardinalityUpperBound.ONE);
         return aggregator;
     }
@@ -913,9 +915,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subfactoriesBuilder)
+        protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
                 throws IOException {
-            return new AggregatorFactory(name, queryShardContext, parent, subfactoriesBuilder, metadata) {
+            return new AggregatorFactory(name, context, parent, subfactoriesBuilder, metadata) {
                 @Override
                 protected Aggregator createInternal(
                     SearchContext searchContext,
@@ -936,8 +938,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                         @Override
                         public InternalAggregation buildEmptyAggregation() {
-                            // TODO Auto-generated method stub
-                            return null;
+                            throw new UnsupportedOperationException();
                         }
                     };
                 }

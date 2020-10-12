@@ -12,13 +12,13 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -39,14 +39,14 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     TTestAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs, TTestType testType, int tails,
                            QueryBuilder filterA, QueryBuilder filterB,
-                           DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
+                           DocValueFormat format, AggregationContext context, AggregatorFactory parent,
                            AggregatorFactories.Builder subFactoriesBuilder,
                            Map<String, Object> metadata) throws IOException {
-        super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, configs, format, context, parent, subFactoriesBuilder, metadata);
         this.testType = testType;
         this.tails = tails;
-        this.filterA = filterA == null ? null : filterA.toQuery(queryShardContext);
-        this.filterB = filterB == null ? null : filterB.toQuery(queryShardContext);
+        this.filterA = filterA == null ? null : context.buildQuery(filterA);
+        this.filterB = filterB == null ? null : context.buildQuery(filterB);
     }
 
     @Override
@@ -72,8 +72,7 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        MultiValuesSource.NumericMultiValuesSource numericMultiVS
-            = new MultiValuesSource.NumericMultiValuesSource(configs, queryShardContext);
+        MultiValuesSource.NumericMultiValuesSource numericMultiVS = new MultiValuesSource.NumericMultiValuesSource(configs);
         if (numericMultiVS.areValuesSourcesEmpty()) {
             return createUnmapped(searchContext, parent, metadata);
         }
@@ -112,7 +111,7 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     public Weight getWeight(Query filter) {
         if (filter != null) {
-            IndexSearcher contextSearcher = queryShardContext.searcher();
+            IndexSearcher contextSearcher = context.searcher();
             try {
                 return contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {

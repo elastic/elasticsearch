@@ -94,7 +94,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
                         listener.onFailure(new ResourceNotFoundException("Could not delete filter with ID [" + filterId
                             + "] because it does not exist"));
                     } else {
-                        listener.onResponse(new AcknowledgedResponse(true));
+                        listener.onResponse(AcknowledgedResponse.TRUE);
                     }
                 }
 

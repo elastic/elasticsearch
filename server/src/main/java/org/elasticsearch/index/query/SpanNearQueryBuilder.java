@@ -264,7 +264,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     private String queryFieldName(QueryShardContext context, String fieldName) {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         return fieldType != null ? fieldType.name() : fieldName;
     }
 

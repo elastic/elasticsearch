@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.session.Cursors;
@@ -186,7 +187,7 @@ public abstract class ResultCursor<E extends NamedWriteable> implements Cursor {
             } else {
                 assert source.pointInTimeBuilder() != null;
                 // update the PIT ID from answer, but don't extend the PIT timeout
-                source.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(response.pointInTimeId(), null));
+                source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
 
                 updateSourceAfterKey(rowSet, source);
 

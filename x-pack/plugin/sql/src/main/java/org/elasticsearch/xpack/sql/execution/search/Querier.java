@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
@@ -154,7 +155,7 @@ public class Querier {
             @Override
             public void onResponse(OpenPointInTimeResponse openPointInTimeResponse) {
                 String searchContextId = openPointInTimeResponse.getSearchContextId();
-                search.source().pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(searchContextId, null));
+                search.source().pointInTimeBuilder(new PointInTimeBuilder(searchContextId));
                 client.search(search, listener);
             }
 

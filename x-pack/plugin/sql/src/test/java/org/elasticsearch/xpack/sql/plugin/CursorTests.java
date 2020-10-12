@@ -12,6 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
@@ -60,7 +61,7 @@ public class CursorTests extends ESTestCase {
         TimeValue keepAlive = randomBoolean() ? null : new TimeValue(randomNonNegativeLong());
 
         SearchSourceBuilder source = new SearchSourceBuilder();
-        source.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(pointInTimeId, keepAlive));
+        source.pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId).setKeepAlive(keepAlive));
         byte[] queryAsBytes = Cursors.serializeQuery(source);
 
 

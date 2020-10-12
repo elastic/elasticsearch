@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
@@ -116,19 +118,20 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     private final String[] keys;
-    private Supplier<Weight[]> filters;
+    private final Supplier<Weight[]> filtersSupplier;
     private final boolean keyed;
     private final boolean showOtherBucket;
     private final String otherBucketKey;
     private final int totalNumKeys;
+    private Weight[] filters;
 
-    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filters, boolean keyed,
+    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filtersSupplier, boolean keyed,
             String otherBucketKey, SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
         this.keyed = keyed;
         this.keys = keys;
-        this.filters = filters;
+        this.filtersSupplier = filtersSupplier;
         this.showOtherBucket = otherBucketKey != null;
         this.otherBucketKey = otherBucketKey;
         if (showOtherBucket) {
@@ -141,8 +144,28 @@ public class FiltersAggregator extends BucketsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        // no need to provide deleted docs to the filter
-        Weight[] filters = this.filters.get();
+        if (filters == null) {
+            filters = this.filtersSupplier.get();
+        }
+
+        if (parent == null) {
+            Bits live = ctx.reader().getLiveDocs();
+            for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
+                DocIdSetIterator itr = filters[filterOrd].scorer(ctx).iterator();
+                if (live == null) {
+                    while (itr.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        collectBucket(sub, itr.docID(), filterOrd);
+                    }
+                } else {
+                    while (itr.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        if (live.get(itr.docID())) {
+                            collectBucket(sub, itr.docID(), filterOrd);
+                        }
+                    }
+                }
+            }
+            throw new CollectionTerminatedException();
+        }
         final Bits[] bits = new Bits[filters.length];
         for (int i = 0; i < filters.length; ++i) {
             bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorerSupplier(ctx));

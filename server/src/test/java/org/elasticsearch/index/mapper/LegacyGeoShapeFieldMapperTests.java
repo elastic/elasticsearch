@@ -632,8 +632,8 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         assertFieldWarnings("tree", "strategy");
     }
 
-    @Override
-    protected void assertTermQuery(MappedFieldType fieldType, QueryShardContext queryShardContext) {
-        expectThrows(IllegalArgumentException.class, () -> super.assertTermQuery(fieldType, queryShardContext));
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 }

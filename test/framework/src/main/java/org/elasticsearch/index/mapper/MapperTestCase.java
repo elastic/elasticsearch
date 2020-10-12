@@ -436,7 +436,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             expectThrows(IllegalArgumentException.class, () -> fieldType.termQuery(null, null));
         } else {
             QueryShardContext queryShardContext = createQueryShardContext(mapperService);
-            assertTermQuery(fieldType, queryShardContext);
+            assertNotNull(fieldType.termQuery(getSampleValueForQuery(), queryShardContext));
         }
         assertSearchable(fieldType);
         assertParseMinimalWarnings();
@@ -444,9 +444,5 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected void assertSearchable(MappedFieldType fieldType) {
         assertEquals(fieldType.isSearchable(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
-    }
-
-    protected void assertTermQuery(MappedFieldType fieldType, QueryShardContext queryShardContext) {
-        assertNotNull(fieldType.termQuery(getSampleValueForQuery(), queryShardContext));
     }
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.junit.Before;
@@ -239,8 +238,8 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         return false;
     }
 
-    @Override
-    protected void assertTermQuery(MappedFieldType fieldType, QueryShardContext queryShardContext) {
-        expectThrows(IllegalArgumentException.class, () -> super.assertTermQuery(fieldType, queryShardContext));
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 }

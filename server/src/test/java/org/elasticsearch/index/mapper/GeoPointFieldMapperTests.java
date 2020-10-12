@@ -23,7 +23,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -332,8 +331,8 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         return new GeoPointFieldMapper.Builder("geo");
     }
 
-    @Override
-    protected void assertTermQuery(MappedFieldType fieldType, QueryShardContext queryShardContext) {
-        expectThrows(IllegalArgumentException.class, () -> super.assertTermQuery(fieldType, queryShardContext));
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 }

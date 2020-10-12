@@ -291,12 +291,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         writeBufferedOps(Long.MAX_VALUE, true);
     }
 
-    public boolean flushNeeded() {
-        return bufferedBytes > inMemoryBufferSize;
-    }
-
-    public boolean shouldSync() {
-        return (totalOffset - lastSyncedCheckpoint.offset) > inMemoryBufferSize;
+    /**
+     * Returns <code>true</code> if there the un-synced bytes have passed the threshold for a sync (4 * the
+     * in-memory buffer size)
+     */
+    public boolean shouldIncrementalSync() {
+        return (totalOffset - lastSyncedCheckpoint.offset) > (inMemoryBufferSize * 4);
     }
 
     /**

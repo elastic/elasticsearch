@@ -729,12 +729,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public boolean flushNeeded() {
-        try (ReleasableLock lock = readLock.acquire()) {
-            return current.flushNeeded();
-        }
-    }
-
     /**
      * Syncs the translog.
      */
@@ -749,9 +743,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public boolean shouldSync() {
+    public boolean shouldIncrementalSync() {
         try (ReleasableLock lock = readLock.acquire()) {
-            return current.shouldSync();
+            return current.shouldIncrementalSync();
         }
     }
 

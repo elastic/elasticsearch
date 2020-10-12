@@ -906,7 +906,7 @@ public class InternalEngine extends Engine {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
-                        syncLoop.maybeScheduleFlush();
+                        syncLoop.maybeScheduleIncrementalSync();
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
                         final NoOp noOp = new NoOp(indexResult.getSeqNo(), index.primaryTerm(), index.origin(),
@@ -1268,7 +1268,7 @@ public class InternalEngine extends Engine {
             if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
                 final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
                 deleteResult.setTranslogLocation(location);
-                syncLoop.maybeScheduleFlush();
+                syncLoop.maybeScheduleIncrementalSync();
             }
             localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
             if (deleteResult.getTranslogLocation() == null) {
@@ -1509,7 +1509,7 @@ public class InternalEngine extends Engine {
                 if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                     noOpResult.setTranslogLocation(location);
-                    syncLoop.maybeScheduleFlush();
+                    syncLoop.maybeScheduleIncrementalSync();
                 }
             }
             localCheckpointTracker.markSeqNoAsProcessed(noOpResult.getSeqNo());

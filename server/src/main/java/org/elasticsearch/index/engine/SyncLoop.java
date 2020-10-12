@@ -54,27 +54,11 @@ public class SyncLoop {
         this.listeners = new PriorityQueue<>(1024, Comparator.comparing(Tuple::v1));
     }
 
-    public void maybeScheduleFlush() {
-        if (translog.flushNeeded()) {
+    public void maybeScheduleIncrementalSync() {
+        if (translog.shouldIncrementalSync()) {
             final boolean promised = promiseSemaphore.tryAcquire();
             if (promised) {
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
-                    if (translog.shouldSync()) {
-                        doSyncAndNotify();
-                    } else {
-                        try {
-                            translog.flush();
-                        } catch (Exception e) {
-                            // Ignore, translog internally handles exceptions
-                        } finally {
-                            promiseSemaphore.release();
-                        }
-                    }
-
-                    while (isListenersEmpty() == false && promiseSemaphore.tryAcquire()) {
-                        doSyncAndNotify();
-                    }
-                });
+                threadPool.executor(ThreadPool.Names.FLUSH).execute(this::runSyncLoop);
             }
         }
     }
@@ -90,12 +74,7 @@ public class SyncLoop {
         final boolean promised = promiseSemaphore.tryAcquire();
         if (promised) {
             try {
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
-                    doSyncAndNotify();
-                    while (isListenersEmpty() == false && promiseSemaphore.tryAcquire()) {
-                        doSyncAndNotify();
-                    }
-                });
+                threadPool.executor(ThreadPool.Names.FLUSH).execute(this::runSyncLoop);
             } catch (Exception e) {
                 promiseSemaphore.release();
                 throw e;
@@ -103,7 +82,16 @@ public class SyncLoop {
         }
     }
 
+    private void runSyncLoop() {
+        assert promiseSemaphore.availablePermits() == 0;
+        doSyncAndNotify();
+        while ((isListenersEmpty() == false || translog.shouldIncrementalSync()) && promiseSemaphore.tryAcquire()) {
+            doSyncAndNotify();
+        }
+    }
+
     private void doSyncAndNotify() {
+        assert promiseSemaphore.availablePermits() == 0;
         Exception exception = null;
         ArrayList<Consumer<Exception>> syncedListeners = new ArrayList<>(listenerCount());
         try {

@@ -261,7 +261,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             if (context.isFieldMapped(field) == false) {
                                 throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
                             }
-                            return context.fieldMapper(field);
+                            return context.getFieldType(field);
                         }, context.getMapperService().documentMapper());
                         final SearchHit hit = new SearchHit(
                             scoreDoc.doc,

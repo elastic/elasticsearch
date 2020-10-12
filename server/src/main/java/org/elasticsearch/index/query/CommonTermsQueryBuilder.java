@@ -359,7 +359,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             return new MatchNoDocsQuery("unknown field " + fieldName);
         }

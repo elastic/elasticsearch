@@ -893,7 +893,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 () -> randomNonNegativeLong(), null, null, () -> true, null) {
 
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType getFieldType(String name) {
                 return provideMappedFieldType(name);
             }
         };

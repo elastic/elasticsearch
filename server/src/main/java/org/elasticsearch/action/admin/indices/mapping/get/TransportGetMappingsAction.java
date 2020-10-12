@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -48,13 +47,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
         super(GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new,
-                indexNameExpressionResolver);
+                indexNameExpressionResolver, GetMappingsResponse::new);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected GetMappingsResponse read(StreamInput in) throws IOException {
-        return new GetMappingsResponse(in);
     }
 
     @Override

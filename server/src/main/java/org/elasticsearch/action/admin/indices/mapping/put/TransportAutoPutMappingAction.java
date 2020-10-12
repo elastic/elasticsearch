@@ -49,14 +49,8 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver) {
         super(AutoPutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutMappingRequest::new, indexNameExpressionResolver);
+            PutMappingRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.metadataMappingService = metadataMappingService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
     }
 
     @Override

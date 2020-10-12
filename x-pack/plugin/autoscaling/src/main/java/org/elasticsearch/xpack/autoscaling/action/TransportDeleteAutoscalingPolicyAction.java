@@ -48,13 +48,9 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
             threadPool,
             actionFilters,
             DeleteAutoscalingPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

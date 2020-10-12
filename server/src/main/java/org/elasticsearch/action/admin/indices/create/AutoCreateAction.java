@@ -40,11 +40,9 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -70,20 +68,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                MetadataCreateIndexService createIndexService,
                                MetadataCreateDataStreamService metadataCreateDataStreamService) {
-            super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new, indexNameExpressionResolver);
+            super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new, indexNameExpressionResolver,
+                    CreateIndexResponse::new, ThreadPool.Names.SAME);
             this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected CreateIndexResponse read(StreamInput in) throws IOException {
-            return new CreateIndexResponse(in);
         }
 
         @Override

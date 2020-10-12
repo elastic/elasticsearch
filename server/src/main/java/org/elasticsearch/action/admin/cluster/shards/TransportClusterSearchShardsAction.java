@@ -32,14 +32,12 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -55,25 +53,14 @@ public class TransportClusterSearchShardsAction extends
                                               IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClusterSearchShardsRequest::new, indexNameExpressionResolver);
+            ClusterSearchShardsRequest::new, indexNameExpressionResolver, ClusterSearchShardsResponse::new, ThreadPool.Names.SAME);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        // all in memory work here...
-        return ThreadPool.Names.SAME;
     }
 
     @Override
     protected ClusterBlockException checkBlock(ClusterSearchShardsRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
                 indexNameExpressionResolver.concreteIndexNames(state, request));
-    }
-
-    @Override
-    protected ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-        return new ClusterSearchShardsResponse(in);
     }
 
     @Override

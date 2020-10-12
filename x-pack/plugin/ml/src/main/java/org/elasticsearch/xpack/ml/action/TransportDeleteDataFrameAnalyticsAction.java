@@ -83,16 +83,11 @@ public class TransportDeleteDataFrameAnalyticsAction
                                                    MlMemoryTracker memoryTracker, DataFrameAnalyticsConfigProvider configProvider,
                                                    DataFrameAnalyticsAuditor auditor) {
         super(DeleteDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
+            DeleteDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = client;
         this.memoryTracker = memoryTracker;
         this.configProvider = configProvider;
         this.auditor = Objects.requireNonNull(auditor);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

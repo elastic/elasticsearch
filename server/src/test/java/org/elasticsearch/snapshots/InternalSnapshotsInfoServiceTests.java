@@ -303,7 +303,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         applyClusterState("new snapshot restore for index " + indexName,
             clusterState -> addUnassignedShards(clusterState, indexName, nbShards));
 
-        // waiting for snapshot shard size fetches to be executed, as we want to verify that they are clean up
+        // waiting for snapshot shard size fetches to be executed, as we want to verify that they are cleaned up
         assertBusy(() -> assertThat(
             snapshotsInfoService.numberOfFailedSnapshotShardSizes() + snapshotsInfoService.numberOfKnownSnapshotShardSizes(),
             equalTo(nbShards)));
@@ -391,12 +391,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
         routingTable.add(IndexRoutingTable.builder(index).initializeAsNewRestore(indexMetadata, recoverySource, new IntHashSet()).build());
 
-        final RestoreInProgress.Builder restores;
-        if (currentState.custom(RestoreInProgress.TYPE) != null) {
-            restores = new RestoreInProgress.Builder(currentState.custom(RestoreInProgress.TYPE));
-        } else {
-            restores = new RestoreInProgress.Builder();
-        }
+        final RestoreInProgress.Builder restores =
+            new RestoreInProgress.Builder(currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY));
         final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             shards.put( new ShardId(index, i), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));

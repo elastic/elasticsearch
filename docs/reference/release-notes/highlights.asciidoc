@@ -56,8 +56,8 @@ results and cause inconsistent results across pages. To prevent this, you can
 now create a PIT to maintain the same index state over multiple searches.
 
 To use a PIT in a search, you must first explicitly create the PIT using the new
-{ref}/point-in-time-api.html[open PIT API]. PITs last for the duration provided
-in the `keep_alive` query parameter.
+{ref}/point-in-time-api.html[open PIT API]. PITs get automatically garbage-collected
+after `keep_alive` if no follow-up request extends their duration.
 
 [source,console]
 ----
@@ -66,7 +66,8 @@ POST /my-index-000001/_pit?keep_alive=1m
 // TEST[setup:my_index]
 
 The API returns a PIT ID you can use in search requests. You can also
-extend your PIT's lifespan using the search request's `keep_alive` parameter.
+configure by how long to extend your PIT's lifespan using the search request's
+`keep_alive` parameter.
 
 [source,console]
 ----

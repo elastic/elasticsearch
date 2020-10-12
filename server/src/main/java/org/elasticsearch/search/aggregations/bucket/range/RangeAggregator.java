@@ -215,13 +215,12 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    final ValuesSource.Numeric valuesSource;
-    final DocValueFormat format;
-    final Range[] ranges;
-    final boolean keyed;
-    final InternalRange.Factory rangeFactory;
-
-    final double[] maxTo;
+    private final ValuesSource.Numeric valuesSource;
+    private final DocValueFormat format;
+    private final Range[] ranges;
+    private final boolean keyed;
+    private final InternalRange.Factory rangeFactory;
+    private final Collector collector;
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
@@ -236,12 +235,12 @@ public class RangeAggregator extends BucketsAggregator {
 
         this.ranges = ranges;
 
-        maxTo = new double[this.ranges.length];
+        double[] maxTo = new double[this.ranges.length];
         maxTo[0] = this.ranges[0].to;
         for (int i = 1; i < this.ranges.length; ++i) {
             maxTo[i] = Math.max(this.ranges[i].to,maxTo[i-1]);
         }
-
+        collector = new OverlapCollector(maxTo);
     }
 
     @Override
@@ -253,8 +252,7 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -263,59 +261,10 @@ public class RangeAggregator extends BucketsAggregator {
                     final int valuesCount = values.docValueCount();
                     for (int i = 0, lo = 0; i < valuesCount; ++i) {
                         final double value = values.nextValue();
-                        lo = collect(doc, value, bucket, lo);
+                        lo = collector.collect(sub, doc, value, bucket, lo);
                     }
                 }
             }
-
-    private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
-        int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
-        int mid = (lo + hi) >>> 1;
-        while (lo <= hi) {
-            if (value < ranges[mid].from) {
-                hi = mid - 1;
-            } else if (value >= maxTo[mid]) {
-                lo = mid + 1;
-            } else {
-                break;
-            }
-            mid = (lo + hi) >>> 1;
-        }
-        if (lo > hi) return lo; // no potential candidate
-
-        // binary search the lower bound
-        int startLo = lo, startHi = mid;
-        while (startLo <= startHi) {
-            final int startMid = (startLo + startHi) >>> 1;
-            if (value >= maxTo[startMid]) {
-                startLo = startMid + 1;
-            } else {
-                startHi = startMid - 1;
-            }
-        }
-
-        // binary search the upper bound
-        int endLo = mid, endHi = hi;
-        while (endLo <= endHi) {
-            final int endMid = (endLo + endHi) >>> 1;
-            if (value < ranges[endMid].from) {
-                endHi = endMid - 1;
-            } else {
-                endLo = endMid + 1;
-            }
-        }
-
-        assert startLo == lowBound || value >= maxTo[startLo - 1];
-        assert endHi == ranges.length - 1 || value < ranges[endHi + 1].from;
-
-        for (int i = startLo; i <= endHi; ++i) {
-            if (ranges[i].matches(value)) {
-                        collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
-            }
-        }
-
-        return endHi + 1;
-    }
         };
     }
 
@@ -375,4 +324,65 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
+    interface Collector {
+        int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException;
+    }
+
+    private class OverlapCollector implements Collector {
+        private final double[] maxTo;
+
+        public OverlapCollector(double[] maxTo) {
+            this.maxTo = maxTo;
+        }
+
+        @Override
+        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
+            int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
+            int mid = (lo + hi) >>> 1;
+            while (lo <= hi) {
+                if (value < ranges[mid].from) {
+                    hi = mid - 1;
+                } else if (value >= maxTo[mid]) {
+                    lo = mid + 1;
+                } else {
+                    break;
+                }
+                mid = (lo + hi) >>> 1;
+            }
+            if (lo > hi) return lo; // no potential candidate
+
+            // binary search the lower bound
+            int startLo = lo, startHi = mid;
+            while (startLo <= startHi) {
+                final int startMid = (startLo + startHi) >>> 1;
+                if (value >= maxTo[startMid]) {
+                    startLo = startMid + 1;
+                } else {
+                    startHi = startMid - 1;
+                }
+            }
+
+            // binary search the upper bound
+            int endLo = mid, endHi = hi;
+            while (endLo <= endHi) {
+                final int endMid = (endLo + endHi) >>> 1;
+                if (value < ranges[endMid].from) {
+                    endHi = endMid - 1;
+                } else {
+                    endLo = endMid + 1;
+                }
+            }
+
+            assert startLo == lowBound || value >= maxTo[startLo - 1];
+            assert endHi == ranges.length - 1 || value < ranges[endHi + 1].from;
+
+            for (int i = startLo; i <= endHi; ++i) {
+                if (ranges[i].matches(value)) {
+                            collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
+                }
+            }
+
+            return endHi + 1;
+        }
+    }
 }

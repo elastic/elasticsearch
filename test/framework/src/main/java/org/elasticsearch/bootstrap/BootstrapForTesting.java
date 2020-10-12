@@ -139,6 +139,8 @@ public class BootstrapForTesting {
 
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
+                // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
+                addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
                     addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");

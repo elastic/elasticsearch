@@ -120,7 +120,7 @@ public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<Outl
     public void testGetStateDocId() {
         OutlierDetection outlierDetection = createRandom();
         assertThat(outlierDetection.persistsState(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> outlierDetection.getStateDocId("foo"));
+        expectThrows(UnsupportedOperationException.class, () -> outlierDetection.getStateDocIdPrefix("foo"));
     }
 
     public void testInferenceConfig() {

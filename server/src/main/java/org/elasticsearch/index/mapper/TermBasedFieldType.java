@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -36,9 +35,9 @@ import java.util.Map;
  *  with the inverted index. */
 public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
-    public TermBasedFieldType(String name, boolean isSearchable, boolean hasDocValues, TextSearchInfo textSearchInfo,
-        Map<String, String> meta) {
-        super(name, isSearchable, hasDocValues, textSearchInfo, meta);
+    public TermBasedFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                       TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     /** Returns the indexed value used to construct search "values".
@@ -51,21 +50,13 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
         failIfNotIndexed();
-        Query query = AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
-        if (boost() != 1f) {
-            query = new BoostQuery(query, boost());
-        }
-        return query;            
+        return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         failIfNotIndexed();
-        Query query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
-        if (boost() != 1f) {
-            query = new BoostQuery(query, boost());
-        }
-        return query;
+        return new TermQuery(new Term(name(), indexedValueForSearch(value)));
     }
 
     @Override

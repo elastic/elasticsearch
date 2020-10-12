@@ -23,22 +23,15 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 public class DocumentFieldMapperTests extends LuceneTestCase {
 
@@ -73,34 +66,8 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
     static class FakeFieldType extends TermBasedFieldType {
 
-        FakeFieldType(String name) {
-            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-        }
-
-        @Override
-        public String typeName() {
-            return "fake";
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
-        }
-
-    }
-
-    static class FakeFieldMapper extends FieldMapper {
-
-        FakeFieldMapper(FakeFieldType fieldType) {
-            super(fieldType.name(), new FieldType(), fieldType, MultiFields.empty(), CopyTo.empty());
-        }
-
-        @Override
-        protected void parseCreateField(ParseContext context) throws IOException {
+        private FakeFieldType(String name) {
+            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -109,8 +76,19 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        public String typeName() {
+            return "fake";
+        }
+    }
 
+    static class FakeFieldMapper extends ParametrizedFieldMapper {
+
+        FakeFieldMapper(FakeFieldType fieldType) {
+            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context) {
         }
 
         @Override
@@ -118,6 +96,10 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             return null;
         }
 
+        @Override
+        public Builder getMergeBuilder() {
+            return null;
+        }
     }
 
     public void testAnalyzers() throws IOException {

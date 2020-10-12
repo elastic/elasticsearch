@@ -50,6 +50,7 @@ import java.util.function.BiConsumer;
 public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
+    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
@@ -746,7 +747,7 @@ public final class IngestDocument {
                 handler.accept(result, e);
             });
         } else {
-            handler.accept(null, new IllegalStateException("Cycle detected for pipeline: " + pipeline.getId()));
+            handler.accept(null, new IllegalStateException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
         }
     }
 

@@ -800,7 +800,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.docs().size(), equalTo(3));
         if (Version.indexCreated(settings).before(Version.V_8_0_0)) {
-            assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
+            assertThat(doc.docs().get(0).get(TypeFieldType.NAME), equalTo(nested1Mapper.nestedTypePath()));
         } else {
             assertThat(doc.docs().get(0).get(NestedPathFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
         }

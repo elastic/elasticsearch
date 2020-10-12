@@ -19,9 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
@@ -29,11 +27,7 @@ public abstract class IRNode {
 
     /* ---- begin node data ---- */
 
-    protected Location location;
-
-    public void setLocation(Location location) {
-        this.location = location;
-    }
+    private final Location location;
 
     public Location getLocation() {
         return location;
@@ -41,17 +35,15 @@ public abstract class IRNode {
 
     /* ---- end node data, begin visitor ---- */
 
-    /**
-     * Callback to visit an ir tree node.
-     */
     public abstract <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
-
-    /**
-     * Visits all child ir tree nodes for this ir tree node.
-     */
     public abstract <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
 
     /* ---- end visitor ---- */
 
-    protected abstract void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope);
+    public IRNode(Location location) {
+        this.location = location;
+    }
+
+    protected abstract void write(WriteScope writeScope);
+
 }

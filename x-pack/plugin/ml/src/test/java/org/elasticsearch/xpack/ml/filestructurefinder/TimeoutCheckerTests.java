@@ -78,7 +78,7 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
     }
 
     public void testGrokCaptures() throws Exception {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(), "{%DATA:data}{%GREEDYDATA:greedydata}", TimeoutChecker.watchdog, logger::warn);
+        Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "{%DATA:data}{%GREEDYDATA:greedydata}", TimeoutChecker.watchdog, logger::warn);
         TimeValue timeout = TimeValue.timeValueMillis(1);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("grok captures test", timeout, scheduler)) {
 

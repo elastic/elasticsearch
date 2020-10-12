@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
@@ -52,8 +52,14 @@ public class ConstantNode extends ExpressionNode {
 
     /* ---- end visitor ---- */
 
+    public ConstantNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+
         if      (constant instanceof String)    methodWriter.push((String)constant);
         else if (constant instanceof Double)    methodWriter.push((double)constant);
         else if (constant instanceof Float)     methodWriter.push((float)constant);

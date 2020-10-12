@@ -34,10 +34,10 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
@@ -48,7 +48,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -77,23 +76,24 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     private final SnapshotsService snapshotsService;
 
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
     @Inject
     public TransportCleanupRepositoryAction(TransportService transportService, ClusterService clusterService,
                                             RepositoriesService repositoriesService, SnapshotsService snapshotsService,
                                             ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver) {
         super(CleanupRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            CleanupRepositoryRequest::new, indexNameExpressionResolver);
+            CleanupRepositoryRequest::new, indexNameExpressionResolver, CleanupRepositoryResponse::new, ThreadPool.Names.SAME);
         this.repositoriesService = repositoriesService;
         this.snapshotsService = snapshotsService;
         // We add a state applier that will remove any dangling repository cleanup actions on master failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+            addClusterStateApplier(clusterService);
+        }
+    }
+
+    private static void addClusterStateApplier(ClusterService clusterService) {
         clusterService.addStateApplier(event -> {
             if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false) {
                 final RepositoryCleanupInProgress repositoryCleanupInProgress =
@@ -127,11 +127,6 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         return currentState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()
             ? ClusterState.builder(currentState).putCustom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).build()
             : currentState;
-    }
-
-    @Override
-    protected CleanupRepositoryResponse read(StreamInput in) throws IOException {
-        return new CleanupRepositoryResponse(in);
     }
 
     @Override

@@ -460,8 +460,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 }
 
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results,
-                                                   SearchPhaseContext context) {
+                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {

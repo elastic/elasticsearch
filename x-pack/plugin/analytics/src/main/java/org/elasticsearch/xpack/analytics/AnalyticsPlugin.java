@@ -145,7 +145,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, new HistogramFieldMapper.TypeParser());
+        return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
     }
 
     @Override

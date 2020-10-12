@@ -289,6 +289,28 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(testProcessor.getInvokedCounter(), equalTo(0));
     }
 
+    public void testAppendingToTheSameField() {
+        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", List.of("a", "b")));
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        TestProcessor testProcessor = new TestProcessor(id->id.appendFieldValue("field", "a"));
+        ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
+        processor.execute(ingestDocument, (result, e) -> {});
+        assertThat(testProcessor.getInvokedCounter(), equalTo(2));
+        ingestDocument.removeField("_ingest._value");
+        assertThat(ingestDocument, equalTo(originalIngestDocument));
+    }
+
+    public void testRemovingFromTheSameField() {
+        IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", List.of("a", "b")));
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        TestProcessor testProcessor = new TestProcessor(id -> id.removeField("field.0"));
+        ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
+        processor.execute(ingestDocument, (result, e) -> {});
+        assertThat(testProcessor.getInvokedCounter(), equalTo(2));
+        ingestDocument.removeField("_ingest._value");
+        assertThat(ingestDocument, equalTo(originalIngestDocument));
+    }
+
     private class AsyncUpperCaseProcessor implements Processor {
 
         private final String field;

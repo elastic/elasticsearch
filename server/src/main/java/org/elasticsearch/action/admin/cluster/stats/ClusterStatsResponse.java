@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -50,14 +49,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         // it may be that the master switched on us while doing the operation. In this case the status may be null.
         status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
 
-        String clusterUUID = null;
-        MappingStats mappingStats = null;
-        AnalysisStats analysisStats = null;
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            clusterUUID = in.readOptionalString();
-            mappingStats = in.readOptionalWriteable(MappingStats::new);
-            analysisStats = in.readOptionalWriteable(AnalysisStats::new);
-        }
+        String clusterUUID = in.readOptionalString();
+        MappingStats mappingStats = in.readOptionalWriteable(MappingStats::new);
+        AnalysisStats analysisStats = in.readOptionalWriteable(AnalysisStats::new);
         this.clusterUUID = clusterUUID;
 
         // built from nodes rather than from the stream directly
@@ -112,11 +106,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         super.writeTo(out);
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(status);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeOptionalString(clusterUUID);
-            out.writeOptionalWriteable(indicesStats.getMappings());
-            out.writeOptionalWriteable(indicesStats.getAnalysis());
-        }
+        out.writeOptionalString(clusterUUID);
+        out.writeOptionalWriteable(indicesStats.getMappings());
+        out.writeOptionalWriteable(indicesStats.getAnalysis());
     }
 
     @Override

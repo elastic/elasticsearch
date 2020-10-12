@@ -25,6 +25,7 @@ import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
 import org.junit.Before;
@@ -45,6 +46,7 @@ import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
+import static org.elasticsearch.packaging.util.Docker.getImageName;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
@@ -524,12 +526,17 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that there are no files with a GID other than 0.
      */
-    public void test101AllFilesAreGroupZero() throws Exception {
-        // We wait for Elasticsearch to finish starting up in order to avoid the situation where `find` traverses the filesystem
-        // and sees files in a directory listing, which have disappeared by the time `find` tries to examine them. This periodically
-        // happened with the keystore, for example.
-        waitForElasticsearch(installation);
-        final String findResults = sh.run("find . -not -gid 0").stdout;
+    public void test101AllFilesAreGroupZero() {
+        // Run a `find` command in a new container without Elasticsearch running, so
+        // that the results aren't subject to sporadic failures from files appearing /
+        // disappearing while `find` is traversing the filesystem.
+        //
+        // We also create a file under `data/` to ensure that files are created with the
+        // expected group.
+        final Shell localSh = new Shell();
+        final String findResults = localSh.run(
+            "docker run --rm --tty " + getImageName(distribution) + " bash -c ' touch data/test && find . -not -gid 0 ' "
+        ).stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
     }

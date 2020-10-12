@@ -81,8 +81,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
 
         private final String joinField;
 
-        MetaJoinFieldType(String joinField) {
-            super(NAME, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private MetaJoinFieldType(String joinField) {
+            super(NAME, false, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.joinField = joinField;
         }
 
@@ -95,6 +95,11 @@ public class MetaJoinFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + typeName() + "].");
         }
 
         @Override
@@ -137,11 +142,6 @@ public class MetaJoinFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new IllegalStateException("Should never be called");
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + typeName() + "].");
     }
 
     @Override

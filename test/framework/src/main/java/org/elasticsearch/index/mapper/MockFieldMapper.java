@@ -19,23 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
-public class MockFieldMapper extends FieldMapper {
+public class MockFieldMapper extends ParametrizedFieldMapper {
     static Settings DEFAULT_SETTINGS = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
         .build();
@@ -45,7 +38,7 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        super(findSimpleName(fieldType.name()), new FieldType(), fieldType,
+        super(findSimpleName(fieldType.name()), fieldType,
             MultiFields.empty(), new CopyTo.Builder().build());
     }
 
@@ -53,7 +46,12 @@ public class MockFieldMapper extends FieldMapper {
                            MappedFieldType fieldType,
                            MultiFields multifields,
                            CopyTo copyTo) {
-        super(findSimpleName(fullName), new FieldType(), fieldType, multifields, copyTo);
+        super(findSimpleName(fullName), fieldType, multifields, copyTo);
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName());
     }
 
     static String findSimpleName(String fullName) {
@@ -63,7 +61,7 @@ public class MockFieldMapper extends FieldMapper {
 
     public static class FakeFieldType extends TermBasedFieldType {
         public FakeFieldType(String name) {
-            super(name, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -72,12 +70,8 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -87,32 +81,37 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context) {
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
-    }
-
-    public static class Builder extends FieldMapper.Builder<MockFieldMapper.Builder> {
-        private MappedFieldType fieldType;
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+        private final MappedFieldType fieldType;
 
         protected Builder(String name) {
-            super(name, new FieldType());
+            super(name);
             this.fieldType = new FakeFieldType(name);
             this.builder = this;
         }
 
         @Override
+        protected List<Parameter<?>> getParameters() {
+            return Collections.emptyList();
+        }
+
+        public Builder addMultiField(Builder builder) {
+            this.multiFieldsBuilder.add(builder);
+            return this;
+        }
+
+        public Builder copyTo(String field) {
+            this.copyTo.add(field);
+            return this;
+        }
+
+        @Override
         public MockFieldMapper build(BuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MockFieldMapper(name(), fieldType, multiFields, copyTo);
+            return new MockFieldMapper(name(), fieldType, multiFields, copyTo.build());
         }
     }
 }

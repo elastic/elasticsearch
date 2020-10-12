@@ -41,7 +41,7 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
     }
 
     @Override
-    public Geometry parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException {
+    public Geometry parse(XContentParser parser) throws IOException, ParseException {
         return geometryParser.parse(parser);
     }
 
@@ -51,7 +51,7 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
     }
 
     @Override
-    public Object parseAndFormatObject(Object value, AbstractGeometryFieldMapper mapper, String format) {
+    public Object parseAndFormatObject(Object value, String format) {
         try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
             Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
             parser.nextToken(); // start object

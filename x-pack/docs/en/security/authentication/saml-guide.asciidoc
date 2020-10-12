@@ -250,7 +250,7 @@ URI such as `urn:oid:0.9.2342.19200300.100.1.1`, however there are some
 additional names that can be used:
 
 `nameid`::
-    This uses the SAML `NamedID` value instead of a SAML attribute. SAML
+    This uses the SAML `NameID` value instead of a SAML attribute. SAML
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login

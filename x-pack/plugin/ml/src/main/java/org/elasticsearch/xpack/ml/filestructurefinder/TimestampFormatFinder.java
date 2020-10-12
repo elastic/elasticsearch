@@ -1466,9 +1466,9 @@ public final class TimestampFormatFinder {
             this.simplePattern = Pattern.compile(simpleRegex, Pattern.MULTILINE);
             this.strictGrokPattern = Objects.requireNonNull(strictGrokPattern);
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
-            this.strictSearchGrok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + strictGrokPattern +
+            this.strictSearchGrok = new Grok(Grok.BUILTIN_PATTERNS, "(?m)%{DATA:" + PREFACE + "}" + strictGrokPattern +
                 "%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog, logger::warn);
-            this.strictFullMatchGrok = new Grok(Grok.getBuiltinPatterns(), "^" + strictGrokPattern + "$", TimeoutChecker.watchdog,
+            this.strictFullMatchGrok = new Grok(Grok.BUILTIN_PATTERNS, "^" + strictGrokPattern + "$", TimeoutChecker.watchdog,
                 logger::warn);
             this.outputGrokPatternName = Objects.requireNonNull(outputGrokPatternName);
             this.quickRuleOutBitSets = quickRuleOutPatterns.stream().map(TimestampFormatFinder::stringToNumberPosBitSet)

@@ -102,7 +102,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         }));
 
         // Doc without join
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "0",
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "_doc", "0",
             BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON));
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
@@ -140,7 +140,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
 
         // Unknown join name
         exc = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(new SourceToParse("test", "type", "1",
+            () -> docMapper.parse(new SourceToParse("test", "_doc", "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                     .field("join_field", "unknown")
                     .endObject()), XContentType.JSON)));

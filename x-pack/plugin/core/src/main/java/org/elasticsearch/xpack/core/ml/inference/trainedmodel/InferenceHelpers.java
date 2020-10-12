@@ -7,15 +7,16 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -130,22 +131,49 @@ public final class InferenceHelpers {
         return originalFeatureImportance;
     }
 
-    public static List<FeatureImportance> transformFeatureImportance(Map<String, double[]> featureImportance,
-                                                                     @Nullable List<String> classificationLabels) {
-        List<FeatureImportance> importances = new ArrayList<>(featureImportance.size());
+    public static List<RegressionFeatureImportance> transformFeatureImportanceRegression(Map<String, double[]> featureImportance) {
+        List<RegressionFeatureImportance> importances = new ArrayList<>(featureImportance.size());
+        featureImportance.forEach((k, v) -> importances.add(new RegressionFeatureImportance(k, v[0])));
+        return importances;
+    }
+
+    public static List<ClassificationFeatureImportance> transformFeatureImportanceClassification(
+            Map<String, double[]> featureImportance,
+            final int predictedValue,
+            @Nullable List<String> classificationLabels,
+            @Nullable PredictionFieldType predictionFieldType) {
+        List<ClassificationFeatureImportance> importances = new ArrayList<>(featureImportance.size());
+        final PredictionFieldType fieldType = predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
         featureImportance.forEach((k, v) -> {
-            // This indicates regression, or logistic regression
+            // This indicates logistic regression (binary classification)
             // If the length > 1, we assume multi-class classification.
             if (v.length == 1) {
-                importances.add(FeatureImportance.forRegression(k, v[0]));
+                assert predictedValue == 1 || predictedValue == 0;
+                // If predicted value is `1`, then the other class is `0`
+                // If predicted value is `0`, then the other class is `1`
+                final int otherClass = 1 - predictedValue;
+                String predictedLabel = classificationLabels == null ? null : classificationLabels.get(predictedValue);
+                String otherLabel = classificationLabels == null ? null : classificationLabels.get(otherClass);
+                importances.add(new ClassificationFeatureImportance(k,
+                    Arrays.asList(
+                        new ClassificationFeatureImportance.ClassImportance(
+                            fieldType.transformPredictedValue((double)predictedValue, predictedLabel),
+                            v[0]),
+                        new ClassificationFeatureImportance.ClassImportance(
+                            fieldType.transformPredictedValue((double)otherClass, otherLabel),
+                            -v[0])
+                    )));
             } else {
-                Map<String, Double> classImportance = new LinkedHashMap<>(v.length, 1.0f);
+                List<ClassificationFeatureImportance.ClassImportance> classImportance = new ArrayList<>(v.length);
                 // If the classificationLabels exist, their length must match leaf_value length
                 assert classificationLabels == null || classificationLabels.size() == v.length;
                 for (int i = 0; i < v.length; i++) {
-                    classImportance.put(classificationLabels == null ? String.valueOf(i) : classificationLabels.get(i), v[i]);
+                    String label = classificationLabels == null ? null : classificationLabels.get(i);
+                    classImportance.add(new ClassificationFeatureImportance.ClassImportance(
+                        fieldType.transformPredictedValue((double)i, label),
+                        v[i]));
                 }
-                importances.add(FeatureImportance.forClassification(k, classImportance));
+                importances.add(new ClassificationFeatureImportance(k, classImportance));
             }
         });
         return importances;

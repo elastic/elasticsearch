@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
@@ -95,15 +95,27 @@ public class InvokeCallMemberNode extends ArgumentsNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitInvokeCallMember(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitInvokeCallMember(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        for (ExpressionNode argumentNode : getArgumentNodes()) {
+            argumentNode.visit(irTreeVisitor, scope);
+        }
     }
 
     /* ---- end visitor ---- */
 
+    public InvokeCallMemberNode(Location location) {
+        super(location);
+    }
+
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+    public void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeDebugInfo(getLocation());
 
         if (localFunction != null) {
             if (localFunction.isStatic() == false) {
@@ -111,7 +123,7 @@ public class InvokeCallMemberNode extends ArgumentsNode {
             }
 
             for (ExpressionNode argumentNode : getArgumentNodes()) {
-                argumentNode.write(classWriter, methodWriter, writeScope);
+                argumentNode.write(writeScope);
            }
 
             if (localFunction.isStatic()) {
@@ -121,7 +133,7 @@ public class InvokeCallMemberNode extends ArgumentsNode {
             }
         } else if (importedMethod != null) {
             for (ExpressionNode argumentNode : getArgumentNodes()) {
-                argumentNode.write(classWriter, methodWriter, writeScope);
+                argumentNode.write(writeScope);
            }
 
             methodWriter.invokeStatic(Type.getType(importedMethod.targetClass),
@@ -144,7 +156,7 @@ public class InvokeCallMemberNode extends ArgumentsNode {
             }
 
             for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
-                getArgumentNodes().get(argument).write(classWriter, methodWriter, writeScope);
+                getArgumentNodes().get(argument).write(writeScope);
            }
 
             methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
@@ -155,7 +167,7 @@ public class InvokeCallMemberNode extends ArgumentsNode {
             methodWriter.getField(CLASS_TYPE, bindingName, type);
 
             for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
-                getArgumentNodes().get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, writeScope);
+                getArgumentNodes().get(argument + javaConstructorParameterCount).write(writeScope);
             }
 
             methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
@@ -166,7 +178,7 @@ public class InvokeCallMemberNode extends ArgumentsNode {
             methodWriter.getStatic(CLASS_TYPE, bindingName, type);
 
             for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
-                getArgumentNodes().get(argument).write(classWriter, methodWriter, writeScope);
+                getArgumentNodes().get(argument).write(writeScope);
             }
 
             methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));

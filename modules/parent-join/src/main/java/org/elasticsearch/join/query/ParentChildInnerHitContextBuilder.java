@@ -69,7 +69,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     @Override
     protected void doBuild(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
         QueryShardContext queryShardContext = context.getQueryShardContext();
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
+        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getQueryShardContext());
         if (joinFieldMapper != null) {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
             JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(name, context, typeName,
@@ -152,12 +152,8 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                     topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
                     maxScoreCollector = new MaxScoreCollector();
                 }
-                try {
-                    for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
-                        intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
-                    }
-                } finally {
-                    clearReleasables(Lifetime.COLLECTION);
+                for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
+                    intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
                 }
                 TopDocs topDocs = topDocsCollector.topDocs(from(), size());
                 float maxScore = Float.NaN;

@@ -62,12 +62,12 @@ public class GetUsersResponse {
     }
 
     public static GetUsersResponse fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
         final List<User> users = new ArrayList<>();
         final List<User> enabledUsers = new ArrayList<>();
         Token token;
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(Token.FIELD_NAME, token, parser);
             ParsedUser parsedUser = USER_PARSER.parse(parser, parser.currentName());
             users.add(parsedUser.user);
             if (parsedUser.enabled) {

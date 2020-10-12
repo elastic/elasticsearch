@@ -24,8 +24,8 @@ archivesBaseName = 'elasticsearch-plugin-cli'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
-  api "org.bouncycastle:bcpg-fips:1.0.3"
-  api "org.bouncycastle:bc-fips:1.0.1"
+  api "org.bouncycastle:bcpg-fips:1.0.4"
+  api "org.bouncycastle:bc-fips:1.0.2"
   testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.1'
   testRuntimeOnly 'com.google.guava:guava:18.0'
@@ -62,5 +62,7 @@ thirdPartyAudit.ignoreViolations(
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2'
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
+  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
 )

@@ -7,7 +7,6 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-data-streams'
-integTest.enabled = false
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')

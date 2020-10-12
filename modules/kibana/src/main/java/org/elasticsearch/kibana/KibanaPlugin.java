@@ -134,6 +134,11 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         }
 
         @Override
+        public boolean allowSystemIndexAccessByDefault() {
+            return true;
+        }
+
+        @Override
         public List<Route> routes() {
             return super.routes().stream()
                 .map(route -> new Route(route.getMethod(), "/_kibana" + route.getPath()))

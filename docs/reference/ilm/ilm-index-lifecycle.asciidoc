@@ -6,7 +6,7 @@
 <titleabbrev>Index lifecycle</titleabbrev>
 ++++
 
-{ilm-init} defines four index lifecycle _phases_: 
+{ilm-init} defines four index lifecycle _phases_:
 
 * **Hot**: The index is actively being updated and queried.
 * **Warm**: The index is no longer being updated but is still being queried.
@@ -77,6 +77,7 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
 * Hot
   - <<ilm-set-priority,Set Priority>>
   - <<ilm-unfollow,Unfollow>>
+  - <<ilm-forcemerge,Force Merge>>
   - <<ilm-rollover,Rollover>>
 * Warm
   - <<ilm-set-priority,Set Priority>>
@@ -90,9 +91,7 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
   - <<ilm-unfollow-action,Unfollow>>
   - <<ilm-allocate,Allocate>>
   - <<ilm-freeze,Freeze>>
-ifdef::permanently-unreleased-branch[]
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
-endif::[]
 * Delete
   - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
   - <<ilm-delete,Delete>>

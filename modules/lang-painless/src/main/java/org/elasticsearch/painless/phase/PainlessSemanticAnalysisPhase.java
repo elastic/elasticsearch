@@ -24,7 +24,9 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.AExpression;
+import org.elasticsearch.painless.node.AStatement;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SExpression;
 import org.elasticsearch.painless.node.SFunction;
@@ -43,7 +45,6 @@ import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 
-import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.elasticsearch.painless.symbol.SemanticScope.newFunctionScope;
@@ -128,7 +129,8 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             semanticScope.putDecoration(userStatementNode, new TargetType(rtnType));
             semanticScope.setCondition(userStatementNode, Internal.class);
             if ("execute".equals(functionName)) {
-                decorateWithCast(userStatementNode, semanticScope, semanticScope.getScriptScope().getScriptClassInfo());
+                decorateWithCastForReturn(userStatementNode, userExpressionNode, semanticScope,
+                    semanticScope.getScriptScope().getScriptClassInfo());
             } else {
                 decorateWithCast(userStatementNode, semanticScope);
             }
@@ -162,7 +164,8 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             semanticScope.setCondition(userValueNode, Internal.class);
             checkedVisit(userValueNode, semanticScope);
             if ("execute".equals(functionName)) {
-                decorateWithCast(userValueNode, semanticScope, semanticScope.getScriptScope().getScriptClassInfo());
+                decorateWithCastForReturn(userValueNode, userReturnNode, semanticScope,
+                    semanticScope.getScriptScope().getScriptClassInfo());
             } else {
                 decorateWithCast(userValueNode, semanticScope);
             }
@@ -176,21 +179,40 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
     /**
      * Decorates a user expression node with a PainlessCast.
      */
-    public void decorateWithCast(AExpression userExpressionNode, SemanticScope semanticScope, ScriptClassInfo scriptClassInfo) {
+    public void decorateWithCastForReturn(
+        AExpression userExpressionNode,
+        AStatement parent,
+        SemanticScope semanticScope,
+        ScriptClassInfo scriptClassInfo
+    ) {
         Location location = userExpressionNode.getLocation();
         Class<?> valueType = semanticScope.getDecoration(userExpressionNode, Decorations.ValueType.class).getValueType();
         Class<?> targetType = semanticScope.getDecoration(userExpressionNode, TargetType.class).getTargetType();
-        boolean isExplicitCast = semanticScope.getCondition(userExpressionNode, Decorations.Explicit.class);
-        boolean isInternalCast = semanticScope.getCondition(userExpressionNode, Internal.class);
 
         PainlessCast painlessCast;
-        Method converter = scriptClassInfo.getConverter(valueType);
-        if (converter != null) {
-            painlessCast = PainlessCast.convertedReturn(valueType, targetType, converter);
+        if (valueType == def.class) {
+            if (scriptClassInfo.defConverter != null) {
+                semanticScope.putDecoration(parent, new Decorations.Converter(scriptClassInfo.defConverter));
+                return;
+            }
         } else {
-            painlessCast = AnalyzerCaster.getLegalCast(location, valueType, targetType, isExplicitCast, isInternalCast);
+            for (LocalFunction converter : scriptClassInfo.converters) {
+                try {
+                    painlessCast = AnalyzerCaster.getLegalCast(location, valueType, converter.getTypeParameters().get(0), false, true);
+                    if (painlessCast != null) {
+                        semanticScope.putDecoration(userExpressionNode, new ExpressionPainlessCast(painlessCast));
+                    }
+                    semanticScope.putDecoration(parent, new Decorations.Converter(converter));
+                    return;
+                } catch (ClassCastException e) {
+                    // Do nothing, we're checking all converters
+                }
+            }
         }
 
+        boolean isExplicitCast = semanticScope.getCondition(userExpressionNode, Decorations.Explicit.class);
+        boolean isInternalCast = semanticScope.getCondition(userExpressionNode, Internal.class);
+        painlessCast = AnalyzerCaster.getLegalCast(location, valueType, targetType, isExplicitCast, isInternalCast);
         if (painlessCast != null) {
             semanticScope.putDecoration(userExpressionNode, new ExpressionPainlessCast(painlessCast));
         }

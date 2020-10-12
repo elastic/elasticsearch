@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.lookup;
 
-import java.lang.reflect.Method;
 import java.util.Objects;
 
 public class PainlessCast {
@@ -85,14 +84,6 @@ public class PainlessCast {
         return new PainlessCast(null, null, explicitCast, unboxOriginalType, null, null, boxTargetType);
     }
 
-    public static PainlessCast convertedReturn(Class<?> originalType, Class<?> targetType, Method converter) {
-        Objects.requireNonNull(originalType);
-        Objects.requireNonNull(targetType);
-        Objects.requireNonNull(converter);
-
-        return new PainlessCast(originalType, targetType, false, null, null, null, null, converter);
-    }
-
     public final Class<?> originalType;
     public final Class<?> targetType;
     public final boolean explicitCast;
@@ -100,26 +91,9 @@ public class PainlessCast {
     public final Class<?> unboxTargetType;
     public final Class<?> boxOriginalType;
     public final Class<?> boxTargetType;
-    public final Method converter; // access
 
-    private PainlessCast(Class<?> originalType,
-                         Class<?> targetType,
-                         boolean explicitCast,
-                         Class<?> unboxOriginalType,
-                         Class<?> unboxTargetType,
-                         Class<?> boxOriginalType,
-                         Class<?> boxTargetType) {
-        this(originalType, targetType, explicitCast, unboxOriginalType, unboxTargetType, boxOriginalType, boxTargetType, null);
-    }
-
-    private PainlessCast(Class<?> originalType,
-                         Class<?> targetType,
-                         boolean explicitCast,
-                         Class<?> unboxOriginalType,
-                         Class<?> unboxTargetType,
-                         Class<?> boxOriginalType,
-                         Class<?> boxTargetType,
-                         Method converter) {
+    private PainlessCast(Class<?> originalType, Class<?> targetType, boolean explicitCast,
+                         Class<?> unboxOriginalType, Class<?> unboxTargetType, Class<?> boxOriginalType, Class<?> boxTargetType) {
 
         this.originalType = originalType;
         this.targetType = targetType;
@@ -128,7 +102,6 @@ public class PainlessCast {
         this.unboxTargetType = unboxTargetType;
         this.boxOriginalType = boxOriginalType;
         this.boxTargetType = boxTargetType;
-        this.converter = converter;
     }
 
     @Override
@@ -144,18 +117,16 @@ public class PainlessCast {
         PainlessCast that = (PainlessCast)object;
 
         return explicitCast == that.explicitCast &&
-                Objects.equals(originalType, that.originalType) &&
-                Objects.equals(targetType, that.targetType) &&
-                Objects.equals(unboxOriginalType, that.unboxOriginalType) &&
-                Objects.equals(unboxTargetType, that.unboxTargetType) &&
-                Objects.equals(boxOriginalType, that.boxOriginalType) &&
-                Objects.equals(boxTargetType, that.boxTargetType) &&
-                Objects.equals(converter, that.converter);
+            Objects.equals(originalType, that.originalType) &&
+            Objects.equals(targetType, that.targetType) &&
+            Objects.equals(unboxOriginalType, that.unboxOriginalType) &&
+            Objects.equals(unboxTargetType, that.unboxTargetType) &&
+            Objects.equals(boxOriginalType, that.boxOriginalType) &&
+            Objects.equals(boxTargetType, that.boxTargetType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(originalType, targetType, explicitCast, unboxOriginalType, unboxTargetType, boxOriginalType, boxTargetType,
-                            converter);
+        return Objects.hash(originalType, targetType, explicitCast, unboxOriginalType, unboxTargetType, boxOriginalType, boxTargetType);
     }
 }

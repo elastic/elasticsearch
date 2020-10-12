@@ -436,7 +436,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
         }
         // First and last coordinates must be equal
         if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {
-            if (partitionPoint[2] == Double.NaN) {
+            if (Double.isNaN(partitionPoint[2])) {
                 throw new InvalidShapeException("Self-intersection at or near point ["
                     + partitionPoint[0] + "," + partitionPoint[1] + "]");
             } else {

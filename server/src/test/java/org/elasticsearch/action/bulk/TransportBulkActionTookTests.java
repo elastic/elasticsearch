@@ -39,9 +39,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -208,6 +210,10 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     static class Resolver extends IndexNameExpressionResolver {
+        Resolver() {
+            super(new ThreadContext(Settings.EMPTY));
+        }
+
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();
@@ -235,6 +241,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     indexNameExpressionResolver,
                     autoCreateIndex,
                     new IndexingPressure(Settings.EMPTY),
+                    new SystemIndices(Map.of()),
                     relativeTimeProvider);
         }
 

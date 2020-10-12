@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,10 +46,8 @@ public class NameOrDefinition implements Writeable, ToXContentFragment {
         this.name = null;
         Objects.requireNonNull(definition);
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(definition);
-            this.definition = Settings.builder().loadFromSource(Strings.toString(builder), builder.contentType()).build();
-        } catch (IOException e) {
+            this.definition = Settings.builder().loadFromMap(definition).build();
+        } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse [" + definition + "]", e);
         }
     }

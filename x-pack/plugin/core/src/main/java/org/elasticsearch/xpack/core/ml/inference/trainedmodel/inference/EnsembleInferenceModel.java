@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -43,7 +44,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.decodeFeatureImportances;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.sumDoubleArrays;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.transformFeatureImportance;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.transformFeatureImportanceClassification;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.transformFeatureImportanceRegression;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.AGGREGATE_OUTPUT;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.CLASSIFICATION_LABELS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.CLASSIFICATION_WEIGHTS;
@@ -113,19 +115,9 @@ public class EnsembleInferenceModel implements InferenceModel {
         return targetType;
     }
 
-    private double[] getFeatures(Map<String, Object> fields) {
-        double[] features = new double[featureNames.length];
-        int i = 0;
-        for (String featureName : featureNames) {
-            Double val = InferenceHelpers.toDouble(fields.get(featureName));
-            features[i++] = val == null ? Double.NaN : val;
-        }
-        return features;
-    }
-
     @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
-        return innerInfer(getFeatures(fields), config, featureDecoderMap);
+        return innerInfer(InferenceModel.extractFeatures(featureNames, fields), config, featureDecoderMap);
     }
 
     @Override
@@ -141,9 +133,9 @@ public class EnsembleInferenceModel implements InferenceModel {
         if (preparedForInference == false) {
             throw ExceptionsHelper.serverError("model is not prepared for inference");
         }
-        LOGGER.debug("Inference called with feature names [{}]",
-            featureNames == null ? "<null>" : Strings.arrayToCommaDelimitedString(featureNames));
-        assert featureNames != null && featureNames.length > 0;
+        LOGGER.debug(
+            () -> new ParameterizedMessage("Inference called with feature names [{}]", Strings.arrayToCommaDelimitedString(featureNames))
+        );
         double[][] inferenceResults = new double[this.models.size()][];
         double[][] featureInfluence = new double[features.length][];
         int i = 0;
@@ -154,14 +146,7 @@ public class EnsembleInferenceModel implements InferenceModel {
             RawInferenceResults inferenceResult = (RawInferenceResults) result;
             inferenceResults[i++] = inferenceResult.getValue();
             if (config.requestingImportance()) {
-                double[][] modelFeatureImportance = inferenceResult.getFeatureImportance();
-                assert modelFeatureImportance.length == featureInfluence.length;
-                for (int j = 0; j < modelFeatureImportance.length; j++) {
-                    if (featureInfluence[j] == null) {
-                        featureInfluence[j] = new double[modelFeatureImportance[j].length];
-                    }
-                    featureInfluence[j] = sumDoubleArrays(featureInfluence[j], modelFeatureImportance[j]);
-                }
+                addFeatureImportance(featureInfluence, inferenceResult);
             }
         }
         double[] processed = outputAggregator.processValues(inferenceResults);
@@ -176,16 +161,20 @@ public class EnsembleInferenceModel implements InferenceModel {
             InferenceResults result = model.infer(features, subModelInferenceConfig);
             assert result instanceof RawInferenceResults;
             RawInferenceResults inferenceResult = (RawInferenceResults) result;
-            double[][] modelFeatureImportance = inferenceResult.getFeatureImportance();
-            assert modelFeatureImportance.length == featureInfluence.length;
-            for (int j = 0; j < modelFeatureImportance.length; j++) {
-                if (featureInfluence[j] == null) {
-                    featureInfluence[j] = new double[modelFeatureImportance[j].length];
-                }
-                featureInfluence[j] = sumDoubleArrays(featureInfluence[j], modelFeatureImportance[j]);
-            }
+            addFeatureImportance(featureInfluence, inferenceResult);
         }
         return featureInfluence;
+    }
+
+    private void addFeatureImportance(double[][] featureInfluence, RawInferenceResults inferenceResult) {
+        double[][] modelFeatureImportance = inferenceResult.getFeatureImportance();
+        assert modelFeatureImportance.length == featureInfluence.length;
+        for (int j = 0; j < modelFeatureImportance.length; j++) {
+            if (featureInfluence[j] == null) {
+                featureInfluence[j] = new double[modelFeatureImportance[j].length];
+            }
+            featureInfluence[j] = sumDoubleArrays(featureInfluence[j], modelFeatureImportance[j]);
+        }
     }
 
     private InferenceResults buildResults(double[] processedInferences,
@@ -208,7 +197,7 @@ public class EnsembleInferenceModel implements InferenceModel {
             case REGRESSION:
                 return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences),
                     config,
-                    transformFeatureImportance(decodedFeatureImportance, null));
+                    transformFeatureImportanceRegression(decodedFeatureImportance));
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
                 assert classificationWeights == null || processedInferences.length == classificationWeights.length;
@@ -220,10 +209,13 @@ public class EnsembleInferenceModel implements InferenceModel {
                     classificationConfig.getNumTopClasses(),
                     classificationConfig.getPredictionFieldType());
                 final InferenceHelpers.TopClassificationValue value = topClasses.v1();
-                return new ClassificationInferenceResults((double)value.getValue(),
+                return new ClassificationInferenceResults(value.getValue(),
                     classificationLabel(topClasses.v1().getValue(), classificationLabels),
                     topClasses.v2(),
-                    transformFeatureImportance(decodedFeatureImportance, classificationLabels),
+                    transformFeatureImportanceClassification(decodedFeatureImportance,
+                        value.getValue(),
+                        classificationLabels,
+                        classificationConfig.getPredictionFieldType()),
                     config,
                     value.getProbability(),
                     value.getScore());
@@ -243,27 +235,28 @@ public class EnsembleInferenceModel implements InferenceModel {
     }
 
     @Override
-    public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
-        LOGGER.debug("rewriting features {}", newFeatureIndexMapping);
+    public void rewriteFeatureIndices(final Map<String, Integer> newFeatureIndexMapping) {
+        LOGGER.debug(() -> new ParameterizedMessage("rewriting features {}", newFeatureIndexMapping));
         if (preparedForInference) {
             return;
         }
         preparedForInference = true;
+        Map<String, Integer> featureIndexMapping = new HashMap<>();
         if (newFeatureIndexMapping == null || newFeatureIndexMapping.isEmpty()) {
             Set<String> referencedFeatures = subModelFeatures();
-            LOGGER.debug("detected submodel feature names {}", referencedFeatures);
+            LOGGER.debug(() -> new ParameterizedMessage("detected submodel feature names {}", referencedFeatures));
             int newFeatureIndex = 0;
-            newFeatureIndexMapping = new HashMap<>();
+            featureIndexMapping = new HashMap<>();
             this.featureNames = new String[referencedFeatures.size()];
             for (String featureName : referencedFeatures) {
-                newFeatureIndexMapping.put(featureName, newFeatureIndex);
+                featureIndexMapping.put(featureName, newFeatureIndex);
                 this.featureNames[newFeatureIndex++] = featureName;
             }
         } else {
             this.featureNames = new String[0];
         }
         for (InferenceModel model : models) {
-            model.rewriteFeatureIndices(newFeatureIndexMapping);
+            model.rewriteFeatureIndices(featureIndexMapping);
         }
     }
 

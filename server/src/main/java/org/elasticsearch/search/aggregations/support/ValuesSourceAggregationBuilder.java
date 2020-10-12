@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -45,6 +44,12 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     public static <T> void declareFields(
         AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable, boolean formattable, boolean timezoneAware) {
+        declareFields(objectParser, scriptable, formattable, timezoneAware, true);
+
+    }
+    public static <T> void declareFields(
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
+        boolean scriptable, boolean formattable, boolean timezoneAware, boolean fieldRequired) {
 
 
         objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
@@ -71,10 +76,15 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             objectParser.declareField(ValuesSourceAggregationBuilder::script,
                     (parser, context) -> Script.parse(parser),
                     Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
-            String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(), Script.SCRIPT_PARSE_FIELD.getPreferredName()};
-            objectParser.declareRequiredFieldSet(fields);
+            if (fieldRequired) {
+                String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(),
+                    Script.SCRIPT_PARSE_FIELD.getPreferredName()};
+                objectParser.declareRequiredFieldSet(fields);
+            }
         } else {
-            objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
+            if (fieldRequired) {
+                objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
+            }
         }
 
         if (timezoneAware) {
@@ -334,19 +344,19 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+    protected final ValuesSourceAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
                                                           Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig config = resolveConfig(queryShardContext);
-        if (queryShardContext.getValuesSourceRegistry().isRegistered(getRegistryKey())) {
+        ValuesSourceConfig config = resolveConfig(context);
+        if (context.getValuesSourceRegistry().isRegistered(getRegistryKey())) {
             /*
             if the aggregation uses the values source registry, test if the resolved values source type is compatible with this aggregation.
             This call will throw if the mapping isn't registered, which is what we want.  Note that we need to throw from here because
             AbstractAggregationBuilder#build, which called this, will attempt to register the agg usage next, and if the usage is invalid
             that will fail with a weird error.
              */
-            queryShardContext.getValuesSourceRegistry().getAggregator(getRegistryKey(), config);
+            context.getValuesSourceRegistry().getAggregator(getRegistryKey(), config);
         }
-        ValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
+        ValuesSourceAggregatorFactory factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -369,12 +379,12 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      *
      * @return A {@link ValuesSourceConfig} configured based on the parsed field and/or script.
      */
-    protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
-        return ValuesSourceConfig.resolve(queryShardContext,
+    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
+        return ValuesSourceConfig.resolve(context,
                 this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType());
     }
 
-    protected abstract ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected abstract ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                                 ValuesSourceConfig config,
                                                                 AggregatorFactory parent,
                                                                 Builder subFactoriesBuilder) throws IOException;

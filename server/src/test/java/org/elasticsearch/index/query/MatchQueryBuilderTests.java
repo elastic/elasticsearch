@@ -297,7 +297,16 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.toQuery(context); // no exception
     }
 
-    public void testParseFailsWithMultipleFields() throws IOException {
+    public void testLenientFlag() throws Exception {
+        MatchQueryBuilder query = new MatchQueryBuilder(BINARY_FIELD_NAME, "test");
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_binary] of type [binary does not support match queries", e.getMessage());
+        query.lenient(true);
+        query.toQuery(context); // no exception
+    }
+
+    public void testParseFailsWithMultipleFields() {
         String json = "{\n" +
             "  \"match\" : {\n" +
             "    \"message1\" : {\n" +
@@ -321,7 +330,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
-    public void testParseFailsWithTermsArray() throws Exception {
+    public void testParseFailsWithTermsArray() {
         String json1 = "{\n" +
             "  \"match\" : {\n" +
             "    \"message1\" : {\n" +

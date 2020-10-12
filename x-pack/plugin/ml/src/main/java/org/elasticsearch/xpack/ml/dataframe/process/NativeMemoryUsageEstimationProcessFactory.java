@@ -104,9 +104,9 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             analyticsBuilder.build();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.warn("Interrupted while launching data frame analytics memory usage estimation process for job " + jobId);
+            LOGGER.warn("[{}] Interrupted while launching data frame analytics memory usage estimation process", jobId);
         } catch (IOException e) {
-            String msg = "Failed to launch data frame analytics memory usage estimation process for job " + jobId;
+            String msg = "[" + jobId + "] Failed to launch data frame analytics memory usage estimation process";
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

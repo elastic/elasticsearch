@@ -148,9 +148,7 @@ public class NativeController implements MlController {
             }
             awaitCompletion(commandId);
         } finally {
-            if (commandId != -1) {
-                removeResponseTracker(commandId);
-            }
+            removeResponseTracker(commandId);
         }
     }
 
@@ -189,7 +187,7 @@ public class NativeController implements MlController {
                 awaitCompletion(commandId);
             }
         } finally {
-            if (commandId != -1) {
+            if (awaitCompletion) {
                 removeResponseTracker(commandId);
             }
         }

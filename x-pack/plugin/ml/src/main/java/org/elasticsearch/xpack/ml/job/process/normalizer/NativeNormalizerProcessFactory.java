@@ -83,9 +83,9 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
             nativeController.startProcess(command);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.warn("Interrupted while launching normalizer for job " + jobId);
+            LOGGER.warn("[{}] Interrupted while launching normalizer", jobId);
         } catch (IOException e) {
-            String msg = "Failed to launch normalizer for job " + jobId;
+            String msg = "[" + jobId + "] Failed to launch normalizer";
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

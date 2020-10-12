@@ -15,13 +15,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisionService;
-
-import java.io.IOException;
 
 public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAction<
     GetAutoscalingDecisionAction.Request,
@@ -47,21 +44,13 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
             threadPool,
             actionFilters,
             GetAutoscalingDecisionAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            GetAutoscalingDecisionAction.Response::new,
+            ThreadPool.Names.SAME
         );
         this.decisionService = decisionServiceHolder.get();
         this.clusterInfoService = clusterInfoService;
         assert this.decisionService != null;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetAutoscalingDecisionAction.Response read(final StreamInput in) throws IOException {
-        return new GetAutoscalingDecisionAction.Response(in);
     }
 
     @Override

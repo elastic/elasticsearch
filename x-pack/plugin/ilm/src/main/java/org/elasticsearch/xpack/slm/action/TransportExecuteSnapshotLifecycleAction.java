@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.slm.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,7 +17,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,13 +27,10 @@ import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 
-import java.io.IOException;
 import java.util.Optional;
 
 public class TransportExecuteSnapshotLifecycleAction
     extends TransportMasterNodeAction<ExecuteSnapshotLifecycleAction.Request, ExecuteSnapshotLifecycleAction.Response> {
-
-    private static final Logger logger = LogManager.getLogger(TransportExecuteSnapshotLifecycleAction.class);
 
     private final Client client;
     private final SnapshotHistoryStore historyStore;
@@ -46,18 +40,10 @@ public class TransportExecuteSnapshotLifecycleAction
                                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                    Client client, SnapshotHistoryStore historyStore) {
         super(ExecuteSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ExecuteSnapshotLifecycleAction.Request::new, indexNameExpressionResolver);
+                ExecuteSnapshotLifecycleAction.Request::new, indexNameExpressionResolver, ExecuteSnapshotLifecycleAction.Response::new,
+                ThreadPool.Names.GENERIC);
         this.client = client;
         this.historyStore = historyStore;
-    }
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected ExecuteSnapshotLifecycleAction.Response read(StreamInput in) throws IOException {
-        return new ExecuteSnapshotLifecycleAction.Response(in);
     }
 
     @Override

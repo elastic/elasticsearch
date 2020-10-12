@@ -172,7 +172,7 @@ public class CloseIndexResponseTests extends
     public final void testBwcFromXContent() throws IOException {
         {
             final boolean acknowledged = randomBoolean();
-            final AcknowledgedResponse expected = new AcknowledgedResponse(acknowledged);
+            final AcknowledgedResponse expected = AcknowledgedResponse.of(acknowledged);
 
             final XContentType xContentType = randomFrom(XContentType.values());
             final BytesReference bytes = toShuffledXContent(expected, xContentType, getParams(), randomBoolean());

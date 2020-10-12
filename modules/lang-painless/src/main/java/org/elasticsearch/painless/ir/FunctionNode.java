@@ -140,13 +140,11 @@ public class FunctionNode extends IRNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
         int access = Opcodes.ACC_PUBLIC;
 
         if (isStatic) {
             access |= Opcodes.ACC_STATIC;
-        } else {
-            writeScope.defineInternalVariable(Object.class, "this");
         }
 
         if (hasVarArgs) {
@@ -161,15 +159,23 @@ public class FunctionNode extends IRNode {
         Type[] asmParameterTypes = new Type[typeParameters.size()];
 
         for (int index = 0; index < asmParameterTypes.length; ++index) {
-            Class<?> type = typeParameters.get(index);
-            String name = parameterNames.get(index);
-            writeScope.defineVariable(type, name);
             asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
         }
 
         Method method = new Method(name, asmReturnType, asmParameterTypes);
 
-        methodWriter = classWriter.newMethodWriter(access, method);
+        ClassWriter classWriter = writeScope.getClassWriter();
+        MethodWriter methodWriter = classWriter.newMethodWriter(access, method);
+        writeScope = writeScope.newMethodScope(methodWriter);
+
+        if (isStatic == false) {
+            writeScope.defineInternalVariable(Object.class, "this");
+        }
+
+        for (int index = 0; index < typeParameters.size(); ++index) {
+            writeScope.defineVariable(typeParameters.get(index), parameterNames.get(index));
+        }
+
         methodWriter.visitCode();
 
         if (maxLoopCounter > 0) {
@@ -182,7 +188,7 @@ public class FunctionNode extends IRNode {
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        blockNode.write(classWriter, methodWriter, writeScope.newScope());
+        blockNode.write(writeScope.newBlockScope());
 
         methodWriter.endMethod();
     }

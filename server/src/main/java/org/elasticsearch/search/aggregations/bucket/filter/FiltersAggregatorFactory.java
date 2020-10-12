@@ -90,7 +90,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
                                         Aggregator parent,
                                         CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
-        return new FiltersAggregator(name, factories, keys, () -> getWeights(searchContext), keyed,
+        return FiltersAggregator.build(name, factories, keys, () -> getWeights(searchContext), keyed,
             otherBucket ? otherBucketKey : null, searchContext, parent, cardinality, metadata);
     }
 

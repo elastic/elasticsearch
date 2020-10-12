@@ -266,7 +266,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
     private final boolean keyed;
     private final InternalRange.Factory rangeFactory;
 
-    public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
+    private RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
             Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
 

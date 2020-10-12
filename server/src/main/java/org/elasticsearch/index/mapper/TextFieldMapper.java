@@ -91,8 +91,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
-
-    public static final String FAST_PHRASE_SUFFIX = "._index_phrase";
+    private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
 
     public static class Defaults {
         public static final double FIELDDATA_MIN_FREQUENCY = 0;
@@ -685,15 +684,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-            }
-            return new SourceValueFetcher(name(), mapperService) {
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    return value.toString();
-                }
-            };
+            return SourceValueFetcher.toString(name(), mapperService, format);
         }
 
         @Override

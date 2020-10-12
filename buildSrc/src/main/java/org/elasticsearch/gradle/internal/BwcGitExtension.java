@@ -20,15 +20,23 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Version;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 
+import javax.inject.Inject;
 import java.io.File;
 
 public class BwcGitExtension {
 
     private Provider<Version> bwcVersion;
     private Provider<String> bwcBranch;
-    private Provider<File> checkoutDir;
+    private Property<File> checkoutDir;
+
+    @Inject
+    public BwcGitExtension(ObjectFactory objectFactory) {
+        this.checkoutDir = objectFactory.property(File.class);
+    }
 
     public Provider<Version> getBwcVersion() {
         return bwcVersion;
@@ -46,11 +54,7 @@ public class BwcGitExtension {
         this.bwcBranch = bwcBranch;
     }
 
-    public Provider<File> getCheckoutDir() {
+    public Property<File> getCheckoutDir() {
         return checkoutDir;
-    }
-
-    public void setCheckoutDir(Provider<File> checkoutDir) {
-        this.checkoutDir = checkoutDir;
     }
 }

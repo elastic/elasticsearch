@@ -112,7 +112,9 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     void setupLocalGitRepo() {
-        execute("git init");
+        execute("git init")
+        execute('git config user.email "build-tool@elastic.co"')
+        execute('git config user.name "Build tool"')
         execute("git add .")
         execute('git commit -m "Initial"')
     }
@@ -121,8 +123,8 @@ abstract class AbstractGradleFuncTest extends Specification {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
         if(proc.exitValue()) {
-            println "Error running command ${command}:"
-            println "Syserr: " + proc.errorStream.text
+            System.err.println("Error running command ${command}:")
+            System.err.println("Syserr: " + proc.errorStream.text)
         }
     }
 }

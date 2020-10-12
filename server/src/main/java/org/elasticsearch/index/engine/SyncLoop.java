@@ -95,6 +95,9 @@ public class SyncLoop {
         Exception exception = null;
         ArrayList<Consumer<Exception>> syncedListeners = new ArrayList<>(listenerCount());
         try {
+            drainListeners(syncedListeners, lastSyncedLocation);
+            completeListeners(syncedListeners, null);
+            syncedListeners.clear();
             doSync();
             drainListeners(syncedListeners, lastSyncedLocation);
         } catch (Exception e) {
@@ -104,7 +107,6 @@ public class SyncLoop {
             promiseSemaphore.release();
         }
         completeListeners(syncedListeners, exception);
-        syncedListeners.clear();
     }
 
     private void doSync() throws Exception {

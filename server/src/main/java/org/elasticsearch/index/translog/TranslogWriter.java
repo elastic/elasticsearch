@@ -187,8 +187,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
-        if (bufferedBytesBeforeAdd >= inMemoryBufferSize * 16) {
-            writeBufferedOps(Long.MAX_VALUE, true);
+        if (bufferedBytesBeforeAdd >= inMemoryBufferSize) {
+            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= inMemoryBufferSize * 8);
         }
 
         final Translog.Location location;
@@ -296,7 +296,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * in-memory buffer size)
      */
     public boolean shouldIncrementalSync() {
-        return (totalOffset - lastSyncedCheckpoint.offset) > (inMemoryBufferSize * 4);
+        return (totalOffset - lastSyncedCheckpoint.offset) >= (inMemoryBufferSize * 4);
     }
 
     /**

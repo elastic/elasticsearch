@@ -1035,6 +1035,23 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(DATE_FORMAT, rq.format());
         assertEquals(zoneId, rq.zoneId());
     }
+    
+    public void testTranslateInExpression_WhereClause_TimeValue() {
+        ZoneId zoneId = randomZone();
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date::time IN ('12:34:56Z'::TIME)", zoneId);
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = translate(condition);
+        Query query = translation.query;
+        assertTrue(query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(" +
+                        "InternalSqlScriptUtils.cast(InternalQlScriptUtils.docValue(doc,params.v0),params.v1), params.v2))",
+                sc.script().toString());
+        assertEquals("[{v=date}, {v=TIME}, {v=[12:34:56Z]}]", sc.script().params().toString());
+    }
 
     public void testTranslateInExpression_HavingClause_Painless() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, 20, 30 - 10)");

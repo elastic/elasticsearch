@@ -134,3 +134,6 @@ whereWithInAndOneDatetimeValue
 SELECT birth_date FROM "test_emp" WHERE birth_date IN ('1959-12-25T12:12:12.000Z'::datetime);
 whereWithInAndMultipleDatetimeValues
 SELECT birth_date FROM "test_emp" WHERE birth_date IN ('1959-12-25T12:12:12.000Z'::datetime, '1959-07-23T12:12:12.000Z'::datetime);
+
+whereWithInAndTimeValue
+SELECT birth_date FROM "test_emp" WHERE birth_date::time IN ('12:12:12.000'::time);

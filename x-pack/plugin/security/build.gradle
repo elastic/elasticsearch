@@ -140,6 +140,7 @@ processInternalClusterTestResources {
 }
 
 processTestResources {
+  from('src/main/config/log4j2.properties')
   from(project(xpackModule('core')).file('src/main/config'))
   from(project(xpackModule('core')).file('src/test/resources'))
 }

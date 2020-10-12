@@ -164,7 +164,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     @BeforeClass
     public static void lookupPatternLayout() throws Exception {
         final Properties properties = new Properties();
-        try (InputStream configStream = LoggingAuditTrail.class.getClassLoader().getResourceAsStream("log4j2.properties")) {
+        try (InputStream configStream = LoggingAuditTrail.class.getResourceAsStream("/log4j2.properties")) {
             properties.load(configStream);
         }
         // This is a minimal and brittle parsing of the security log4j2 config

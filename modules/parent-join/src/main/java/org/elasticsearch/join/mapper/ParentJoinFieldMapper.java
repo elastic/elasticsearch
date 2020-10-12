@@ -22,7 +22,6 @@ package org.elasticsearch.join.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -55,6 +55,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -65,20 +66,10 @@ import java.util.function.Supplier;
  * This field is only used to ensure that there is a single parent-join field defined in the mapping and
  * cannot be used to index or query any data.
  */
-public final class ParentJoinFieldMapper extends FieldMapper {
+public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
+
     public static final String NAME = "join";
     public static final String CONTENT_TYPE = "join";
-
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.freeze();
-        }
-    }
 
     /**
      * Returns the {@link ParentJoinFieldMapper} associated with the <code>service</code> or null
@@ -129,33 +120,77 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
-        final List<ParentIdFieldMapper.Builder> parentIdFieldBuilders = new ArrayList<>();
-        boolean eagerGlobalOrdinals = true;
+    public static class Relations {
+        final String parent;
+        final Set<String> children;
+
+        public Relations(String parent, Set<String> children) {
+            this.parent = parent;
+            this.children = children;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Relations relation = (Relations) o;
+            return Objects.equals(parent, relation.parent) &&
+                Objects.equals(children, relation.children);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(parent, children);
+        }
+
+        static List<Relations> parse(Object node) {
+            List<Relations> r = new ArrayList<>();
+            Map<String, Object> relations = XContentMapValues.nodeMapValue(node, "relations");
+            for (Map.Entry<String, Object> relation : relations.entrySet()) {
+                final String parent = relation.getKey();
+                Set<String> children;
+                if (XContentMapValues.isArray(relation.getValue())) {
+                    children = new HashSet<>(Arrays.asList(XContentMapValues.nodeStringArrayValue(relation.getValue())));
+                } else {
+                    children = Collections.singleton(relation.getValue().toString());
+                }
+                r.add(new Relations(parent, children));
+            }
+            return r;
+        }
+    }
+
+    private static ParentJoinFieldMapper toType(FieldMapper in) {
+        return (ParentJoinFieldMapper) in;
+    }
+
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true,
+            m -> m.fieldType().eagerGlobalOrdinals(), true);
+        final Parameter<List<Relations>> relations = new Parameter<>("relations", true,
+            Collections::emptyList, (n, c, o) -> Relations.parse(o), m -> toType(m).relations);
+
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
         }
 
-        public Builder addParent(String parent, Set<String> children) {
-            String parentIdFieldName = getParentIdFieldName(name, parent);
-            parentIdFieldBuilders.add(new ParentIdFieldMapper.Builder(parentIdFieldName, parent, children));
-            return builder;
-        }
-
-        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            return builder;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(eagerGlobalOrdinals, relations, meta);
         }
 
         @Override
         public ParentJoinFieldMapper build(BuilderContext context) {
             checkObjectOrNested(context.path(), name);
             final List<ParentIdFieldMapper> parentIdFields = new ArrayList<>();
-            parentIdFieldBuilders.stream()
+            relations.get().stream()
+                .map(relation -> new ParentIdFieldMapper.Builder(getParentIdFieldName(name, relation.parent),
+                    relation.parent, relation.children))
                 .map((parentBuilder) -> {
-                    if (eagerGlobalOrdinals) {
+                    if (eagerGlobalOrdinals.get()) {
                         parentBuilder.eagerGlobalOrdinals(true);
                     }
                     return parentBuilder.build(context);
@@ -163,47 +198,16 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 .forEach(parentIdFields::add);
             checkParentFields(name(), parentIdFields);
             MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder(name).build(context);
-            return new ParentJoinFieldMapper(name, fieldType, new JoinFieldType(buildFullName(context), meta),
-                unique, Collections.unmodifiableList(parentIdFields), eagerGlobalOrdinals);
+            return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(context), meta.get()),
+                unique, Collections.unmodifiableList(parentIdFields),
+                eagerGlobalOrdinals.getValue(), relations.get());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            final IndexSettings indexSettings = parserContext.mapperService().getIndexSettings();
-            checkIndexCompatibility(indexSettings, name);
-
-            Builder builder = new Builder(name);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                if ("type".equals(entry.getKey())) {
-                    continue;
-                }
-                if ("eager_global_ordinals".equals(entry.getKey())) {
-                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(entry.getValue(), "eager_global_ordinals"));
-                    iterator.remove();
-                    continue;
-                }
-                if ("relations".equals(entry.getKey())) {
-                    Map<String, Object> relations = XContentMapValues.nodeMapValue(entry.getValue(), "relations");
-                    for (Iterator<Map.Entry<String, Object>> relIt = relations.entrySet().iterator(); relIt.hasNext(); ) {
-                        Map.Entry<String, Object> relation = relIt.next();
-                        final String parent = relation.getKey();
-                        Set<String> children;
-                        if (XContentMapValues.isArray(relation.getValue())) {
-                            children = new HashSet<>(Arrays.asList(XContentMapValues.nodeStringArrayValue(relation.getValue())));
-                        } else {
-                            children = Collections.singleton(relation.getValue().toString());
-                        }
-                        builder.addParent(parent, children);
-                    }
-                    iterator.remove();
-                }
-            }
-            return builder;
-        }
-    }
+    public static TypeParser PARSER = new TypeParser((n, c) -> {
+        checkIndexCompatibility(c.mapperService().getIndexSettings(), n);
+        return new Builder(n);
+    });
 
     public static final class JoinFieldType extends StringFieldType {
         private JoinFieldType(String name, Map<String, String> meta) {
@@ -238,20 +242,21 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     // The meta field that ensures that there is no other parent-join in the mapping
-    private MetaJoinFieldMapper uniqueFieldMapper;
-    private List<ParentIdFieldMapper> parentIdFields;
-    private boolean eagerGlobalOrdinals;
+    private final MetaJoinFieldMapper uniqueFieldMapper;
+    private final List<ParentIdFieldMapper> parentIdFields;
+    private final boolean eagerGlobalOrdinals;
+    private final List<Relations> relations;
 
     protected ParentJoinFieldMapper(String simpleName,
-                                    FieldType fieldType,
                                     MappedFieldType mappedFieldType,
                                     MetaJoinFieldMapper uniqueFieldMapper,
                                     List<ParentIdFieldMapper> parentIdFields,
-                                    boolean eagerGlobalOrdinals) {
-        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+                                    boolean eagerGlobalOrdinals, List<Relations> relations) {
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+        this.relations = relations;
     }
 
     @Override

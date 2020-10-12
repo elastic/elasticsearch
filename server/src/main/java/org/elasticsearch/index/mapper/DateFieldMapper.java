@@ -90,12 +90,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public long convertToIndex(long value) {
-                return value / 1000L;
+                return value / 60000L;
             }
 
             @Override
             public long convertToDocValue(long value) {
-                return value * 1000L;
+                return value * 60000L;
             }
 
             @Override

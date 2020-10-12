@@ -218,8 +218,16 @@ public class PublicationTransportHandler {
         // Build the serializations we expect to need now, early in the process, so that an error during serialization fails the publication
         // straight away. This isn't watertight since we send diffs on a best-effort basis and may fall back to sending a full state (and
         // therefore serializing it) if the diff-based publication fails.
-        publicationContext.buildDiffAndSerializeStates();
-        return publicationContext;
+        boolean success = false;
+        try {
+            publicationContext.buildDiffAndSerializeStates();
+            success = true;
+            return publicationContext;
+        } finally {
+            if (success == false) {
+                publicationContext.releaseSerializedStates();
+            }
+        }
     }
 
     private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {

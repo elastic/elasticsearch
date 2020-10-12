@@ -6,13 +6,12 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 
 /**
@@ -34,16 +33,10 @@ public class BoxedQueryRequest implements QueryRequest {
     private Ordinal after;
 
     public BoxedQueryRequest(QueryRequest original, String timestamp) {
+        searchSource = original.searchSource();
         // setup range queries and preserve their reference to simplify the update
         timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
-        BoolQueryBuilder filter = boolQuery().filter(timestampRange);
-
-        searchSource = original.searchSource();
-        // combine with existing query (if it exists)
-        if (searchSource.query() != null) {
-            filter = filter.must(searchSource.query());
-        }
-        searchSource.query(filter);
+        RuntimeUtils.addFilter(timestampRange, searchSource);
     }
 
     @Override
@@ -78,7 +71,6 @@ public class BoxedQueryRequest implements QueryRequest {
 
     /**
      * Sets the upper boundary for the query (inclusive).
-     * Can be removed (when the query in unbounded) through null.
      */
     public BoxedQueryRequest to(Ordinal end) {
         to = end;

@@ -24,7 +24,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
     public static final String DELETION_TASK_DESCRIPTION_PREFIX = "delete-job-";
 
     private DeleteJobAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

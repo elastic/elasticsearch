@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.execution.assembler;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.ExceptionsHelper;

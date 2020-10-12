@@ -74,7 +74,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -113,6 +113,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -2457,14 +2458,14 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+    public Translog.Snapshot newChangesSnapshot(String source, Function<String, MappedFieldType> fieldTypeLookup,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
+                searcher, fieldTypeLookup, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
             searcher = null;
             return snapshot;
         } catch (Exception e) {

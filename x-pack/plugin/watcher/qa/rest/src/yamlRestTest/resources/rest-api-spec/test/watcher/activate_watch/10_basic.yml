@@ -1,5 +1,7 @@
 ---
 "Test activate watch api":
+  - skip:
+      features: warnings
   - do:
       cluster.health:
           wait_for_status: yellow
@@ -48,6 +50,8 @@
   - match: { status.state.active : false }
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.watches], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true
         index: .watches
@@ -69,6 +73,8 @@
   - match: { status.state.active : true }
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.watches], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true
         index: .watches

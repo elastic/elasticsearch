@@ -501,28 +501,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    public static String termVectorOptionsToString(FieldType fieldType) {
-        if (!fieldType.storeTermVectors()) {
-            return "no";
-        } else if (!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
-            return "yes";
-        } else if (fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
-            return "with_offsets";
-        } else {
-            StringBuilder builder = new StringBuilder("with");
-            if (fieldType.storeTermVectorPositions()) {
-                builder.append("_positions");
-            }
-            if (fieldType.storeTermVectorOffsets()) {
-                builder.append("_offsets");
-            }
-            if (fieldType.storeTermVectorPayloads()) {
-                builder.append("_payloads");
-            }
-            return builder.toString();
-        }
-    }
-
     protected abstract String contentType();
 
     public static class MultiFields implements Iterable<Mapper> {

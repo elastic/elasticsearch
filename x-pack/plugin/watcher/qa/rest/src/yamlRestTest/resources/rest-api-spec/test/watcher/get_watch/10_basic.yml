@@ -13,6 +13,8 @@ teardown:
 
 ---
 "Test get watch api":
+  - skip:
+      features: warnings
   - do:
       watcher.put_watch:
         id: "my_watch"
@@ -47,6 +49,8 @@ teardown:
   - match: { created: true }
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.watches], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true
         index: .watches

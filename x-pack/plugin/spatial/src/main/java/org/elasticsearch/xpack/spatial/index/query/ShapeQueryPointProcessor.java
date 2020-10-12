@@ -29,8 +29,8 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
+import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 
 
 public class ShapeQueryPointProcessor {
@@ -47,7 +47,7 @@ public class ShapeQueryPointProcessor {
     }
 
     private void validateIsPointFieldType(String fieldName, QueryShardContext context) {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof PointFieldMapper.PointFieldType == false) {
             throw new QueryShardException(context, "Expected " + PointFieldMapper.CONTENT_TYPE
                 + " field type for Field [" + fieldName + "] but found " + fieldType.typeName());
@@ -68,7 +68,7 @@ public class ShapeQueryPointProcessor {
 
         ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
             this.context = context;
-            this.fieldType = context.fieldMapper(fieldName);
+            this.fieldType = context.getFieldType(fieldName);
             this.fieldName = fieldName;
             this.relation = relation;
         }

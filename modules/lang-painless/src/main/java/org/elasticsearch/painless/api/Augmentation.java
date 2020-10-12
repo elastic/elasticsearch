@@ -41,10 +41,11 @@ import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /** Additional methods added to classes. These must be static methods with receiver as first argument */
 public class Augmentation {
-    
+
     // static methods only!
     private Augmentation() {}
 
@@ -57,10 +58,10 @@ public class Augmentation {
     public static String namedGroup(Matcher receiver, String name) {
         return receiver.group(name);
     }
-    
+
     // some groovy methods on iterable
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/lang/Iterable.html
-    
+
     /** Iterates over the contents of an iterable, and checks whether a predicate is valid for at least one element. */
     public static <T> boolean any(Iterable<T> receiver, Predicate<T> predicate) {
         for (T t : receiver) {
@@ -70,7 +71,7 @@ public class Augmentation {
         }
         return false;
     }
-    
+
     /** Converts this Iterable to a Collection. Returns the original Iterable if it is already a Collection. */
     public static <T> Collection<T> asCollection(Iterable<T> receiver) {
         if (receiver instanceof Collection) {
@@ -82,7 +83,7 @@ public class Augmentation {
         }
         return list;
     }
-    
+
     /** Converts this Iterable to a List. Returns the original Iterable if it is already a List. */
     public static <T> List<T> asList(Iterable<T> receiver) {
         if (receiver instanceof List) {
@@ -94,8 +95,8 @@ public class Augmentation {
         }
         return list;
     }
-    
-    /** Counts the number of occurrences which satisfy the given predicate from inside this Iterable. */ 
+
+    /** Counts the number of occurrences which satisfy the given predicate from inside this Iterable. */
     public static <T> int count(Iterable<T> receiver, Predicate<T> predicate) {
         int count = 0;
         for (T t : receiver) {
@@ -105,7 +106,7 @@ public class Augmentation {
         }
         return count;
     }
-    
+
     // instead of covariant overrides for every possibility, we just return receiver as 'def' for now
     // that way if someone chains the calls, everything works.
 
@@ -114,9 +115,9 @@ public class Augmentation {
         receiver.forEach(consumer);
         return receiver;
     }
-    
-    /** 
-     * Iterates through an iterable type, passing each item and the item's index 
+
+    /**
+     * Iterates through an iterable type, passing each item and the item's index
      * (a counter starting at zero) to the given consumer.
      */
     public static <T> Object eachWithIndex(Iterable<T> receiver, ObjIntConsumer<T> consumer) {
@@ -126,7 +127,7 @@ public class Augmentation {
         }
         return receiver;
     }
-    
+
     /**
      * Used to determine if the given predicate is valid (i.e. returns true for all items in this iterable).
      */
@@ -138,10 +139,10 @@ public class Augmentation {
         }
         return true;
     }
-    
+
     /**
-     * Iterates through the Iterable transforming items using the supplied function and 
-     * collecting any non-null results. 
+     * Iterates through the Iterable transforming items using the supplied function and
+     * collecting any non-null results.
      */
     public static <T,U> List<U> findResults(Iterable<T> receiver, Function<T,U> filter) {
         List<U> list = new ArrayList<>();
@@ -153,9 +154,9 @@ public class Augmentation {
         }
         return list;
     }
-    
+
     /**
-     * Sorts all Iterable members into groups determined by the supplied mapping function. 
+     * Sorts all Iterable members into groups determined by the supplied mapping function.
      */
     public static <T,U> Map<U,List<T>> groupBy(Iterable<T> receiver, Function<T,U> mapper) {
         Map<U,List<T>> map = new LinkedHashMap<>();
@@ -170,10 +171,10 @@ public class Augmentation {
         }
         return map;
     }
-    
+
     /**
-     * Concatenates the toString() representation of each item in this Iterable, 
-     * with the given String as a separator between each item. 
+     * Concatenates the toString() representation of each item in this Iterable,
+     * with the given String as a separator between each item.
      */
     public static <T> String join(Iterable<T> receiver, String separator) {
         StringBuilder sb = new StringBuilder();
@@ -185,7 +186,7 @@ public class Augmentation {
         }
         return sb.toString();
     }
-    
+
     /**
      * Sums the result of an Iterable
      */
@@ -196,9 +197,9 @@ public class Augmentation {
         }
         return sum;
     }
-    
+
     /**
-     * Sums the result of applying a function to each item of an Iterable. 
+     * Sums the result of applying a function to each item of an Iterable.
      */
     public static <T> double sum(Iterable<T> receiver, ToDoubleFunction<T> function) {
         double sum = 0;
@@ -207,13 +208,13 @@ public class Augmentation {
         }
         return sum;
     }
-    
+
     // some groovy methods on collection
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/util/Collection.html
-    
+
     /**
-     * Iterates through this collection transforming each entry into a new value using 
-     * the function, returning a list of transformed values. 
+     * Iterates through this collection transforming each entry into a new value using
+     * the function, returning a list of transformed values.
      */
     public static <T,U> List<U> collect(Collection<T> receiver, Function<T,U> function) {
         List<U> list = new ArrayList<>();
@@ -222,9 +223,9 @@ public class Augmentation {
         }
         return list;
     }
-    
+
     /**
-     * Iterates through this collection transforming each entry into a new value using 
+     * Iterates through this collection transforming each entry into a new value using
      * the function, adding the values to the specified collection.
      */
     public static <T,U> Object collect(Collection<T> receiver, Collection<U> collection, Function<T,U> function) {
@@ -233,7 +234,7 @@ public class Augmentation {
         }
         return collection;
     }
-    
+
     /**
      * Finds the first value matching the predicate, or returns null.
      */
@@ -245,7 +246,7 @@ public class Augmentation {
         }
         return null;
     }
-    
+
     /**
      * Finds all values matching the predicate, returns as a list
      */
@@ -258,19 +259,19 @@ public class Augmentation {
         }
         return list;
     }
-    
+
     /**
-     * Iterates through the collection calling the given function for each item 
-     * but stopping once the first non-null result is found and returning that result. 
-     * If all results are null, null is returned. 
+     * Iterates through the collection calling the given function for each item
+     * but stopping once the first non-null result is found and returning that result.
+     * If all results are null, null is returned.
      */
     public static <T,U> Object findResult(Collection<T> receiver, Function<T,U> function) {
         return findResult(receiver, null, function);
     }
-    
+
     /**
-     * Iterates through the collection calling the given function for each item 
-     * but stopping once the first non-null result is found and returning that result. 
+     * Iterates through the collection calling the given function for each item
+     * but stopping once the first non-null result is found and returning that result.
      * If all results are null, defaultResult is returned.
      */
     public static <T,U> Object findResult(Collection<T> receiver, Object defaultResult, Function<T,U> function) {
@@ -282,10 +283,10 @@ public class Augmentation {
         }
         return defaultResult;
     }
-    
+
     /**
-     * Splits all items into two collections based on the predicate. 
-     * The first list contains all items which match the closure expression. The second list all those that don't. 
+     * Splits all items into two collections based on the predicate.
+     * The first list contains all items which match the closure expression. The second list all those that don't.
      */
     public static <T> List<List<T>> split(Collection<T> receiver, Predicate<T> predicate) {
         List<T> matched = new ArrayList<>();
@@ -302,13 +303,13 @@ public class Augmentation {
         }
         return result;
     }
-    
+
     // some groovy methods on map
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/util/Map.html
-    
+
     /**
-     * Iterates through this map transforming each entry into a new value using 
-     * the function, returning a list of transformed values. 
+     * Iterates through this map transforming each entry into a new value using
+     * the function, returning a list of transformed values.
      */
     public static <K,V,T> List<T> collect(Map<K,V> receiver, BiFunction<K,V,T> function) {
         List<T> list = new ArrayList<>();
@@ -317,9 +318,9 @@ public class Augmentation {
         }
         return list;
     }
-    
+
     /**
-     * Iterates through this map transforming each entry into a new value using 
+     * Iterates through this map transforming each entry into a new value using
      * the function, adding the values to the specified collection.
      */
     public static <K,V,T> Object collect(Map<K,V> receiver, Collection<T> collection, BiFunction<K,V,T> function) {
@@ -328,8 +329,8 @@ public class Augmentation {
         }
         return collection;
     }
-    
-    /** Counts the number of occurrences which satisfy the given predicate from inside this Map */ 
+
+    /** Counts the number of occurrences which satisfy the given predicate from inside this Map */
     public static <K,V> int count(Map<K,V> receiver, BiPredicate<K,V> predicate) {
         int count = 0;
         for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
@@ -339,13 +340,13 @@ public class Augmentation {
         }
         return count;
     }
-    
+
     /** Iterates through a Map, passing each item to the given consumer. */
     public static <K,V> Object each(Map<K,V> receiver, BiConsumer<K,V> consumer) {
         receiver.forEach(consumer);
         return receiver;
     }
-    
+
     /**
      * Used to determine if the given predicate is valid (i.e. returns true for all items in this map).
      */
@@ -357,7 +358,7 @@ public class Augmentation {
         }
         return true;
     }
-    
+
     /**
      * Finds the first entry matching the predicate, or returns null.
      */
@@ -369,7 +370,7 @@ public class Augmentation {
         }
         return null;
     }
-    
+
     /**
      * Finds all values matching the predicate, returns as a map.
      */
@@ -388,19 +389,19 @@ public class Augmentation {
         }
         return map;
     }
-    
+
     /**
-     * Iterates through the map calling the given function for each item 
-     * but stopping once the first non-null result is found and returning that result. 
-     * If all results are null, null is returned. 
+     * Iterates through the map calling the given function for each item
+     * but stopping once the first non-null result is found and returning that result.
+     * If all results are null, null is returned.
      */
     public static <K,V,T> Object findResult(Map<K,V> receiver, BiFunction<K,V,T> function) {
         return findResult(receiver, null, function);
     }
-    
+
     /**
-     * Iterates through the map calling the given function for each item 
-     * but stopping once the first non-null result is found and returning that result. 
+     * Iterates through the map calling the given function for each item
+     * but stopping once the first non-null result is found and returning that result.
      * If all results are null, defaultResult is returned.
      */
     public static <K,V,T> Object findResult(Map<K,V> receiver, Object defaultResult, BiFunction<K,V,T> function) {
@@ -412,10 +413,10 @@ public class Augmentation {
         }
         return defaultResult;
     }
-    
+
     /**
-     * Iterates through the map transforming items using the supplied function and 
-     * collecting any non-null results. 
+     * Iterates through the map transforming items using the supplied function and
+     * collecting any non-null results.
      */
     public static <K,V,T> List<T> findResults(Map<K,V> receiver, BiFunction<K,V,T> filter) {
         List<T> list = new ArrayList<>();
@@ -427,9 +428,9 @@ public class Augmentation {
         }
         return list;
     }
-    
+
     /**
-     * Sorts all Map members into groups determined by the supplied mapping function. 
+     * Sorts all Map members into groups determined by the supplied mapping function.
      */
     public static <K,V,T> Map<T,Map<K,V>> groupBy(Map<K,V> receiver, BiFunction<K,V,T> mapper) {
         Map<T,Map<K,V>> map = new LinkedHashMap<>();
@@ -678,5 +679,37 @@ public class Augmentation {
         return MessageDigests.toHexString(
             MessageDigests.sha256().digest(source.getBytes(StandardCharsets.UTF_8))
         );
+    }
+
+    public static final int UNLIMITED_PATTERN_FACTOR = 0;
+    public static final int DISABLED_PATTERN_FACTOR = -1;
+
+    // Regular Expression Pattern augmentations with limit factor injected
+    public static String[] split(Pattern receiver, int limitFactor, CharSequence input) {
+        if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
+            return receiver.split(input);
+        }
+        return receiver.split(new LimitedCharSequence(input, receiver, limitFactor));
+    }
+
+    public static String[] split​(Pattern receiver, int limitFactor, CharSequence input, int limit) {
+        if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
+            return receiver.split(input, limit);
+        }
+        return receiver.split(new LimitedCharSequence(input, receiver, limitFactor), limit);
+    }
+
+    public static Stream<String> splitAsStream​(Pattern receiver, int limitFactor, CharSequence input) {
+        if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
+            return receiver.splitAsStream(input);
+        }
+        return receiver.splitAsStream(new LimitedCharSequence(input, receiver, limitFactor));
+    }
+
+    public static Matcher matcher(Pattern receiver, int limitFactor, CharSequence input) {
+        if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
+            return receiver.matcher(input);
+        }
+        return receiver.matcher(new LimitedCharSequence(input, receiver, limitFactor));
     }
 }

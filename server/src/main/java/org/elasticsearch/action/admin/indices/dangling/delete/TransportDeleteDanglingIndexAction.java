@@ -32,7 +32,7 @@ import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesR
 import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,14 +43,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -59,7 +57,7 @@ import java.util.stream.Collectors;
  * this class first checks that such a dangling index exists. It then submits a cluster state update
  * to add the index to the index graveyard.
  */
-public class TransportDeleteDanglingIndexAction extends TransportMasterNodeAction<DeleteDanglingIndexRequest, AcknowledgedResponse> {
+public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMasterNodeAction<DeleteDanglingIndexRequest> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 
     private final Settings settings;
@@ -91,11 +89,6 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -139,7 +132,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
 
                         @Override
                         protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                            return new AcknowledgedResponse(acknowledged);
+                            return AcknowledgedResponse.of(acknowledged);
                         }
 
                         @Override

@@ -49,12 +49,16 @@ public class IdFieldTypeTests extends ESTestCase {
         IndexSettings mockSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
         Mockito.when(context.indexVersionCreated()).thenReturn(indexSettings.getAsVersion(IndexMetadata.SETTING_VERSION_CREATED, null));
-
-        MapperService mapperService = Mockito.mock(MapperService.class);
-        Mockito.when(context.getMapperService()).thenReturn(mapperService);
-
         MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
+    }
+
+    public void testIsAggregatable() {
+        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
+        assertFalse(ft.isAggregatable());
+
+        ft = new IdFieldMapper.IdFieldType(() -> true);
+        assertTrue(ft.isAggregatable());
     }
 }

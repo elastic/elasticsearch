@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -135,7 +136,9 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        clusterService.addListener(this);
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+            clusterService.addListener(this);
+        }
     }
 
     @Override
@@ -159,8 +162,8 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        long currentNanoTime = currentNanoTime();
-        if (event.state().nodes().isLocalNodeElectedMaster()) {
+        if (event.localNodeMaster()) {
+            long currentNanoTime = currentNanoTime();
             scheduleIfNeeded(currentNanoTime, event.state());
         }
     }

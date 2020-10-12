@@ -114,27 +114,23 @@ public class AucRocMetric implements EvaluationMetric {
         }
 
         private static final ParseField SCORE = new ParseField("score");
-        private static final ParseField DOC_COUNT = new ParseField("doc_count");
         private static final ParseField CURVE = new ParseField("curve");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
             new ConstructingObjectParser<>(
-                "auc_roc_result", true, args -> new Result((double) args[0], (long) args[1], (List<AucRocPoint>) args[2]));
+                "auc_roc_result", true, args -> new Result((double) args[0], (List<AucRocPoint>) args[1]));
 
         static {
             PARSER.declareDouble(constructorArg(), SCORE);
-            PARSER.declareLong(constructorArg(), DOC_COUNT);
             PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> AucRocPoint.fromXContent(p), CURVE);
         }
 
         private final double score;
-        private final long docCount;
         private final List<AucRocPoint> curve;
 
-        public Result(double score, long docCount, @Nullable List<AucRocPoint> curve) {
+        public Result(double score, @Nullable List<AucRocPoint> curve) {
             this.score = score;
-            this.docCount = docCount;
             this.curve = curve;
         }
 
@@ -147,10 +143,6 @@ public class AucRocMetric implements EvaluationMetric {
             return score;
         }
 
-        public long getDocCount() {
-            return docCount;
-        }
-
         public List<AucRocPoint> getCurve() {
             return curve == null ? null : Collections.unmodifiableList(curve);
         }
@@ -159,7 +151,6 @@ public class AucRocMetric implements EvaluationMetric {
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field(SCORE.getPreferredName(), score);
-            builder.field(DOC_COUNT.getPreferredName(), docCount);
             if (curve != null && curve.isEmpty() == false) {
                 builder.field(CURVE.getPreferredName(), curve);
             }
@@ -173,13 +164,12 @@ public class AucRocMetric implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return score == that.score
-                && docCount == that.docCount
                 && Objects.equals(curve, that.curve);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(score, docCount, curve);
+            return Objects.hash(score, curve);
         }
 
         @Override

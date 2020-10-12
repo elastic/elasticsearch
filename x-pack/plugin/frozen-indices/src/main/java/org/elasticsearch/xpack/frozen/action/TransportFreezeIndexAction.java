@@ -192,7 +192,7 @@ public final class TransportFreezeIndexAction extends
 
             @Override
             protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
+                return AcknowledgedResponse.of(acknowledged);
             }
         });
     }

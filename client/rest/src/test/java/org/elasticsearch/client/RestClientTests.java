@@ -60,7 +60,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testCloseIsIdempotent() throws IOException {
         List<Node> nodes = singletonList(new Node(new HttpHost("localhost", 9200)));
         CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
-        RestClient restClient = new RestClient(closeableHttpAsyncClient, new Header[0], nodes, null, null, null, false);
+        RestClient restClient = new RestClient(closeableHttpAsyncClient, new Header[0], nodes, null, null, null, false, false);
         restClient.close();
         verify(closeableHttpAsyncClient, times(1)).close();
         restClient.close();
@@ -357,7 +357,7 @@ public class RestClientTests extends RestClientTestCase {
 
     private static RestClient createRestClient() {
         List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
-        return new RestClient(mock(CloseableHttpAsyncClient.class), new Header[] {}, nodes, null, null, null, false);
+        return new RestClient(mock(CloseableHttpAsyncClient.class), new Header[] {}, nodes, null, null, null, false, false);
     }
 
     public void testRoundRobin() throws IOException {
@@ -392,7 +392,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testIsRunning(){
         List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
         CloseableHttpAsyncClient client = mock(CloseableHttpAsyncClient.class);
-        RestClient restClient = new RestClient(client, new Header[] {}, nodes, null, null, null, false);
+        RestClient restClient = new RestClient(client, new Header[] {}, nodes, null, null, null, false, false);
 
         when(client.isRunning()).thenReturn(true);
         assertTrue(restClient.isRunning());

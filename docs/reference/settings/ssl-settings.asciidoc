@@ -62,8 +62,8 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
-+{ssl-prefix}.ssl.secure_key_passphrase+ (<<secure-settings,Secure>>)::
-(<<static-cluster-setting,Static>>)
++{ssl-prefix}.ssl.secure_key_passphrase+::
+(<<secure-settings,Secure>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 +{ssl-prefix}.ssl.certificate+::

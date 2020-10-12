@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -33,6 +34,9 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
      */
     public void testDeleteConfigurationLeftOver() throws IOException {
         String fakeTransformName = randomAlphaOfLengthBetween(5, 20);
+        final RequestOptions expectWarningOptions = expectWarnings("this request accesses system indices: [" +
+            TransformInternalIndexConstants.LATEST_INDEX_NAME + "], but in a future major version, direct access to system indices will " +
+            "be prevented by default");
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -43,12 +47,15 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             Request req = new Request("PUT",
                     TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName));
+            req.setOptions(expectWarningOptions);
             req.setEntity(entity);
             client().performRequest(req);
         }
 
         // refresh the index
-        assertOK(client().performRequest(new Request("POST", TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_refresh")));
+        final Request refreshRequest = new Request("POST", TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_refresh");
+        refreshRequest.setOptions(expectWarningOptions);
+        assertOK(client().performRequest(refreshRequest));
 
         Request deleteRequest = new Request("DELETE", getTransformEndpoint() + fakeTransformName);
         Response deleteResponse = client().performRequest(deleteRequest);

@@ -17,7 +17,7 @@ public class Ordinal implements Comparable<Ordinal> {
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
     }
-    
+
     public long timestamp() {
         return timestamp;
     }
@@ -36,11 +36,11 @@ public class Ordinal implements Comparable<Ordinal> {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         Ordinal other = (Ordinal) obj;
         return Objects.equals(timestamp, other.timestamp)
                 && Objects.equals(tiebreaker, other.tiebreaker);
@@ -79,6 +79,22 @@ public class Ordinal implements Comparable<Ordinal> {
 
     public boolean between(Ordinal left, Ordinal right) {
         return (compareTo(left) <= 0 && compareTo(right) >= 0) || (compareTo(right) <= 0 && compareTo(left) >= 0);
+    }
+
+    public boolean before(Ordinal other) {
+        return compareTo(other) < 0;
+    }
+
+    public boolean beforeOrAt(Ordinal other) {
+        return compareTo(other) <= 0;
+    }
+
+    public boolean after(Ordinal other) {
+        return compareTo(other) > 0;
+    }
+
+    public boolean afterOrAt(Ordinal other) {
+        return compareTo(other) >= 0;
     }
 
     public Object[] toArray() {

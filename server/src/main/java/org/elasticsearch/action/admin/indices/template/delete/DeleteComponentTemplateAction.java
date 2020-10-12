@@ -36,7 +36,7 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
     public static final String NAME = "cluster:admin/component_template/delete";
 
     private DeleteComponentTemplateAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

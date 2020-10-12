@@ -612,7 +612,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     protected TopHitsAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subfactoriesBuilder)
             throws IOException {
         long innerResultWindow = from() + size();
-        int maxInnerResultWindow = queryShardContext.getMapperService().getIndexSettings().getMaxInnerResultWindow();
+        int maxInnerResultWindow = queryShardContext.getIndexSettings().getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(
                 "Top hits result window is too large, the top hits aggregator [" + name + "]'s from + size must be less " +

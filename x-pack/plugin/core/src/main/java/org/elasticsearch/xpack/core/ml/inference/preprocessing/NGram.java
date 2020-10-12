@@ -184,8 +184,8 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         }
         final int startPos = start < 0 ? (stringValue.length() + start) : start;
         final int len = Math.min(startPos + length, stringValue.length());
-        for (int i = 0; i < len; i++) {
-            for (int nGram : nGrams) {
+        for (int nGram : nGrams) {
+            for (int i = 0; i < len; i++) {
                 if (startPos + i + nGram > len) {
                     break;
                 }

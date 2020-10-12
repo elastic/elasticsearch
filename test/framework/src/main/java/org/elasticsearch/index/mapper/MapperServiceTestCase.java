@@ -49,6 +49,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -102,7 +103,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService.documentMapper();
     }
 
-    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
+    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(Version.CURRENT, mappings);
     }
 
@@ -223,15 +224,18 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     QueryShardContext createQueryShardContext(MapperService mapperService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getMapperService()).thenReturn(mapperService);
-        when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.isFieldMapped(anyString()))
+            .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(queryShardContext.getSearchQuoteAnalyzer(anyObject())).thenCallRealMethod();
-        when(queryShardContext.getSearchAnalyzer(anyObject())).thenCallRealMethod();
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
+        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService, (ft, s) -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        }));
         return queryShardContext;
     }
 }

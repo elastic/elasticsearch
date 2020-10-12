@@ -21,11 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -56,6 +53,31 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "long");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        checker.registerUpdateCheck(b -> b.field("coerce", false),
+            m -> assertFalse(((NumberFieldMapper) m).coerce()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+    }
+
+    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+        builder.value(123);
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     @Override
@@ -202,21 +224,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertFalse(dvField.fieldType().stored());
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true).build(context);
-        assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
-        assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
-
-        NumberFieldMapper nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
-            .nullValue(2.71f)
-            .build(context);
-        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
-        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     public void testOutOfRangeValues() throws IOException {

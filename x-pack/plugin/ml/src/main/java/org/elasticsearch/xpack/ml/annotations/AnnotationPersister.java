@@ -74,7 +74,7 @@ public class AnnotationPersister {
     public class Builder {
 
         private final String jobId;
-        private BulkRequest bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME).requireAlias(true);
+        private BulkRequest bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
         private Supplier<Boolean> shouldRetry = () -> true;
 
         private Builder(String jobId) {
@@ -93,7 +93,7 @@ public class AnnotationPersister {
         public Builder persistAnnotation(@Nullable String annotationId, Annotation annotation) {
             Objects.requireNonNull(annotation);
             try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-                bulkRequest.add(new IndexRequest().id(annotationId).source(xContentBuilder));
+                bulkRequest.add(new IndexRequest().id(annotationId).source(xContentBuilder).setRequireAlias(true));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising annotation", jobId), e);
             }
@@ -115,7 +115,7 @@ public class AnnotationPersister {
             BulkResponse bulkResponse =
                 resultsPersisterService.bulkIndexWithRetry(
                     bulkRequest, jobId, shouldRetry, msg -> auditor.warning(jobId, "Bulk indexing of annotations failed " + msg));
-            bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME).requireAlias(true);
+            bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             return bulkResponse;
         }
     }

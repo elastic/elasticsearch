@@ -66,6 +66,9 @@ public final class BitArray implements Releasable {
 
     public long nextSetBit(long index) {
         long wordNum = wordNum(index);
+        if (wordNum >= bits.size()) {
+            return Long.MAX_VALUE;
+        }
         long word = bits.get(wordNum) >> index;  // skip all the bits to the right of index
 
         if (word!=0) {

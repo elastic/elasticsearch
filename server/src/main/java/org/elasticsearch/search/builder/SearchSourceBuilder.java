@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -1646,84 +1645,4 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
     }
 
-    /**
-     * Specify whether this search should use specific reader contexts instead of the latest ones.
-     */
-    public static final class PointInTimeBuilder implements Writeable, ToXContentObject {
-        private static final ParseField ID_FIELD = new ParseField("id");
-        private static final ParseField KEEP_ALIVE_FIELD = new ParseField("keep_alive");
-        private static final ObjectParser<XContentParams, Void> PARSER;
-
-        static {
-            PARSER = new ObjectParser<>(POINT_IN_TIME.getPreferredName(), XContentParams::new);
-            PARSER.declareString((params, id) -> params.id = id, ID_FIELD);
-            PARSER.declareField((params, keepAlive) -> params.keepAlive = keepAlive,
-                (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE_FIELD.getPreferredName()),
-                KEEP_ALIVE_FIELD, ObjectParser.ValueType.STRING);
-        }
-
-        private static final class XContentParams {
-            private String id;
-            private TimeValue keepAlive;
-        }
-
-        private final String id;
-        private final TimeValue keepAlive;
-
-        public PointInTimeBuilder(String id, TimeValue keepAlive) {
-            this.id = Objects.requireNonNull(id);
-            this.keepAlive = keepAlive;
-        }
-
-        public PointInTimeBuilder(StreamInput in) throws IOException {
-            id = in.readString();
-            keepAlive = in.readOptionalTimeValue();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(id);
-            out.writeOptionalTimeValue(keepAlive);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(POINT_IN_TIME.getPreferredName());
-            builder.field(ID_FIELD.getPreferredName(), id);
-            if (keepAlive != null) {
-                builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        public static PointInTimeBuilder fromXContent(XContentParser parser) throws IOException {
-            final XContentParams params = PARSER.parse(parser, null);
-            if (params.id == null) {
-                throw new IllegalArgumentException("point int time id is not provided");
-            }
-            return new PointInTimeBuilder(params.id, params.keepAlive);
-        }
-
-        public TimeValue getKeepAlive() {
-            return keepAlive;
-        }
-
-        public String getId() {
-            return id;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final PointInTimeBuilder that = (PointInTimeBuilder) o;
-            return Objects.equals(id, that.id) && Objects.equals(keepAlive, that.keepAlive);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(id, keepAlive);
-        }
-    }
 }

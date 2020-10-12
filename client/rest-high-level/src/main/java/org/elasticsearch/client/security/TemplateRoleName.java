@@ -95,7 +95,7 @@ public class TemplateRoleName implements ToXContentObject {
     }
 
     static TemplateRoleName fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         return PARSER.parse(parser, null);
     }
 
@@ -104,7 +104,7 @@ public class TemplateRoleName implements ToXContentObject {
         STRING, JSON;
 
         private static Format fromXContent(XContentParser parser) throws IOException {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
             return Format.valueOf(parser.text().toUpperCase(Locale.ROOT));
         }
     }

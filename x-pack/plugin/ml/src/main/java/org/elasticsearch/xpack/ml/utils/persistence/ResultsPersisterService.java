@@ -112,9 +112,9 @@ public class ResultsPersisterService {
                                        boolean requireAlias,
                                        Supplier<Boolean> shouldRetry,
                                        Consumer<String> msgHandler) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy).requireAlias(requireAlias);
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
-            bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
+            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
         }
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler);
     }
@@ -288,7 +288,6 @@ public class ResultsPersisterService {
     private BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
         // If we failed, lets set the bulkRequest to be a collection of the failed requests
         BulkRequest bulkRequestOfFailures = new BulkRequest();
-        bulkRequestOfFailures.requireAlias(bulkRequest.requireAlias());
         Set<String> failedDocIds = Arrays.stream(bulkResponse.getItems())
             .filter(BulkItemResponse::isFailed)
             .map(BulkItemResponse::getId)

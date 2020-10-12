@@ -31,6 +31,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public abstract class InternalTermsTestCase extends InternalMultiBucketAggregationTestCase<InternalTerms<?, ?>> {
 
     private boolean showDocCount;
@@ -88,6 +90,10 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
         final long expectedTotalDocCount = inputs.stream().map(Terms::getBuckets)
                 .flatMap(List::stream).mapToLong(Terms.Bucket::getDocCount).sum();
         assertEquals(expectedTotalDocCount, reducedTotalDocCount);
+        for (InternalTerms<?, ?> terms : inputs) {
+            assertThat(reduced.reduceOrder, equalTo(terms.order));
+            assertThat(reduced.order, equalTo(terms.order));
+        }
     }
 
     private static Map<Object, Long> toCounts(Stream<? extends Terms.Bucket> buckets) {

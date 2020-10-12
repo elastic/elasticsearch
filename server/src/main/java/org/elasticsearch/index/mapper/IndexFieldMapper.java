@@ -58,7 +58,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 // Thankfully, all index names are lower-cased so we don't have to pass a case_insensitive mode flag
                 // down to all the index name-matching logic. We just lower-case the search string
                 pattern = Strings.toLowercaseAscii(pattern);
-            }            
+            }
             return context.indexMatches(pattern);
         }
 
@@ -69,9 +69,13 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(fullyQualifiedIndexName, name(), CoreValuesSourceType.BYTES);
         }
 
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
     }
 
     public IndexFieldMapper() {
@@ -82,5 +86,4 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

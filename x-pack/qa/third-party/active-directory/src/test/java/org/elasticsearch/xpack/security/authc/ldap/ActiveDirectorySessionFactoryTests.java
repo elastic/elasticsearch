@@ -374,7 +374,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     private Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification, boolean useBindUser) {
         Settings.Builder builder = Settings.builder()
                 .put(getFullSettingKey(REALM_ID, SessionFactorySettings.URLS_SETTING), ldapUrl)
-                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
+                .put(getFullSettingKey(REALM_ID, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
                 .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
                 .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
                 .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)

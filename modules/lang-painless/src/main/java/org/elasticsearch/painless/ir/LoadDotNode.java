@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -54,9 +54,14 @@ public class LoadDotNode extends ExpressionNode {
 
     /* ---- end visitor ---- */
 
+    public LoadDotNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeDebugInfo(getLocation());
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
             methodWriter.getStatic(Type.getType(

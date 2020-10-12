@@ -68,7 +68,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
         try (LegacyReaderContext readerContext =
-                 new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
+                 new LegacyReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L), indexService, shard,
+                     shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(false);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -89,7 +90,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
         try (LegacyReaderContext readerContext =
-                 new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
+                 new LegacyReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
+                     indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -117,7 +119,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
         try (LegacyReaderContext readerContext =
-                 new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
+                 new LegacyReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L), indexService, shard,
+                     shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
             readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY,
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
             final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);

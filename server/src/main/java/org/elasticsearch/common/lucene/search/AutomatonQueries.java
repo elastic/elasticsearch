@@ -37,7 +37,7 @@ import java.util.List;
 public class AutomatonQueries  {
 
 
-    
+
     /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
     public static Automaton caseInsensitivePrefix(String s) {
         List<Automaton> list = new ArrayList<>();
@@ -50,27 +50,27 @@ public class AutomatonQueries  {
         Automaton a = Operations.concatenate(list);
         a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
         return a;
-    } 
-    
-    
+    }
+
+
     /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
     public static AutomatonQuery caseInsensitivePrefixQuery(Term prefix) {
         return new AutomatonQuery(prefix, caseInsensitivePrefix(prefix.text()));
-    }    
-    
+    }
+
     /** Build an automaton accepting all terms ASCII case insensitive. */
     public static AutomatonQuery caseInsensitiveTermQuery(Term term) {
         BytesRef prefix = term.bytes();
         return new AutomatonQuery(term, toCaseInsensitiveString(prefix,Integer.MAX_VALUE));
-    }    
+    }
 
-    
+
     /** Build an automaton matching a wildcard pattern, ASCII case insensitive. */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery) {
         return new AutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery,Integer.MAX_VALUE));
-    }    
-    
-    
+    }
+
+
     /** String equality with support for wildcards */
     public static final char WILDCARD_STRING = '*';
 
@@ -78,21 +78,21 @@ public class AutomatonQueries  {
     public static final char WILDCARD_CHAR = '?';
 
     /** Escape character */
-    public static final char WILDCARD_ESCAPE = '\\';    
+    public static final char WILDCARD_ESCAPE = '\\';
     /**
      * Convert Lucene wildcard syntax into an automaton.
      */
     @SuppressWarnings("fallthrough")
     public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery, int maxDeterminizedStates) {
       List<Automaton> automata = new ArrayList<>();
-      
+
       String wildcardText = wildcardquery.text();
-      
+
       for (int i = 0; i < wildcardText.length();) {
         final int c = wildcardText.codePointAt(i);
         int length = Character.charCount(c);
         switch(c) {
-          case WILDCARD_STRING: 
+          case WILDCARD_STRING:
             automata.add(Automata.makeAnyString());
             break;
           case WILDCARD_CHAR:
@@ -111,14 +111,14 @@ public class AutomatonQueries  {
         }
         i += length;
       }
-      
+
       return Operations.concatenate(automata);
-    }    
+    }
 
     protected static Automaton toCaseInsensitiveString(BytesRef br, int maxDeterminizedStates) {
         return toCaseInsensitiveString(br.utf8ToString(), maxDeterminizedStates);
     }
-    
+
     public static Automaton toCaseInsensitiveString(String s, int maxDeterminizedStates) {
         List<Automaton> list = new ArrayList<>();
         Iterator<Integer> iter = s.codePoints().iterator();
@@ -129,11 +129,11 @@ public class AutomatonQueries  {
         Automaton a = Operations.concatenate(list);
         a = MinimizationOperations.minimize(a, maxDeterminizedStates);
         return a;
- 
-    
+
+
     }
 
-    protected static Automaton toCaseInsensitiveChar(int codepoint, int maxDeterminizedStates) {
+    public static Automaton toCaseInsensitiveChar(int codepoint, int maxDeterminizedStates) {
         Automaton case1 = Automata.makeChar(codepoint);
         // For now we only work with ASCII characters
         if (codepoint > 128) {

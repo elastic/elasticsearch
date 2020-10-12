@@ -118,18 +118,8 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(RemovePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
+                Request::new, indexNameExpressionResolver, PersistentTaskResponse::new, ThreadPool.Names.MANAGEMENT);
             this.persistentTasksClusterService = persistentTasksClusterService;
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.MANAGEMENT;
-        }
-
-        @Override
-        protected PersistentTaskResponse read(StreamInput in) throws IOException {
-            return new PersistentTaskResponse(in);
         }
 
         @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -186,8 +187,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         public CountingMockRepository(final RepositoryMetadata metadata,
                                       final Environment environment,
                                       final NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
-                                      RecoverySettings recoverySettings) {
-            super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
+                                      BigArrays bigArrays, RecoverySettings recoverySettings) {
+            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
         @Override
@@ -211,9 +212,10 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
+                                                               ClusterService clusterService, BigArrays bigArrays,
+                                                               RecoverySettings recoverySettings) {
             return Collections.singletonMap(TYPE,
-                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings));
+                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings));
         }
     }
 }

@@ -63,9 +63,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     boolean persistsState();
 
     /**
-     * Returns the document id for the analysis state
+     * Returns the document id prefix for the analysis state
      */
-    String getStateDocId(String jobId);
+    String getStateDocIdPrefix(String jobId);
 
     /**
      * Returns the progress phases the analysis goes through in order

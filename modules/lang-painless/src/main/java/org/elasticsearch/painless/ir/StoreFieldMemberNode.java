@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
@@ -68,15 +68,21 @@ public class StoreFieldMemberNode extends StoreNode {
 
     /* ---- end visitor ---- */
 
+    public StoreFieldMemberNode(Location location) {
+        super(location);
+    }
+
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    public void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+
         if (isStatic == false) {
             methodWriter.loadThis();
         }
 
-        getChildNode().write(classWriter, methodWriter, writeScope);
+        getChildNode().write(writeScope);
 
-        methodWriter.writeDebugInfo(location);
+        methodWriter.writeDebugInfo(getLocation());
 
         if (isStatic) {
             methodWriter.putStatic(CLASS_TYPE, name, MethodWriter.getType(getStoreType()));

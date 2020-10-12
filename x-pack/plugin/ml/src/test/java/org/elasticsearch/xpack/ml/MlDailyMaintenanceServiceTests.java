@@ -210,7 +210,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             .when(client).execute(same(GetJobsAction.INSTANCE), any(), any());
         doAnswer(withResponse(new ListTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList())))
             .when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
-        doAnswer(withResponse(new AcknowledgedResponse(deleted)))
+        doAnswer(withResponse(AcknowledgedResponse.of(deleted)))
             .when(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
 
         CountDownLatch latch = new CountDownLatch(2);

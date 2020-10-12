@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -65,7 +64,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -107,7 +105,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                   JobConfigProvider jobConfigProvider, MlMemoryTracker memoryTracker, Client client) {
         super(OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters,OpenJobAction.Request::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, NodeAcknowledgedResponse::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.jobConfigProvider = jobConfigProvider;
@@ -190,18 +188,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
 
         return null;
-    }
-
-    @Override
-    protected String executor() {
-        // This api doesn't do heavy or blocking operations (just delegates PersistentTasksService),
-        // so we can do this on the network thread
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected NodeAcknowledgedResponse read(StreamInput in) throws IOException {
-        return new NodeAcknowledgedResponse(in);
     }
 
     @Override

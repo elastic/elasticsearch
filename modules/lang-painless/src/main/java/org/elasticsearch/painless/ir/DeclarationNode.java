@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -82,9 +82,14 @@ public class DeclarationNode extends StatementNode {
 
     /* ---- end visitor ---- */
 
+    public DeclarationNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeStatementOffset(getLocation());
 
         Variable variable = writeScope.defineVariable(declarationType, name);
 
@@ -104,7 +109,7 @@ public class DeclarationNode extends StatementNode {
                 methodWriter.visitInsn(Opcodes.ACONST_NULL);
             }
         } else {
-            expressionNode.write(classWriter, methodWriter, writeScope);
+            expressionNode.write(writeScope);
         }
 
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());

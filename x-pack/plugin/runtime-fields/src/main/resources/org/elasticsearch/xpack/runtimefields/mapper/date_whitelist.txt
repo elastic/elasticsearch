@@ -17,8 +17,6 @@ static_import {
     void emit(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript$Emit
     # Parse a value from the source to millis since epoch
     long parse(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript, def) bound_to org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript$Parse
-    # Add an easy method to convert temporalAccessors to millis since epoch.
-    long toEpochMilli(java.time.temporal.TemporalAccessor) from_class org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript
 }
 
 

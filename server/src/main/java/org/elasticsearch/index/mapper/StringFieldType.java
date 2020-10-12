@@ -52,9 +52,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    public StringFieldType(String name, boolean isSearchable, boolean hasDocValues,
+    public StringFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
                            TextSearchInfo textSearchInfo, Map<String, String> meta) {
-        super(name, isSearchable, hasDocValues, textSearchInfo, meta);
+        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override
@@ -83,7 +83,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 query.setRewriteMethod(method);
             }
             return query;
-            
+
         }
         PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
         if (method != null) {
@@ -140,7 +140,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (caseInsensitive) {
             AutomatonQuery query = AutomatonQueries.caseInsensitiveWildcardQuery(term);
             QueryParsers.setRewriteMethod(query, method);
-            return query;            
+            return query;
         }
         WildcardQuery query = new WildcardQuery(term);
         QueryParsers.setRewriteMethod(query, method);

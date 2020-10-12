@@ -42,10 +42,12 @@ public class GetJobRequest implements Validatable, ToXContentObject {
 
     public static final ParseField JOB_IDS = new ParseField("job_ids");
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final String FOR_EXPORT = "for_export";
 
     private static final String ALL_JOBS = "_all";
     private final List<String> jobIds;
     private Boolean allowNoMatch;
+    private Boolean forExport;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetJobRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -100,9 +102,25 @@ public class GetJobRequest implements Validatable, ToXContentObject {
         return allowNoMatch;
     }
 
+    /**
+     * Setting this flag to `true` removes certain fields from the configuration on retrieval.
+     *
+     * This is useful when getting the configuration and wanting to put it in another cluster.
+     *
+     * Default value is false.
+     * @param forExport Boolean value indicating if certain fields should be removed
+     */
+    public void setForExport(boolean forExport) {
+        this.forExport = forExport;
+    }
+
+    public Boolean getForExport() {
+        return forExport;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(jobIds, allowNoMatch);
+        return Objects.hash(jobIds, forExport, allowNoMatch);
     }
 
     @Override
@@ -117,6 +135,7 @@ public class GetJobRequest implements Validatable, ToXContentObject {
 
         GetJobRequest that = (GetJobRequest) other;
         return Objects.equals(jobIds, that.jobIds) &&
+            Objects.equals(forExport, that.forExport) &&
             Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 

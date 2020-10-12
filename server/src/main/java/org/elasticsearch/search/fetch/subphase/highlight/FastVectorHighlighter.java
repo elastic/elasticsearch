@@ -78,7 +78,6 @@ public class FastVectorHighlighter implements Highlighter {
                 "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
 
-        TextSearchInfo tsi = fieldType.getTextSearchInfo();
         Encoder encoder = field.fieldOptions().encoder().equals("html") ?
             HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
@@ -95,7 +94,7 @@ public class FastVectorHighlighter implements Highlighter {
             if (field.fieldOptions().numberOfFragments() == 0) {
                 fragListBuilder = new SingleFragListBuilder();
 
-                if (!forceSource && tsi.isStored()) {
+                if (!forceSource && fieldType.isStored()) {
                     fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),
                         field.fieldOptions().postTags(), boundaryScanner);
                 } else {
@@ -106,7 +105,7 @@ public class FastVectorHighlighter implements Highlighter {
                 fragListBuilder = field.fieldOptions().fragmentOffset() == -1 ?
                     new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fieldOptions().fragmentOffset());
                 if (field.fieldOptions().scoreOrdered()) {
-                    if (!forceSource && tsi.isStored()) {
+                    if (!forceSource && fieldType.isStored()) {
                         fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(),
                             field.fieldOptions().postTags(), boundaryScanner);
                     } else {
@@ -114,7 +113,7 @@ public class FastVectorHighlighter implements Highlighter {
                             field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 } else {
-                    if (!forceSource && tsi.isStored()) {
+                    if (!forceSource && fieldType.isStored()) {
                         fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),
                             field.fieldOptions().postTags(), boundaryScanner);
                     } else {

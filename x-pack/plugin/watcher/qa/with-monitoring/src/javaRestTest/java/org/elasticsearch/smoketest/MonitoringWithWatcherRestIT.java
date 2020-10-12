@@ -6,6 +6,7 @@
 package org.elasticsearch.smoketest;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -33,13 +34,26 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After
     public void cleanExporters() throws Exception {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(Strings.toString(jsonBuilder().startObject()
+        Request cleanupSettingsRequest = new Request("PUT", "/_cluster/settings");
+        cleanupSettingsRequest.setJsonEntity(Strings.toString(jsonBuilder().startObject()
                 .startObject("transient")
                     .nullField("xpack.monitoring.exporters.*")
                 .endObject().endObject()));
-        adminClient().performRequest(request);
-        adminClient().performRequest(new Request("DELETE", "/.watch*"));
+        adminClient().performRequest(cleanupSettingsRequest);
+        final Request deleteRequest = new Request("DELETE", "/.watch*");
+        RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> {
+                if (warnings.size() != 1) {
+                    return true;
+                }
+                // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
+                final String warning = warnings.get(0);
+                final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
+                    && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
+                return isSystemIndexWarning == false;
+            }).build();
+        deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
+        adminClient().performRequest(deleteRequest);
     }
 
     public void testThatLocalExporterAddsWatches() throws Exception {
@@ -86,8 +100,11 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     private void assertTotalWatchCount(int expectedWatches) throws Exception {
         assertBusy(() -> {
-            assertOK(client().performRequest(new Request("POST", "/.watches/_refresh")));
-            ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/.watches/_count")));
+            refreshAllIndices();
+            final Request countRequest = new Request("POST", "/.watches/_count");
+            countRequest.setOptions(expectWarnings("this request accesses system indices: [.watches], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
+            ObjectPath path = ObjectPath.createFromResponse(client().performRequest(countRequest));
             int count = path.evaluate("count");
             assertThat(count, is(expectedWatches));
         });

@@ -27,7 +27,7 @@ import java.util.Map;
  * Adapts a {@link DateHistogramAggregator} results into {@link InternalDateHistogram}s.
  */
 public class DateHistogramAdaptedFromDateRangeAggregator extends AdaptingAggregator {
-    static DateHistogramAdaptedFromDateRangeAggregator buildOptimizedOrNull(
+    static DateHistogramAdaptedFromDateRangeAggregator buildOrNull(
         String name,
         AggregatorFactories factories,
         Rounding rounding,
@@ -51,6 +51,14 @@ public class DateHistogramAdaptedFromDateRangeAggregator extends AdaptingAggrega
         }
         long[] points = preparedRounding.fixedRoundingPoints();
         if (points == null) {
+            return null;
+        }
+        // Range aggs use a double to aggregate and we don't want to lose precision.
+        long max = points[points.length - 1];
+        if ((double) max != max) {
+            return null;
+        }
+        if ((double) points[0] != points[0]) {
             return null;
         }
         RangeAggregatorSupplier rangeSupplier = context.getQueryShardContext()

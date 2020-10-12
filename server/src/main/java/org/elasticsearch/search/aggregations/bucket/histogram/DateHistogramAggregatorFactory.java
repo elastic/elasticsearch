@@ -65,7 +65,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         Map<String, Object> metadata
     ) throws IOException {
         Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
-        Aggregator optimized = DateHistogramAdaptedFromDateRangeAggregator.buildOptimizedOrNull(
+        Aggregator optimized = DateHistogramAdaptedFromDateRangeAggregator.buildOrNull(
             name,
             factories,
             rounding,

@@ -61,10 +61,10 @@ public class TwoPhaseLongRangeQueryTests extends LuceneTestCase {
         IndexWriter w = new IndexWriter(dir, iwc);
         for (int id = 0; id < numPoints; id++) {
             Document doc = new Document();
-            Instant instant  = randomInstant();
-            doc.add(new LongPoint("exact", instant.toEpochMilli()));
-            doc.add(new LongPoint("approx", instant.getEpochSecond()));
-            doc.add(new SortedNumericDocValuesField("approx", instant.toEpochMilli()));
+            long value  = randomLongBetween(2000000L, 3000000L);
+            doc.add(new LongPoint("exact", value));
+            doc.add(new LongPoint("approx", approximate(value)));
+            doc.add(new SortedNumericDocValuesField("approx", value));
             w.addDocument(doc);
         }
 
@@ -76,28 +76,18 @@ public class TwoPhaseLongRangeQueryTests extends LuceneTestCase {
 
         IndexSearcher s = newSearcher(r);
         for ( int i = 0; i < 100; i++) {
-            Instant instant1  = randomInstant();
-            Instant instant2  = randomInstant();
-            if (instant1.toEpochMilli() > instant2.toEpochMilli()) {
-                Instant tmp = instant1;
-                instant1 = instant2;
-                instant2 = tmp;
-            }
-            Query q1 = LongPoint.newRangeQuery("exact", instant2.toEpochMilli(), instant1.toEpochMilli());
-            Query q2 = new TwoPhaseLongRangeQuery("approx", instant2.toEpochMilli(), instant1.toEpochMilli(),
-                instant2.getEpochSecond(), instant1.getEpochSecond());
+            long value1  = randomLongBetween(2000000L, 3000000L);
+            long value2  = randomLongBetween(value1, 3000000L);
+            Query q1 = LongPoint.newRangeQuery("exact", value1, value2);
+            Query q2 = new TwoPhaseLongRangeQuery("approx", value1, value2, approximate(value1), approximate(value2));
             assertEquals(s.count(q1), s.count(q2));
         }
 
         IOUtils.close(r, dir);
     }
 
-    /**
-     * @return a random instant between 1970 and ca 2065
-     */
-    protected Instant randomInstant() {
-        //return Instant.ofEpochSecond(randomLongBetween(0, 3000000000L), randomLongBetween(0, 999999999));
-        return Instant.ofEpochMilli(randomLongBetween(2000000L, 2100000L));
+    protected long approximate(long value) {
+        return value / 60000L;
     }
 
     public static long randomLongBetween(long min, long max) {

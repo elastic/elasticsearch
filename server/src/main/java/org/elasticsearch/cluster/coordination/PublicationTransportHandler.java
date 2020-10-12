@@ -393,27 +393,25 @@ public class PublicationTransportHandler {
                 });
         }
 
-        private boolean failIfAlreadyReleased(ActionListener<PublishWithJoinResponse> listener) {
-            assert Thread.holdsLock(mutex);
-            if (serializedStatesReleased) {
-                listener.onFailure(
-                        new ElasticsearchException("publication of cluster state version [" + newState.version() + "] has completed"));
-                return true;
-            } else {
-                return false;
-            }
-        }
-
         private void sendFullClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
+            final boolean alreadyReleasedWhenReadingCache;
             ReleasableBytesReference bytes;
             synchronized (mutex) {
-                if (failIfAlreadyReleased(listener)) {
-                    return;
+                alreadyReleasedWhenReadingCache = serializedStatesReleased;
+                if (alreadyReleasedWhenReadingCache) {
+                    bytes = null; // not used
+                } else {
+                    bytes = serializedStates.get(destination.getVersion());
+                    if (bytes != null) {
+                        bytes.retain();
+                    }
                 }
-                bytes = serializedStates.get(destination.getVersion());
-                if (bytes != null) {
-                    bytes.retain();
-                }
+            }
+
+            if (alreadyReleasedWhenReadingCache) {
+                listener.onFailure(
+                        new ElasticsearchException("publication of cluster state version [" + newState.version() + "] has completed"));
+                return;
             }
 
             if (bytes == null) {
@@ -428,35 +426,53 @@ public class PublicationTransportHandler {
                 }
 
                 // ... and keep hold of it in case another node needs it too
+                final boolean alreadyReleasedWhenWritingCache;
                 synchronized (mutex) {
-                    if (failIfAlreadyReleased(listener)) {
-                        return;
+                    alreadyReleasedWhenWritingCache = serializedStatesReleased;
+                    if (alreadyReleasedWhenWritingCache == false) {
+                        final ReleasableBytesReference existingBytes = serializedStates.putIfAbsent(destination.getVersion(), bytes);
+                        if (existingBytes != null) {
+                            // another thread got there first; discard the work we've done and use the cached value
+                            bytes.close();
+                            bytes = existingBytes;
+                        }
+                        bytes.retain();
                     }
-                    final ReleasableBytesReference existingBytes = serializedStates.putIfAbsent(destination.getVersion(), bytes);
-                    if (existingBytes != null) {
-                        // another thread got there first; discard the work we've done and use the cached value
-                        bytes.close();
-                        bytes = existingBytes;
-                    }
-                    bytes.retain();
+                }
+                if (alreadyReleasedWhenWritingCache) {
+                    listener.onFailure(
+                            new ElasticsearchException("publication of cluster state version [" + newState.version() + "] has completed"));
+                    return;
                 }
             }
 
+            //noinspection ConstantConditions this assertion is always true but it's here for the benefit of readers
+            assert bytes != null;
             sendClusterState(destination, bytes, false, listener); // releases retained bytes on completion
         }
 
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
             final ReleasableBytesReference bytes;
+            final boolean alreadyReleased;
             synchronized (mutex) {
-                if (failIfAlreadyReleased(listener)) {
-                    return;
+                alreadyReleased = serializedStatesReleased;
+                if (alreadyReleased) {
+                    bytes = null; // not used
+                } else {
+                    bytes = serializedDiffs.get(destination.getVersion());
+                    assert bytes != null
+                            : "failed to find serialized diff for node " + destination + " of version [" + destination.getVersion() + "]";
+                    bytes.retain();
                 }
-                bytes = serializedDiffs.get(destination.getVersion());
-                assert bytes != null
-                        : "failed to find serialized diff for node " + destination + " of version [" + destination.getVersion() + "]";
-                bytes.retain();
             }
-            sendClusterState(destination, bytes, true, listener); // releases retained bytes on completion
+            if (alreadyReleased) {
+                listener.onFailure(
+                        new ElasticsearchException("publication of cluster state version [" + newState.version() + "] has completed"));
+            } else {
+                //noinspection ConstantConditions this assertion is always true but it's here for the benefit of readers
+                assert bytes != null;
+                sendClusterState(destination, bytes, true, listener); // releases retained bytes on completion
+            }
         }
 
         private void sendClusterState(DiscoveryNode destination, ReleasableBytesReference bytes, boolean retryWithFullClusterStateOnFailure,

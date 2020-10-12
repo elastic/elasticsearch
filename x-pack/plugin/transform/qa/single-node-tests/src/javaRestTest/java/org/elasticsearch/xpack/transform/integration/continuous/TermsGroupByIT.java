@@ -141,13 +141,19 @@ public class TermsGroupByIT extends ContinuousTestCase {
             );
 
             // test optimization, transform should only rewrite documents that require it
+            // run.ingest is set by the pipeline, run.max is set by the transform
+            // run.ingest > run.max means, the data point has been re-created/re-fed although it wasn't necessary,
+            // this is probably a bug in transform's change collection optimization
+            // run.ingest < run.max means the ingest pipeline wasn't updated, this might be a bug in put pipeline
             assertThat(
                 "Ingest run: "
                     + XContentMapValues.extractValue(INGEST_RUN_FIELD, source)
                     + " did not match max run: "
                     + XContentMapValues.extractValue(MAX_RUN_FIELD, source)
                     + ", iteration: "
-                    + iteration,
+                    + iteration
+                    + " full source: "
+                    + source,
                 // TODO: aggs return double for MAX_RUN_FIELD, although it is an integer
                 Double.valueOf((Integer) XContentMapValues.extractValue(INGEST_RUN_FIELD, source)),
                 equalTo(XContentMapValues.extractValue(MAX_RUN_FIELD, source))

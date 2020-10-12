@@ -465,7 +465,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(MapperParsingException.class, ex.getCause().getClass());
-        assertThat(ex.getCause().getMessage(), containsString("analyzer [test] not found for field [field1]"));
+        assertThat(ex.getCause().getMessage(), containsString("analyzer [test] has not been configured in mappings"));
     }
 
     public void testArchiveBrokenClusterSettings() throws Exception {

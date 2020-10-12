@@ -24,11 +24,16 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 public class IpFieldTypeTests extends FieldTypeTestCase {
 
@@ -71,7 +76,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         prefix = ip + "/16";
         assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, null));
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("::1", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -174,9 +179,26 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                         InetAddresses.forString("2001:db8::")),
                 ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, null));
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery("::1", "2001::", true, true, null, null, null, null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        MappedFieldType mapper
+            = new IpFieldMapper.Builder("field", true, Version.CURRENT).build(context).fieldType();
+        assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
+        assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
+        assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
+
+        MappedFieldType nullValueMapper = new IpFieldMapper.Builder("field", true, Version.CURRENT)
+            .nullValue("2001:db8:0:0:0:0:2:7")
+            .build(context)
+            .fieldType();
+        assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }
 }

@@ -74,7 +74,7 @@ public class SearchIndexNameMatcher implements Predicate<String> {
 
     private boolean matchesIndex(String pattern) {
         String[] concreteIndices = expressionResolver.concreteIndexNames(
-            clusterService.state(), IndicesOptions.lenientExpandOpen(), pattern);
+            clusterService.state(), IndicesOptions.lenientExpandOpen(), true, pattern);
         for (String index : concreteIndices) {
             if (Regex.simpleMatch(index, indexName)) {
                 return true;

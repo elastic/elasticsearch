@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
@@ -40,11 +40,17 @@ public class StoreBraceNode extends StoreNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getChildNode().write(classWriter, methodWriter, writeScope);
+    public StoreBraceNode(Location location) {
+        super(location);
+    }
 
-        methodWriter.writeDebugInfo(location);
+    @Override
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+
+        getChildNode().write(writeScope);
+
+        methodWriter.writeDebugInfo(getLocation());
         methodWriter.arrayStore(MethodWriter.getType(getStoreType()));
     }
 }

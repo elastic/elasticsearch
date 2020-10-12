@@ -337,15 +337,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     boolean isOnlySystem(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {
-        final boolean onlySystem = request.getIndices().stream().allMatch(indexName -> {
-            final IndexAbstraction abstraction = indicesLookup.get(indexName);
-            if (abstraction != null) {
-                return abstraction.isSystem();
-            } else {
-                return systemIndices.isSystemIndex(indexName);
-            }
-        });
-        return onlySystem;
+        return request.getIndices().stream().allMatch(indexName -> isSystemIndex(indicesLookup, systemIndices, indexName));
+    }
+
+    private boolean isSystemIndex(SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices, String indexName) {
+        final IndexAbstraction abstraction = indicesLookup.get(indexName);
+        if (abstraction != null) {
+            return abstraction.isSystem();
+        } else {
+            return systemIndices.isSystemIndex(indexName);
+        }
     }
 
     void createIndex(String index,

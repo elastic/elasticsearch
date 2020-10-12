@@ -39,7 +39,6 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.DocValueFetcher;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -67,8 +66,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public SortedNumericIndexFieldData build(
             IndexFieldDataCache cache,
-            CircuitBreakerService breakerService,
-            MapperService mapperService
+            CircuitBreakerService breakerService
         ) {
             return new SortedNumericIndexFieldData(name, numericType);
         }

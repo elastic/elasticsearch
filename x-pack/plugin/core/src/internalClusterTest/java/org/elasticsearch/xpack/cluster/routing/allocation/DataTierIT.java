@@ -16,13 +16,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.DataTier;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.DataTiersFeatureSetUsage;
+import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DataTierIT extends ESIntegTestCase {
@@ -30,7 +33,7 @@ public class DataTierIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(LocalStateCompositeXPackPlugin.class);
+        return Collections.singleton(DataTierTelemetryPlugin.class);
     }
 
     public void testDefaultIndexAllocateToContent() {
@@ -192,6 +195,61 @@ public class DataTierIT extends ESIntegTestCase {
         assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER), equalTo(false));
 
         ensureYellow(index);
+    }
+
+    public void testDataTierTelemetry() {
+        startContentOnlyNode();
+        startContentOnlyNode();
+        startHotOnlyNode();
+
+        client().admin().indices().prepareCreate(index)
+            .setSettings(Settings.builder()
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_hot")
+                .put("index.number_of_shards", 2)
+                .put("index.number_of_replicas", 0))
+            .setWaitForActiveShards(0)
+            .get();
+
+        client().admin().indices().prepareCreate(index + "2")
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1))
+            .setWaitForActiveShards(0)
+            .get();
+
+        ensureGreen();
+        client().prepareIndex(index).setSource("foo", "bar").get();
+        client().prepareIndex(index + "2").setSource("foo", "bar").get();
+        client().prepareIndex(index + "2").setSource("foo", "bar").get();
+        refresh(index, index + "2");
+
+        DataTiersFeatureSetUsage usage = getUsage();
+        // We can't guarantee that internal indices aren't created, so some of these are >= checks
+        assertThat(usage.getTierStats().get(DataTier.DATA_CONTENT).nodeCount, equalTo(2));
+        assertThat(usage.getTierStats().get(DataTier.DATA_CONTENT).indexCount, greaterThanOrEqualTo(1));
+        assertThat(usage.getTierStats().get(DataTier.DATA_CONTENT).totalShardCount, greaterThanOrEqualTo(2));
+        assertThat(usage.getTierStats().get(DataTier.DATA_CONTENT).primaryShardCount, greaterThanOrEqualTo(1));
+        assertThat(usage.getTierStats().get(DataTier.DATA_CONTENT).docCount, greaterThanOrEqualTo(2L));
+        assertThat(usage.getTierStats().get(DataTier.DATA_CONTENT).primaryByteCount, greaterThanOrEqualTo(1L));
+        assertThat(usage.getTierStats().get(DataTier.DATA_CONTENT).primaryByteCountMedian, greaterThanOrEqualTo(1L));
+        assertThat(usage.getTierStats().get(DataTier.DATA_CONTENT).primaryShardBytesMAD, greaterThanOrEqualTo(0L));
+        assertThat(usage.getTierStats().get(DataTier.DATA_HOT).nodeCount, equalTo(1));
+        assertThat(usage.getTierStats().get(DataTier.DATA_HOT).indexCount, greaterThanOrEqualTo(1));
+        assertThat(usage.getTierStats().get(DataTier.DATA_HOT).totalShardCount, greaterThanOrEqualTo(2));
+        assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryShardCount, greaterThanOrEqualTo(2));
+        assertThat(usage.getTierStats().get(DataTier.DATA_HOT).docCount, greaterThanOrEqualTo(1L));
+        assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryByteCount, greaterThanOrEqualTo(1L));
+        assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryByteCountMedian, greaterThanOrEqualTo(1L));
+        assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryShardBytesMAD, greaterThanOrEqualTo(0L));
+    }
+
+    private DataTiersFeatureSetUsage getUsage() {
+        XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).execute().actionGet();
+        return usages.getUsages().stream()
+            .filter(u -> u instanceof DataTiersFeatureSetUsage)
+            .findFirst()
+            .map(u -> (DataTiersFeatureSetUsage) u)
+            .orElseThrow();
     }
 
     public void startDataNode() {

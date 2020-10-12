@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
@@ -118,7 +119,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         final ExecutorService direct = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
 
-        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver() {
+        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)) {
             @Override
             public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
                 return shouldAutoCreate.apply(indexAbstraction) == false;

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapperTestCase2;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
@@ -17,14 +17,13 @@ import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 
-public class HistogramFieldMapperTests extends FieldMapperTestCase2<HistogramFieldMapper.Builder> {
+public class HistogramFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -32,18 +31,8 @@ public class HistogramFieldMapperTests extends FieldMapperTestCase2<HistogramFie
     }
 
     @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "doc_values", "store", "index");
-    }
-
-    @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new AnalyticsPlugin());
-    }
-
-    @Override
-    protected HistogramFieldMapper.Builder newBuilder() {
-        return new HistogramFieldMapper.Builder("histo");
     }
 
     @Override

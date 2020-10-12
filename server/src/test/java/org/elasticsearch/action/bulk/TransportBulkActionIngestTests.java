@@ -45,10 +45,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
@@ -141,7 +143,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         TestTransportBulkAction() {
             super(threadPool, transportService, clusterService, ingestService,
-                null, new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(),
+                null, new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                 new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
             );
         }

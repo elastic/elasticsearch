@@ -238,8 +238,8 @@ fixes to the model and validated that the fixed design behaved as expected.
 We have increased our test coverage to include scenarios tested by Jepsen that demonstrate loss of acknowledged writes, as described in
 the Elasticsearch related blogs. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce
 new error conditions.
-You can follow the work on the master branch of the
-https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsIT.java[`DiscoveryWithServiceDisruptionsIT` class],
+You can view these changes on the `5.0` branch of the
+https://github.com/elastic/elasticsearch/blob/5.0/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsIT.java[`DiscoveryWithServiceDisruptionsIT` class],
 where the `testAckedIndexing` test was specifically added to check that we don't lose acknowledged writes in various failure scenarios.
 
 

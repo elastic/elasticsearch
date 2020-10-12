@@ -110,7 +110,8 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(searchContext.mapperService(), docValueFields);
+            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(searchContext.mapperService()::simpleMatchToFullName,
+                searchContext.mapperService().getIndexSettings().getMaxDocvalueFields(), docValueFields);
             subSearchContext.docValuesContext(docValuesContext);
         }
         if (fetchFields != null) {

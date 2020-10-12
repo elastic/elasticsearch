@@ -245,6 +245,16 @@ public class MatchQuery {
             // field type name directly
             fieldName = fieldType.name();
         }
+        // We check here that the field supports text searches -
+        // if it doesn't, we can bail out early without doing any further parsing.
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+            IllegalArgumentException iae = new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" +
+                fieldType.typeName() + " does not support match queries");
+            if (lenient) {
+                return newLenientFieldQuery(fieldName, iae);
+            }
+            throw iae;
+        }
 
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
         assert analyzer != null;
@@ -297,13 +307,8 @@ public class MatchQuery {
     }
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
-        // We check here that the field supports text searches and therefore has an analyzer -
-        // if it doesn't, we can bail out early without doing any further parsing.
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
-        if (tsi == TextSearchInfo.NONE) {
-            throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" + fieldType.typeName() +
-                " does not support match queries");
-        }
+        assert tsi != TextSearchInfo.NONE;
         if (analyzer == null) {
             return quoted ? tsi.getSearchQuoteAnalyzer() : tsi.getSearchAnalyzer();
         } else {

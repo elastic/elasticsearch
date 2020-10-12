@@ -867,6 +867,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         query.toQuery(context); // no exception
     }
 
+    public void testLenientFlag() throws Exception {
+        QueryStringQueryBuilder query = queryStringQuery("test").defaultField(BINARY_FIELD_NAME);
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_binary] of type [binary does not support match queries", e.getMessage());
+        query.lenient(true);
+        assertThat(query.toQuery(context), instanceOf(MatchNoDocsQuery.class));
+    }
+
     public void testTimezone() throws Exception {
         String queryAsString = "{\n" +
                 "    \"query_string\":{\n" +

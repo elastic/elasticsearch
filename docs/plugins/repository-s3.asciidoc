@@ -223,11 +223,11 @@ supporting the full S3 API. The `repository-s3` plugin requires full
 compatibility with S3. In particular it must support the same set of API
 endpoints, return the same errors in case of failures, and offer a consistency
 model no weaker than S3's when accessed concurrently by multiple nodes. If you
-wish to use another storage system with the
-`repository-s3` plugin then you will need to work with the supplier of the
-storage system to address any incompatibilities you encounter. Incompatible
-error codes and consistency models may be particularly hard to track down since
-errors and consistency failures are usually rare and hard to reproduce.
+wish to use another storage system with the `repository-s3` plugin then you
+will need to work with the supplier of the storage system to address any
+incompatibilities you encounter. Incompatible error codes and consistency
+models may be particularly hard to track down since errors and consistency
+failures are usually rare and hard to reproduce.
 
 [[repository-s3-repository]]
 ==== Repository Settings

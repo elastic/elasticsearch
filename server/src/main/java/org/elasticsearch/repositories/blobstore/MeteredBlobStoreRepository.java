@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryInfo;
@@ -37,10 +38,11 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
     public MeteredBlobStoreRepository(RepositoryMetadata metadata,
                                       NamedXContentRegistry namedXContentRegistry,
                                       ClusterService clusterService,
+                                      BigArrays bigArrays,
                                       RecoverySettings recoverySettings,
                                       BlobPath basePath,
                                       Map<String, String> location) {
-        super(metadata, namedXContentRegistry, clusterService, recoverySettings, basePath);
+        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
         ThreadPool threadPool = clusterService.getClusterApplierService().threadPool();
         this.repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
             metadata.name(),

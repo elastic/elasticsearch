@@ -68,13 +68,9 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 threadPool,
                 actionFilters,
                 UnfollowAction.Request::new,
-                indexNameExpressionResolver);
+                indexNameExpressionResolver,
+                ThreadPool.Names.SAME);
         this.client = Objects.requireNonNull(client);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

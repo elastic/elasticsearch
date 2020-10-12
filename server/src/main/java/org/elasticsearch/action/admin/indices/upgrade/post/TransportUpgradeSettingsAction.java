@@ -49,14 +49,8 @@ public class TransportUpgradeSettingsAction extends AcknowledgedTransportMasterN
                                           ThreadPool threadPool, MetadataUpdateSettingsService updateSettingsService,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ActionFilters actionFilters) {
         super(UpgradeSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            UpgradeSettingsRequest::new, indexNameExpressionResolver);
+            UpgradeSettingsRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.updateSettingsService = updateSettingsService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away....
-        return ThreadPool.Names.SAME;
     }
 
     @Override

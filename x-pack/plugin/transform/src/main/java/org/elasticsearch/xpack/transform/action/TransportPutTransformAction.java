@@ -75,7 +75,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
-    private final IngestService ingestService;
 
     @Inject
     public TransportPutTransformAction(
@@ -125,7 +124,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             PutTransformAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         this.licenseState = licenseState;
         this.client = client;
@@ -140,10 +140,10 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             DiscoveryNode.isRemoteClusterClient(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
+            ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
-        this.ingestService = ingestService;
     }
 
     static HasPrivilegesRequest buildPrivilegeCheck(
@@ -190,11 +190,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
 
         if (!licenseState.checkFeature(XPackLicenseState.Feature.TRANSFORM)) {
@@ -222,6 +217,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
+            config.getDestination().getPipeline(),
             request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
             ActionListener.wrap(
                 validationResponse -> {
@@ -315,22 +311,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             if (request.isDeferValidation()) {
                 validationListener.onResponse(true);
             } else {
-                if (config.getDestination().getPipeline() != null) {
-                    if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
-                        return;
-                    }
-                }
-                if (request.isDeferValidation()) {
-                    validationListener.onResponse(true);
-                } else {
-                    function.validateQuery(client, config.getSource(), validationListener);
-                }
+                function.validateQuery(client, config.getSource(), validationListener);
             }
         }, listener::onFailure));
     }

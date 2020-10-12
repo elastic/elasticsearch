@@ -478,7 +478,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                                             long epoch = (Long) timestamp;
                                             ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
                                             dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
-                                            emit(toEpochMilli(dt));
+                                            emit(dt.toInstant().toEpochMilli());
                                         }
                                     }
                                 };

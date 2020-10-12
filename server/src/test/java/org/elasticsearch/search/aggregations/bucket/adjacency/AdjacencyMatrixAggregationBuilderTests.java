@@ -75,8 +75,8 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> builder.doBuild(aggContext, null, new AggregatorFactories.Builder()));
         assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: [2] but was [3]."
-            + "This limit can be set by changing the [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
-            + "] setting."));
+            + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
+            + "] index level setting."));
 
         // filter size not grater than max size should return an instance of AdjacencyMatrixAggregatorFactory
         Map<String, QueryBuilder> emptyFilters = Collections.emptyMap();

@@ -41,7 +41,9 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -52,7 +54,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class RangeAggregator extends BucketsAggregator {
+public abstract class RangeAggregator extends BucketsAggregator {
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
@@ -215,12 +217,54 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
+    public static RangeAggregator build(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        DocValueFormat format,
+        InternalRange.Factory rangeFactory,
+        Range[] ranges,
+        boolean keyed,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        if (hasOverlap(ranges)) {
+            return new OverlapRangeAggregator(
+                name,
+                factories,
+                valuesSource,
+                format,
+                rangeFactory,
+                ranges,
+                keyed,
+                context,
+                parent,
+                cardinality,
+                metadata
+            );
+        }
+        return new NoOverlapCollector(
+            name,
+            factories,
+            valuesSource,
+            format,
+            rangeFactory,
+            ranges,
+            keyed,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+    }
+
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
-    private final Range[] ranges;
+    protected final Range[] ranges;
     private final boolean keyed;
     private final InternalRange.Factory rangeFactory;
-    private final Collector collector;
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
@@ -233,18 +277,6 @@ public class RangeAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
         this.ranges = ranges;
-        collector = hasOverlap() ? new OverlapCollector() : new NoOverlapCollector();
-    }
-
-    private boolean hasOverlap() {
-        double lastEnd = ranges[0].to;
-        for (int i = 1; i < this.ranges.length; ++i) {
-            if (ranges[i].from < lastEnd) {
-                return true;
-            }
-            lastEnd = ranges[i].to;
-        }
-        return false;
     }
 
     @Override
@@ -265,14 +297,14 @@ public class RangeAggregator extends BucketsAggregator {
                     final int valuesCount = values.docValueCount();
                     for (int i = 0, lo = 0; i < valuesCount; ++i) {
                         final double value = values.nextValue();
-                        lo = collector.collect(sub, doc, value, bucket, lo);
+                        lo = RangeAggregator.this.collect(sub, doc, value, bucket, lo);
                     }
                 }
             }
         };
     }
 
-    private long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
+    protected long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
         return owningBucketOrdinal * ranges.length + rangeOrd;
     }
 
@@ -328,13 +360,28 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    interface Collector {
-        int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException;
-    }
+    protected abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound)
+        throws IOException;
 
-    private class NoOverlapCollector implements Collector {
+    private static class NoOverlapCollector extends RangeAggregator {
+        public NoOverlapCollector(
+            String name,
+            AggregatorFactories factories,
+            Numeric valuesSource,
+            DocValueFormat format,
+            Factory rangeFactory,
+            Range[] ranges,
+            boolean keyed,
+            SearchContext context,
+            Aggregator parent,
+            CardinalityUpperBound cardinality,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
+        }
+
         @Override
-        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
+        protected int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
             int lo = lowBound, hi = ranges.length - 1;
             while (lo <= hi) {
                 final int mid = (lo + hi) >>> 1;
@@ -351,10 +398,21 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    private class OverlapCollector implements Collector {
-        private final double[] maxTo;
-
-        public OverlapCollector() {
+    private static class OverlapRangeAggregator extends RangeAggregator {
+        public OverlapRangeAggregator(
+            String name,
+            AggregatorFactories factories,
+            Numeric valuesSource,
+            DocValueFormat format,
+            Factory rangeFactory,
+            Range[] ranges,
+            boolean keyed,
+            SearchContext context,
+            Aggregator parent,
+            CardinalityUpperBound cardinality,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
             maxTo = new double[ranges.length];
             maxTo[0] = ranges[0].to;
             for (int i = 1; i < ranges.length; ++i) {
@@ -362,8 +420,10 @@ public class RangeAggregator extends BucketsAggregator {
             }
         }
 
+        private final double[] maxTo;
+
         @Override
-        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
+        protected int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
             int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
             int mid = (lo + hi) >>> 1;
             while (lo <= hi) {
@@ -411,5 +471,16 @@ public class RangeAggregator extends BucketsAggregator {
 
             return endHi + 1;
         }
+    }
+
+    private static boolean hasOverlap(Range[] ranges) {
+        double lastEnd = ranges[0].to;
+        for (int i = 1; i < ranges.length; ++i) {
+            if (ranges[i].from < lastEnd) {
+                return true;
+            }
+            lastEnd = ranges[i].to;
+        }
+        return false;
     }
 }

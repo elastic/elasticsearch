@@ -22,13 +22,16 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -86,6 +89,53 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertEquals(transportAddress.getAddress(), serialized.getHostAddress());
         assertEquals(transportAddress.getAddress(), serialized.getAddress().getAddress());
         assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
+    }
+
+    public void testDiscoveryNodeRoleWithOldVersion() throws Exception {
+        InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
+        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
+
+        DiscoveryNodeRole customRole = new DiscoveryNodeRole("custom_role", "z") {
+            @Override
+            public Setting<Boolean> legacySetting() {
+                return null;
+            }
+
+            @Override
+            public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+                if (nodeVersion.equals(Version.CURRENT)) {
+                    return this;
+                } else {
+                    return DiscoveryNodeRole.DATA_ROLE;
+                }
+            }
+        };
+
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
+            Collections.singleton(customRole), Version.CURRENT);
+
+        {
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
+            streamOutput.setVersion(Version.CURRENT);
+            node.writeTo(streamOutput);
+
+            StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+            DiscoveryNode serialized = new DiscoveryNode(in);
+            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
+                equalTo("custom_role"));
+        }
+
+        {
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
+            streamOutput.setVersion(Version.V_7_10_0);
+            node.writeTo(streamOutput);
+
+            StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+            DiscoveryNode serialized = new DiscoveryNode(in);
+            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
+                equalTo("data"));
+        }
+
     }
 
     public void testDiscoveryNodeIsRemoteClusterClientDefault() {

@@ -376,6 +376,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
+            // parent field in _source. So we don't need to use the parent field name here.
             return SourceValueFetcher.toString(name(), mapperService, format);
         }
 
@@ -480,6 +482,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
+            // parent field in _source. So we don't need to use the parent field name here.
             return SourceValueFetcher.toString(name(), mapperService, format);
         }
 

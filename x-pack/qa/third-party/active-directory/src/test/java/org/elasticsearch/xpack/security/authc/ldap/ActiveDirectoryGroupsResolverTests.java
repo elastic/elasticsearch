@@ -5,22 +5,29 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.Filter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
@@ -51,6 +58,33 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
                 containsString("CN=Users,CN=Builtin"),
                 containsString("Domain Users"),
                 containsString("Supers")));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testResolveTokenGroupsSID() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.authc.realms.active_directory.ad.group_search.base_dn", "DC=ad,DC=test,DC=elasticsearch,DC=com")
+            .put("xpack.security.authc.realms.active_directory.ad.domain_name", "ad.test.elasticsearch.com")
+            .put("path.home", createTempDir())
+            .put(RealmSettings.getFullSettingKey(REALM_ID, RealmSettings.ORDER_SETTING), 0)
+            .put(getFullSettingKey(REALM_ID, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "tokenGroups")
+            .build();
+        RealmConfig config = new RealmConfig(REALM_ID, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
+        LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
+        Map<String, Object> groupSIDs = resolve(null, resolver);
+        assertThat(groupSIDs.size(), equalTo(1));
+        assertNotNull(groupSIDs.get("tokenGroups"));
+        assertThat(groupSIDs.get("tokenGroups"), instanceOf(List.class));
+        List<String> SIDs = ((List<String>) groupSIDs.get("tokenGroups"));
+        assertThat(SIDs.size(), equalTo(7));
+        assertThat(SIDs, containsInAnyOrder(
+            "S-1-5-21-4118400478-288853978-3021756978-1115",
+            "S-1-5-21-4118400478-288853978-3021756978-1116",
+            "S-1-5-21-4118400478-288853978-3021756978-1117",
+            "S-1-5-21-4118400478-288853978-3021756978-1118",
+            "S-1-5-21-4118400478-288853978-3021756978-1120",
+            "S-1-5-21-4118400478-288853978-3021756978-513",
+            "S-1-5-32-545"));
     }
 
     public void testResolveOneLevel() throws Exception {
@@ -115,6 +149,12 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
         for (String sid : expectedSids) {
             assertThat(queryString, containsString(sid));
         }
+    }
+
+    private Map<String, Object> resolve(Collection<Attribute> attributes, LdapMetadataResolver resolver) throws Exception {
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, attributes, future);
+        return future.get();
     }
 
     @Override

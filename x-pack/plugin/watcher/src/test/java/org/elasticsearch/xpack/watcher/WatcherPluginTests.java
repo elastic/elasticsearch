@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -76,7 +77,7 @@ public class WatcherPluginTests extends ESTestCase {
         AnalysisRegistry registry = new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(),
                 emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
         IndexModule indexModule = new IndexModule(indexSettings, registry, new InternalEngineFactory(), Collections.emptyMap(),
-                () -> true, new IndexNameExpressionResolver(), Collections.emptyMap());
+                () -> true, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), Collections.emptyMap());
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);
 

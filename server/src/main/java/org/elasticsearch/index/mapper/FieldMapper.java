@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -34,8 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -270,11 +267,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
-    /**
-     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
-     */
-    public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
-
     protected final void createFieldNamesField(ParseContext context) {
         assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
@@ -506,28 +498,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return TypeParsers.INDEX_OPTIONS_DOCS;
             default:
                 throw new IllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
-        }
-    }
-
-    public static String termVectorOptionsToString(FieldType fieldType) {
-        if (!fieldType.storeTermVectors()) {
-            return "no";
-        } else if (!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
-            return "yes";
-        } else if (fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
-            return "with_offsets";
-        } else {
-            StringBuilder builder = new StringBuilder("with");
-            if (fieldType.storeTermVectorPositions()) {
-                builder.append("_positions");
-            }
-            if (fieldType.storeTermVectorOffsets()) {
-                builder.append("_offsets");
-            }
-            if (fieldType.storeTermVectorPayloads()) {
-                builder.append("_payloads");
-            }
-            return builder.toString();
         }
     }
 

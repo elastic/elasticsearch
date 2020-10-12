@@ -83,12 +83,19 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
+
+    // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
+    // threads so that blocking some threads on one repository doesn't block other repositories from doing work
+    protected static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
+            .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -378,6 +385,22 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        return snapshotInfo;
+    }
+
+    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices) {
+        logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
+        final CreateSnapshotResponse response = client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repositoryName, snapshot)
+                .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
+                .setWaitForCompletion(true)
+                .get();
+
+        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
         return snapshotInfo;
     }
 

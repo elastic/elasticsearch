@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -1138,17 +1139,22 @@ public final class OptimizerRules {
         protected abstract LogicalPlan skipPlan(Limit limit);
     }
 
-    public static class ReplaceMatchAll extends OptimizerExpressionRule {
+    public static class ReplaceRegexMatch extends OptimizerExpressionRule {
 
-        public ReplaceMatchAll() {
+        public ReplaceRegexMatch() {
             super(TransformDirection.DOWN);
         }
 
         protected Expression rule(Expression e) {
             if (e instanceof RegexMatch) {
                 RegexMatch<?> regexMatch = (RegexMatch<?>) e;
-                if (regexMatch.matchesAll()) {
-                    return new IsNotNull(e.source(), regexMatch.field());
+                StringPattern pattern = regexMatch.pattern();
+                if (pattern.matchesAll()) {
+                    e = new IsNotNull(e.source(), regexMatch.field());
+                }
+                else if (pattern.isExactMatch()) {
+                    Literal literal = new Literal(regexMatch.source(), regexMatch.pattern().asString(), DataTypes.KEYWORD);
+                    e = new Equals(e.source(), regexMatch.field(), literal);
                 }
             }
             return e;

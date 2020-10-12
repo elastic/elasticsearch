@@ -48,7 +48,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -236,8 +235,6 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                     () -> { throw new UnsupportedOperationException(); },
                     null
                 );
-                final MapperService mapperService = context.getMapperService();
-
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
                     final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
@@ -257,7 +254,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
                         visitor.reset();
                         searcher.doc(scoreDoc.doc, visitor);
-                        visitor.postProcess(mapperService);
+                        visitor.postProcess(field -> {
+                            if (context.isFieldMapped(field) == false) {
+                                throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
+                            }
+                            return context.getFieldType(field);
+                        });
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), Map.of(), Map.of());
                         hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
                         hits[j] = hit;

@@ -52,7 +52,8 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
     public void createComponents() {
         client = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client(), clusterService().state(), new IndexNameExpressionResolver(), future);
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client(), clusterService().state(),
+            new IndexNameExpressionResolver(client.threadPool().getThreadContext()), future);
         future.actionGet();
     }
 

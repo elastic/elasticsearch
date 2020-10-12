@@ -19,9 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
@@ -47,8 +45,8 @@ public class BinaryImplNode extends BinaryNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getLeftNode().write(classWriter, methodWriter, writeScope);
-        getRightNode().write(classWriter, methodWriter, writeScope);
+    protected void write(WriteScope writeScope) {
+        getLeftNode().write(writeScope);
+        getRightNode().write(writeScope);
     }
 }

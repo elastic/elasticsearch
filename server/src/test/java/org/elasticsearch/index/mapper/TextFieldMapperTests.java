@@ -50,11 +50,8 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -76,16 +73,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
-public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.Builder> {
+public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -120,13 +115,6 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         }));
         assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
-    }
-
-    @Override
-    protected TextFieldMapper.Builder newBuilder() {
-        return new TextFieldMapper.Builder("text")
-            .indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
-            .searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
     }
 
     @Override
@@ -174,8 +162,7 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "keyword"));
         checker.registerConflictCheck("term_vector", b -> b.field("term_vector", "yes"));
 
-        // TODO position_increment_gap should not be updateable!
-        //checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
+        checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
 
         // norms can be set from true to false, but not vice versa
         checker.registerConflictCheck("norms",
@@ -199,11 +186,6 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
             m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
         );
 
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("doc_values");
     }
 
     @Override
@@ -266,6 +248,22 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+    }
+
+    public void testBWCSerialization() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("fielddata", true);
+            b.startObject("fields");
+            {
+                b.startObject("subfield").field("type", "long").endObject();
+            }
+            b.endObject();
+        }));
+
+        assertEquals(
+            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"fields\":{\"subfield\":{\"type\":\"long\"}},\"fielddata\":true}}}}",
+            Strings.toString(mapperService.documentMapper()));
     }
 
     public void testEnableStore() throws IOException {
@@ -528,15 +526,15 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         assertThat(fieldType.fielddataMinSegmentSize(), equalTo(1000));
     }
 
-    public void testNullConfigValuesFail() throws MapperParsingException, IOException {
+    public void testNullConfigValuesFail() throws MapperParsingException {
         Exception e = expectThrows(
             MapperParsingException.class,
             () -> createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("analyzer", (String) null)))
         );
-        assertThat(e.getMessage(), containsString("[analyzer] must not have a [null] value"));
+        assertThat(e.getMessage(), containsString("[analyzer] on mapper [field] of type [text] must not have a [null] value"));
     }
 
-    public void testNotIndexedFieldPositionIncrement() throws IOException {
+    public void testNotIndexedFieldPositionIncrement() {
         Exception e = expectThrows(
             MapperParsingException.class,
             () -> createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("index", false).field("position_increment_gap", 10)))
@@ -544,7 +542,7 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         assertThat(e.getMessage(), containsString("Cannot set position_increment_gap on field [field] without positions enabled"));
     }
 
-    public void testAnalyzedFieldPositionIncrementWithoutPositions() throws IOException {
+    public void testAnalyzedFieldPositionIncrementWithoutPositions() {
         for (String indexOptions : Arrays.asList("docs", "freqs")) {
             Exception e = expectThrows(
                 MapperParsingException.class,
@@ -745,7 +743,7 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
         assertEquals(1, fields.length);
 
-        try (TokenStream ts = fields[0].tokenStream(queryShardContext.getMapperService().indexAnalyzer(), null)) {
+        try (TokenStream ts = fields[0].tokenStream(mapperService.indexAnalyzer(), null)) {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             assertTrue(ts.incrementToken());
@@ -797,6 +795,13 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         }
 
         {
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "text").nullField("index_prefixes"))
+            );
+            assertNull(mapper.mappers().getMapper("field._index_prefix"));
+        }
+
+        {
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "text").field("analyzer", "standard");
                 b.startObject("index_prefixes").field("min_chars", 1).field("max_chars", 10).endObject();
@@ -827,16 +832,6 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
                 b.startObject("index_prefixes").field("min_chars", 1).field("max_chars", 25).endObject();
             })));
             assertThat(e.getMessage(), containsString("max_chars [25] must be less than 20"));
-        }
-
-        {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(
-                    fieldMapping(b -> b.field("type", "text").field("analyzer", "standard").nullField("index_prefixes"))
-                )
-            );
-            assertThat(e.getMessage(), containsString("[index_prefixes] must not have a [null] value"));
         }
 
         {
@@ -976,13 +971,13 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
             b -> b.field("type", "text").startObject("index_prefixes").field("min_chars", "3").endObject().field("index_phrases", true)
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, differentPrefix));
-        assertThat(e.getMessage(), containsString("different [index_prefixes]"));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [index_prefixes]"));
 
         XContentBuilder differentPhrases = fieldMapping(
             b -> b.field("type", "text").startObject("index_prefixes").endObject().field("index_phrases", false)
         );
         e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, differentPhrases));
-        assertThat(e.getMessage(), containsString("different [index_phrases]"));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [index_phrases]"));
 
         XContentBuilder newField = mapping(b -> {
             b.startObject("field").field("type", "text").startObject("index_prefixes").endObject().field("index_phrases", true).endObject();
@@ -991,17 +986,5 @@ public class TextFieldMapperTests extends FieldMapperTestCase2<TextFieldMapper.B
         merge(mapperService, newField);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
         assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        FieldMapper fieldMapper = newBuilder().build(context);
-        TextFieldMapper mapper = (TextFieldMapper) fieldMapper;
-
-        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
     }
 }

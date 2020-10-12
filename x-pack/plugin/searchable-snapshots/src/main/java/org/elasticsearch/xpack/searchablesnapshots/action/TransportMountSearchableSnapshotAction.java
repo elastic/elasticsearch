@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices;
@@ -34,13 +33,14 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotAllocator;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -85,24 +85,16 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             MountSearchableSnapshotRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            RestoreSnapshotResponse::new,
+            // Avoid SNAPSHOT since snapshot threads may all be busy with long-running tasks which would block this action from responding
+            // with an error. Avoid SAME since getting the repository metadata may block on IO.
+            ThreadPool.Names.GENERIC
         );
         this.client = client;
         this.repositoriesService = repositoriesService;
         this.licenseState = Objects.requireNonNull(licenseState);
         this.systemIndices = Objects.requireNonNull(systemIndices);
-    }
-
-    @Override
-    protected String executor() {
-        // Avoid SNAPSHOT since snapshot threads may all be busy with long-running tasks which would block this action from responding with
-        // an error. Avoid SAME since getting the repository metadata may block on IO.
-        return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected RestoreSnapshotResponse read(StreamInput in) throws IOException {
-        return new RestoreSnapshotResponse(in);
     }
 
     @Override
@@ -184,6 +176,11 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                             Settings.builder()
                                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
                                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
+                                // prefer to allocate to the cold tier, then the warm tier, then the hot tier
+                                .put(
+                                    DataTierAllocationDecider.INDEX_ROUTING_PREFER,
+                                    String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT)
+                                )
                                 .put(request.indexSettings())
                                 .put(buildIndexSettings(request.repositoryName(), snapshotId, indexId))
                                 .build()

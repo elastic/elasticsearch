@@ -199,7 +199,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     public CollapseContext build(QueryShardContext queryShardContext) {
-        MappedFieldType fieldType = queryShardContext.fieldMapper(field);
+        MappedFieldType fieldType = queryShardContext.getFieldType(field);
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }

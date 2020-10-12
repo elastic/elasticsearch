@@ -158,9 +158,9 @@ syntax documentation].
 [[deprecate-rest-api-access-to-system-indices]]
 === REST API access to system indices is deprecated
 
-We are deprecating REST API access to system indices. Most REST API requests
-that attempt to access system indices will return the following deprecation
-warning:
+We are deprecating REST API access to system indices. Most REST API
+requests that attempt to access system indices will return the following
+deprecation warning:
 
 [source,text]
 ----
@@ -181,28 +181,21 @@ implementation and will not return the deprecation warning:
 * `GET {index}/_shard_stores`
 * `GET _cat/[indices,aliases,health,recovery,shards,segments]`
 
+We are also adding a new metadata flag to track indices. {es} will automatically
+add this flag to any existing system indices during upgrade.
+
 [discrete]
 [[add-system-read-thread-pool]]
 === New thread pools for system indices
 
 We've added two new thread pools for system indices: `system_read` and
 `system_write`. These thread pools ensure system indices critical to the Elastic
-Stack, such as those used by security or Kibana, remain responsive when a
-cluster is under heavy query or indexing load.
+Stack, such as those used by security or Kibana, remain responsive when
+a cluster is under heavy query or indexing load.
 
 `system_read` is a `fixed` thread pool used to manage resources for
 read operations targeting system indices. Similarly, `system_write` is a
 `fixed` thread pool used to manage resources for write operations targeting
 system indices. Both have a maximum number of threads equal to `5`
 or half of the available processors, whichever is smaller.
-
-[discrete]
-[[metadata-flag-system-indices]]
-=== New metadata flag for system indices
-
-To prevent performance issues related to searches that target
-system indices, we've added a new metadata flag to mark system and non-system
-indices. {es} will automatically add this flag to an existing system indices
-during upgrade.
-
 // end::notable-highlights[]

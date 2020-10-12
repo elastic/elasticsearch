@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -225,7 +226,8 @@ public class PublicationTransportHandler {
         boolean success = false;
         final ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {
+            try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(
+                    Streams.flushOnCloseStream(bStream)))) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
@@ -247,7 +249,8 @@ public class PublicationTransportHandler {
         boolean success = false;
         final ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {
+            try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(
+                    Streams.flushOnCloseStream(bStream)))) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);

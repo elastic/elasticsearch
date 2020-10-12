@@ -303,15 +303,8 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
         Objects.requireNonNull(field, "field must not be null");
 
         MappedFieldType fieldType = mapperService.fieldType(field);
-        if (fieldType == null) {
-            throw new IllegalArgumentException("no mapping found for field [" + field + "]");
-        } else if (analyzer == null) {
-            // no analyzer name passed in, so try the field's analyzer, or the default analyzer
-            if (fieldType.getTextSearchInfo().getSearchAnalyzer() == null) {
-                suggestionContext.setAnalyzer(mapperService.searchAnalyzer());
-            } else {
-                suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().getSearchAnalyzer());
-            }
+        if (analyzer == null) {
+            suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().getSearchAnalyzer());
         } else {
             Analyzer luceneAnalyzer = mapperService.getNamedAnalyzer(analyzer);
             if (luceneAnalyzer == null) {

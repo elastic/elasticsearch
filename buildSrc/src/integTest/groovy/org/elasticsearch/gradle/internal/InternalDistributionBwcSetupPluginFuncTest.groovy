@@ -20,33 +20,21 @@
 package org.elasticsearch.gradle.internal
 
 import org.apache.commons.io.FileUtils
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGitAwareGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import org.junit.Rule
-import org.junit.rules.TemporaryFolder
 
-class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest {
-
-    @Rule
-    TemporaryFolder remoteRepoDirs = new TemporaryFolder()
-
-    File remoteGitRepo
+class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
     def setup() {
-        remoteGitRepo = new File(setupGitRemote(), '.git')
-
-        "git clone ${remoteGitRepo.absolutePath}".execute(Collections.emptyList(), testProjectDir.root).waitFor()
-        File buildScript = new File(testProjectDir.root, 'remote/build.gradle')
-        internalBuild(buildScript)
-        buildScript << """
+        internalBuild()
+        buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
         """
     }
 
     def "builds distribution from branches via archives assemble"() {
         when:
-        def result = gradleRunner(new File(testProjectDir.root, "remote"),
-                ":distribution:bwc:bugfix:buildBwcDarwinTar",
+        def result = gradleRunner(":distribution:bwc:bugfix:buildBwcDarwinTar",
                 ":distribution:bwc:bugfix:buildBwcOssDarwinTar",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin")
@@ -62,16 +50,16 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
 
     def "bwc distribution archives can be resolved as bwc project artifact"() {
         setup:
-        new File(testProjectDir.root, 'remote/build.gradle') << """
-        
+        buildFile << """
+
         configurations {
             dists
         }
-        
+
         dependencies {
             dists project(path: ":distribution:bwc:bugfix", configuration:"darwin-tar")
         }
-        
+
         tasks.register("resolveDistributionArchive") {
             inputs.files(configurations.dists)
             doLast {
@@ -82,8 +70,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         }
         """
         when:
-        def result = gradleRunner(new File(testProjectDir.root, "remote"),
-                ":resolveDistributionArchive",
+        def result = gradleRunner(":resolveDistributionArchive",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin")
                 .build()
@@ -100,16 +87,16 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
         setup:
-        new File(testProjectDir.root, 'remote/build.gradle') << """
-        
+        buildFile << """
+
         configurations {
             expandedDist
         }
-        
+
         dependencies {
             expandedDist project(path: ":distribution:bwc:bugfix", configuration:"expanded-darwin-tar")
         }
-        
+
         tasks.register("resolveExpandedDistribution") {
             inputs.files(configurations.expandedDist)
             doLast {
@@ -120,8 +107,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGradleFuncTest 
         }
         """
         when:
-        def result = gradleRunner(new File(testProjectDir.root, "remote"),
-                ":resolveExpandedDistribution",
+        def result = gradleRunner(":resolveExpandedDistribution",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin")
                 .build()

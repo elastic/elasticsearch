@@ -53,14 +53,14 @@ index state over searches. PITs improve end-user experience by making UIs more
 reactive.
 
 By default, a search request waits for complete results before returning a
-response. For example, a search request that retrieves top hits and aggregations
-returns a response only after both top hits and aggregations are computed.
-However, aggregations are usually slower and more expensive to compute than to
-top hits. Instead of sending a combined request, you can send two separate
-requests: one for top hits and another one for aggregations. With separate
-requests, a UI can display top hits as soon as they're available and display
-aggregation data after the slower aggregation request completes. You can use a
-PIT to ensure both search requests run on the same data and index state.
+response. For example, a search that retrieves top hits and aggregations returns
+a response only after both top hits and aggregations are computed. However,
+aggregations are usually slower and more expensive to compute than top hits.
+Instead of sending a combined request, you can send two separate requests: one
+for top hits and another one for aggregations. With separate search requests, a
+UI can display top hits as soon as they're available and display aggregation
+data after the slower aggregation request completes. You can use a PIT to ensure
+both search requests run on the same data and index state.
 
 To use a PIT in a search, you must first explicitly create the PIT using the new
 {ref}/point-in-time-api.html[open PIT API]. PITs get automatically garbage-collected

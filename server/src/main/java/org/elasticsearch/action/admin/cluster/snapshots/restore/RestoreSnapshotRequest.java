@@ -563,11 +563,13 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (renameReplacement != null) {
             builder.field("rename_replacement", renameReplacement);
         }
-        builder.startArray("plugin_states");
-        for (String plugin : pluginStates) {
-            builder.value(plugin);
+        if (pluginStates != null && pluginStates.length != 0) {
+            builder.startArray("plugin_states");
+            for (String plugin : pluginStates) {
+                builder.value(plugin);
+            }
+            builder.endArray();
         }
-        builder.endArray();
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);

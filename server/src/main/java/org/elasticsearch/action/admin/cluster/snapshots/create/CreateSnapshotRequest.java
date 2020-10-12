@@ -431,11 +431,13 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             builder.value(index);
         }
         builder.endArray();
-        builder.startArray("plugin_states");
-        for (String plugin : pluginStates) {
-            builder.value(plugin);
+        if (pluginStates != null && pluginStates.length != 0) {
+            builder.startArray("plugin_states");
+            for (String plugin : pluginStates) {
+                builder.value(plugin);
+            }
+            builder.endArray();
         }
-        builder.endArray();
         builder.field("partial", partial);
         builder.field("include_global_state", includeGlobalState);
         if (indicesOptions != null) {

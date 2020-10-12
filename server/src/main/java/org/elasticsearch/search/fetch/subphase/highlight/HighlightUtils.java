@@ -21,16 +21,13 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.singleton;
 
 public final class HighlightUtils {
 
@@ -46,24 +43,10 @@ public final class HighlightUtils {
      * Load field values for highlighting.
      */
     public static List<Object> loadFieldValues(MappedFieldType fieldType,
-                                               FetchSubPhase.HitContext hitContext,
-                                               boolean forceSource) throws IOException {
-        //percolator needs to always load from source, thus it sets the global force source to true
-        List<Object> textsToHighlight;
-        if (forceSource == false && fieldType.isStored()) {
-            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
-            hitContext.reader().document(hitContext.docId(), fieldVisitor);
-            textsToHighlight = fieldVisitor.fields().get(fieldType.name());
-            if (textsToHighlight == null) {
-                // Can happen if the document doesn't have the field to highlight
-                textsToHighlight = Collections.emptyList();
-            }
-        } else {
-            SourceLookup sourceLookup = hitContext.sourceLookup();
-            textsToHighlight = sourceLookup.extractRawValues(fieldType.name());
-        }
-        assert textsToHighlight != null;
-        return textsToHighlight;
+                                               MapperService mapperService,
+                                               FetchSubPhase.HitContext hitContext) throws IOException {
+        ValueFetcher fetcher = fieldType.valueFetcher(mapperService, null, null);
+        return fetcher.fetchValues(hitContext.sourceLookup());
     }
 
     public static class Encoders {

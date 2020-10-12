@@ -64,7 +64,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
     private final FieldHighlighter fieldHighlighter;
-    private final int keywordIgnoreAbove;
     private final int maxAnalyzedOffset;
 
     /**
@@ -84,7 +83,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * @param noMatchSize The size of the text that should be returned when no highlighting can be performed.
      * @param maxPassages the maximum number of passes to highlight
      * @param fieldMatcher decides which terms should be highlighted
-     * @param keywordIgnoreAbove if the field's value is longer than this we'll skip it
      * @param maxAnalyzedOffset if the field is more than this long we'll refuse to use the ANALYZED
      *                          offset source for it because it'd be super slow
      */
@@ -98,7 +96,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                                     int noMatchSize,
                                     int maxPassages,
                                     Predicate<String> fieldMatcher,
-                                    int keywordIgnoreAbove,
                                     int maxAnalyzedOffset) throws IOException {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
@@ -109,7 +106,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.field = field;
         this.noMatchSize = noMatchSize;
         this.setFieldMatcher(fieldMatcher);
-        this.keywordIgnoreAbove = keywordIgnoreAbove;
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
     }
@@ -127,9 +123,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if (fieldValueLength > keywordIgnoreAbove) {
-            return null; // skip highlighting keyword terms that were ignored during indexing
-        }
         if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
             throw new IllegalArgumentException(
                 "The length of ["

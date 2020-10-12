@@ -490,7 +490,7 @@ public class QueryPhase {
             }
             if (fieldType instanceof DateFieldType) {
                 rewrittenQuery = ((DateFieldType)fieldType).resolution()
-                    .distanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance, fieldType.hasDocValues());
+                    .distanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
             } else {
                 rewrittenQuery = LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
             }

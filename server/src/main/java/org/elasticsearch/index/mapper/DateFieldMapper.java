@@ -226,45 +226,30 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         /**
-         * Build Distance feature query
+         * Build Distance feature query. Field must have doc values
          */
-        protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot, boolean hasDocValues) {
-            if (hasDocValues) {
-                long originApprox = convertToIndex(origin);
-                Query query = new TwoPhaseLongDistanceFeatureQuery(field, origin, convert(pivot), originApprox) {
-                    @Override
-                    public long convertDistance(long distanceExact) {
-                        return convertToIndex(distanceExact);
-                    }
-                };
-                if (boost != 1f) {
-                    query = new BoostQuery(query, boost);
-                }
-                return query;
-            } else {
-                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
-            }
+        protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
+           return distanceFeatureQuery(field, boost, origin, convertToIndex(origin), convert(pivot));
         }
 
         /**
-         * Build Distance feature query from index values
+         * Build Distance feature query from index values. Field must have doc values
          */
-        public Query distanceFeatureQuery(String field, float boost, long origin, long pivotFromIndex, boolean hasDocValues) {
-            if (hasDocValues) {
-                long originApprox = convertToIndex(origin);
-                Query query = new TwoPhaseLongDistanceFeatureQuery(field, origin, convertToDocValue(pivotFromIndex), originApprox) {
-                    @Override
-                    public long convertDistance(long distanceExact) {
-                        return convertToIndex(distanceExact);
-                    }
-                };
-                if (boost != 1f) {
-                    query = new BoostQuery(query, boost);
+        public Query distanceFeatureQuery(String field, float boost, long origin, long pivotFromIndex) {
+            return distanceFeatureQuery(field, boost, origin, convertToIndex(origin), convertToDocValue(pivotFromIndex));
+        }
+
+        private Query distanceFeatureQuery(String field, float boost, long origin, long originApprox, long pivot) {
+            Query query = new TwoPhaseLongDistanceFeatureQuery(field, origin, pivot, originApprox) {
+                @Override
+                public long convertDistance(long distanceExact) {
+                    return convertToIndex(distanceExact);
                 }
-                return query;
-            } else {
-                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivotFromIndex);
+            };
+            if (boost != 1f) {
+                query = new BoostQuery(query, boost);
             }
+            return query;
         }
 
         protected MappedFieldType.Relation isToWithin(long toInclusive, long minValue, long maxValue, boolean hasDocValues) {
@@ -571,7 +556,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
-            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime, hasDocValues());
+            assert hasDocValues();
+            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
         }
 
         @Override

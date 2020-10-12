@@ -137,7 +137,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     @Override
     public final AggregatorFactory build(AggregationContext context, AggregatorFactory parent) throws IOException {
         AggregatorFactory factory = doBuild(context, parent, factoriesBuilder);
-        context.getValuesSourceRegistry().getUsageService().incAggregationUsage(getType(), factory.getStatsSubtype());
+        context.getUsageService().incAggregationUsage(getType(), factory.getStatsSubtype());
         return factory;
     }
 

@@ -103,6 +103,14 @@ public abstract class AggregationContext {
     public abstract ValuesSourceRegistry getValuesSourceRegistry();
 
     /**
+     * The {@link AggregationUsageService} used to track which aggregations are
+     * actually used.
+     */
+    public final AggregationUsageService getUsageService() {
+        return getValuesSourceRegistry().getUsageService();
+    }
+
+    /**
      * Utility to share and track large arrays.
      */
     public abstract BigArrays bigArrays();

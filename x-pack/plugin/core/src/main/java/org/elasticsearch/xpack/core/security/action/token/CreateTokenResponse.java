@@ -40,7 +40,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         scope = in.readOptionalString();
         refreshToken = in.readOptionalString();
         kerberosAuthenticationResponseToken = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
             authentication = new Authentication(in);
         }
     }
@@ -84,7 +84,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         out.writeOptionalString(scope);
         out.writeOptionalString(refreshToken);
         out.writeOptionalString(kerberosAuthenticationResponseToken);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             authentication.writeTo(out);
         }
     }

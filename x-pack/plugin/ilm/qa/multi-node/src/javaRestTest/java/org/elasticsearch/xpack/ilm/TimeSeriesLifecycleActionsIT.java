@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
@@ -79,6 +80,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -217,6 +219,39 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(originalIndex)), 30, TimeUnit.SECONDS);
         // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
+    }
+
+    public void testMoveToStepWithInvalidNextStep() throws Exception {
+        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueDays(100));
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // move to a step
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"attempt-rollover\"\n" +
+            "  }\n" +
+            "}");
+        assertBusy(() -> {
+            ResponseException exception =
+                expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
+
+            String responseEntityAsString = EntityUtils.toString(exception.getResponse().getEntity());
+            String expectedErrorMessage = "step [{\\\"phase\\\":\\\"hot\\\",\\\"action\\\":\\\"rollover\\\",\\\"name\\\":" +
+                "\\\"attempt-rollover\\\"}] for index [" + index + "] with policy [" + policy + "] does not exist";
+
+            assertThat(responseEntityAsString, containsStringIgnoringCase(expectedErrorMessage));
+        });
     }
 
     public void testRetryFailedDeleteAction() throws Exception {

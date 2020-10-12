@@ -45,14 +45,8 @@ public class TransportDeleteComposableIndexTemplateAction
                                                         ActionFilters actionFilters,
                                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteComposableIndexTemplateAction.Request::new, indexNameExpressionResolver);
+            DeleteComposableIndexTemplateAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.indexTemplateService = indexTemplateService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
     }
 
     @Override

@@ -75,15 +75,10 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
                                        ClusterService clusterService, XPackLicenseState licenseState,
                                        PersistentTasksService persistentTasksService, Client client) {
         super(PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutRollupJobAction.Request::new, indexNameExpressionResolver);
+            PutRollupJobAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

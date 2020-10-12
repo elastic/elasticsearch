@@ -55,15 +55,9 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                            IndexScopedSettings indexScopedSettings) {
         super(PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutIndexTemplateRequest::new, indexNameExpressionResolver);
+            PutIndexTemplateRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away...
-        return ThreadPool.Names.SAME;
     }
 
     @Override

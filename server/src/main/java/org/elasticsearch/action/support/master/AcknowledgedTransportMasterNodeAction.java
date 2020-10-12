@@ -22,12 +22,9 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 /**
  * Base class for the common case of a {@link TransportMasterNodeAction} that responds with an {@link AcknowledgedResponse}.
@@ -37,21 +34,17 @@ public abstract class AcknowledgedTransportMasterNodeAction<Request extends Mast
 
     protected AcknowledgedTransportMasterNodeAction(String actionName, TransportService transportService, ClusterService clusterService,
                                                     ThreadPool threadPool, ActionFilters actionFilters, Writeable.Reader<Request> request,
-                                                    IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+                                                    IndexNameExpressionResolver indexNameExpressionResolver, String executor) {
+        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver,
+                AcknowledgedResponse::readFrom, executor);
     }
 
     protected AcknowledgedTransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
                                                     TransportService transportService, ClusterService clusterService,
                                                     ThreadPool threadPool, ActionFilters actionFilters,
                                                     Writeable.Reader<Request> request,
-                                                    IndexNameExpressionResolver indexNameExpressionResolver) {
+                                                    IndexNameExpressionResolver indexNameExpressionResolver, String executor) {
         super(actionName, canTripCircuitBreaker, transportService, clusterService, threadPool, actionFilters, request,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected final AcknowledgedResponse read(StreamInput in) throws IOException {
-        return AcknowledgedResponse.readFrom(in);
+            indexNameExpressionResolver, AcknowledgedResponse::readFrom, executor);
     }
 }

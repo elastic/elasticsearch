@@ -57,15 +57,10 @@ public class TransportDeleteTrainedModelAction
                                              TrainedModelProvider configProvider, InferenceAuditor auditor,
                                              IngestService ingestService) {
         super(DeleteTrainedModelAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteTrainedModelAction.Request::new, indexNameExpressionResolver);
+            DeleteTrainedModelAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.trainedModelProvider = configProvider;
         this.ingestService = ingestService;
         this.auditor = Objects.requireNonNull(auditor);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

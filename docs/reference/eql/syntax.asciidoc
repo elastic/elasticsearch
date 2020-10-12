@@ -6,7 +6,7 @@
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 IMPORTANT: {es} supports a subset of {eql-ref}/index.html[EQL syntax]. See
 <<eql-syntax-limitations>>.

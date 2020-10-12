@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -62,19 +61,20 @@ public class ConditionalNode extends BinaryNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(getLocation());
 
         Label fals = new Label();
         Label end = new Label();
 
-        conditionNode.write(classWriter, methodWriter, writeScope);
+        conditionNode.write(writeScope);
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-        getLeftNode().write(classWriter, methodWriter, writeScope);
+        getLeftNode().write(writeScope);
         methodWriter.goTo(end);
         methodWriter.mark(fals);
-        getRightNode().write(classWriter, methodWriter, writeScope);
+        getRightNode().write(writeScope);
         methodWriter.mark(end);
     }
 }

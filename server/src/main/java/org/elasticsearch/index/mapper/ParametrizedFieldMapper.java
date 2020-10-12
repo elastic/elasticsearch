@@ -43,7 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -118,7 +117,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected final void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
         getMergeBuilder().toXContent(builder, includeDefaults);
         multiFields.toXContent(builder, params);
@@ -133,10 +132,24 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     }
 
     /**
+     * Check on whether or not a parameter should be serialized
+     */
+    protected interface SerializerCheck<T> {
+        /**
+         * Check on whether or not a parameter should be serialized
+         * @param includeDefaults   if defaults have been requested
+         * @param isConfigured      if the parameter has a different value to the default
+         * @param value             the parameter value
+         * @return {@code true} if the value should be serialized
+         */
+        boolean check(boolean includeDefaults, boolean isConfigured, T value);
+    }
+
+    /**
      * A configurable parameter for a field mapper
      * @param <T> the type of the value the parameter holds
      */
-    public static final class Parameter<T> {
+    public static final class Parameter<T> implements Supplier<T> {
 
         public final String name;
         private final List<String> deprecatedNames = new ArrayList<>();
@@ -146,8 +159,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private boolean acceptsNull = false;
         private Consumer<T> validator = null;
         private Serializer<T> serializer = XContentBuilder::field;
-        private BooleanSupplier serializerPredicate = () -> true;
-        private boolean alwaysSerialize = false;
+        private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private Function<T, String> conflictSerializer = Objects::toString;
         private BiPredicate<T, T> mergeValidator;
         private T value;
@@ -176,6 +188,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public T getValue() {
             return isSet ? value : defaultValue.get();
+        }
+
+        @Override
+        public T get() {
+            return getValue();
         }
 
         /**
@@ -234,19 +251,26 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         /**
-         * Sets an additional check on whether or not this parameter should be serialized,
-         * after the existing 'set' and 'include_defaults' checks.
+         * Configure a custom serialization check for this parameter
          */
-        public Parameter<T> setShouldSerialize(BooleanSupplier shouldSerialize) {
-            this.serializerPredicate = shouldSerialize;
+        public Parameter<T> setSerializerCheck(SerializerCheck<T> check) {
+            this.serializerCheck = check;
             return this;
         }
 
         /**
-         * Ensures that this parameter is always serialized, no matter its value
+         * Always serialize this parameter, no matter its value
          */
         public Parameter<T> alwaysSerialize() {
-            this.alwaysSerialize = true;
+            this.serializerCheck = (id, ic, v) -> true;
+            return this;
+        }
+
+        /**
+         * Never serialize this parameter, no matter its value
+         */
+        public Parameter<T> neverSerialize() {
+            this.serializerCheck = (id, ic, v) -> false;
             return this;
         }
 
@@ -283,8 +307,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             }
         }
 
-        private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (alwaysSerialize || ((includeDefaults || isConfigured()) && serializerPredicate.getAsBoolean())) {
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+            if (serializerCheck.check(includeDefaults, isConfigured(), get())) {
                 serializer.serialize(builder, name, getValue());
             }
         }

@@ -225,7 +225,7 @@ public class AbstractAuditorTests extends ESTestCase {
                     listener.onFailure(e);
                     return;
                 }
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             };
 
             threadPool.generic().submit(onPutTemplate);

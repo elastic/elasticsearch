@@ -6,7 +6,7 @@ esplugin {
   classname 'org.elasticsearch.xpack.watcher.Watcher'
   hasNativeController false
   requiresKeystore false
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
 archivesBaseName = 'x-pack-watcher'
@@ -22,6 +22,7 @@ tasks.named("dependencyLicenses").configure {
 
 dependencies {
   compileOnly project(':server')
+  compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   compileOnly project(path: ':modules:transport-netty4')
   compileOnly project(path: ':plugins:transport-nio')

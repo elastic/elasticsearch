@@ -1656,6 +1656,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(logstashAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
+        assertThat(logstashAdminRole.cluster().check("cluster:admin/logstash/pipeline/delete", request, authentication), is(true));
+        assertThat(logstashAdminRole.cluster().check("cluster:admin/logstash/pipeline/get", request, authentication), is(true));
+        assertThat(logstashAdminRole.cluster().check("cluster:admin/logstash/pipeline/put", request, authentication), is(true));
+
         assertThat(logstashAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));

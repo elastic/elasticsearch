@@ -22,7 +22,6 @@ package org.elasticsearch.packaging.test;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
-import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Files;
@@ -39,14 +38,12 @@ import static org.junit.Assume.assumeFalse;
 public class ConfigurationTests extends PackagingTestCase {
 
     @Before
-    public void filterDistrosAndInstall() throws Exception {
+    public void filterDistros() {
         assumeFalse("no docker", distribution.isDocker());
-        install();
     }
 
-    @After
-    public void cleanInstall() throws Exception {
-        cleanup();
+    public void test10Install() throws Exception {
+        install();
     }
 
     public void test50StrictDuplicateDetectionDeprecationWarning() throws Exception {

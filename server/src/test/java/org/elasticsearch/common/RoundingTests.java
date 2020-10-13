@@ -395,7 +395,6 @@ public class RoundingTests extends ESTestCase {
         assertThat(rounding.round(time("2016-03-28T13:00:00+02:00")), isDate(time("2016-03-28T12:00:00+02:00"), tz));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63467")
     public void testRandomTimeIntervalRounding() {
         for (int i = 0; i < 1000; i++) {
             int unitCount = randomIntBetween(1, 365);
@@ -411,13 +410,13 @@ public class RoundingTests extends ESTestCase {
             long max = mainDate + 2 * interval;
 
             /*
-             * Prepare a rounding with one extra interval of range because
-             * in the tests far below we call round(round(min)). The first
-             * round might spit out a time below the min if min is near a
-             * daylight savings time transition. So we request an extra big
+             * Prepare a rounding with two extra intervals of range because
+             * in the tests far below we call round(round(min) - 1). The first
+             * round might spit out a time below min - interval if min is near
+             * a daylight savings time transition. So we request an extra big
              * range just in case.
              */
-            Rounding.Prepared prepared = rounding.prepare(min - interval, max);
+            Rounding.Prepared prepared = rounding.prepare(min - 2 * interval, max);
 
             // Round a whole bunch of dates and make sure they line up with the known good java time implementation
             Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();

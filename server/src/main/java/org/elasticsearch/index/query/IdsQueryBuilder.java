@@ -31,7 +31,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -172,7 +171,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             return new MatchNoneQueryBuilder();
         }
         QueryShardContext context = queryRewriteContext.convertToShardContext();
-        if (context != null && context.fieldMapper(IdFieldMapper.NAME) == null) {
+        if (context != null && context.getFieldType(IdFieldMapper.NAME) == null) {
             // no mappings yet
             return new MatchNoneQueryBuilder();
         }
@@ -181,21 +180,20 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null || ids.isEmpty()) {
             throw new IllegalStateException("Rewrite first");
         }
-        final DocumentMapper mapper = context.getMapperService().documentMapper();
         Collection<String> typesForQuery;
         if (types.length == 0) {
             typesForQuery = context.queryTypes();
         } else if (types.length == 1 && Metadata.ALL.equals(types[0])) {
-            typesForQuery = Collections.singleton(mapper.type());
+            typesForQuery = Collections.singleton(context.getType());
         } else {
             typesForQuery = new HashSet<>(Arrays.asList(types));
         }
 
-        if (typesForQuery.contains(mapper.type())) {
+        if (typesForQuery.contains(context.getType())) {
             return idField.termsQuery(new ArrayList<>(ids), context);
         } else {
             return new MatchNoDocsQuery("Type mismatch");

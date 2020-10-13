@@ -41,8 +41,8 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("1.2.3");
+    protected Object getSampleValueForDocument() {
+        return "1.2.3";
     }
 
     @Override

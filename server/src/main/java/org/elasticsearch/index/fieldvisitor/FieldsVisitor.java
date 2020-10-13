@@ -21,13 +21,12 @@ package org.elasticsearch.index.fieldvisitor;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -39,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
@@ -84,21 +84,15 @@ public class FieldsVisitor extends StoredFieldVisitor {
         // All these fields are single-valued so we can stop when the set is
         // empty
         return requiredFields.isEmpty()
-                ? Status.STOP
-                : Status.NO;
+            ? Status.STOP
+            : Status.NO;
     }
 
-    public void postProcess(MapperService mapperService) {
-        final DocumentMapper mapper = mapperService.documentMapper();
-        if (mapper != null) {
-            type = mapper.type();
-        }
+    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup, @Nullable String type) {
+        assert this.type == null || this.type.equals(type);
+        this.type = type;
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            MappedFieldType fieldType = mapperService.fieldType(entry.getKey());
-            if (fieldType == null) {
-                throw new IllegalStateException("Field [" + entry.getKey()
-                    + "] exists in the index but not in mappings");
-            }
+            MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
                 fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));

@@ -83,8 +83,8 @@ import static org.hamcrest.core.Is.is;
 public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(1234);
+    protected Object getSampleValueForDocument() {
+        return "value";
     }
 
     @Override
@@ -752,7 +752,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
         assertEquals(1, fields.length);
 
-        try (TokenStream ts = fields[0].tokenStream(queryShardContext.getMapperService().indexAnalyzer(), null)) {
+        try (TokenStream ts = fields[0].tokenStream(mapperService.indexAnalyzer(), null)) {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             assertTrue(ts.incrementToken());

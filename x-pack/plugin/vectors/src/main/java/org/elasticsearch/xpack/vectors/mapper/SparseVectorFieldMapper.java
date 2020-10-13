@@ -128,7 +128,7 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
         }
     }

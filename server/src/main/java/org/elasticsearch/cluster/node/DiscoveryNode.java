@@ -325,8 +325,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeVInt(roles.size());
             for (final DiscoveryNodeRole role : roles) {
-                out.writeString(role.roleName());
-                out.writeString(role.roleNameAbbreviation());
+                final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
+                out.writeString(compatibleRole.roleName());
+                out.writeString(compatibleRole.roleNameAbbreviation());
             }
         } else {
             // an old node will only understand legacy roles since pluggable roles is a new concept

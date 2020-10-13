@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -110,7 +109,8 @@ public class MapInitializationNode extends ExpressionNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(getLocation());
 
         methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
@@ -120,8 +120,8 @@ public class MapInitializationNode extends ExpressionNode {
 
         for (int index = 0; index < getArgumentsSize(); ++index) {
             methodWriter.dup();
-            getKeyNode(index).write(classWriter, methodWriter, writeScope);
-            getValueNode(index).write(classWriter, methodWriter, writeScope);
+            getKeyNode(index).write(writeScope);
+            getValueNode(index).write(writeScope);
             methodWriter.invokeMethodCall(method);
             methodWriter.pop();
         }

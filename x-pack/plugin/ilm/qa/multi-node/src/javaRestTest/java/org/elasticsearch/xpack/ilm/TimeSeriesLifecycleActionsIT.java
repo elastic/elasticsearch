@@ -8,13 +8,11 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
@@ -48,7 +46,6 @@ import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step;
-import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.UpdateRolloverLifecycleDateStep;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
@@ -76,11 +73,11 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -142,117 +139,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(originalIndex)), 60, TimeUnit.SECONDS);
         // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
-    }
-
-    public void testMoveToAllocateStep() throws Exception {
-        String originalIndex = index + "-000001";
-        createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "javaRestTest-0")
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
-
-        // create policy
-        createFullPolicy(client(), policy, TimeValue.timeValueHours(10));
-        // update policy on index
-        updatePolicy(originalIndex, policy);
-
-        // move to a step
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex);
-        assertBusy(() -> assertTrue(getStepKeyForIndex(client(), originalIndex).equals(new StepKey("new", "complete", "complete"))));
-        moveToStepRequest.setJsonEntity("{\n" +
-            "  \"current_step\": {\n" +
-            "    \"phase\": \"new\",\n" +
-            "    \"action\": \"complete\",\n" +
-            "    \"name\": \"complete\"\n" +
-            "  },\n" +
-            "  \"next_step\": {\n" +
-            "    \"phase\": \"cold\",\n" +
-            "    \"action\": \"allocate\",\n" +
-            "    \"name\": \"allocate\"\n" +
-            "  }\n" +
-            "}");
-        client().performRequest(moveToStepRequest);
-        assertBusy(() -> assertFalse(indexExists(originalIndex)));
-    }
-
-
-    public void testMoveToRolloverStep() throws Exception {
-        String originalIndex = index + "-000001";
-        String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
-        String secondIndex = index + "-000002";
-        createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "javaRestTest-0")
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
-
-        createFullPolicy(client(), policy, TimeValue.timeValueHours(10));
-        // update policy on index
-        updatePolicy(originalIndex, policy);
-
-        // move to a step
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex);
-        // index document to trigger rollover
-        index(client(), originalIndex, "_id", "foo", "bar");
-        logger.info(getStepKeyForIndex(client(), originalIndex));
-        moveToStepRequest.setJsonEntity("{\n" +
-            "  \"current_step\": {\n" +
-            "    \"phase\": \"new\",\n" +
-            "    \"action\": \"complete\",\n" +
-            "    \"name\": \"complete\"\n" +
-            "  },\n" +
-            "  \"next_step\": {\n" +
-            "    \"phase\": \"hot\",\n" +
-            "    \"action\": \"rollover\",\n" +
-            "    \"name\": \"attempt-rollover\"\n" +
-            "  }\n" +
-            "}");
-        client().performRequest(moveToStepRequest);
-
-        /*
-         * These asserts are in the order that they should be satisfied in, in
-         * order to maximize the time for all operations to complete.
-         * An "out of order" assert here may result in this test occasionally
-         * timing out and failing inappropriately.
-         */
-        // asserts that rollover was called
-        assertBusy(() -> assertTrue(indexExists(secondIndex)));
-        // asserts that shrink deleted the original index
-        assertBusy(() -> assertFalse(indexExists(originalIndex)), 30, TimeUnit.SECONDS);
-        // asserts that the delete phase completed for the managed shrunken index
-        assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
-    }
-
-    public void testMoveToStepWithInvalidNextStep() throws Exception {
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueDays(100));
-        createIndexWithSettings(client(), index, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
-
-        // move to a step
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("{\n" +
-            "  \"current_step\": {\n" +
-            "    \"phase\": \"new\",\n" +
-            "    \"action\": \"complete\",\n" +
-            "    \"name\": \"complete\"\n" +
-            "  },\n" +
-            "  \"next_step\": {\n" +
-            "    \"phase\": \"hot\",\n" +
-            "    \"action\": \"rollover\",\n" +
-            "    \"name\": \"attempt-rollover\"\n" +
-            "  }\n" +
-            "}");
-        assertBusy(() -> {
-            ResponseException exception =
-                expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
-
-            String responseEntityAsString = EntityUtils.toString(exception.getResponse().getEntity());
-            String expectedErrorMessage = "step [{\\\"phase\\\":\\\"hot\\\",\\\"action\\\":\\\"rollover\\\",\\\"name\\\":" +
-                "\\\"attempt-rollover\\\"}] for index [" + index + "] with policy [" + policy + "] does not exist";
-
-            assertThat(responseEntityAsString, containsStringIgnoringCase(expectedErrorMessage));
-        });
     }
 
     public void testRetryFailedDeleteAction() throws Exception {
@@ -975,80 +861,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         // Wait for everything to be copacetic
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
-    }
-
-    public void testMoveToInjectedStep() throws Exception {
-        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1), TimeValue.timeValueHours(12));
-
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
-
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(new StepKey("new", "complete", "complete"))));
-
-        // Move to a step from the injected unfollow action
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("{\n" +
-            "  \"current_step\": { \n" +
-            "    \"phase\": \"new\",\n" +
-            "    \"action\": \"complete\",\n" +
-            "    \"name\": \"complete\"\n" +
-            "  },\n" +
-            "  \"next_step\": { \n" +
-            "    \"phase\": \"warm\",\n" +
-            "    \"action\": \"unfollow\",\n" +
-            "    \"name\": \"wait-for-indexing-complete\"\n" +
-            "  }\n" +
-            "}");
-        // If we get an OK on this request we have successfully moved to the injected step
-        assertOK(client().performRequest(moveToStepRequest));
-
-        // Make sure we actually move on to and execute the shrink action
-        assertBusy(() -> {
-            assertTrue(indexExists(shrunkenIndex));
-            assertTrue(aliasExists(shrunkenIndex, index));
-            assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53612")
-    public void testMoveToStepRereadsPolicy() throws Exception {
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
-
-        createIndexWithSettings(client(), "test-1", alias, Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
-            true);
-
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), "test-1"),
-            equalTo(new StepKey("hot", "rollover", "check-rollover-ready"))));
-
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null), TimeValue.ZERO);
-
-        // Move to the same step, which should re-read the policy
-        Request moveToStepRequest = new Request("POST", "_ilm/move/test-1");
-        moveToStepRequest.setJsonEntity("{\n" +
-            "  \"current_step\": { \n" +
-            "    \"phase\": \"hot\",\n" +
-            "    \"action\": \"rollover\",\n" +
-            "    \"name\": \"check-rollover-ready\"\n" +
-            "  },\n" +
-            "  \"next_step\": { \n" +
-            "    \"phase\": \"hot\",\n" +
-            "    \"action\": \"rollover\",\n" +
-            "    \"name\": \"check-rollover-ready\"\n" +
-            "  }\n" +
-            "}");
-        assertOK(client().performRequest(moveToStepRequest));
-
-        // Make sure we actually rolled over
-        assertBusy(() -> {
-            indexExists("test-000002");
-        });
     }
 
     public void testCanStopILMWithPolicyUsingNonexistentPolicy() throws Exception {
@@ -1849,17 +1661,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         client().performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);
-    }
-
-    private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
-        XContentBuilder document = jsonBuilder().startObject();
-        for (int i = 0; i < fields.length; i += 2) {
-            document.field((String) fields[i], fields[i + 1]);
-        }
-        document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
-        request.setJsonEntity(Strings.toString(document));
-        assertOK(client.performRequest(request));
     }
 
     @Nullable

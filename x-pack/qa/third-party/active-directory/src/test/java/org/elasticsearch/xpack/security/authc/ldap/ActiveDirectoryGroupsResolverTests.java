@@ -26,12 +26,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
@@ -74,21 +69,16 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
             .put(getFullSettingKey(REALM_ID, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "tokenGroups")
             .build();
         RealmConfig config = new RealmConfig(REALM_ID, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
-        Map<String, Object> groupSIDs = resolve(null, resolver);
+        resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, null, future);
+        Map<String, Object> groupSIDs = future.get();
         assertThat(groupSIDs.size(), equalTo(1));
         assertNotNull(groupSIDs.get("tokenGroups"));
         assertThat(groupSIDs.get("tokenGroups"), instanceOf(List.class));
         List<String> SIDs = ((List<String>) groupSIDs.get("tokenGroups"));
         assertThat(SIDs.size(), equalTo(7));
-        assertThat(SIDs, containsInAnyOrder(
-            "S-1-5-21-4118400478-288853978-3021756978-1115",
-            "S-1-5-21-4118400478-288853978-3021756978-1116",
-            "S-1-5-21-4118400478-288853978-3021756978-1117",
-            "S-1-5-21-4118400478-288853978-3021756978-1118",
-            "S-1-5-21-4118400478-288853978-3021756978-1120",
-            "S-1-5-21-4118400478-288853978-3021756978-513",
-            "S-1-5-32-545"));
+        assertThat(SIDs, everyItem(matchesPattern("S-1-5-(?:21|32)-\\d+(?:-\\d+\\-\\d+\\-\\d+)?")));
     }
 
     public void testResolveOneLevel() throws Exception {
@@ -153,12 +143,6 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
         for (String sid : expectedSids) {
             assertThat(queryString, containsString(sid));
         }
-    }
-
-    private Map<String, Object> resolve(Collection<Attribute> attributes, LdapMetadataResolver resolver) throws Exception {
-        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
-        resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, attributes, future);
-        return future.get();
     }
 
     @Override

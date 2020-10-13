@@ -44,6 +44,7 @@ public class SyncLoop {
     private final CheckedRunnable<IOException> postSyncCallback;
     private final Semaphore promiseSemaphore = new Semaphore(1);
     private final PriorityQueue<Tuple<Translog.Location, Consumer<Exception>>> listeners;
+    private volatile int listenerCount = 0;
     private volatile Translog.Location lastSyncedLocation;
 
     public SyncLoop(ThreadPool threadPool, Translog translog, CheckedRunnable<IOException> postSyncCallback) {
@@ -69,6 +70,7 @@ public class SyncLoop {
             return;
         }
         synchronized (listeners) {
+            ++listenerCount;
             listeners.add(new Tuple<>(location, preserveContext(listener)));
         }
         final boolean promised = promiseSemaphore.tryAcquire();
@@ -98,6 +100,9 @@ public class SyncLoop {
             drainListeners(syncedListeners, lastSyncedLocation);
             completeListeners(syncedListeners, null);
             syncedListeners.clear();
+            if (isListenersEmpty()) {
+                return;
+            }
             doSync();
             drainListeners(syncedListeners, lastSyncedLocation);
         } catch (Exception e) {
@@ -116,15 +121,11 @@ public class SyncLoop {
     }
 
     private int listenerCount() {
-        synchronized (listeners) {
-            return listeners.size();
-        }
+        return listenerCount;
     }
 
     private boolean isListenersEmpty() {
-        synchronized (listeners) {
-            return listeners.isEmpty();
-        }
+        return listenerCount == 0;
     }
 
     private void drainListeners(ArrayList<Consumer<Exception>> syncedListeners, Translog.Location syncedLocation) {
@@ -133,6 +134,7 @@ public class SyncLoop {
             while ((tuple = listeners.poll()) != null) {
                 // If the synced location is null, drain all the listeners
                 if (syncedLocation == null || syncedLocation.compareTo(tuple.v1()) > 0) {
+                    --listenerCount;
                     syncedListeners.add(tuple.v2());
                 } else {
                     listeners.add(tuple);

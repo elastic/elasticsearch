@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -566,5 +567,14 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewritten.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
+    public void testLenientFlag() throws Exception {
+        MultiMatchQueryBuilder query = new MultiMatchQueryBuilder("test", BINARY_FIELD_NAME);
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_binary] of type [binary does not support match queries", e.getMessage());
+        query.lenient(true);
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
     }
 }

@@ -46,7 +46,12 @@ public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
         return asArray(filteredSpecs);
     }
 
-    public EqlSpecTestCase(String query, String name, long[] eventIds, boolean caseSensitive) {
-        super(TEST_INDEX, query, name, eventIds, caseSensitive);
+    @Override
+    protected String sequenceField() {
+        return "serial_event_id";
+    }
+
+    public EqlSpecTestCase(String query, String name, long[] eventIds) {
+        super(TEST_INDEX, query, name, eventIds);
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
-import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -22,14 +21,12 @@ import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanEqualsSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
@@ -38,8 +35,8 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceMatchAll;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -54,6 +51,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
@@ -67,11 +65,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
-            // needed for replace wildcards
-            new BooleanLiteralsOnTheRight(),
-            new ReplaceWildcards(),
-            new ReplaceSurrogateFunction(),
-            new ReplaceMatchAll());
+                new ReplaceSurrogateFunction(),
+                new ReplaceRegexMatch());
 
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
@@ -105,40 +100,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new SetAsOptimized());
 
         return Arrays.asList(substitutions, operators, constraints, operators, ordering, local, label);
-    }
-
-    private static class ReplaceWildcards extends OptimizerRule<Filter> {
-
-        private static boolean isWildcard(Expression expr) {
-            if (expr instanceof Literal) {
-                Object value = expr.fold();
-                return value instanceof String && value.toString().contains("*");
-            }
-            return false;
-        }
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(e -> {
-                // expr == "wildcard*phrase" || expr != "wildcard*phrase"
-                if (e instanceof Equals || e instanceof NotEquals) {
-                    BinaryComparison cmp = (BinaryComparison) e;
-
-                    if (isWildcard(cmp.right())) {
-                        String wcString = cmp.right().fold().toString();
-                        Expression like = new Like(e.source(), cmp.left(), StringUtils.toLikePattern(wcString));
-
-                        if (e instanceof NotEquals) {
-                            like = new Not(e.source(), like);
-                        }
-
-                        e = like;
-                    }
-                }
-
-                return e;
-            });
-        }
     }
 
     private static class ReplaceNullChecks extends OptimizerRule<Filter> {
@@ -275,7 +236,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
      */
     static class PropagateJoinKeyConstraints extends OptimizerRule<Join> {
 
-        class Constraint {
+        static class Constraint {
             private final Expression condition;
             private final KeyedFilter keyedFilter;
             private final int keyPosition;
@@ -354,7 +315,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
             Expression constraint = Predicates.combineAnd(constraints.stream()
                 .map(c -> c.constraintFor(k))
-                .filter(c -> c != null)
+                .filter(Objects::nonNull)
                 .collect(toList()));
 
             return constraint != null

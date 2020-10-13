@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
@@ -57,7 +58,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         listener = mock(ActionListener.class);
         deleteIndexRequestCaptor = ArgumentCaptor.forClass(DeleteIndexRequest.class);
 
-        remover = new EmptyStateIndexRemover(originSettingClient);
+        remover = new EmptyStateIndexRemover(originSettingClient, new TaskId("test", 0L));
     }
 
     @After
@@ -117,7 +118,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-e" }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
 
-        AcknowledgedResponse deleteIndexResponse = new AcknowledgedResponse(acknowledged);
+        AcknowledgedResponse deleteIndexResponse = AcknowledgedResponse.of(acknowledged);
         doAnswer(withResponse(deleteIndexResponse)).when(client).execute(eq(DeleteIndexAction.INSTANCE), any(), any());
 
         remover.remove(1.0f, listener, () -> false);

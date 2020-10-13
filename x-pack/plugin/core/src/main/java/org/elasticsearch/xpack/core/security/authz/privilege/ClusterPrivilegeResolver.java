@@ -131,6 +131,9 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_OWN_API_KEY = ManageOwnApiKeyClusterPrivilege.INSTANCE;
     public static final NamedClusterPrivilege MANAGE_ENRICH = new ActionClusterPrivilege("manage_enrich", MANAGE_ENRICH_AUTOMATON);
 
+    public static final NamedClusterPrivilege MANAGE_LOGSTASH_PIPELINES = new ActionClusterPrivilege("manage_logstash_pipelines",
+        Set.of("cluster:admin/logstash/pipeline/*"));
+
     private static final Map<String, NamedClusterPrivilege> VALUES = Stream.of(
         NONE,
         ALL,
@@ -167,7 +170,8 @@ public class ClusterPrivilegeResolver {
         READ_SLM,
         DELEGATE_PKI,
         MANAGE_OWN_API_KEY,
-        MANAGE_ENRICH).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
+        MANAGE_ENRICH,
+        MANAGE_LOGSTASH_PIPELINES).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

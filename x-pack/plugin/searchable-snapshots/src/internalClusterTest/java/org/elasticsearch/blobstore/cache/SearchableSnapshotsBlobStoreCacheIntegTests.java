@@ -115,9 +115,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Path repositoryLocation = randomRepoPath();
-        createFsRepository(repositoryName, repositoryLocation);
+        createRepository(repositoryName, "fs", repositoryLocation);
 
-        final SnapshotId snapshot = createSnapshot(repositoryName, List.of(indexName));
+        final SnapshotId snapshot = createSnapshot(repositoryName, "test-snapshot", List.of(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         // extract the list of blobs per shard from the snapshot directory on disk

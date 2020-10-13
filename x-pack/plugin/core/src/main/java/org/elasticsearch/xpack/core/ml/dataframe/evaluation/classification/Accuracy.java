@@ -11,6 +11,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -33,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
@@ -96,20 +99,23 @@ public class Accuracy implements EvaluationMetric {
     }
 
     @Override
+    public Set<String> getRequiredFields() {
+        return Sets.newHashSet(EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_FIELD.getPreferredName());
+    }
+
+    @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                        String actualField,
-                                                                                        String predictedField) {
+                                                                                        EvaluationFields fields) {
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
-        this.actualField.trySet(actualField);
+        this.actualField.trySet(fields.getActualField());
         List<AggregationBuilder> aggs = new ArrayList<>();
         List<PipelineAggregationBuilder> pipelineAggs = new ArrayList<>();
         if (overallAccuracy.get() == null) {
-            Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
+            Script script = PainlessScripts.buildIsEqualScript(fields.getActualField(), fields.getPredictedField());
             aggs.add(AggregationBuilders.avg(OVERALL_ACCURACY_AGG_NAME).script(script));
         }
         if (result.get() == null) {
-            Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> matrixAggs =
-                matrix.aggs(parameters, actualField, predictedField);
+            Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> matrixAggs = matrix.aggs(parameters, fields);
             aggs.addAll(matrixAggs.v1());
             pipelineAggs.addAll(matrixAggs.v2());
         }

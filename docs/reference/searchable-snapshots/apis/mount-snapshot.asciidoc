@@ -6,7 +6,7 @@
 <titleabbrev>Mount snapshot</titleabbrev>
 ++++
 
-experimental[]
+beta::[]
 
 Mount a snapshot as a snapshot backed index.
 

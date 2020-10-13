@@ -233,7 +233,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final String aliasName = "alias_with_settings";
         PutRequest request = new PutRequest("api", templateName);
         request.patterns(singletonList("te*"));
-        request.mappings("{}");
+        request.putMapping("_doc", "{}");
         Alias alias = new Alias(aliasName)
             .filter(randomBoolean() ? null : "{\"term\":{\"user_id\":12}}")
             .indexRouting(randomBoolean() ? null : "route1")

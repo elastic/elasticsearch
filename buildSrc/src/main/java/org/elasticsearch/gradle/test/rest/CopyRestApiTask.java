@@ -173,8 +173,7 @@ public class CopyRestApiTask extends DefaultTask {
                 VersionProperties.getElasticsearch()
             );
             getFileSystemOperations().copy(c -> {
-                //TODO: test if this works
-                c.from(getArchiveOperations().zipTree(coreConfigToFileTree.apply(coreConfig)));
+                c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); //jar file
                 // this ends up as the same dir as outputDir
                 c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {

@@ -121,7 +121,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
                 coreFileTree = coreConfigToFileTree.apply(coreConfig).matching(corePatternSet); // directory on disk
             } else {
-                coreFileTree = coreConfigToFileTree.apply(coreConfig); // jar file
+                coreFileTree = coreConfig.getAsFileTree(); // jar file
             }
         }
         ConfigurableFileCollection fileCollection = additionalConfig == null
@@ -163,7 +163,7 @@ public class CopyRestTestsTask extends DefaultTask {
                     VersionProperties.getElasticsearch()
                 );
                 getFileSystemOperations().copy(c -> {
-                    c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile()));
+                    c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); //jar file
                     // this ends up as the same dir as outputDir
                     c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                     c.include(

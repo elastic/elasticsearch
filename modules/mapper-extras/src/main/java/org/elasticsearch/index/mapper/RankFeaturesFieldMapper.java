@@ -48,7 +48,6 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name) {
             super(name);
-            builder = this;
         }
 
         @Override

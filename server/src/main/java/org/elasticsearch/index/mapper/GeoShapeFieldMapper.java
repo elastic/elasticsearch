@@ -63,7 +63,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         FIELD_TYPE.freeze();
     }
 
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder,GeoShapeFieldType> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder {
 
         public Builder(String name) {
             super (name, FIELD_TYPE);

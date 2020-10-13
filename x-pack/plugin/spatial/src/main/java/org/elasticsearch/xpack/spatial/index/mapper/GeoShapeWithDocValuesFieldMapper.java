@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
@@ -68,7 +69,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
     }
 
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, GeoShapeWithDocValuesFieldType> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder {
 
         private boolean docValuesSet = false;
 
@@ -78,7 +79,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
         }
 
         @Override
-        public Builder docValues(boolean docValues) {
+        public FieldMapper.Builder docValues(boolean docValues) {
             docValuesSet = true;
             return super.docValues(docValues);
         }

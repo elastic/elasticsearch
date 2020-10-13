@@ -79,7 +79,8 @@ public class LdapMetadataResolver {
                                 attr -> {
                                     final String[] values = attr.getValues();
                                     if(attr.getName().equals(TOKEN_GROUPS)) {
-                                        return Arrays.stream(attr.getValueByteArrays())
+                                        return values.length == 1 ? convertToString(attr.getValueByteArrays()[0]) :
+                                            Arrays.stream(attr.getValueByteArrays())
                                             .map((sidBytes) -> convertToString(sidBytes))
                                             .collect(Collectors.toList());
                                     }

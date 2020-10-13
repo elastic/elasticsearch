@@ -9,30 +9,19 @@ import com.unboundid.ldap.sdk.Filter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.junit.Before;
 
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesPattern;
 
 
 public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
@@ -64,28 +53,6 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
                 containsString("CN=Users,CN=Builtin"),
                 containsString("Domain Users"),
                 containsString("Supers")));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testResolveTokenGroupsSID() throws Exception {
-        Settings settings = Settings.builder()
-            .put("xpack.security.authc.realms.active_directory.ad.group_search.base_dn", "DC=ad,DC=test,DC=elasticsearch,DC=com")
-            .put("xpack.security.authc.realms.active_directory.ad.domain_name", "ad.test.elasticsearch.com")
-            .put("path.home", createTempDir())
-            .put(RealmSettings.getFullSettingKey(REALM_ID, RealmSettings.ORDER_SETTING), 0)
-            .put(getFullSettingKey(REALM_ID, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "tokenGroups")
-            .build();
-        RealmConfig config = new RealmConfig(REALM_ID, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
-        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
-        LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
-        resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, null, future);
-        Map<String, Object> groupSIDs = future.get();
-        assertThat(groupSIDs.size(), equalTo(1));
-        assertNotNull(groupSIDs.get("tokenGroups"));
-        assertThat(groupSIDs.get("tokenGroups"), instanceOf(List.class));
-        List<String> SIDs = ((List<String>) groupSIDs.get("tokenGroups"));
-        assertThat(SIDs.size(), equalTo(7));
-        assertThat(SIDs, everyItem(matchesPattern("S-1-5-(?:21|32)-\\d+(?:-\\d+\\-\\d+\\-\\d+)?")));
     }
 
     public void testResolveOneLevel() throws Exception {

@@ -331,7 +331,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         leafReader.document(i, rootFieldsVisitor);
                         DocumentMapper documentMapper = targetShard.mapperService().documentMapper();
                         rootFieldsVisitor.postProcess(targetShard.mapperService()::fieldType,
-                            documentMapper == null ? null : documentMapper::type);
+                            documentMapper == null ? null : documentMapper.type());
                         Uid uid = rootFieldsVisitor.uid();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";

@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
@@ -89,10 +88,9 @@ public class FieldsVisitor extends StoredFieldVisitor {
             : Status.NO;
     }
 
-    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup, @Nullable Supplier<String> typeSupplier) {
-        if (typeSupplier != null) {
-            type = typeSupplier.get();
-        }
+    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup, @Nullable String type) {
+        assert this.type == null || this.type.equals(type);
+        this.type = type;
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
             List<Object> fieldValues = entry.getValue();

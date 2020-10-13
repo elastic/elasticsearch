@@ -385,7 +385,7 @@ public class FetchPhase {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
             DocumentMapper documentMapper = context.mapperService().documentMapper();
             loadStoredFields(context::fieldType, documentMapper, storedFieldReader, rootFieldsVisitor, rootDocId);
-            rootFieldsVisitor.postProcess(context::fieldType, documentMapper == null ? null : documentMapper::type);
+            rootFieldsVisitor.postProcess(context::fieldType, documentMapper == null ? null : documentMapper.type());
             rootId = rootFieldsVisitor.uid();
 
             if (needSource) {
@@ -557,7 +557,7 @@ public class FetchPhase {
                                   FieldsVisitor fieldVisitor, int docId) throws IOException {
         fieldVisitor.reset();
         fieldReader.accept(docId, fieldVisitor);
-        fieldVisitor.postProcess(fieldTypeLookup, documentMapper == null ? null : documentMapper::type);
+        fieldVisitor.postProcess(fieldTypeLookup, documentMapper == null ? null : documentMapper.type());
     }
 
     private static void fillDocAndMetaFields(SearchContext context, FieldsVisitor fieldsVisitor,

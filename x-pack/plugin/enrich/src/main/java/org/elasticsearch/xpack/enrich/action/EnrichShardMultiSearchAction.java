@@ -263,7 +263,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                                 throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
                             }
                             return context.getFieldType(field);
-                        }, () -> type);
+                        }, type);
                         final SearchHit hit = new SearchHit(
                             scoreDoc.doc,
                             visitor.uid().id(),

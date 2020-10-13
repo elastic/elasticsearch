@@ -86,7 +86,8 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 ignoreZValue(), orientation(),
                 multiFieldsBuilder.build(this, context), copyTo,
                 new GeoShapeIndexer(orientation().value().getAsBoolean(), buildFullName(context)),
-                new GeoShapeParser(new GeometryParser(ft.orientation.getAsBoolean(), coerce, ignoreZValue)));
+                new GeoShapeParser(new GeometryParser(orientation().value().getAsBoolean(),
+                    coerce(context).value(), ignoreZValue().value())));
         }
     }
 

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
@@ -130,33 +129,27 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         Map<String, Object> metadata
     ) throws IOException {
         if (hardBounds != null) {
-            LogManager.getLogger().error("ADSFADSF hard bounds");
             return null;
         }
         if (valuesSourceConfig.hasValues() == false) {
-            LogManager.getLogger().error("ADSFADSF no values");
             return null;
         }
         long[] points = preparedRounding.fixedRoundingPoints();
         if (points == null) {
-            LogManager.getLogger().error("ADSFADSF no fixed points");
             return null;
         }
         // Range aggs use a double to aggregate and we don't want to lose precision.
         long max = points[points.length - 1];
         if ((double) max != max) {
-            LogManager.getLogger().error("ADSFADSF max can't double {}", max);
             return null;
         }
         if ((double) points[0] != points[0]) {
-            LogManager.getLogger().error("ADSFADSF min can't double {}", points[0]);
             return null;
         }
         RangeAggregatorSupplier rangeSupplier = context.getQueryShardContext()
             .getValuesSourceRegistry()
             .getAggregator(RangeAggregationBuilder.REGISTRY_KEY, valuesSourceConfig);
         if (rangeSupplier == null) {
-            LogManager.getLogger().error("ADSFADSF no range supplier");
             return null;
         }
         RangeAggregator.Range[] ranges = new RangeAggregator.Range[points.length];
@@ -176,7 +169,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             cardinality,
             metadata
         );
-        LogManager.getLogger().error("ADSFADSF {}", (Object) ranges);
         return new DateHistogramAdaptedFromDateRangeAggregator(
             delegate,
             valuesSourceConfig.format(),

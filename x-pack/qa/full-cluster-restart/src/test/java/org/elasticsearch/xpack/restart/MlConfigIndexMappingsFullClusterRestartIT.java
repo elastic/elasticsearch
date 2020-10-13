@@ -50,6 +50,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/63542")
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
         assumeTrue("This test only makes sense in version 6.6.0 and above", getOldClusterVersion().onOrAfter(Version.V_6_6_0));
         if (isRunningAgainstOldCluster()) {

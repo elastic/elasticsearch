@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -58,6 +60,10 @@ setup:
 
 ---
 "Test result categories api":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_categories:
         job_id: "jobs-get-result-categories"
@@ -78,6 +84,10 @@ setup:
 
 ---
 "Test get categories with pagination":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_categories:
         job_id: "jobs-get-result-categories"
@@ -99,6 +109,10 @@ setup:
 
 ---
 "Test post get categories with pagination":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_categories:
         job_id: "jobs-get-result-categories"
@@ -125,6 +139,10 @@ setup:
 
 ---
 "Test get category by id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_categories:
         job_id: "jobs-get-result-categories"
@@ -136,6 +154,10 @@ setup:
 
 ---
 "Test get category by partition":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_categories:
         job_id: "jobs-get-result-categories"
@@ -165,6 +187,10 @@ setup:
 
 ---
 "Test with invalid param combinations":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: bad_request
       ml.get_categories:
@@ -189,6 +215,10 @@ setup:
 
 ---
 "Test with invalid param combinations via body":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: bad_request
       ml.get_categories:
@@ -216,6 +246,10 @@ setup:
 
 ---
 "Test with unknown job id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.get_categories:

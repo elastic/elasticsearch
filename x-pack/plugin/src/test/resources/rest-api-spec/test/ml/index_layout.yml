@@ -1,8 +1,14 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
 ---
 "Test CRUD on two jobs in shared index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -340,6 +346,10 @@ setup:
 
 ---
 "Test unrelated index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -498,6 +508,10 @@ setup:
 
 ---
 "Test delete removes quantiles":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -547,6 +561,10 @@ setup:
 
 ---
 "Test delete removes state":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -648,6 +666,10 @@ setup:
 
 ---
 "Test force close does not create state":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       headers:

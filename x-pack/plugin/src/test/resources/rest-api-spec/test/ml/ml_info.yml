@@ -1,4 +1,7 @@
 teardown:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
 
   - do:
       cluster.put_settings:
@@ -8,6 +11,10 @@ teardown:
 
 ---
 "Test ml info":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.info: {}
   - match: { defaults.anomaly_detectors.categorization_analyzer.tokenizer: "ml_classic" }

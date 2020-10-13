@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.Filter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -20,13 +19,21 @@ import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.junit.Before;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
-import static org.hamcrest.Matchers.*;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
+
 
 public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 

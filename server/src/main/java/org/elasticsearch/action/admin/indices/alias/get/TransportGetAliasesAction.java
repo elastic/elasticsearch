@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndices;
@@ -38,7 +37,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,14 +54,8 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
                                      ThreadPool threadPool, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, SystemIndices systemIndices) {
         super(GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, GetAliasesResponse::new, ThreadPool.Names.SAME);
         this.systemIndices = systemIndices;
-    }
-
-    @Override
-    protected String executor() {
-        // very lightweight operation all in memory no need to fork to a thread pool
-        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -71,11 +63,6 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         // Resolve with system index access since we're just checking blocks
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
             indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request));
-    }
-
-    @Override
-    protected GetAliasesResponse read(StreamInput in) throws IOException {
-        return new GetAliasesResponse(in);
     }
 
     @Override

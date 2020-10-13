@@ -5,7 +5,7 @@ setup:
 
   - skip:
       features: headers
-      version: " - 7.10.00"
+      version: " - 7.10.0"
       reason: "version field is added to 7.10"
 
   - do:

@@ -537,7 +537,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
 
-
         final String indexName = "test-idx";
         createIndexWithContent(indexName);
 

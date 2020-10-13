@@ -115,7 +115,7 @@ public class MockRepository extends FsRepository {
 
     /**
      * Allows blocking on writing the index-N blob and subsequently failing it on unblock.
-     * This is a way to enforce blocking the  finalization of a snapshot, while permitting other IO operations to proceed unblocked.
+     * This is a way to enforce blocking the finalization of a snapshot, while permitting other IO operations to proceed unblocked.
      */
     private volatile boolean blockAndFailOnWriteIndexFile;
 

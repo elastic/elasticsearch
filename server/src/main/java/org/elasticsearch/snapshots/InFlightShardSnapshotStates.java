@@ -93,12 +93,12 @@ public final class InFlightShardSnapshotStates {
     /**
      * Map of index name to a set of shard ids that currently are actively executing an operation on the repository.
      */
-    private final Map<String, Set<Integer>> busyIds;
+    private final Map<String, Set<Integer>> activeShardIds;
 
 
-    private InFlightShardSnapshotStates(Map<String, Map<Integer, String>> generations, Map<String, Set<Integer>> busyIds) {
+    private InFlightShardSnapshotStates(Map<String, Map<Integer, String>> generations, Map<String, Set<Integer>> activeShardIds) {
         this.generations = generations;
-        this.busyIds = busyIds;
+        this.activeShardIds = activeShardIds;
     }
 
     private static boolean assertGenerationConsistency(Map<String, Map<Integer, String>> generations, String indexName,
@@ -115,8 +115,8 @@ public final class InFlightShardSnapshotStates {
      * @param shardId   shard id of the shard
      * @return true if shard has an actively executing shard operation
      */
-    boolean isBusy(String indexName, int shardId) {
-        return busyIds.getOrDefault(indexName, Collections.emptySet()).contains(shardId);
+    boolean isActive(String indexName, int shardId) {
+        return activeShardIds.getOrDefault(indexName, Collections.emptySet()).contains(shardId);
     }
 
     /**
@@ -130,7 +130,7 @@ public final class InFlightShardSnapshotStates {
      * @return most recent shard generation for the given shard
      */
     @Nullable
-    String bestGeneration(IndexId indexId, int shardId, ShardGenerations shardGenerations) {
+    String generationForShard(IndexId indexId, int shardId, ShardGenerations shardGenerations) {
         final String inFlightBest = generations.getOrDefault(indexId.getName(), Collections.emptyMap()).get(shardId);
         if (inFlightBest != null) {
             return inFlightBest;

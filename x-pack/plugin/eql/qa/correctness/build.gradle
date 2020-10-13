@@ -17,11 +17,18 @@ dependencies {
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
 }
 
-File serviceAccountFile = new File('/Users/matriv/elastic/work', 'credentials.gcs.json')
+File serviceAccountFile = (System.getenv("eql_test_credentials_file") ?: System.getProperty("eql.test.credentials.file")) as File
+
 testClusters.all {
   plugin ':plugins:repository-gcs'
-  keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+  if (serviceAccountFile) {
+    keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+  }
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   jvmArgs '-Xms8g', '-Xmx8g'
+}
+
+tasks.named('javaRestTest').configure {
+  onlyIf { serviceAccountFile }
 }

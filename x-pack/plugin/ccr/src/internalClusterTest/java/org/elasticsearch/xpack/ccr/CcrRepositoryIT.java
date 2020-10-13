@@ -527,19 +527,21 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
 
         try {
+            final String followerIndex = "follower";
             final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
             final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
-            final CountDownLatch waitForRestoreInProgress = new CountDownLatch(1);
+            final PlainActionFuture<IndexRoutingTable> waitForRestoreInProgress = PlainActionFuture.newFuture();
             final ClusterStateListener listener = event -> {
                 RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-                if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
-                    waitForRestoreInProgress.countDown();
+                if (restoreInProgress != null
+                    && restoreInProgress.isEmpty() == false
+                    && event.state().routingTable().hasIndex(followerIndex)) {
+                    waitForRestoreInProgress.onResponse(event.state().routingTable().index(followerIndex));
                 }
             };
             clusterService.addListener(listener);
 
-            final String followerIndex = "follower";
             final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderCluster, CcrRepository.LATEST)
                 .indices(leaderIndex).indicesOptions(indicesOptions).renamePattern("^(.*)$")
                 .renameReplacement(followerIndex)
@@ -549,12 +551,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true));
             restoreService.restoreSnapshot(restoreRequest, PlainActionFuture.newFuture());
 
-            waitForRestoreInProgress.await(30L, TimeUnit.SECONDS);
+            final IndexRoutingTable indexRoutingTable = waitForRestoreInProgress.get(30L, TimeUnit.SECONDS);
             clusterService.removeListener(listener);
-
-            final IndexRoutingTable indexRoutingTable = followerClient().admin().cluster().prepareState().clear().setRoutingTable(true)
-                .setIndices(followerIndex).get().getState().routingTable().index(followerIndex);
-            assertThat(indexRoutingTable, notNullValue());
 
             final SnapshotsInfoService snapshotsInfoService = getFollowerCluster().getCurrentMasterNodeInstance(SnapshotsInfoService.class);
             assertBusy(() -> {
@@ -646,11 +644,13 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
             final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
-            final CountDownLatch waitForRestoreInProgress = new CountDownLatch(1);
+            final PlainActionFuture<IndexRoutingTable> waitForRestoreInProgress = PlainActionFuture.newFuture();
             final ClusterStateListener listener = event -> {
                 RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-                if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
-                    waitForRestoreInProgress.countDown();
+                if (restoreInProgress != null
+                    && restoreInProgress.isEmpty() == false
+                    && event.state().routingTable().hasIndex(followerIndex)) {
+                    waitForRestoreInProgress.onResponse(event.state().routingTable().index(followerIndex));
                 }
             };
             clusterService.addListener(listener);
@@ -664,12 +664,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true));
             restoreService.restoreSnapshot(restoreRequest, PlainActionFuture.newFuture());
 
-            waitForRestoreInProgress.await(30L, TimeUnit.SECONDS);
+            final IndexRoutingTable indexRoutingTable = waitForRestoreInProgress.get(30L, TimeUnit.SECONDS);
             clusterService.removeListener(listener);
-
-            final IndexRoutingTable indexRoutingTable = followerClient().admin().cluster().prepareState().clear().setRoutingTable(true)
-                .setIndices(followerIndex).get().getState().routingTable().index(followerIndex);
-            assertThat(indexRoutingTable, notNullValue());
 
             final SnapshotsInfoService snapshotsInfoService = getFollowerCluster().getCurrentMasterNodeInstance(SnapshotsInfoService.class);
             assertBusy(() -> {

@@ -28,13 +28,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -210,9 +210,9 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
-        int maxFilters = queryShardContext.getIndexSettings().getMaxAdjacencyMatrixFilters();
+        int maxFilters = context.getIndexSettings().getMaxAdjacencyMatrixFilters();
         if (filters.size() > maxFilters){
             throw new IllegalArgumentException(
                     "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was ["
@@ -220,8 +220,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
                             + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
                             + "] index level setting.");
         }
-        return new AdjacencyMatrixAggregatorFactory(name, filters, separator, queryShardContext, parent,
-                subFactoriesBuilder, metadata);
+        return new AdjacencyMatrixAggregatorFactory(name, filters, separator, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

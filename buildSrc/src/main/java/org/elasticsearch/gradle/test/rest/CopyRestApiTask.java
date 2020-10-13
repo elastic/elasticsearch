@@ -138,7 +138,6 @@ public class CopyRestApiTask extends DefaultTask {
             ? getProject().files(coreFileTree, xpackFileTree)
             : getProject().files(coreFileTree, xpackFileTree, additionalConfigToFileTree.apply(additionalConfig));
 
-
         // if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
         return projectHasYamlRestTests || includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false
             ? fileCollection.getAsFileTree()
@@ -173,7 +172,7 @@ public class CopyRestApiTask extends DefaultTask {
                 VersionProperties.getElasticsearch()
             );
             getFileSystemOperations().copy(c -> {
-                c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); //jar file
+                c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
                 // this ends up as the same dir as outputDir
                 c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {

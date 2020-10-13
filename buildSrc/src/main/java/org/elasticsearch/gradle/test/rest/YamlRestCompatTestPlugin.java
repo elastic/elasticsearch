@@ -20,7 +20,6 @@
 package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -75,11 +74,9 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         ElasticsearchCluster testCluster = createTestCluster(project, yamlCompatTestSourceSet);
         testCluster.setTestDistribution(TestDistribution.DEFAULT);
 
-
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create("bwcMinor");
-        Dependency bwcMinor = project.getDependencies()
-            .project(Map.of("path", ":distribution:bwc:minor", "configuration", "checkout"));
+        Dependency bwcMinor = project.getDependencies().project(Map.of("path", ":distribution:bwc:minor", "configuration", "checkout"));
 
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
             .register("copyRestApiCompatSpecsTask", CopyRestApiTask.class, task -> {
@@ -92,13 +89,16 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
                 task.sourceSetName = SOURCE_SET_NAME;
                 task.skipHasRestTestCheck = true;
-                task.coreConfigToFileTree = config -> project.fileTree(bwcMinorConfig.getSingleFile().toPath()
-                    .resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_API_PATH));
-                task.xpackConfigToFileTree = config -> project.fileTree(bwcMinorConfig.getSingleFile().toPath()
-                    .resolve("x-pack/plugin/src/test/resources").resolve(RELATIVE_API_PATH));
-                task.additionalConfigToFileTree = config ->
-                    project.fileTree(getCompatProjectPath(project, bwcMinorConfig.getSingleFile().toPath())
-                        .resolve("src/yamlRestTest/resources").resolve(RELATIVE_API_PATH));
+                task.coreConfigToFileTree = config -> project.fileTree(
+                    bwcMinorConfig.getSingleFile().toPath().resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_API_PATH)
+                );
+                task.xpackConfigToFileTree = config -> project.fileTree(
+                    bwcMinorConfig.getSingleFile().toPath().resolve("x-pack/plugin/src/test/resources").resolve(RELATIVE_API_PATH)
+                );
+                task.additionalConfigToFileTree = config -> project.fileTree(
+                    getCompatProjectPath(project, bwcMinorConfig.getSingleFile().toPath()).resolve("src/yamlRestTest/resources")
+                        .resolve(RELATIVE_API_PATH)
+                );
             });
 
         // copy compatible rest tests
@@ -112,13 +112,16 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
                 task.sourceSetName = SOURCE_SET_NAME;
-                task.coreConfigToFileTree = config -> project.fileTree(bwcMinorConfig.getSingleFile().toPath()
-                    .resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_TEST_PATH));
-                task.xpackConfigToFileTree = config -> project.fileTree(bwcMinorConfig.getSingleFile().toPath()
-                    .resolve("x-pack/plugin/src/test/resources").resolve(RELATIVE_TEST_PATH));
-                task.additionalConfigToFileTree = config ->
-                    project.fileTree(getCompatProjectPath(project, bwcMinorConfig.getSingleFile().toPath())
-                        .resolve("src/yamlRestTest/resources").resolve(RELATIVE_TEST_PATH));
+                task.coreConfigToFileTree = config -> project.fileTree(
+                    bwcMinorConfig.getSingleFile().toPath().resolve("rest-api-spec/src/main/resources").resolve(RELATIVE_TEST_PATH)
+                );
+                task.xpackConfigToFileTree = config -> project.fileTree(
+                    bwcMinorConfig.getSingleFile().toPath().resolve("x-pack/plugin/src/test/resources").resolve(RELATIVE_TEST_PATH)
+                );
+                task.additionalConfigToFileTree = config -> project.fileTree(
+                    getCompatProjectPath(project, bwcMinorConfig.getSingleFile().toPath()).resolve("src/yamlRestTest/resources")
+                        .resolve(RELATIVE_TEST_PATH)
+                );
                 task.dependsOn(copyCompatYamlSpecTask);
             });
 

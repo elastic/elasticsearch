@@ -163,7 +163,7 @@ public class CopyRestTestsTask extends DefaultTask {
                     VersionProperties.getElasticsearch()
                 );
                 getFileSystemOperations().copy(c -> {
-                    c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); //jar file
+                    c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
                     // this ends up as the same dir as outputDir
                     c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                     c.include(

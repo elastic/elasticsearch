@@ -696,7 +696,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
         }
         for (String repoName : assignedShardsByRepo.keySet()) {
-            // make sure in-flight-shard-states can be build cleanly for the entries without tripping assertions
+            // make sure in-flight-shard-states can be built cleanly for the entries without tripping assertions
             InFlightShardSnapshotStates.forRepo(repoName, entries);
         }
         return true;

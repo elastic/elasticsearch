@@ -22,18 +22,20 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
+import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * A REST handler that attempts to authenticate a user based on the provided SAML response/assertion.
  */
-public class RestSamlAuthenticateAction extends SamlBaseRestHandler {
+public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements RestRequestFilter {
     private static final Logger logger = LogManager.getLogger();
 
     static class Input {
@@ -117,5 +119,12 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler {
             logger.info("Failed to decode base64 string [{}] - {}", content, e.toString());
             throw e;
         }
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Set.of("content");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

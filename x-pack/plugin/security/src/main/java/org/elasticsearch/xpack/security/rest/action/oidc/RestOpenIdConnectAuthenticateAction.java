@@ -22,16 +22,18 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateResponse;
+import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Rest handler that authenticates the user based on the information provided as parameters of the redirect_uri
  */
-public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler {
+public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler implements RestRequestFilter {
     private static final Logger logger = LogManager.getLogger();
 
     static final ObjectParser<OpenIdConnectAuthenticateRequest, Void> PARSER = new ObjectParser<>("oidc_authn",
@@ -78,5 +80,12 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
     @Override
     public String getName() {
         return "security_oidc_authenticate_action";
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Set.of("redirect_uri");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

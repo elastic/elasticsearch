@@ -82,8 +82,9 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
             snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"), Collections.singletonList("ds"),
-                System.currentTimeMillis(), reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
-                SnapshotInfoTests.randomUserMetadata()));
+                null, reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
+                SnapshotInfoTests.randomUserMetadata(), System.currentTimeMillis()
+            ));
 
         }
         return snapshots;

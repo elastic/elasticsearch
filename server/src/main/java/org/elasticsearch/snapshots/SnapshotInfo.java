@@ -20,6 +20,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Nullable;
@@ -29,8 +30,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -80,6 +83,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String SUCCESSFUL_SHARDS = "successful_shards";
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
     private static final String USER_METADATA = "metadata";
+    private static final String PLUGIN_STATES = "plugin_states";
 
     private static final Comparator<SnapshotInfo> COMPARATOR =
         Comparator.comparing(SnapshotInfo::startTime).thenComparing(SnapshotInfo::snapshotId);
@@ -173,7 +177,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             }
 
             return new SnapshotInfo(snapshotId, indices, dataStreams, snapshotState, reason, version, startTime, endTime,
-                    totalShards, successfulShards, shardFailures, includeGlobalState, userMetadata);
+                    totalShards, successfulShards, shardFailures, includeGlobalState, userMetadata, null);
         }
     }
 
@@ -236,6 +240,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     private final List<String> dataStreams;
 
+    private final List<SnapshotPluginInfo> pluginStates;
+
     private final long startTime;
 
     private final long endTime;
@@ -255,30 +261,35 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     private final List<SnapshotShardFailure> shardFailures;
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, SnapshotState state) {
-        this(snapshotId, indices, dataStreams, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null, null);
+    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotPluginInfo> pluginStates,
+                        SnapshotState state) {
+        this(snapshotId, indices, dataStreams, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null, null, pluginStates);
     }
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, SnapshotState state, Version version) {
-        this(snapshotId, indices, dataStreams, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null, null);
+    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotPluginInfo> pluginStates,
+                        Version version, SnapshotState state) {
+        this(snapshotId, indices, dataStreams, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null, null, pluginStates);
     }
 
     public SnapshotInfo(SnapshotsInProgress.Entry entry) {
         this(entry.snapshot().getSnapshotId(),
             entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()), entry.dataStreams(), SnapshotState.IN_PROGRESS,
-            null, Version.CURRENT, entry.startTime(), 0L, 0, 0, Collections.emptyList(), entry.includeGlobalState(), entry.userMetadata());
+            null, Version.CURRENT, entry.startTime(), 0L, 0, 0, Collections.emptyList(), entry.includeGlobalState(), entry.userMetadata(),
+            null); // TODO: Add pluginStates to SnapshotInProgress.Entry
     }
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, long startTime, String reason,
-                        long endTime, int totalShards, List<SnapshotShardFailure> shardFailures, Boolean includeGlobalState,
-                        Map<String, Object> userMetadata) {
+    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotPluginInfo> pluginStates,
+                        String reason, long endTime, int totalShards, List<SnapshotShardFailure> shardFailures, Boolean includeGlobalState,
+                        Map<String, Object> userMetadata, long startTime) {
         this(snapshotId, indices, dataStreams, snapshotState(reason, shardFailures), reason, Version.CURRENT,
-             startTime, endTime, totalShards, totalShards - shardFailures.size(), shardFailures, includeGlobalState, userMetadata);
+             startTime, endTime, totalShards, totalShards - shardFailures.size(), shardFailures, includeGlobalState, userMetadata,
+            pluginStates);
     }
 
     SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, SnapshotState state, String reason,
-                         Version version, long startTime, long endTime, int totalShards, int successfulShards,
-                         List<SnapshotShardFailure> shardFailures, Boolean includeGlobalState, Map<String, Object> userMetadata) {
+                 Version version, long startTime, long endTime, int totalShards, int successfulShards,
+                 List<SnapshotShardFailure> shardFailures, Boolean includeGlobalState, Map<String, Object> userMetadata,
+                 List<SnapshotPluginInfo> pluginStates) {
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indices = Collections.unmodifiableList(Objects.requireNonNull(indices));
         this.dataStreams = Collections.unmodifiableList(Objects.requireNonNull(dataStreams));
@@ -292,6 +303,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         this.shardFailures = Objects.requireNonNull(shardFailures);
         this.includeGlobalState = includeGlobalState;
         this.userMetadata = userMetadata;
+        this.pluginStates = pluginStates;
     }
 
     /**
@@ -311,6 +323,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         includeGlobalState = in.readOptionalBoolean();
         userMetadata = in.readMap();
         dataStreams = in.readStringList();
+        if (in.getVersion().before(CreateSnapshotRequest.PLUGIN_STATES_VERSION)) {
+            pluginStates = null;
+        } else {
+            pluginStates = in.readList(SnapshotPluginInfo::new);
+        }
     }
 
     /**
@@ -318,7 +335,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      * all information stripped out except the snapshot id, state, and indices.
      */
     public SnapshotInfo basic() {
-        return new SnapshotInfo(snapshotId, indices, Collections.emptyList(), state);
+        return new SnapshotInfo(snapshotId, indices, Collections.emptyList(), null, state);
     }
 
     /**
@@ -473,6 +490,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             ", includeGlobalState=" + includeGlobalState +
             ", version=" + version +
             ", shardFailures=" + shardFailures +
+            ", pluginStates=" + pluginStates +
             '}';
     }
 
@@ -551,6 +569,13 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.field(SUCCESSFUL, successfulShards);
             builder.endObject();
         }
+        if (verbose || pluginStates != null) {
+            builder.startArray(PLUGIN_STATES);
+            for (SnapshotPluginInfo snapshotPluginInfo : pluginStates) {
+                builder.value(snapshotPluginInfo);
+            }
+            builder.endArray();
+        }
         builder.endObject();
         return builder;
     }
@@ -588,6 +613,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             shardFailure.toXContent(builder, params);
         }
         builder.endArray();
+        builder.startArray(PLUGIN_STATES);
+        for (SnapshotPluginInfo snapshotPluginInfo : pluginStates) {
+            builder.value(snapshotPluginInfo);
+        }
+        builder.endArray();
+
         builder.endObject();
         return builder;
     }
@@ -612,6 +643,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         Boolean includeGlobalState = null;
         Map<String, Object> userMetadata = null;
         List<SnapshotShardFailure> shardFailures = Collections.emptyList();
+        List<SnapshotPluginInfo> pluginStates = null;
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }
@@ -666,6 +698,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                                 shardFailureArrayList.add(SnapshotShardFailure.fromXContent(parser));
                             }
                             shardFailures = Collections.unmodifiableList(shardFailureArrayList);
+                        } else if (PLUGIN_STATES.equals(currentFieldName)) {
+                            ArrayList<SnapshotPluginInfo> snapshotPluginInfoArrayList = new ArrayList<>();
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                snapshotPluginInfoArrayList.add(SnapshotPluginInfo.fromXContent(parser));
+                            }
+                            pluginStates = Collections.unmodifiableList(snapshotPluginInfoArrayList);
                         } else {
                             // It was probably created by newer version - ignoring
                             parser.skipChildren();
@@ -697,7 +735,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                                 successfulShards,
                                 shardFailures,
                                 includeGlobalState,
-                                userMetadata);
+                                userMetadata,
+                                pluginStates);
     }
 
     @Override
@@ -725,6 +764,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         out.writeOptionalBoolean(includeGlobalState);
         out.writeMap(userMetadata);
         out.writeStringCollection(dataStreams);
+        if (pluginStates != null) {
+            out.writeList(pluginStates);
+        }
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {
@@ -756,12 +798,74 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             Objects.equals(includeGlobalState, that.includeGlobalState) &&
             Objects.equals(version, that.version) &&
             Objects.equals(shardFailures, that.shardFailures) &&
-            Objects.equals(userMetadata, that.userMetadata);
+            Objects.equals(userMetadata, that.userMetadata) &&
+            Objects.equals(pluginStates, that.pluginStates);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(snapshotId, state, reason, indices, dataStreams, startTime, endTime,
-                totalShards, successfulShards, includeGlobalState, version, shardFailures, userMetadata);
+                totalShards, successfulShards, includeGlobalState, version, shardFailures, userMetadata,
+                pluginStates);
+    }
+
+    private static class SnapshotPluginInfo implements Writeable, ToXContentObject {
+        final String pluginName;
+        final List<String> indices;
+
+        static final ConstructingObjectParser<SnapshotPluginInfo, Void> SNAPSHOT_PLUGIN_INFO_PARSER =
+            new ConstructingObjectParser<>("plugin_info", true, (a, name) -> {
+                String pluginName = (String) a[0];
+                List<String> indices = (List<String>) a[1];
+                return new SnapshotPluginInfo(pluginName, indices);
+            });
+
+        static {
+            SNAPSHOT_PLUGIN_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("plugin_name"));
+            SNAPSHOT_PLUGIN_INFO_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), new ParseField("indices"));
+        }
+
+        private SnapshotPluginInfo(String pluginName, List<String> indices) {
+            this.pluginName = pluginName;
+            this.indices = indices;
+        }
+
+        SnapshotPluginInfo(final StreamInput in) throws IOException {
+            this.pluginName = in.readString();
+            this.indices = in.readStringList();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(pluginName);
+            out.writeStringCollection(indices);
+        }
+
+        public static SnapshotPluginInfo fromXContent(XContentParser parser) throws IOException {
+            return SNAPSHOT_PLUGIN_INFO_PARSER.parse(parser, null);
+        }
+
+        public String getPluginName() {
+            return pluginName;
+        }
+
+        public List<String> getIndices() {
+            return indices;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field("plugin_name", pluginName);
+                builder.startArray("indices");
+                for (String index : indices) {
+                    builder.value(index);
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            return builder;
+        }
     }
 }

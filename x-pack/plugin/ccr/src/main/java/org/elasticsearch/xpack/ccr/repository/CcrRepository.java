@@ -64,9 +64,9 @@ import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
-import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -180,8 +180,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        return new SnapshotInfo(snapshotId, indices, new ArrayList<>(metadata.dataStreams().keySet()), SnapshotState.SUCCESS,
-            response.getState().getNodes().getMaxNodeVersion());
+        return new SnapshotInfo(snapshotId, indices, new ArrayList<>(metadata.dataStreams().keySet()), null,
+            response.getState().getNodes().getMaxNodeVersion(), SnapshotState.SUCCESS
+        );
     }
 
     @Override

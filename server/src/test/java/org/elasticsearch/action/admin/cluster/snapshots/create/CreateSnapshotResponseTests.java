@@ -70,8 +70,9 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, dataStreams, startTime, reason, endTime, totalShards, shardFailures,
-                globalState, SnapshotInfoTests.randomUserMetadata()));
+            new SnapshotInfo(snapshotId, indices, dataStreams, null, reason, endTime, totalShards, shardFailures, globalState,
+                SnapshotInfoTests.randomUserMetadata(), startTime
+            ));
     }
 
     @Override

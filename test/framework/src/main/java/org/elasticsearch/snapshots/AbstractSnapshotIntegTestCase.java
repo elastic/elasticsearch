@@ -461,7 +461,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 Collections.emptyList(), Collections.emptyList(),
                 SnapshotState.FAILED, "failed on purpose",
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L,0L, 0, 0, Collections.emptyList(),
-                randomBoolean(), metadata);
+                randomBoolean(), metadata, null);
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));

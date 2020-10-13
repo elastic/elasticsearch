@@ -1155,9 +1155,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
                 shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
                 entry.dataStreams(),
-                entry.startTime(), failure, threadPool.absoluteTimeInMillis(),
-                entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
-                entry.includeGlobalState(), entry.userMetadata());
+                null, failure, threadPool.absoluteTimeInMillis(), entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
+                shardFailures, entry.includeGlobalState(), entry.userMetadata(), entry.startTime()
+            );
             final StepListener<Metadata> metadataListener = new StepListener<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
             if (entry.isClone()) {

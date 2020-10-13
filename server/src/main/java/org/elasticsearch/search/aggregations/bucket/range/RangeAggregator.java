@@ -303,10 +303,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
             keys[i] = Integer.toString(i);
             filters[i] = valuesSourceConfig.fieldType()
                 .rangeQuery(
-                    valuesSourceConfig.format().format(ranges[i].from),
-                    valuesSourceConfig.format().format(ranges[i].to),
+                    ranges[i].from == Double.NEGATIVE_INFINITY ? null : valuesSourceConfig.format().format(ranges[i].from),
+                    ranges[i].to == Double.POSITIVE_INFINITY ? null : valuesSourceConfig.format().format(ranges[i].to),
                     true,
-                    false,
+                    ranges[i].to == Double.NEGATIVE_INFINITY,
                     ShapeRelation.CONTAINS,
                     null,
                     null,

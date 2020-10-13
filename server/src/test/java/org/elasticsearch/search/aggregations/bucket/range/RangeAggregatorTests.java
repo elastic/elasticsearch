@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -53,6 +55,7 @@ import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@Seed("32AC488589A4F6FE")
 public class RangeAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMBER_FIELD_NAME = "number";
@@ -98,6 +101,40 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             assertEquals(0, ranges.get(1).getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(range));
         });
+    }
+
+    public void testUnboundedRanges() throws IOException {
+        testCase(
+            new RangeAggregationBuilder("name").field(NUMBER_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 7), new IntPoint(NUMBER_FIELD_NAME, 7)));
+                iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 2), new IntPoint(NUMBER_FIELD_NAME, 2)));
+                iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 3), new IntPoint(NUMBER_FIELD_NAME, 3)));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertThat(ranges, hasSize(2));
+                assertThat(ranges.get(0).getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+                assertThat(ranges.get(0).getTo(), equalTo(5d));
+                assertThat(ranges.get(0).getDocCount(), equalTo(2L));
+                assertThat(ranges.get(1).getFrom(), equalTo(5d));
+                assertThat(ranges.get(1).getTo(), equalTo(Double.POSITIVE_INFINITY));
+                assertThat(ranges.get(1).getDocCount(), equalTo(1L));
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            new NumberFieldMapper.NumberFieldType(
+                NUMBER_FIELD_NAME,
+                NumberFieldMapper.NumberType.INTEGER,
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                false,
+                null,
+                null
+            )
+        );
     }
 
     public void testDateFieldMillisecondResolution() throws IOException {

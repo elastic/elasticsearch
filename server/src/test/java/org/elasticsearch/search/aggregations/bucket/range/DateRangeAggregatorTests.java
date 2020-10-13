@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -50,6 +52,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class DateRangeAggregatorTests extends AggregatorTestCase {
 
@@ -121,6 +125,40 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 assertTrue(AggregationInspectionHelper.hasValue(range));
             }, fieldType);
         }
+
+    public void testUnboundedRanges() throws IOException {
+        testCase(
+            new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 7), new LongPoint(DATE_FIELD_NAME, 7)));
+                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 2), new LongPoint(DATE_FIELD_NAME, 2)));
+                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 3), new LongPoint(DATE_FIELD_NAME, 3)));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertThat(ranges, hasSize(2));
+                assertThat(ranges.get(0).getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+                assertThat(ranges.get(0).getTo(), equalTo(5d));
+                assertThat(ranges.get(0).getDocCount(), equalTo(2L));
+                assertThat(ranges.get(1).getFrom(), equalTo(5d));
+                assertThat(ranges.get(1).getTo(), equalTo(Double.POSITIVE_INFINITY));
+                assertThat(ranges.get(1).getDocCount(), equalTo(1L));
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            new DateFieldMapper.DateFieldType(
+                DATE_FIELD_NAME,
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null
+            )
+        );
+    }
 
     public void  testNumberFieldDateRanges() throws IOException {
         DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")

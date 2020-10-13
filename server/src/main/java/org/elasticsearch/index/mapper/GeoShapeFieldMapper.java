@@ -63,7 +63,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         FIELD_TYPE.freeze();
     }
 
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder {
 
         public Builder(String name) {
             super (name, FIELD_TYPE);
@@ -115,7 +115,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     public static final class TypeParser extends AbstractShapeGeometryFieldMapper.TypeParser {
 
         @Override
-        protected AbstractShapeGeometryFieldMapper.Builder<?> newBuilder(String name, Map<String, Object> params) {
+        protected AbstractShapeGeometryFieldMapper.Builder newBuilder(String name, Map<String, Object> params) {
             if (params.containsKey(DEPRECATED_PARAMETERS_KEY)) {
                 return new LegacyGeoShapeFieldMapper.Builder(name,
                     (LegacyGeoShapeFieldMapper.DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY));

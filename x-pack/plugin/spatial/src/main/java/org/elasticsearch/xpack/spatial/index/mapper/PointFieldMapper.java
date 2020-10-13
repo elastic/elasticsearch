@@ -46,10 +46,10 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         }
     }
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder> {
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder {
+
         public Builder(String name) {
             super(name, new FieldType());
-            builder = this;
         }
 
         @Override

@@ -138,6 +138,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             throw new IllegalStateException("error trying to get keystore path", e);
         }
         Settings.Builder builder = Settings.builder();
+        builder.putList("node.roles", Collections.emptyList());
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
         builder.put(SecurityField.USER_SETTING.getKey(), "x_pack_rest_user:" + SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);

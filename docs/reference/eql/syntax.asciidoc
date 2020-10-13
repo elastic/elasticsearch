@@ -703,37 +703,45 @@ sub-fields of a `nested` field. However, data streams and indices containing
 `nested` field mappings are otherwise supported.
 
 [discrete]
-[[single-quote-strings]]
-==== Single quote strings
+[[eql-unsupported-syntax]]
+==== Differences from Endgame EQL syntax
 
-The single quote (`'`) character is reserved for future use. 
-Strings enclosed in single quotes are not supported. Enclose strings in
+{es} EQL differs from the {eql-ref}/index.html[Elastic Endgame EQL syntax] as
+follows:
+
+* Most operators and functions in {es} EQL are case-sensitive. For
+case-insensitive equality comparisons, use the `:` operator.
+
+* Comparisons using the `==` and `!=` operators do not expand wildcard
+characters. For example, `process_name == "cmd*.exe"` interprets `*` as a
+literal asterisk, not a wildcard. For case-sensitive wildcard matching, use the
+<<eql-fn-wildcard,`wildcard`>> function.
+
+* `=` cannot be substituted for the `==` operator.
+
+* Strings enclosed in single quotes (`'`) are not supported. Enclose strings in
 double quotes (`"`) instead.
 
-You cannot use an escaped single quote (`\'`) for literal strings. Use an
-escaped double quote (`\"`) instead. 
+* `?"` and `?'` do not indicate raw strings. Enclose raw strings in
+three double quotes (`"""`) instead.
 
-[discrete]
-[[eql-unsupported-syntax]]
-==== Unsupported Endgame EQL syntax
+* {es} EQL does not support the following syntax:
 
-{es} does not support the following {eql-ref}/index.html[Elastic Endgame EQL syntax].
+** Array functions:
+*** {eql-ref}/functions.html#arrayContains[`arrayContains`]
+*** {eql-ref}/functions.html#arrayCount[`arrayCount`]
+*** {eql-ref}/functions.html#arraySearch[`arraySearch`]
 
-* Array functions:
-** {eql-ref}/functions.html#arrayContains[`arrayContains`]
-** {eql-ref}/functions.html#arrayCount[`arrayCount`]
-** {eql-ref}/functions.html#arraySearch[`arraySearch`]
+** {eql-ref}/joins.html[Joins]
 
-* {eql-ref}/joins.html[Joins]
+** {eql-ref}/basic-syntax.html#event-relationships[lineage-related keywords]:
+*** `child of`
+*** `descendant of`
+*** `event of`
 
-* {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
-** `child of`
-** `descendant of`
-** `event of`
-
-* The following {eql-ref}/pipes.html[pipes]:
-** {eql-ref}/pipes.html#count[`count`]
-** {eql-ref}/pipes.html#filter[`filter`]
-** {eql-ref}/pipes.html#sort[`sort`]
-** {eql-ref}/pipes.html#unique[`unique`]
-** {eql-ref}/pipes.html#unique-count[`unique_count`]
+** The following {eql-ref}/pipes.html[pipes]:
+*** {eql-ref}/pipes.html#count[`count`]
+*** {eql-ref}/pipes.html#filter[`filter`]
+*** {eql-ref}/pipes.html#sort[`sort`]
+*** {eql-ref}/pipes.html#unique[`unique`]
+*** {eql-ref}/pipes.html#unique-count[`unique_count`]

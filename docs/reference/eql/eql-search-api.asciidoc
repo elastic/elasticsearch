@@ -210,9 +210,6 @@ If both parameters are specified, only the query parameter is used.
 `query`::
 (Required, string)
 <<eql-syntax,EQL>> query you wish to run.
-+
-IMPORTANT: This parameter supports a subset of EQL syntax. See
-<<eql-unsupported-syntax>>.
 
 `size`::
 (Optional, integer or float)

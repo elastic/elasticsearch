@@ -46,7 +46,6 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         // Re-read before each test so the plugin path can be manipulated within tests.
         // Corresponds to DistroTestPlugin#QUOTA_AWARE_FS_PLUGIN_SYSPROP
         QUOTA_AWARE_FS_PLUGIN = Paths.get(System.getProperty("tests.quota-aware-fs-plugin"));
-
     }
 
     @BeforeClass

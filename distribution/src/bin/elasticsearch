@@ -93,7 +93,6 @@ else
   retval=$?
   pid=$!
   [ $retval -eq 0 ] || exit $retval
-  sleep 5
   if ! ps -p $pid > /dev/null ; then
     exit 1
   fi

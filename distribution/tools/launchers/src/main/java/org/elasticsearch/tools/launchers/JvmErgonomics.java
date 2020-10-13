@@ -75,7 +75,7 @@ final class JvmErgonomics {
 
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
         }
-        // Elastic supports G1GC on JDK10+
+        // Elasticsearch supports G1GC on JDK10+
         if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 10) {
             final boolean tuneG1GCForSmallHeap = tuneG1GCForSmallHeap(heapSize);
             final boolean tuneG1GCHeapRegion = tuneG1GCHeapRegion(finalJvmOptions, tuneG1GCForSmallHeap);

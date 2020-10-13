@@ -99,18 +99,16 @@ public class DocumentMapper implements ToXContentFragment {
             return this;
         }
 
-        public DocumentMapper build(MapperService mapperService) {
+        public DocumentMapper build(IndexSettings indexSettings, DocumentMapperParser documentMapperParser, IndexAnalyzers indexAnalyzers) {
             Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             Mapping mapping = new Mapping(
-                    mapperService.getIndexSettings().getIndexVersionCreated(),
+                    indexSettings.getIndexVersionCreated(),
                     rootObjectMapper,
                     metadataMappers.values().toArray(new MetadataFieldMapper[0]),
                     meta);
-            return new DocumentMapper(mapperService, mapping);
+            return new DocumentMapper(indexSettings, documentMapperParser, indexAnalyzers, mapping);
         }
     }
-
-    private final MapperService mapperService;
 
     private final String type;
     private final Text typeText;
@@ -126,15 +124,14 @@ public class DocumentMapper implements ToXContentFragment {
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
-    public DocumentMapper(MapperService mapperService, Mapping mapping) {
-        this.mapperService = mapperService;
+    private DocumentMapper(IndexSettings indexSettings,
+                           DocumentMapperParser documentMapperParser,
+                           IndexAnalyzers indexAnalyzers,
+                           Mapping mapping) {
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
-        final IndexSettings indexSettings = mapperService.getIndexSettings();
         this.mapping = mapping;
-        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
-
-        final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
+        this.documentParser = new DocumentParser(indexSettings, documentMapperParser, this);
         this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
 
         try {
@@ -267,9 +264,13 @@ public class DocumentMapper implements ToXContentFragment {
         return nestedObjectMapper;
     }
 
-    public DocumentMapper merge(Mapping mapping, MergeReason reason) {
+    public DocumentMapper merge(Mapping mapping,
+                                MergeReason reason,
+                                IndexSettings indexSettings,
+                                DocumentMapperParser documentMapperParser,
+                                IndexAnalyzers indexAnalyzers) {
         Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(mapperService, merged);
+        return new DocumentMapper(indexSettings, documentMapperParser, indexAnalyzers, merged);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

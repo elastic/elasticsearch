@@ -198,7 +198,7 @@ public class MetadataMappingService {
      */
     public void refreshMapping(final String index, final String indexUUID) {
         final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",  
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,
@@ -256,7 +256,8 @@ public class MetadataMappingService {
                 DocumentMapper newMapper = mapperService.parse(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
                 if (existingMapper != null) {
                     // first, simulate: just call merge and ignore the result
-                    existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE);
+                    existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE, mapperService.getIndexSettings(),
+                        mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
                 }
             }
             Metadata.Builder builder = Metadata.builder(metadata);

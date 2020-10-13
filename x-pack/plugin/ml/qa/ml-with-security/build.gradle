@@ -214,6 +214,9 @@ yamlRestTest {
   ].join(',')
 }
 
+// Entire suite muted while https://github.com/elastic/elasticsearch/pull/63542
+// and https://github.com/elastic/ml-cpp/pull/1520 are merged
+yamlRestTest.enabled = false
 
 testClusters.all {
   testDistribution = 'DEFAULT'

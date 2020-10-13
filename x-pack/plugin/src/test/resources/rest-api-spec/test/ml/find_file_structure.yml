@@ -1,8 +1,14 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
 ---
 "Test NDJSON file structure analysis without overrides":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       headers:
         # This is to stop the usual content type randomization, which
@@ -62,6 +68,10 @@ setup:
 
 ---
 "Test NDJSON file structure analysis with overrides":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       headers:
         # This is to stop the usual content type randomization, which

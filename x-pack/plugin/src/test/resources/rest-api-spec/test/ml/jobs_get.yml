@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -43,6 +45,10 @@ setup:
 
 ---
 "Test get job given missing job_id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -51,6 +57,10 @@ setup:
 
 ---
 "Test get single job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_jobs:
@@ -66,6 +76,10 @@ setup:
 
 ---
 "Test explicit get all jobs":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_jobs:
@@ -78,6 +92,10 @@ setup:
 
 ---
 "Test implicit get all jobs":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_jobs: {}
@@ -88,6 +106,10 @@ setup:
   - match: { jobs.1.description: "Job 2"}
 ---
 "Test get job for export":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_jobs:

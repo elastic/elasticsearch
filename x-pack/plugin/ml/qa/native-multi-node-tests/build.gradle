@@ -33,6 +33,10 @@ javaRestTest {
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
+// Entire suite muted while https://github.com/elastic/elasticsearch/pull/63542
+// and https://github.com/elastic/ml-cpp/pull/1520 are merged
+javaRestTest.enabled = false
+
 testClusters.all {
   numberOfNodes = 3
   testDistribution = 'DEFAULT'

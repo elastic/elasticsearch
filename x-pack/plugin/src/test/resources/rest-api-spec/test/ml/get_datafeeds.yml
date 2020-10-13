@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -61,6 +63,10 @@ setup:
 
 ---
 "Test get datafeed given missing datafeed_id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -69,6 +75,10 @@ setup:
 
 ---
 "Test get single datafeed":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_datafeeds:
@@ -84,6 +94,10 @@ setup:
 
 ---
 "Test explicit get all datafeeds":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_datafeeds:
@@ -96,6 +110,10 @@ setup:
 
 ---
 "Test implicit get all datafeeds":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_datafeeds: {}

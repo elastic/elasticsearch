@@ -1,6 +1,8 @@
 ---
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       indices.create:
@@ -64,6 +66,8 @@ setup:
 ---
 teardown:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -73,6 +77,10 @@ teardown:
 
 ---
 "Test setting upgrade_mode to false when it is already false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed
@@ -99,6 +107,10 @@ teardown:
 
 ---
 "Setting upgrade_mode to enabled":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed
@@ -148,6 +160,10 @@ teardown:
 
 ---
 "Setting upgrade mode to disabled from enabled":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed
@@ -220,6 +236,10 @@ teardown:
 
 ---
 "Attempt to open job when upgrade_mode is enabled":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_job:
         job_id: failing-set-upgrade-mode-job

@@ -42,12 +42,12 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
             .setEta(randomBoolean() ? null : randomDoubleBetween(0.001, 1.0, true))
             .setMaxTrees(randomBoolean() ? null : randomIntBetween(1, 2000))
             .setFeatureBagFraction(randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false))
-            .setNumTopFeatureImportanceValues(randomBoolean() ? null : randomInt())
+            .setNumTopFeatureImportanceValues(randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE))
             .setPredictionFieldName(randomBoolean() ? null : randomAlphaOfLength(10))
             .setTrainingPercent(randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true))
             .setRandomizeSeed(randomBoolean() ? null : randomLong())
             .setClassAssignmentObjective(randomBoolean() ? null : randomFrom(Classification.ClassAssignmentObjective.values()))
-            .setNumTopClasses(randomBoolean() ? null : randomIntBetween(0, 10))
+            .setNumTopClasses(randomBoolean() ? null : randomInt())
             .setFeatureProcessors(randomBoolean() ? null :
                 Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(),
                     OneHotEncodingTests.createRandom(),

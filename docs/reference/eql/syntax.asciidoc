@@ -134,7 +134,7 @@ Otherwise returns `false`. For strings, matching is case-sensitive.
 `:` (equal, case-insensitive)::
 Returns `true` if strings to the left and right of the operator are equal.
 Otherwise returns `false`. Matching is case-insensitive and can only be used to
-compare strings. Wildcard (`*`) patterns are not supported.
+compare strings.
 
 [IMPORTANT]
 ====
@@ -371,21 +371,6 @@ use a regular string with the `\"` escape sequence.
 ----
 "String containing \"\"\" three double quotes"
 ----
-
-[discrete]
-[[eql-syntax-wildcards]]
-===== Wildcards
-
-When comparing strings using the `==` or `!=` operators, you can use the
-wildcard (`*`) operator within the string to match specific patterns:
-
-[source,eql]
-----
-field == "example*wildcard"
-field != "example*wildcard"
-----
-
-The `:` operator does not support wildcard patterns.
 
 [discrete]
 [[eql-sequences]]
@@ -720,8 +705,7 @@ escaped double quote (`\"`) instead.
 [[eql-unsupported-syntax]]
 ==== Unsupported syntax
 
-{es} supports a subset of {eql-ref}/index.html[EQL syntax]. {es} cannot run EQL
-queries that contain:
+{es} does not support the following {eql-ref}/index.html[endgame EQL syntax]:
 
 * Array functions:
 ** {eql-ref}/functions.html#arrayContains[`arrayContains`]
@@ -741,3 +725,6 @@ queries that contain:
 ** {eql-ref}/pipes.html#sort[`sort`]
 ** {eql-ref}/pipes.html#unique[`unique`]
 ** {eql-ref}/pipes.html#unique-count[`unique_count`]
+
+* Wildcard operator (`*`). Use the <<eql-fn-wildcard,`wildcard`>> function
+instead.

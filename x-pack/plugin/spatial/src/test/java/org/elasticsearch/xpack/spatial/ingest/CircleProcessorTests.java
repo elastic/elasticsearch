@@ -218,7 +218,7 @@ public class CircleProcessorTests extends ESTestCase {
 
         VectorGeoShapeQueryProcessor processor = new VectorGeoShapeQueryProcessor();
         QueryShardContext mockedContext = mock(QueryShardContext.class);
-        when(mockedContext.fieldMapper(any())).thenReturn(shapeType);
+        when(mockedContext.getFieldType(any())).thenReturn(shapeType);
         Query sameShapeQuery = processor.geoShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
         Query pointOnDatelineQuery = processor.geoShapeQuery(new Point(180, circle.getLat()), fieldName,
             ShapeRelation.INTERSECTS, mockedContext);
@@ -250,7 +250,7 @@ public class CircleProcessorTests extends ESTestCase {
 
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
         QueryShardContext mockedContext = mock(QueryShardContext.class);
-        when(mockedContext.fieldMapper(any())).thenReturn(shapeType);
+        when(mockedContext.getFieldType(any())).thenReturn(shapeType);
         Query sameShapeQuery = processor.shapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
         Query centerPointQuery = processor.shapeQuery(new Point(circle.getLon(), circle.getLat()), fieldName,
             ShapeRelation.INTERSECTS, mockedContext);

@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -178,22 +177,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
-
-        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
-        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return valueParser.apply(value);
-            }
-        };
-    }
-
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
         protected abstract T newBuilder(String name, Map<String, Object> params);
 
@@ -236,9 +219,12 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         protected Indexer<Parsed, Processed> geometryIndexer;
         protected Parser<Parsed> geometryParser;
+        protected final boolean parsesArrayValue;
 
-        protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                            boolean parsesArrayValue, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
+            this.parsesArrayValue = parsesArrayValue;
         }
 
         public void setGeometryIndexer(Indexer<Parsed, Processed> geometryIndexer) {
@@ -258,10 +244,31 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context,
-                "Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
+        public final Query termQuery(Object value, QueryShardContext context) {
+            throw new IllegalArgumentException("Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
                     + name() + "]");
+        }
+
+        @Override
+        public final ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
+
+            Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
+            if (parsesArrayValue) {
+                return new ArraySourceValueFetcher(name(), mapperService) {
+                    @Override
+                    protected Object parseSourceValue(Object value) {
+                        return valueParser.apply(value);
+                    }
+                };
+            } else {
+                return new SourceValueFetcher(name(), mapperService) {
+                    @Override
+                    protected Object parseSourceValue(Object value) {
+                        return valueParser.apply(value);
+                    }
+                };
+            }
         }
     }
 

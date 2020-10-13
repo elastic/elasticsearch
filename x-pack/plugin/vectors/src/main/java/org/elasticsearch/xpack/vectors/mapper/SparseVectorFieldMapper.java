@@ -88,6 +88,11 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
@@ -122,11 +127,6 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) {
         throw new IllegalStateException("parse is implemented directly");
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 
     @Override

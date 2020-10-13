@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -31,31 +32,18 @@ public final class EqlTestUtils {
     private EqlTestUtils() {
     }
 
-    public static final EqlConfiguration TEST_CFG_CASE_INSENSITIVE = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, false,
-            123, "", new TaskId("test", 123), null);
-
-    public static final EqlConfiguration TEST_CFG_CASE_SENSITIVE = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, true,
+    public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[] {"none"},
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), null, 
             123, "", new TaskId("test", 123), null);
 
     public static EqlConfiguration randomConfiguration() {
-        return internalRandomConfiguration(randomBoolean());
-    }
-
-    public static EqlConfiguration randomConfigurationWithCaseSensitive(boolean isCaseSensitive) {
-        return internalRandomConfiguration(isCaseSensitive);
-    }
-
-    private static EqlConfiguration internalRandomConfiguration(boolean isCaseSensitive) {
         return new EqlConfiguration(new String[]{randomAlphaOfLength(16)},
             randomZone(),
             randomAlphaOfLength(16),
             randomAlphaOfLength(16),
             null,
             new TimeValue(randomNonNegativeLong()),
-            randomBoolean(),
-            isCaseSensitive,
+            randomIndicesOptions(),
             randomIntBetween(1, 1000),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
@@ -73,6 +61,11 @@ public final class EqlTestUtils {
 
     public static InsensitiveNotEquals sneq(Expression left, Expression right) {
         return new InsensitiveNotEquals(EMPTY, left, right, randomZone());
+    }
+
+    public static IndicesOptions randomIndicesOptions() {
+        return IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
     }
 
 }

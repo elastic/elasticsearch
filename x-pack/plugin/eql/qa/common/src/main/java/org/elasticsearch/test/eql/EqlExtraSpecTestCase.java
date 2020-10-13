@@ -20,8 +20,8 @@ public abstract class EqlExtraSpecTestCase extends BaseEqlSpecTestCase {
         return asArray(EqlSpecLoader.load("/test_extra.toml", true, new HashSet<>()));
     }
 
-    public EqlExtraSpecTestCase(String query, String name, long[] eventIds, boolean caseSensitive) {
-        super(TEST_EXTRA_INDEX, query, name, eventIds, caseSensitive);
+    public EqlExtraSpecTestCase(String query, String name, long[] eventIds) {
+        super(TEST_EXTRA_INDEX, query, name, eventIds);
     }
 
     @Override

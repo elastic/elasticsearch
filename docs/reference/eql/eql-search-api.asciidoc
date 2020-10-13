@@ -7,7 +7,7 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
@@ -131,11 +131,6 @@ used.
 [[eql-search-api-request-body]]
 ==== {api-request-body-title}
 
-`case_sensitive`::
-(Optional, boolean)
-If `true`, matching for the <<eql-search-api-request-query-param,EQL query>> is
-case sensitive. Defaults to `false`.
-
 `event_category_field`::
 (Required*, string)
 Field containing the event classification, such as `process`, `file`, or
@@ -145,7 +140,7 @@ Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
 Common Schema (ECS)]. If a data stream or index does not contain the
 `event.category` field, this value is required.
 +
-The event category field is typically mapped as a field type in the
+The event category field must be mapped as a field type in the
 <<keyword,`keyword`>> family.
 
 `fetch_size`::

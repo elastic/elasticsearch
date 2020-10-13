@@ -6,7 +6,7 @@
 <titleabbrev>Pipe reference</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 {es} supports the following <<eql-pipes,EQL pipes>>.
 

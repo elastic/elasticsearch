@@ -22,7 +22,10 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
@@ -46,8 +49,8 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "Value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("Value", null));
-        
-        
+
+
         RootFlatObjectFieldType unsearchable = new RootFlatObjectFieldType("field", false, true,
             Collections.emptyMap(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -121,5 +124,13 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key", "value");
+        RootFlatObjectFieldType ft = createDefaultFieldType();
+
+        assertEquals(List.of(sourceValue), fetchSourceValue(ft, sourceValue));
+        assertEquals(List.of(), fetchSourceValue(ft, null));
     }
 }

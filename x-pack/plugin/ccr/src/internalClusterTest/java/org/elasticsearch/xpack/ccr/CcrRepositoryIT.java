@@ -473,9 +473,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         final int numDocs = scaledRandomIntBetween(0, 1_000);
         final BulkRequestBuilder bulkRequest = leaderClient().prepareBulk(leaderIndex);
         for (int i = 0; i < numDocs; i++) {
-            bulkRequest.add(new IndexRequest(leaderIndex)
-                .id(Integer.toString(i))
-                .source(XContentType.JSON, "field", i));
+            bulkRequest.add(new IndexRequest(leaderIndex).id(Integer.toString(i)).source("field", i));
         }
         assertThat(bulkRequest.get().hasFailures(), is(false));
 
@@ -492,9 +490,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertThat(indexStats.getIndexShards(), notNullValue());
         assertThat(indexStats.getIndexShards(), aMapWithSize(numberOfShards));
 
-        final long[] storeSizeInBytes = new long[numberOfShards];
-        indexStats.getIndexShards().forEach((key, value) -> storeSizeInBytes[key] = value.getPrimary().getStore().getSizeInBytes());
-
         final String leaderCluster = CcrRepository.NAME_PREFIX + "leader_cluster";
         final RepositoriesService repositoriesService = getFollowerCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final Repository repository = repositoriesService.repository(leaderCluster);
@@ -509,7 +504,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
             assertThat(indexShardSnapshotStatus, notNullValue());
             assertThat(indexShardSnapshotStatus.getStage(), is(IndexShardSnapshotStatus.Stage.DONE));
-            assertThat(indexShardSnapshotStatus.getTotalSize(), equalTo(storeSizeInBytes[shardId]));
+            assertThat(indexShardSnapshotStatus.getTotalSize(),
+                equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().getSizeInBytes()));
         }
 
         final CountDownLatch blockCcrRestore = new CountDownLatch(1);
@@ -522,7 +518,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     try {
                         blockCcrRestore.await();
                     } catch (InterruptedException e) {
-                        throw new ElasticsearchException(e);
+                        throw new AssertionError(e);
                     }
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -565,7 +561,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                 SnapshotShardSizeInfo snapshotShardSizeInfo = snapshotsInfoService.snapshotShardSizes();
                 for (int shardId = 0; shardId < numberOfShards; shardId++) {
                     Long snapshotShardSize = snapshotShardSizeInfo.getShardSize(indexRoutingTable.shard(shardId).primaryShard());
-                    assertThat(snapshotShardSize, equalTo(storeSizeInBytes[shardId]));
+                    assertThat(snapshotShardSize,
+                        equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().getSizeInBytes()));
                 }
             });
 
@@ -599,7 +596,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     try {
                         blockCcrRestore.await();
                     } catch (InterruptedException e) {
-                        throw new ElasticsearchException(e);
+                        throw new AssertionError(e);
                     }
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -611,15 +608,14 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             mockTransportService.addRequestHandlingBehavior(IndicesStatsAction.NAME, (handler, request, channel, task) -> {
                 if (request instanceof IndicesStatsRequest) {
                     IndicesStatsRequest indicesStatsRequest = (IndicesStatsRequest) request;
-                    if (Arrays.equals(indicesStatsRequest.indices(), new String[]{leaderIndex})) {
-                        if (indicesStatsRequest.store()
-                            && indicesStatsRequest.search() == false
-                            && indicesStatsRequest.fieldData() == false
-                        ) {
-                            indicesStatsRequestsCount.incrementAndGet();
-                            channel.sendResponse(new ElasticsearchException("simulated"));
-                            return;
-                        }
+                    if (Arrays.equals(indicesStatsRequest.indices(), new String[]{leaderIndex})
+                        && indicesStatsRequest.store()
+                        && indicesStatsRequest.search() == false
+                        && indicesStatsRequest.fieldData() == false
+                    ) {
+                        indicesStatsRequestsCount.incrementAndGet();
+                        channel.sendResponse(new ElasticsearchException("simulated"));
+                        return;
                     }
                 }
                 handler.messageReceived(request, channel, task);
@@ -696,7 +692,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         ensureFollowerGreen(followerIndex);
 
         assertAcked(followerClient().admin().indices().prepareDelete(followerIndex).setMasterNodeTimeout(TimeValue.MAX_VALUE));
-
     }
 
     private void assertExpectedDocument(String followerIndex, final int value) {

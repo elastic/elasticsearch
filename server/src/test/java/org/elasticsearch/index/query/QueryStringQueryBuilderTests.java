@@ -1101,14 +1101,14 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testDisabledFieldNamesField() throws Exception {
         QueryShardContext context = createShardContext();
-        context.getMapperService().merge("_doc",
-                new CompressedXContent(Strings
-                        .toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                                "foo",
-                                "type=text",
-                                "_field_names",
-                                "enabled=false"))),
-                MapperService.MergeReason.MAPPING_UPDATE);
+        getMapperService().merge("_doc",
+            new CompressedXContent(Strings
+                .toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+                    "foo",
+                    "type=text",
+                    "_field_names",
+                    "enabled=false"))),
+            MapperService.MergeReason.MAPPING_UPDATE);
 
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
@@ -1117,14 +1117,14 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             assertThat(query, equalTo(expected));
         } finally {
             // restore mappings as they were before
-            context.getMapperService().merge("_doc",
-                    new CompressedXContent(Strings.toString(
-                            PutMappingRequest.buildFromSimplifiedDef("_doc",
-                                    "foo",
-                                    "type=text",
-                                    "_field_names",
-                                    "enabled=true"))),
-                    MapperService.MergeReason.MAPPING_UPDATE);
+            getMapperService().merge("_doc",
+                new CompressedXContent(Strings.toString(
+                    PutMappingRequest.buildFromSimplifiedDef("_doc",
+                        "foo",
+                        "type=text",
+                        "_field_names",
+                        "enabled=true"))),
+                MapperService.MergeReason.MAPPING_UPDATE);
         }
         assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
     }

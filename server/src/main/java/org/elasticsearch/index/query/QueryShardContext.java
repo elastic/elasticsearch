@@ -63,6 +63,7 @@ import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -335,7 +336,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public Collection<String> queryTypes() {
         String[] types = getTypes();
         if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = getMapperService().documentMapper();
+            DocumentMapper mapper = mapperService.documentMapper();
             return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
         }
         return Arrays.asList(types);
@@ -517,14 +518,26 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService;
     }
 
-    /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,
-     *  for instance if this rewrite context is used to index queries (percolation). */
+    public String getType() {
+        return mapperService.documentMapper() == null ? null : mapperService.documentMapper().type();
+    }
+
+    public boolean typeExists(String type) {
+        return mapperService.documentMapper(type) != null;
+    }
+
+    /**
+     * Return the current {@link IndexReader}, or {@code null} if no index reader is available,
+     * for instance if this rewrite context is used to index queries (percolation).
+     */
     public IndexReader getIndexReader() {
         return searcher == null ? null : searcher.getIndexReader();
     }
 
-    /** Return the current {@link IndexSearcher}, or {@code null} if no index reader is available,
-     *  for instance if this rewrite context is used to index queries (percolation). */
+    /**
+     * Return the current {@link IndexSearcher}, or {@code null} if no index reader is available,
+     * for instance if this rewrite context is used to index queries (percolation).
+     */
     public IndexSearcher searcher() {
         return searcher;
     }

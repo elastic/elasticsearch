@@ -278,12 +278,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return createShardContext(null);
     }
 
+    protected static MapperService getMapperService() {
+        return serviceHolder.mapperService;
+    }
+
     private static class ClientInvocationHandler implements InvocationHandler {
         AbstractBuilderTestCase delegate;
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (method.equals(Client.class.getMethod("get", GetRequest.class, ActionListener.class))){
+            if (method.equals(Client.class.getMethod("get", GetRequest.class, ActionListener.class))) {
                 GetResponse getResponse = delegate.executeGet((GetRequest) args[0]);
                 ActionListener<GetResponse> listener = (ActionListener<GetResponse>) args[1];
                 if (randomBoolean()) {

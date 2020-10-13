@@ -283,7 +283,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 escape = escapeString.charAt(0);
                 // these chars already have a meaning
                 if (escape == '%' || escape == '_') {
-                    throw new ParsingException(source(escapeCtx.escape), "Char [{}] cannot be used for escaping", escape);
+                    throw new ParsingException(source(escapeCtx.escape),
+                            "Char [{}] cannot be used for escaping as it's one of the wildcard chars [%_]", escape);
                 }
                 // lastly validate that escape chars (if present) are followed by special chars
                 for (int i = 0; i < pattern.length(); i++) {

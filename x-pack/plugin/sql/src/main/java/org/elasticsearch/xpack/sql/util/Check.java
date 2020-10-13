@@ -44,7 +44,8 @@ public abstract class Check {
         }
         Long longValue = ((Number) object).longValue();
         if (longValue < from || longValue > to) {
-            throw new SqlIllegalArgumentException("[{}] equals [{}], out of the allowed range [{}..{}]", objectName, longValue, from, to);
+            throw new SqlIllegalArgumentException("[{}] out of the allowed range [{}, {}], received [{}]", objectName, from, to,
+                longValue);
         }
     }
 }

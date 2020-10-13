@@ -85,22 +85,22 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
             l("bar")).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Insert(EMPTY, l("foobarbar"), l(Integer.MIN_VALUE), l(1), l("bar")).makePipe().asProcessor().process(null));
-        assertEquals("[start] equals [-2147483648], out of the allowed range [-2147483647..2147483647]", siae.getMessage());
+        assertEquals("[start] out of the allowed range [-2147483647, 2147483647], received [-2147483648]", siae.getMessage());
 
         assertEquals("foobar", new Insert(EMPTY, l("foobar"), l(Integer.MAX_VALUE), l(1),
             l("bar")).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Insert(EMPTY, l("foobar"), l((long) Integer.MAX_VALUE + 1), l(1), l("bar")).makePipe().asProcessor().process(null));
-        assertEquals("[start] equals [2147483648], out of the allowed range [-2147483647..2147483647]", siae.getMessage());
+        assertEquals("[start] out of the allowed range [-2147483647, 2147483647], received [2147483648]", siae.getMessage());
 
         assertEquals("barfoobar", new Insert(EMPTY, l("foobar"), l(1), l(0), l("bar")).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Insert(EMPTY, l("foobar"), l(1), l(-1), l("bar")).makePipe().asProcessor().process(null));
-        assertEquals("[length] equals [-1], out of the allowed range [0..2147483647]", siae.getMessage());
+        assertEquals("[length] out of the allowed range [0, 2147483647], received [-1]", siae.getMessage());
 
         assertEquals("bar", new Insert(EMPTY, l("foobar"), l(1), l(Integer.MAX_VALUE), l("bar")).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Insert(EMPTY, l("foobar"), l(1), l((long) Integer.MAX_VALUE + 1), l("bar")).makePipe().asProcessor().process(null));
-        assertEquals("[length] equals [2147483648], out of the allowed range [0..2147483647]", siae.getMessage());
+        assertEquals("[length] out of the allowed range [0, 2147483647], received [2147483648]", siae.getMessage());
     }
 }

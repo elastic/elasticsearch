@@ -74,21 +74,21 @@ public class SubstringProcessorTests extends AbstractWireSerializingTestCase<Sub
         assertEquals("f", new Substring(EMPTY, l("foobarbar"), l(Integer.MIN_VALUE + 1), l(1)).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Substring(EMPTY, l("foobarbar"), l(Integer.MIN_VALUE), l(1)).makePipe().asProcessor().process(null));
-        assertEquals("[start] equals [-2147483648], out of the allowed range [-2147483647..2147483647]", siae.getMessage());
+        assertEquals("[start] out of the allowed range [-2147483647, 2147483647], received [-2147483648]", siae.getMessage());
 
         assertEquals("", new Substring(EMPTY, l("foobarbar"), l(Integer.MAX_VALUE), l(1)).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Substring(EMPTY, l("foobarbar"), l((long) Integer.MAX_VALUE + 1), l(1)).makePipe().asProcessor().process(null));
-        assertEquals("[start] equals [2147483648], out of the allowed range [-2147483647..2147483647]", siae.getMessage());
+        assertEquals("[start] out of the allowed range [-2147483647, 2147483647], received [2147483648]", siae.getMessage());
 
         assertEquals("", new Substring(EMPTY, l("foobarbar"), l(1), l(0)).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Substring(EMPTY, l("foobarbar"), l(1), l(-1)).makePipe().asProcessor().process(null));
-        assertEquals("[length] equals [-1], out of the allowed range [0..2147483647]", siae.getMessage());
+        assertEquals("[length] out of the allowed range [0, 2147483647], received [-1]", siae.getMessage());
 
         assertEquals("foobarbar", new Substring(EMPTY, l("foobarbar"), l(1), l(Integer.MAX_VALUE)).makePipe().asProcessor().process(null));
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Substring(EMPTY, l("foobarbar"), l(1), l((long) Integer.MAX_VALUE + 1)).makePipe().asProcessor().process(null));
-        assertEquals("[length] equals [2147483648], out of the allowed range [0..2147483647]", siae.getMessage());
+        assertEquals("[length] out of the allowed range [0, 2147483647], received [2147483648]", siae.getMessage());
     }
 }

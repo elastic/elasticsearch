@@ -65,11 +65,11 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Left(EMPTY, l("foo"), l((long)Integer.MIN_VALUE - 1)).makePipe().asProcessor().process(null));
-        assertEquals("[count] equals [-2147483649], out of the allowed range [-2147483648..2147483647]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [-2147483649]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Left(EMPTY, l("foo"), l((long)Integer.MAX_VALUE + 1)).makePipe().asProcessor().process(null));
-        assertEquals("[count] equals [2147483648], out of the allowed range [-2147483648..2147483647]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [2147483648]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Left(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null));
@@ -104,11 +104,11 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Right(EMPTY, l("foo"), l((long)Integer.MIN_VALUE - 1)).makePipe().asProcessor().process(null));
-        assertEquals("[count] equals [-2147483649], out of the allowed range [-2147483648..2147483647]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [-2147483649]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Right(EMPTY, l("foo"), l((long)Integer.MAX_VALUE + 1)).makePipe().asProcessor().process(null));
-        assertEquals("[count] equals [2147483648], out of the allowed range [-2147483648..2147483647]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [2147483648]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Right(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null));
@@ -141,11 +141,11 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Repeat(EMPTY, l("foo"), l((long)Integer.MIN_VALUE - 1)).makePipe().asProcessor().process(null));
-        assertEquals("[count] equals [-2147483649], out of the allowed range [-2147483648..2147483647]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [-2147483649]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Repeat(EMPTY, l("foo"), l((long)Integer.MAX_VALUE + 1)).makePipe().asProcessor().process(null));
-        assertEquals("[count] equals [2147483648], out of the allowed range [-2147483648..2147483647]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [2147483648]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new Repeat(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null));

@@ -211,7 +211,7 @@ The `distance_feature` query calculates a document's
 <<relevance-scores,relevance score>> as follows:
 
 ```
-relevance score = boost * pivot / (pivot + distance)
+relevance score = weight * pivot / (pivot + distance)
 ```
 
 The `distance` is the absolute difference between the `origin` value and a

@@ -78,7 +78,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
-            GeometryParser geometryParser = new GeometryParser(orientation.getAsBoolean(), coerce().value(),
+            GeometryParser geometryParser = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(),
                 ignoreZValue().value());
             GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
             GeoShapeFieldType ft = buildFieldType(context, geoShapeParser);

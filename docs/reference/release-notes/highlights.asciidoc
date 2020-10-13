@@ -25,6 +25,25 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
+=== More space-efficient indices
+
+{es} 7.10 depends on Apache Lucene 8.7, which introduces higher compression of
+stored fields, the part of the index that notably stores the
+<<mapping-source-field,`_source`>>. On the various datasets that we benchmark
+against, we noticed space reductions between 0% and 10%. This change especially
+helps on datasets that have lots of redundant data across documents, which is
+typically the case of the documents that are produced by our Observability
+solutions, which repeat metadata about the host that produced the data on every
+document.
+
+Elasticsearch offers the ability to configure the <<index-codec,`index.codec`>>
+setting to tell Elasticsearch how aggressively to compress stored fields. Both
+supported values `default` and `best_compression` will get better compression
+with this change.
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[discrete]
 [[data-tier-formalization]]
 === Data tiers
 7.10 introduces the concept of formalized data tiers within Elasticsearch. <<data-tiers,Data tiers>>

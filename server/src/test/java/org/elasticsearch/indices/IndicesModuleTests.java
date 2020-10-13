@@ -55,7 +55,7 @@ public class IndicesModuleTests extends ESTestCase {
 
     private static class FakeMapperParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             return null;
         }

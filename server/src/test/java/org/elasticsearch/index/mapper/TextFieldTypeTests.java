@@ -35,12 +35,9 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
@@ -167,13 +164,21 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        TextFieldType fieldType = createFieldType();
+        fieldType.setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
 
-        MappedFieldType mapper = new TextFieldMapper.Builder("field", () -> Lucene.STANDARD_ANALYZER).build(context).fieldType();
+        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
 
-        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
+        TextFieldMapper.PrefixFieldType prefixFieldType = new TextFieldMapper.PrefixFieldType(fieldType, "field._index_prefix", 2, 10);
+        assertEquals(List.of("value"), fetchSourceValue(prefixFieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(prefixFieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(prefixFieldType, true));
+
+        TextFieldMapper.PhraseFieldType phraseFieldType = new TextFieldMapper.PhraseFieldType(fieldType);
+        assertEquals(List.of("value"), fetchSourceValue(phraseFieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(phraseFieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(phraseFieldType, true));
     }
 }

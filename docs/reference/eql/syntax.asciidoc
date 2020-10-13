@@ -6,7 +6,7 @@
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 IMPORTANT: {es} supports a subset of {eql-ref}/index.html[EQL syntax]. See
 <<eql-syntax-limitations>>.
@@ -691,6 +691,14 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 In {es} EQL, you cannot use comparison operators to compare a field to
 another field. This applies even if the fields are changed using a
 <<eql-functions,function>>.
+
+[discrete]
+[[eql-array-fields]]
+==== Array field values are not supported
+
+{es} EQL does not support <<array,array>> field values, also known as
+_multi-value fields_. EQL searches on array field values may return inconsistent
+results.
 
 [discrete]
 [[eql-nested-fields]]

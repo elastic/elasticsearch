@@ -45,7 +45,6 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name) {
             super(name);
-            builder = this;
         }
 
         @Override

@@ -63,12 +63,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         FIELD_TYPE.freeze();
     }
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldType> {
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder {
 
         public Builder(String name) {
             super(name, FIELD_TYPE);
             hasDocValues = true;
-            builder = this;
         }
 
         @Override

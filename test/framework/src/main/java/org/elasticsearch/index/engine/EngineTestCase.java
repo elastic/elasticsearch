@@ -267,12 +267,14 @@ public abstract class EngineTestCase extends ESTestCase {
         try {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                assertNoInFlightDocuments(engine);
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService());
                 assertMaxSeqNoInCommitUserData(engine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                assertNoInFlightDocuments(replicaEngine);
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService());
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
@@ -529,6 +531,10 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine;
     }
 
+    public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
+        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
+    }
+
     @FunctionalInterface
     public interface IndexWriterFactory {
 
@@ -566,7 +572,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         } else {
-            return new InternalTestEngine(config, localCheckpointTrackerSupplier) {
+            return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -1240,5 +1246,17 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static long getNumVersionLookups(Engine engine) {
         return ((InternalEngine) engine).getNumVersionLookups();
+    }
+
+    public static long getInFlightDocCount(Engine engine) {
+        if (engine instanceof InternalEngine) {
+            return ((InternalEngine) engine).getInFlightDocCount();
+        } else {
+            return 0;
+        }
+    }
+
+    public static void assertNoInFlightDocuments(Engine engine) throws Exception {
+        assertBusy(() -> assertThat(getInFlightDocCount(engine), equalTo(0L)));
     }
 }

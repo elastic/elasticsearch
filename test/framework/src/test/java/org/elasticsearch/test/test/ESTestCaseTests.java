@@ -21,7 +21,6 @@ package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;

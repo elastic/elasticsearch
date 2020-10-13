@@ -32,7 +32,9 @@ public class DependenciesGraphPlugin implements Plugin<Project> {
         TaskProvider<DependenciesGraphTask> depsGraph = project.getTasks().register("dependenciesGraph", DependenciesGraphTask.class);
         depsGraph.configure(t -> {
             t.setRuntimeConfiguration(project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
-            t.setCompileOnlyConfiguration(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME));
+            t.setCompileOnlyConfiguration(
+                project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
+            );
         });
     }
 }

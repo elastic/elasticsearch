@@ -103,8 +103,9 @@ public class DependenciesGraphTask extends DefaultTask {
         final Set<String> packages = new HashSet<>();
         final Set<String> nodes = new HashSet<>();
         final Set<String> nodeIds = new HashSet<>();
-        final Set<String> compileOnlyArtifacts = compileOnlyConfiguration
-            .getResolvedConfiguration().getResolvedArtifacts().stream()
+        final Set<String> compileOnlyArtifacts = compileOnlyConfiguration.getResolvedConfiguration()
+            .getResolvedArtifacts()
+            .stream()
             .map(a -> {
                 ModuleVersionIdentifier id = a.getModuleVersion().getId();
                 return id.getGroup() + ":" + id.getName() + "@" + id.getVersion();

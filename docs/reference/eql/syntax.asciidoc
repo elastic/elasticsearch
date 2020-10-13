@@ -705,7 +705,7 @@ escaped double quote (`\"`) instead.
 [[eql-unsupported-syntax]]
 ==== Unsupported syntax
 
-{es} does not support the following {eql-ref}/index.html[endgame EQL syntax]:
+{es} does not support the following {eql-ref}/index.html[Endgame EQL syntax]:
 
 * Array functions:
 ** {eql-ref}/functions.html#arrayContains[`arrayContains`]

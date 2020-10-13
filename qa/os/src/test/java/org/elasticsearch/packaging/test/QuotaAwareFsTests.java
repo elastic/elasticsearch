@@ -22,7 +22,6 @@ package org.elasticsearch.packaging.test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.After;
@@ -36,6 +35,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeTrue;
 
+/**
+ * Check that the quota-aware filesystem plugin can be installed and operates as expected.
+ * <p>
+ * Note that this test is flaky on Darwin, apparently due to a strange interaction between the filesystem
+ * and Elasticsearch's lockfile timestamp checks.
+ */
 public class QuotaAwareFsTests extends PackagingTestCase {
 
     // private static final String QUOTA_AWARE_FS_PLUGIN_NAME = "quota-aware-fs";
@@ -89,26 +94,52 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         try {
             startElasticsearch();
 
-            final String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
+            final Totals actualTotals = fetchFilesystemTotals();
 
-            final ObjectMapper mapper = new ObjectMapper();
-            final JsonNode rootNode = mapper.readTree(response);
+            assertThat(actualTotals.totalInBytes, equalTo(total));
+            assertThat(actualTotals.availableInBytes, equalTo(available));
 
-            assertThat("Some nodes failed", rootNode.at("/_nodes/failed").intValue(), equalTo(0));
+            int updatedTotal = total * 3;
+            int updatedAvailable = available * 3;
 
-            final String nodeId = rootNode.get("nodes").fieldNames().next();
+            // Check that ES is polling the properties file for changes.
+            Files.writeString(quotaPath, String.format("total=%d\nremaining=%d\n", updatedTotal, updatedAvailable));
 
-            final JsonNode fsNode = rootNode.at("/nodes/" + nodeId + "/fs/total");
+            // The check interval is 1000ms, but give ourselves some leeway.
+            Thread.sleep(2000);
 
-            final int totalInBytes = fsNode.get("total_in_bytes").intValue();
-            final int availableInBytes = fsNode.get("available_in_bytes").intValue();
+            final Totals updatedActualTotals = fetchFilesystemTotals();
 
-            assertThat(totalInBytes, equalTo(total));
-            assertThat(availableInBytes, equalTo(available));
+            assertThat(updatedActualTotals.totalInBytes, equalTo(updatedTotal));
+            assertThat(updatedActualTotals.availableInBytes, equalTo(updatedAvailable));
         } finally {
             stopElasticsearch();
             Files.deleteIfExists(quotaPath);
         }
     }
 
+    private static class Totals {
+        int totalInBytes;
+        int availableInBytes;
+
+        Totals(int totalInBytes, int availableInBytes) {
+            this.totalInBytes = totalInBytes;
+            this.availableInBytes = availableInBytes;
+        }
+    }
+
+    private Totals fetchFilesystemTotals() throws Exception {
+        final String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
+
+        final ObjectMapper mapper = new ObjectMapper();
+        final JsonNode rootNode = mapper.readTree(response);
+
+        assertThat("Some nodes failed", rootNode.at("/_nodes/failed").intValue(), equalTo(0));
+
+        final String nodeId = rootNode.get("nodes").fieldNames().next();
+
+        final JsonNode fsNode = rootNode.at("/nodes/" + nodeId + "/fs/total");
+
+        return new Totals(fsNode.get("total_in_bytes").intValue(), fsNode.get("available_in_bytes").intValue());
+    }
 }

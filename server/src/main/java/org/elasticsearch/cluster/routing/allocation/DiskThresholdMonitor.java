@@ -99,15 +99,23 @@ public class DiskThresholdMonitor {
         this.client = client;
     }
 
+    private boolean checkInProgress(final boolean expectedValue, final boolean newValue) {
+        if (diskThresholdSettings.allowForcedUpdate()) {
+            assert checkInProgress.get() == false;
+            return true;
+        }
+        return checkInProgress.compareAndSet(expectedValue, newValue);
+    }
+
     private void checkFinished() {
-        final boolean checkFinished = checkInProgress.compareAndSet(true, false);
+        final boolean checkFinished = checkInProgress(true, false);
         assert checkFinished;
         logger.trace("checkFinished");
     }
 
     public void onNewInfo(ClusterInfo info) {
 
-        if (checkInProgress.compareAndSet(false, true) == false) {
+        if (checkInProgress(false, true) == false) {
             logger.info("skipping monitor as a check is already in progress");
             return;
         }

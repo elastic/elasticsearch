@@ -19,6 +19,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -57,7 +58,8 @@ public final class InternalSettingsPlugin extends Plugin {
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
                 IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
-                FsService.ALWAYS_REFRESH_SETTING
+                FsService.ALWAYS_REFRESH_SETTING,
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ALLOW_FORCED_UPDATE_SETTING
             );
     }
 }

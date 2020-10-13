@@ -809,4 +809,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals("query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(), cachingExpected,
                 context.isCacheable());
     }
+
+    public void testLenientFlag() throws Exception {
+        SimpleQueryStringBuilder query = new SimpleQueryStringBuilder("test").field(BINARY_FIELD_NAME);
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_binary] of type [binary does not support match queries", e.getMessage());
+        query.lenient(true);
+        assertThat(query.toQuery(context), instanceOf(MatchNoDocsQuery.class));
+    }
 }

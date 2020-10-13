@@ -100,6 +100,10 @@ public abstract class MappedFieldType {
 
     /**
      * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
+     *
+     * New field types must implement this method in order to support the search 'fields' option. Except
+     * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
+     * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
      */
     public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
 

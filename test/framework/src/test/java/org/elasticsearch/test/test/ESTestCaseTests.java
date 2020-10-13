@@ -21,6 +21,7 @@ package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -202,7 +203,6 @@ public class ESTestCaseTests extends ESTestCase {
         assertEquals(10300, ESTestCase.getBasePort());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/61496")
     public void testRandomDateFormatterPattern() {
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern());
         /*

@@ -19,8 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
@@ -69,12 +68,14 @@ public class BlockNode extends StatementNode {
 
     /* ---- end visitor ---- */
 
+    public BlockNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
         for (StatementNode statementNode : statementNodes) {
-            statementNode.continueLabel = continueLabel;
-            statementNode.breakLabel = breakLabel;
-            statementNode.write(classWriter, methodWriter, writeScope);
+            statementNode.write(writeScope);
         }
     }
 }

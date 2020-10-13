@@ -161,7 +161,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
+        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context);
         if (joinFieldMapper == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();

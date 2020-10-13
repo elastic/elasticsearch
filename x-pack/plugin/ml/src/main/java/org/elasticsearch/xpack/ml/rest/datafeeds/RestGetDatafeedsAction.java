@@ -16,9 +16,12 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
 
 public class RestGetDatafeedsAction extends BaseRestHandler {
 
@@ -50,5 +53,10 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
                 Request.ALLOW_NO_MATCH,
                 restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
         return channel -> client.execute(GetDatafeedsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Collections.singleton(FOR_EXPORT);
     }
 }

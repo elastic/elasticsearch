@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -137,15 +137,20 @@ public class ForEachSubArrayNode extends LoopNode {
 
     /* ---- end visitor ---- */
 
+    public ForEachSubArrayNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeStatementOffset(getLocation());
 
         Variable variable = writeScope.defineVariable(variableType, variableName);
         Variable array = writeScope.defineInternalVariable(arrayType, arrayName);
         Variable index = writeScope.defineInternalVariable(indexType, indexName);
 
-        getConditionNode().write(classWriter, methodWriter, writeScope);
+        getConditionNode().write(writeScope);
         methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ISTORE), array.getSlot());
         methodWriter.push(-1);
         methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ISTORE), index.getSlot());
@@ -170,12 +175,10 @@ public class ForEachSubArrayNode extends LoopNode {
         Variable loop = writeScope.getInternalVariable("loop");
 
         if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), location);
+            methodWriter.writeLoopCounter(loop.getSlot(), getLocation());
         }
 
-        getBlockNode().continueLabel = begin;
-        getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, writeScope);
+        getBlockNode().write(writeScope.newLoopScope(begin, end));
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);

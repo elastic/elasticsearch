@@ -118,7 +118,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-e" }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
 
-        AcknowledgedResponse deleteIndexResponse = new AcknowledgedResponse(acknowledged);
+        AcknowledgedResponse deleteIndexResponse = AcknowledgedResponse.of(acknowledged);
         doAnswer(withResponse(deleteIndexResponse)).when(client).execute(eq(DeleteIndexAction.INSTANCE), any(), any());
 
         remover.remove(1.0f, listener, () -> false);

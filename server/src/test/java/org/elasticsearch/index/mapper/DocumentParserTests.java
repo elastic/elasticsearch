@@ -357,7 +357,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);
         }
-        Mapper.Builder<?> builder = new ObjectMapper.Builder<>(nameParts[nameParts.length - 1]).enabled(true);
+        Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true);
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         return (ObjectMapper)builder.build(builderContext);
     }

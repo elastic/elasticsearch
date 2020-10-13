@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -16,6 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -33,6 +36,8 @@ public class DataTier {
     public static final String DATA_HOT = "data_hot";
     public static final String DATA_WARM = "data_warm";
     public static final String DATA_COLD = "data_cold";
+
+    public static final Set<String> ALL_DATA_TIERS = new HashSet<>(Arrays.asList(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD));
 
     /**
      * Returns true if the given tier name is a valid tier
@@ -76,6 +81,11 @@ public class DataTier {
         public boolean canContainData() {
             return true;
         }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
+        }
     };
 
     public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h") {
@@ -92,6 +102,11 @@ public class DataTier {
         @Override
         public boolean canContainData() {
             return true;
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
         }
     };
 
@@ -110,6 +125,11 @@ public class DataTier {
         public boolean canContainData() {
             return true;
         }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
+        }
     };
 
     public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c") {
@@ -126,6 +146,11 @@ public class DataTier {
         @Override
         public boolean canContainData() {
             return true;
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
         }
     };
 

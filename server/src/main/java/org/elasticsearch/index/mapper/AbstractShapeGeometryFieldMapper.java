@@ -48,8 +48,7 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
     }
 
-    public abstract static class Builder<T extends Builder<T, FT>,
-            FT extends AbstractShapeGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<T, FT> {
+    public abstract static class Builder extends AbstractGeometryFieldMapper.Builder {
         protected Boolean coerce;
         protected Orientation orientation;
 
@@ -157,8 +156,8 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         protected Orientation orientation = Defaults.ORIENTATION.value();
 
         protected AbstractShapeGeometryFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                                 Map<String, String> meta) {
-            super(name, isSearchable, isStored, hasDocValues, meta);
+                                                 boolean parsesArrayValue, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, parsesArrayValue, meta);
         }
 
         public Orientation orientation() { return this.orientation; }

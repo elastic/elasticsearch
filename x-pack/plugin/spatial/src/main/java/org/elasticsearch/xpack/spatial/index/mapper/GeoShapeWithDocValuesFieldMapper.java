@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
@@ -28,7 +29,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
-import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
@@ -69,7 +69,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
     }
 
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, GeoShapeWithDocValuesFieldType> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder {
 
         private boolean docValuesSet = false;
 
@@ -79,7 +79,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
         }
 
         @Override
-        public Builder docValues(boolean docValues) {
+        public FieldMapper.Builder docValues(boolean docValues) {
             docValuesSet = true;
             return super.docValues(docValues);
         }
@@ -96,7 +96,6 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
                 ignoreZValue().value());
             ft.setGeometryParser(new GeoShapeParser(geometryParser));
             ft.setGeometryIndexer(new GeoShapeIndexer(orientation().value().getAsBoolean(), ft.name()));
-            ft.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
             ft.setOrientation(orientation().value());
             return new GeoShapeWithDocValuesFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), orientation(), Version.V_7_8_0.onOrBefore(context.indexCreatedVersion()),

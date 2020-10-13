@@ -19,5 +19,9 @@
 
 package org.elasticsearch.plugins;
 
+/**
+ * Bootstrap plugins are not loaded during normal Elasticsearch operation. This
+ * interface exists to make this explicit.
+ */
 public interface BootstrapPlugin {
 }

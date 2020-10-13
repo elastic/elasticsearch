@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -36,10 +35,10 @@ public abstract class ArrayValuesSourceAggregatorFactory
     protected Map<String, ValuesSourceConfig> configs;
 
     public ArrayValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
-                                              QueryShardContext queryShardContext, AggregatorFactory parent,
+                                              AggregationContext context, AggregatorFactory parent,
                                               AggregatorFactories.Builder subFactoriesBuilder,
                                               Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, context, parent, subFactoriesBuilder, metadata);
         this.configs = configs;
     }
 

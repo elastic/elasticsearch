@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -36,6 +35,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -609,10 +609,10 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
-    protected TopHitsAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subfactoriesBuilder)
+    protected TopHitsAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
             throws IOException {
         long innerResultWindow = from() + size();
-        int maxInnerResultWindow = queryShardContext.getIndexSettings().getMaxInnerResultWindow();
+        int maxInnerResultWindow = context.getIndexSettings().getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(
                 "Top hits result window is too large, the top hits aggregator [" + name + "]'s from + size must be less " +
@@ -625,8 +625,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         List<ScriptFieldsContext.ScriptField> scriptFields = new ArrayList<>();
         if (this.scriptFields != null) {
             for (ScriptField field : this.scriptFields) {
-                FieldScript.Factory factory = queryShardContext.compile(field.script(), FieldScript.CONTEXT);
-                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), queryShardContext.lookup());
+                FieldScript.Factory factory = context.compile(field.script(), FieldScript.CONTEXT);
+                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), context.lookup());
                 scriptFields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), searchScript, field.ignoreFailure()));
             }
@@ -636,10 +636,10 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (sorts == null) {
             optionalSort = Optional.empty();
         } else {
-            optionalSort = SortBuilder.buildSort(sorts, queryShardContext);
+            optionalSort = context.buildSort(sorts);
         }
         return new TopHitsAggregatorFactory(name, from, size, explain, version, seqNoAndPrimaryTerm, trackScores, optionalSort,
-            highlightBuilder, storedFieldsContext, docValueFields, fetchFields, scriptFields, fetchSourceContext, queryShardContext, parent,
+            highlightBuilder, storedFieldsContext, docValueFields, fetchFields, scriptFields, fetchSourceContext, context, parent,
             subfactoriesBuilder, metadata);
     }
 

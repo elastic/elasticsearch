@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.After;
@@ -31,11 +32,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.elasticsearch.packaging.util.Archives.installArchive;
-import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assume.assumeTrue;
 
 public class QuotaAwareFsTests extends PackagingTestCase {
@@ -58,16 +56,14 @@ public class QuotaAwareFsTests extends PackagingTestCase {
     public void teardown() throws Exception {
         super.teardown();
         cleanup();
-        Files.deleteIfExists(Path.of("/private/tmp/elasticsearch/data/node.lock"));
     }
 
     public void test10ElasticsearchRequiresSystemPropertyToBeSet() throws Exception {
-        installation = installArchive(sh, distribution());
-        verifyArchiveInstallation(installation, distribution());
+        install();
 
         installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
 
-        // Without setting the `es.fs.quota.file` property, ES will exit.
+        // Without setting the `es.fs.quota.file` property, ES should exit with a failure code.
         final Shell.Result result = runElasticsearchStartCommand(null, false, false);
 
         assertThat("Elasticsearch should have terminated unsuccessfully", result.isSuccess(), equalTo(false));
@@ -78,9 +74,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
     }
 
     public void test20ElasticsearchStartsWhenSystemPropertySet() throws Exception {
-
-        installation = installArchive(sh, distribution());
-        verifyArchiveInstallation(installation, distribution());
+        install();
 
         int total = 20 * 1024 * 1024;
         int available = 10 * 1024 * 1024;
@@ -97,9 +91,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
             final String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
 
-            logger.warn(response);
-
-            ObjectMapper mapper = new ObjectMapper();
+            final ObjectMapper mapper = new ObjectMapper();
             final JsonNode rootNode = mapper.readTree(response);
 
             assertThat("Some nodes failed", rootNode.at("/_nodes/failed").intValue(), equalTo(0));
@@ -113,7 +105,6 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
             assertThat(totalInBytes, equalTo(total));
             assertThat(availableInBytes, equalTo(available));
-            logger.warn("Everything is OK!");
         } finally {
             stopElasticsearch();
             Files.deleteIfExists(quotaPath);

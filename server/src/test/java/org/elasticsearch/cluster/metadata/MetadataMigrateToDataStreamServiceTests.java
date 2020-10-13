@@ -40,7 +40,7 @@ public class MetadataMigrateToDataStreamServiceTests  extends ESTestCase {
     }
 
     public void testValidateRequestWithFilteredAlias() {
-        String filteredAliasName = "nonexistent_alias";
+        String filteredAliasName = "filtered_alias";
         AliasMetadata filteredAlias = AliasMetadata.builder(filteredAliasName).filter("{\"term\":{\"user.id\":\"kimchy\"}}").build();
         ClusterState cs = ClusterState.builder(new ClusterName("dummy")).metadata(
             Metadata.builder().put(IndexMetadata.builder("foo")
@@ -56,7 +56,7 @@ public class MetadataMigrateToDataStreamServiceTests  extends ESTestCase {
     }
 
     public void testValidateRequestWithAliasWithRouting() {
-        String routedAliasName = "nonexistent_alias";
+        String routedAliasName = "routed_alias";
         AliasMetadata aliasWithRouting = AliasMetadata.builder(routedAliasName).routing("foo").build();
         ClusterState cs = ClusterState.builder(new ClusterName("dummy")).metadata(
             Metadata.builder().put(IndexMetadata.builder("foo")
@@ -71,10 +71,9 @@ public class MetadataMigrateToDataStreamServiceTests  extends ESTestCase {
         assertThat(e.getMessage(), containsString("alias [" + routedAliasName + "] may not have custom filtering or routing"));
     }
 
-    public void testValidateRequest() {
-        String aliasName = "alias";
-        AliasMetadata alias1 = AliasMetadata.builder(aliasName).build();
-        AliasMetadata alias2 = AliasMetadata.builder(aliasName + "2").build();
+    public void testValidateRequestWithAliasWithoutWriteIndex() {
+        String aliasWithoutWriteIndex = "alias";
+        AliasMetadata alias1 = AliasMetadata.builder(aliasWithoutWriteIndex).build();
         ClusterState cs = ClusterState.builder(new ClusterName("dummy")).metadata(
             Metadata.builder()
                 .put(IndexMetadata.builder("foo1")
@@ -95,6 +94,39 @@ public class MetadataMigrateToDataStreamServiceTests  extends ESTestCase {
                 .put(IndexMetadata.builder("foo4")
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                     .putAlias(alias1)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0))
+        ).build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MetadataMigrateToDataStreamService
+            .validateRequest(cs, new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
+                aliasWithoutWriteIndex, TimeValue.ZERO, TimeValue.ZERO)));
+        assertThat(e.getMessage(), containsString("alias [" + aliasWithoutWriteIndex + "] must specify a write index"));
+    }
+
+    public void testValidateRequest() {
+        String aliasName = "alias";
+        AliasMetadata alias1 = AliasMetadata.builder(aliasName).build();
+        ClusterState cs = ClusterState.builder(new ClusterName("dummy")).metadata(
+            Metadata.builder()
+                .put(IndexMetadata.builder("foo1")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putAlias(alias1)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0))
+                .put(IndexMetadata.builder("foo2")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putAlias(alias1)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0))
+                .put(IndexMetadata.builder("foo3")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putAlias(alias1)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0))
+                .put(IndexMetadata.builder("foo4")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putAlias(AliasMetadata.builder(aliasName).writeIndex(true))
                     .numberOfShards(1)
                     .numberOfReplicas(0))
         ).build();

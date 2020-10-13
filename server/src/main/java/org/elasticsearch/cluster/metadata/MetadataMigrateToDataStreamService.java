@@ -67,11 +67,11 @@ public class MetadataMigrateToDataStreamService {
                         ActiveShardCount.DEFAULT,
                         request.masterNodeTimeout(),
                         shardsAcked -> {
-                            finalListener.onResponse(new AcknowledgedResponse(true));
+                            finalListener.onResponse(AcknowledgedResponse.TRUE);
                         },
                         finalListener::onFailure);
                 } else {
-                    finalListener.onResponse(new AcknowledgedResponse(false));
+                    finalListener.onResponse(AcknowledgedResponse.FALSE);
                 }
             },
             finalListener::onFailure

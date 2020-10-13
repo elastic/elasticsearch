@@ -73,7 +73,8 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
 
         CheckedSupplier<String, IOException> loadFieldValues = () -> {
-            List<Object> fieldValues = loadFieldValues(highlighter, fieldType, fieldContext.context.mapperService(), hitContext);
+            List<Object> fieldValues = loadFieldValues(highlighter, fieldType,
+                fieldContext.context.mapperService(), hitContext, fieldContext.forceSource == false);
             if (fieldValues.size() == 0) {
                 return null;
             }
@@ -166,9 +167,10 @@ public class UnifiedHighlighter implements Highlighter {
         CustomUnifiedHighlighter highlighter,
         MappedFieldType fieldType,
         MapperService mapperService,
-        FetchSubPhase.HitContext hitContext
+        FetchSubPhase.HitContext hitContext,
+        boolean storedFieldsAvailable
     ) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, mapperService, hitContext);
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, mapperService, hitContext, storedFieldsAvailable);
         fieldValues = fieldValues.stream()
             .map((s) -> convertFieldValue(fieldType, s))
             .collect(Collectors.toList());

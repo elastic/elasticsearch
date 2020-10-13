@@ -102,7 +102,8 @@ public class PlainHighlighter implements Highlighter {
         Analyzer analyzer = context.mapperService().documentMapper().mappers().indexAnalyzer();
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
 
-        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.mapperService(), hitContext);
+        textsToHighlight
+            = HighlightUtils.loadFieldValues(fieldType, context.mapperService(), hitContext, fieldContext.forceSource == false);
 
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);

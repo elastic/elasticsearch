@@ -21,13 +21,18 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+
+import static java.util.Collections.singleton;
 
 public final class HighlightUtils {
 
@@ -44,7 +49,14 @@ public final class HighlightUtils {
      */
     public static List<Object> loadFieldValues(MappedFieldType fieldType,
                                                MapperService mapperService,
-                                               FetchSubPhase.HitContext hitContext) throws IOException {
+                                               FetchSubPhase.HitContext hitContext,
+                                               boolean storedFieldsAvailable) throws IOException {
+        if (storedFieldsAvailable && fieldType.isStored()) {
+            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
+            hitContext.reader().document(hitContext.docId(), fieldVisitor);
+            List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
+            return Objects.requireNonNullElse(textsToHighlight, Collections.emptyList());
+        }
         ValueFetcher fetcher = fieldType.valueFetcher(mapperService, null, null);
         return fetcher.fetchValues(hitContext.sourceLookup());
     }

@@ -394,10 +394,10 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 resolver.resolve(ldap.getConnection(), BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, null, future);
-                Map<String, Object> groupSIDs = future.get();
-                assertThat(groupSIDs.size(), equalTo(1));
-                assertNotNull(groupSIDs.get("tokenGroups"));
-                List<String> SIDs = ((List<String>) groupSIDs.get("tokenGroups"));
+                Map<String, Object> metadata_groupSIDs = future.get();
+                assertThat(metadata_groupSIDs.size(), equalTo(1));
+                assertNotNull(metadata_groupSIDs.get("tokenGroups"));
+                List<String> SIDs = ((List<String>) metadata_groupSIDs.get("tokenGroups"));
                 assertThat(SIDs.size(), equalTo(7));
                 assertThat(SIDs, everyItem(matchesPattern("S-1-5-(?:21|32)-\\d+(?:-\\d+\\-\\d+\\-\\d+)?")));
             }

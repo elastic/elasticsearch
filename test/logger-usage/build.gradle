@@ -18,6 +18,7 @@
  */
 
 apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
   api 'org.ow2.asm:asm:7.1'

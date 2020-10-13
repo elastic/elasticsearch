@@ -37,9 +37,6 @@ import static org.junit.Assume.assumeTrue;
 
 /**
  * Check that the quota-aware filesystem plugin can be installed and operates as expected.
- * <p>
- * Note that this test is flaky on Darwin, apparently due to a strange interaction between the filesystem
- * and Elasticsearch's lockfile timestamp checks.
  */
 public class QuotaAwareFsTests extends PackagingTestCase {
 

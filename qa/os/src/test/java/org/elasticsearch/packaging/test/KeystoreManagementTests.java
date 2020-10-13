@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
@@ -445,7 +446,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                assertThat(keystore, file(File, Platforms.USERNAME, Platforms.GROUP, p660));
+                assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
                 break;
             case DEB:
             case RPM:

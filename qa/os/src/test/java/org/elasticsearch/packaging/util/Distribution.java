@@ -46,7 +46,7 @@ public class Distribution {
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
         }
 
-        this.platform = filename.contains("windows") ? Platform.WINDOWS : filename.contains("darwin") ? Platform.DARWIN : Platform.LINUX;
+        this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
         this.hasJdk = filename.contains("no-jdk") == false;
         String version = filename.split("-", 3)[1];

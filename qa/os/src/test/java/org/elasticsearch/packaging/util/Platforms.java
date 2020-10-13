@@ -29,22 +29,6 @@ public class Platforms {
     public static final boolean WINDOWS = OS_NAME.startsWith("Windows");
     public static final boolean DARWIN = OS_NAME.startsWith("Mac OS X");
     public static final PlatformAction NO_ACTION = () -> {};
-    public static final String USERNAME;
-    public static final String GROUP;
-
-    static {
-        if (Platforms.WINDOWS) {
-            // in the future we'll run as a role user on Windows
-            USERNAME = System.getenv("username");
-            GROUP = USERNAME;
-        } else if (Platforms.DARWIN) {
-            USERNAME = System.getProperty("user.name");
-            GROUP = "wheel";
-        } else {
-            USERNAME = "elasticsearch";
-            GROUP = USERNAME;
-        }
-    }
 
     public static String getOsRelease() {
         if (LINUX) {

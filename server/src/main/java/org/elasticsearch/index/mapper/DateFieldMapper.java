@@ -254,7 +254,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         protected MappedFieldType.Relation isToWithin(long toInclusive, long minValue, long maxValue, boolean hasDocValues) {
             if (hasDocValues) {
-                final long approxToInclusive = convertToIndex(toInclusive);
+                final long approxToInclusive = toInclusive;//convertToIndex(toInclusive);
                 if (maxValue < approxToInclusive - 1) {
                     return MappedFieldType.Relation.WITHIN;
                 } else if (minValue > approxToInclusive + 1) {
@@ -275,7 +275,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         protected MappedFieldType.Relation isFromWithin(long fromInclusive, long minValue, long maxValue, boolean hasDocValues) {
             if (hasDocValues) {
-                final long approxFromInclusive = convertToIndex(fromInclusive);
+                final long approxFromInclusive = fromInclusive;//convertToIndex(fromInclusive);
                 if (minValue >= approxFromInclusive) {
                     return MappedFieldType.Relation.WITHIN;
                 } else if (maxValue < approxFromInclusive) {

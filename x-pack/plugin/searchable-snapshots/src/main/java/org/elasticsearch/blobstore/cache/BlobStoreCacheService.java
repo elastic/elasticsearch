@@ -251,10 +251,13 @@ public class BlobStoreCacheService {
     }
 
     private static boolean isExpectedCacheGetException(Exception e) {
-        return TransportActions.isShardNotAvailableException(e)
+        if (TransportActions.isShardNotAvailableException(e)
             || e instanceof ConnectTransportException
-            || e instanceof ClusterBlockException
-            || ExceptionsHelper.unwrapCause(e) instanceof NodeClosedException;
+            || e instanceof ClusterBlockException) {
+            return true;
+        }
+        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+        return cause instanceof NodeClosedException || cause instanceof ConnectTransportException;
     }
 
     public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {

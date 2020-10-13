@@ -734,7 +734,7 @@ three double quotes (`"""`) instead.
 
 ** {eql-ref}/joins.html[Joins]
 
-** {eql-ref}/basic-syntax.html#event-relationships[lineage-related keywords]:
+** {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
 *** `child of`
 *** `descendant of`
 *** `event of`

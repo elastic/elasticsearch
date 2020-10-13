@@ -537,15 +537,9 @@ The API returns the following result:
 {
   "classification" : {
     "auc_roc" : {
-      "score" : 0.8941788639536681, <1>
-      "doc_count" : 4169 <2>
+      "score" : 0.8941788639536681
     }
   }
 }
 --------------------------------------------------
 // TEST[skip:TBD]
-
-<1> AUC ROC score.
-<2> The number of documents that are used for calculating the AUC ROC score. 
-These documents have the target class – in this case `dog` – in the list of 
-their top classes.

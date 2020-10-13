@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
@@ -286,6 +287,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                          * is on the DateFieldType.
                          */
                         byte[] min = PointValues.getMinPackedValue(context.searcher().getIndexReader(), fieldContext.field());
+                        LogManager.getLogger().error("ADSFADSF packed {}", min);
                         if (min != null) {
                             // null means that there aren't values in the index
                             byte[] max = PointValues.getMaxPackedValue(context.searcher().getIndexReader(), fieldContext.field());
@@ -295,6 +297,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     }
 
                     // Check the query for bounds
+                    LogManager.getLogger().error("ADSFADSF query {}", context.query());
                     if (context.query() != null) {
                         context.query().visit(new QueryVisitor() {
                             @Override

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -307,6 +308,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         if (false == delegate.collectsInFilterOrder()) {
             return null;
         }
+        LogManager.getLogger().error("ADSFADSF {}", (Object) filters);
         return new RangeAdaptedFromFiltersAggregator<>(delegate, valuesSourceConfig.format(), ranges, keyed, rangeFactory);
     }
 

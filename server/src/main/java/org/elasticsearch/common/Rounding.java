@@ -423,6 +423,7 @@ public abstract class Rounding implements Writeable {
             int i = 0;
             values[i++] = rounded;
             while ((rounded = nextRoundingValue(rounded)) <= maxUtcMillis) {
+                LogManager.getLogger().error("ADSFADSF {} {} {} {} {}", minUtcMillis, maxUtcMillis, values[i - 1], i, max, new Exception());
                 if (i >= max) {
                     return this;
                 }
@@ -699,7 +700,9 @@ public abstract class Rounding implements Writeable {
 
             @Override
             protected Prepared maybeUseArray(long minUtcMillis, long maxUtcMillis, int max) {
+                LogManager.getLogger().error("ADSFADSF to midnight");
                 if (lookup.anyMoveBackToPreviousDay()) {
+                    LogManager.getLogger().error("ADSFADSF to midnight - bad");
                     return this;
                 }
                 return super.maybeUseArray(minUtcMillis, maxUtcMillis, max);

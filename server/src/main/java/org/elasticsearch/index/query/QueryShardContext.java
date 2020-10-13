@@ -34,6 +34,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -62,7 +63,6 @@ import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -83,6 +83,8 @@ import static java.util.Collections.unmodifiableMap;
  * Context object used to create lucene queries on the shard level.
  */
 public class QueryShardContext extends QueryRewriteContext {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(QueryShardContext.class);
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -271,11 +273,20 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.documentMapper(type);
     }
 
+    public Analyzer getIndexAnalyzer() {
+        return mapperService.indexAnalyzer();
+    }
+
     /**
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
+        if (type.equals("string")) {
+            deprecationLogger.deprecate("unmapped_type_string",
+                "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
+            type = "keyword";
+        }
         final Mapper.TypeParser.ParserContext parserContext = mapperService.documentMapperParser().parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
@@ -288,10 +299,6 @@ public class QueryShardContext extends QueryRewriteContext {
             return ((FieldMapper)mapper).fieldType();
         }
         throw new IllegalArgumentException("Mapper for type [" + type + "] must be a leaf field");
-    }
-
-    public Analyzer getIndexAnalyzer() {
-        return mapperService.indexAnalyzer();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {

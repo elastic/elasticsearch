@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -224,7 +223,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                             boolean parsesArrayValue, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
             this.parsesArrayValue = parsesArrayValue;
         }
 
@@ -245,14 +244,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context,
-                "Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
+        public final Query termQuery(Object value, QueryShardContext context) {
+            throw new IllegalArgumentException("Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
                     + name() + "]");
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public final ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
             Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);

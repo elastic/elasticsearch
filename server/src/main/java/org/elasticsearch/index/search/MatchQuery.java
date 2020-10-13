@@ -52,6 +52,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -244,6 +245,16 @@ public class MatchQuery {
             // field type name directly
             fieldName = fieldType.name();
         }
+        // We check here that the field supports text searches -
+        // if it doesn't, we can bail out early without doing any further parsing.
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+            IllegalArgumentException iae = new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" +
+                fieldType.typeName() + "] does not support match queries");
+            if (lenient) {
+                return newLenientFieldQuery(fieldName, iae);
+            }
+            throw iae;
+        }
 
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
         assert analyzer != null;
@@ -296,8 +307,10 @@ public class MatchQuery {
     }
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
+        TextSearchInfo tsi = fieldType.getTextSearchInfo();
+        assert tsi != TextSearchInfo.NONE;
         if (analyzer == null) {
-            return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
+            return quoted ? tsi.getSearchQuoteAnalyzer() : tsi.getSearchAnalyzer();
         } else {
             return analyzer;
         }

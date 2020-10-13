@@ -7,7 +7,7 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 

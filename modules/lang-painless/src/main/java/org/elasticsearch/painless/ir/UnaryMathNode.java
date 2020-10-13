@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -96,14 +95,15 @@ public class UnaryMathNode extends UnaryNode {
     }
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    public void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(getLocation());
 
         if (operation == Operation.NOT) {
             Label fals = new Label();
             Label end = new Label();
 
-            getChildNode().write(classWriter, methodWriter, writeScope);
+            getChildNode().write(writeScope);
 
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
@@ -113,7 +113,7 @@ public class UnaryMathNode extends UnaryNode {
             methodWriter.push(true);
             methodWriter.mark(end);
         } else {
-            getChildNode().write(classWriter, methodWriter, writeScope);
+            getChildNode().write(writeScope);
 
             // Def calls adopt the wanted return value. If there was a narrowing cast,
             // we need to flag that so that it's done at runtime.

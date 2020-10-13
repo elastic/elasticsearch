@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -359,8 +360,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repoName, sourceSnapshot);
 
         blockMasterOnReadIndexMeta(repoName);
+        final String cloneName = "target-snapshot";
         final ActionFuture<AcknowledgedResponse> cloneFuture =
-                startCloneFromDataNode(repoName, sourceSnapshot, "target-snapshot", testIndex);
+                startCloneFromDataNode(repoName, sourceSnapshot, cloneName, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
         final String masterNode = internalCluster().getMasterName();
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
@@ -376,6 +378,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
 
+        // Check if the clone operation worked out by chance as a result of the clone request being retried because of the master failover
+        cloneSucceeded = cloneSucceeded ||
+            getRepositoryData(repoName).getSnapshotIds().stream().anyMatch(snapshotId -> snapshotId.getName().equals(cloneName));
         assertAllSnapshotsSuccessful(getRepositoryData(repoName), cloneSucceeded ? 2 : 1);
     }
 
@@ -509,7 +514,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                                                                     String generation) {
         return PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.supply(f,
                 () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(repository.shardContainer(repositoryShardId.index(),
-                        repositoryShardId.shardId()), generation, NamedXContentRegistry.EMPTY))));
+                        repositoryShardId.shardId()), generation, NamedXContentRegistry.EMPTY, MockBigArrays.NON_RECYCLING_INSTANCE))));
     }
 
     private static BlobStoreIndexShardSnapshot readShardSnapshot(BlobStoreRepository repository, RepositoryShardId repositoryShardId,

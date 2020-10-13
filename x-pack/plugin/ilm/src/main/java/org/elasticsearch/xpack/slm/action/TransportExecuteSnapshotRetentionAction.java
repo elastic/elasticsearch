@@ -37,12 +37,8 @@ public class TransportExecuteSnapshotRetentionAction
                                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                    SnapshotRetentionService retentionService) {
         super(ExecuteSnapshotRetentionAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ExecuteSnapshotRetentionAction.Request::new, indexNameExpressionResolver);
+            ExecuteSnapshotRetentionAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.GENERIC);
         this.retentionService = retentionService;
-    }
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
     }
 
     @Override

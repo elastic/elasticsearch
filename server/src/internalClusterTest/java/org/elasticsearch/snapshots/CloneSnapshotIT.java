@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -609,7 +610,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                                                                     String generation) {
         return PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.supply(f,
                 () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(repository.shardContainer(repositoryShardId.index(),
-                        repositoryShardId.shardId()), generation, NamedXContentRegistry.EMPTY))));
+                        repositoryShardId.shardId()), generation, NamedXContentRegistry.EMPTY, MockBigArrays.NON_RECYCLING_INSTANCE))));
     }
 
     private static BlobStoreIndexShardSnapshot readShardSnapshot(BlobStoreRepository repository, RepositoryShardId repositoryShardId,

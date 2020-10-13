@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +45,6 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Response;
 import org.elasticsearch.xpack.ilm.IndexLifecycleTransition;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -73,19 +71,9 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        NamedXContentRegistry namedXContentRegistry, Client client) {
         super(PutLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
         this.xContentRegistry = namedXContentRegistry;
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response read(StreamInput in) throws IOException {
-        return new Response(in);
     }
 
     @Override

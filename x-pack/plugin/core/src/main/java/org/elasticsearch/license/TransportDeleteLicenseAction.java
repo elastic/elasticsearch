@@ -30,13 +30,8 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
                                         LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteLicenseRequest::new, indexNameExpressionResolver);
+                DeleteLicenseRequest::new, indexNameExpressionResolver, ThreadPool.Names.MANAGEMENT);
         this.licenseService = licenseService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override

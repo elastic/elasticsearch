@@ -59,14 +59,9 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       DestructiveOperations destructiveOperations) {
         super(DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteIndexRequest::new,
-            indexNameExpressionResolver );
+            indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.deleteIndexService = deleteIndexService;
         this.destructiveOperations = destructiveOperations;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

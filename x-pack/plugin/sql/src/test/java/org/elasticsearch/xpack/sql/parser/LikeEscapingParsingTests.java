@@ -74,9 +74,9 @@ public class LikeEscapingParsingTests extends ESTestCase {
 
     public void testEscapingWildcards() {
         assertThat(error("'string' ESCAPE '%'"),
-                is("line 1:27: Char [%] cannot be used for escaping"));
+                is("line 1:27: Char [%] cannot be used for escaping as it's one of the wildcard chars [%_]"));
         assertThat(error("'string' ESCAPE '_'"),
-            is("line 1:27: Char [_] cannot be used for escaping"));
+            is("line 1:27: Char [_] cannot be used for escaping as it's one of the wildcard chars [%_]"));
     }
 
     public void testCanUseStarWithoutEscaping() {

@@ -87,6 +87,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
@@ -1144,6 +1145,74 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat((Integer) explainIndex.get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1));
             assertThat(explainIndex.get(IS_AUTO_RETRYABLE_ERROR_FIELD), is(true));
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExplainIndicesWildcard() throws Exception {
+        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueDays(100));
+        String firstIndex = this.index + "-first";
+        String secondIndex = this.index + "-second";
+        String unmanagedIndex = this.index + "-unmanaged";
+        String indexWithMissingPolicy = this.index + "-missing_policy";
+        createIndexWithSettings(client(), firstIndex, alias + firstIndex, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        createIndexWithSettings(client(), secondIndex, alias + secondIndex, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        createIndexWithSettings(client(), unmanagedIndex, alias + unmanagedIndex, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        String missingPolicyName = "missing_policy_";
+        createIndexWithSettings(client(), indexWithMissingPolicy, alias + indexWithMissingPolicy, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, missingPolicyName));
+
+        assertBusy(() -> {
+            Map<String, Map<String, Object>> explain = explain(client(), this.index + "*", false, false);
+            assertManagedIndex(explain.get(firstIndex));
+            assertManagedIndex(explain.get(secondIndex));
+            assertUnmanagedIndex(explain.get(unmanagedIndex));
+
+            Map<String, Object> explainIndexWithMissingPolicy = explain.get(indexWithMissingPolicy);
+            assertThat(explainIndexWithMissingPolicy.get("managed"), is(true));
+            assertThat(explainIndexWithMissingPolicy.get("policy"), is(missingPolicyName));
+            assertThat(explainIndexWithMissingPolicy.get("phase"), is(nullValue()));
+            assertThat(explainIndexWithMissingPolicy.get("action"), is(nullValue()));
+            assertThat(explainIndexWithMissingPolicy.get("step"), is(nullValue()));
+            assertThat(explainIndexWithMissingPolicy.get("age"), is(nullValue()));
+            assertThat(explainIndexWithMissingPolicy.get("failed_step"), is(nullValue()));
+            Map<String, Object> stepInfo = (Map<String, Object>) explainIndexWithMissingPolicy.get("step_info");
+            assertThat(stepInfo, is(notNullValue()));
+            assertThat(stepInfo.get("reason"), is("policy [missing_policy_] does not exist"));
+        });
+    }
+
+    private void assertUnmanagedIndex(Map<String, Object> explainIndexMap) {
+        assertThat(explainIndexMap.get("managed"), is(false));
+        assertThat(explainIndexMap.get("policy"), is(nullValue()));
+        assertThat(explainIndexMap.get("phase"), is(nullValue()));
+        assertThat(explainIndexMap.get("action"), is(nullValue()));
+        assertThat(explainIndexMap.get("step"), is(nullValue()));
+        assertThat(explainIndexMap.get("age"), is(nullValue()));
+        assertThat(explainIndexMap.get("failed_step"), is(nullValue()));
+        assertThat(explainIndexMap.get("step_info"), is(nullValue()));
+    }
+
+    private void assertManagedIndex(Map<String, Object> explainIndexMap) {
+        assertThat(explainIndexMap.get("managed"), is(true));
+        assertThat(explainIndexMap.get("policy"), is(policy));
+        assertThat(explainIndexMap.get("phase"), is("new"));
+        assertThat(explainIndexMap.get("action"), is("complete"));
+        assertThat(explainIndexMap.get("step"), is("complete"));
+        assertThat(explainIndexMap.get("phase_time_millis"), is(notNullValue()));
+        assertThat(explainIndexMap.get("age"), is(notNullValue()));
+        assertThat(explainIndexMap.get("phase_execution"), is(notNullValue()));
+        assertThat(explainIndexMap.get("failed_step"), is(nullValue()));
+        assertThat(explainIndexMap.get("step_info"), is(nullValue()));
     }
 
     public void testILMRolloverRetriesOnReadOnlyBlock() throws Exception {

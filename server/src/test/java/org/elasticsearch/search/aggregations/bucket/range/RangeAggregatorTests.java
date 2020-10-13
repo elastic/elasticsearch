@@ -108,9 +108,21 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             new RangeAggregationBuilder("name").field(NUMBER_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
             new MatchAllDocsQuery(),
             iw -> {
+                iw.addDocument(
+                    List.of(
+                        new NumericDocValuesField(NUMBER_FIELD_NAME, Integer.MIN_VALUE),
+                        new IntPoint(NUMBER_FIELD_NAME, Integer.MIN_VALUE)
+                    )
+                );
                 iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 7), new IntPoint(NUMBER_FIELD_NAME, 7)));
                 iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 2), new IntPoint(NUMBER_FIELD_NAME, 2)));
                 iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 3), new IntPoint(NUMBER_FIELD_NAME, 3)));
+                iw.addDocument(
+                    List.of(
+                        new NumericDocValuesField(NUMBER_FIELD_NAME, Integer.MAX_VALUE),
+                        new IntPoint(NUMBER_FIELD_NAME, Integer.MAX_VALUE)
+                    )
+                );
             },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
@@ -118,10 +130,10 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 assertThat(ranges, hasSize(2));
                 assertThat(ranges.get(0).getFrom(), equalTo(Double.NEGATIVE_INFINITY));
                 assertThat(ranges.get(0).getTo(), equalTo(5d));
-                assertThat(ranges.get(0).getDocCount(), equalTo(2L));
+                assertThat(ranges.get(0).getDocCount(), equalTo(3L));
                 assertThat(ranges.get(1).getFrom(), equalTo(5d));
                 assertThat(ranges.get(1).getTo(), equalTo(Double.POSITIVE_INFINITY));
-                assertThat(ranges.get(1).getDocCount(), equalTo(1L));
+                assertThat(ranges.get(1).getDocCount(), equalTo(2L));
                 assertTrue(AggregationInspectionHelper.hasValue(range));
             },
             new NumberFieldMapper.NumberFieldType(

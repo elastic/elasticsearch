@@ -242,6 +242,15 @@ public final class TimeSeriesRestDriver {
         ensureGreen(index);
     }
 
+    public static void createIndexWithSettingsNoAlias(RestClient client, String index, Settings.Builder settings) throws IOException {
+        Request request = new Request("PUT", "/" + index);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
+            + "}");
+        client.performRequest(request);
+        // wait for the shards to initialize
+        ensureGreen(index);
+    }
+
     @SuppressWarnings("unchecked")
     public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));

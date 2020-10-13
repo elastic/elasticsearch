@@ -26,6 +26,7 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
@@ -44,6 +45,7 @@ import javax.inject.Inject;
 import java.io.File;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
@@ -63,6 +65,9 @@ public class CopyRestTestsTask extends DefaultTask {
     Configuration coreConfig;
     Configuration xpackConfig;
     Configuration additionalConfig;
+    Function<Configuration, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
+    Function<Configuration, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
+    Function<Configuration, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
@@ -109,19 +114,19 @@ public class CopyRestTestsTask extends DefaultTask {
         FileTree xpackFileTree = null;
         if (includeXpack.get().isEmpty() == false) {
             xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-            xpackFileTree = xpackConfig.getAsFileTree().matching(xpackPatternSet);
+            xpackFileTree = xpackConfigToFileTree.apply(xpackConfig).matching(xpackPatternSet);
         }
         if (includeCore.get().isEmpty() == false) {
             if (BuildParams.isInternal()) {
                 corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-                coreFileTree = coreConfig.getAsFileTree().matching(corePatternSet); // directory on disk
+                coreFileTree = coreConfigToFileTree.apply(coreConfig).matching(corePatternSet); // directory on disk
             } else {
-                coreFileTree = coreConfig.getAsFileTree(); // jar file
+                coreFileTree = coreConfigToFileTree.apply(coreConfig); // jar file
             }
         }
         ConfigurableFileCollection fileCollection = additionalConfig == null
             ? getProject().files(coreFileTree, xpackFileTree)
-            : getProject().files(coreFileTree, xpackFileTree, additionalConfig.getAsFileTree());
+            : getProject().files(coreFileTree, xpackFileTree, additionalConfigToFileTree.apply(additionalConfig));
 
         // copy tests only if explicitly requested
         return includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false || additionalConfig != null
@@ -147,7 +152,7 @@ public class CopyRestTestsTask extends DefaultTask {
             if (BuildParams.isInternal()) {
                 getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", projectPath);
                 getFileSystemOperations().copy(c -> {
-                    c.from(coreConfig.getAsFileTree());
+                    c.from(coreConfigToFileTree.apply(coreConfig));
                     c.into(getOutputDir());
                     c.include(corePatternSet.getIncludes());
                 });
@@ -171,7 +176,7 @@ public class CopyRestTestsTask extends DefaultTask {
         if (includeXpack.get().isEmpty() == false) {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", projectPath);
             getFileSystemOperations().copy(c -> {
-                c.from(xpackConfig.getAsFileTree());
+                c.from(xpackConfigToFileTree.apply(xpackConfig));
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
             });
@@ -179,7 +184,7 @@ public class CopyRestTestsTask extends DefaultTask {
         // copy any additional config
         if (additionalConfig != null) {
             getFileSystemOperations().copy(c -> {
-                c.from(additionalConfig.getAsFileTree());
+                c.from(additionalConfigToFileTree.apply(additionalConfig));
                 c.into(getOutputDir());
             });
         }

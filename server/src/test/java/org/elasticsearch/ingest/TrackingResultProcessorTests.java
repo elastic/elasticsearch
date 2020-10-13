@@ -512,6 +512,43 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(resultList.get(4).getProcessorTag(), nullValue());
     }
 
+    public void testActualPipelineProcessorWithUnhandledFailure() throws Exception {
+        String pipelineId = "pipeline1";
+        IngestService ingestService = createIngestService();
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("name", pipelineId);
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+
+        String key1 = randomAlphaOfLength(10);
+        IllegalStateException exception = new IllegalStateException("Not a pipeline cycle error");
+
+        Pipeline pipeline = new Pipeline(
+            pipelineId, null, null, new CompoundProcessor(
+            new TestProcessor(ingestDocument -> ingestDocument.setFieldValue(key1, randomInt())),
+            new TestProcessor(ingestDocument -> { throw exception; }))
+        );
+        when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
+
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, null, pipelineConfig);
+        CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
+
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
+
+        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+            actualProcessor.getDescription(), ingestDocument, null);
+        expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
+
+        verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId);
+
+        assertThat(resultList.size(), equalTo(3));
+        assertNull(resultList.get(0).getConditionalWithResult());
+        assertThat(resultList.get(0).getType(), equalTo("pipeline"));
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
+        assertThat(resultList.get(2).getFailure(), equalTo(exception));
+    }
+
     public void testActualPipelineProcessorWithCycle() throws Exception {
         String pipelineId1 = "pipeline1";
         String pipelineId2 = "pipeline2";

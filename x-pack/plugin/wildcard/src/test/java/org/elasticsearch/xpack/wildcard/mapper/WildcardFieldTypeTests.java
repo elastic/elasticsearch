@@ -23,12 +23,12 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        MappedFieldType mapper = new WildcardFieldMapper.Builder("field").build(context).fieldType();
+        MappedFieldType mapper = new WildcardFieldMapper.Builder("field", Version.CURRENT).build(context).fieldType();
         assertEquals(Collections.singletonList("value"), fetchSourceValue(mapper, "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper, true));
 
-        MappedFieldType ignoreAboveMapper = new WildcardFieldMapper.Builder("field")
+        MappedFieldType ignoreAboveMapper = new WildcardFieldMapper.Builder("field", Version.CURRENT)
             .ignoreAbove(4)
             .build(context)
             .fieldType();
@@ -36,7 +36,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper, true));
 
-        MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field")
+        MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field", Version.CURRENT)
             .nullValue("NULL")
             .build(context)
             .fieldType();

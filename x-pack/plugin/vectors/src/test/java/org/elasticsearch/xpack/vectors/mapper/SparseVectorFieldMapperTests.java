@@ -55,8 +55,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field("1", 1).endObject();
+    protected Object getSampleValueForDocument() {
+        return Collections.singletonMap("1", 1);
     }
 
     @Override

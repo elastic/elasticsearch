@@ -34,6 +34,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -82,6 +83,8 @@ import static java.util.Collections.unmodifiableMap;
  * Context object used to create lucene queries on the shard level.
  */
 public class QueryShardContext extends QueryRewriteContext {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(QueryShardContext.class);
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -270,27 +273,32 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.documentMapper(type);
     }
 
+    public Analyzer getIndexAnalyzer() {
+        return mapperService.indexAnalyzer();
+    }
+
     /**
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
+        if (type.equals("string")) {
+            deprecationLogger.deprecate("unmapped_type_string",
+                "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
+            type = "keyword";
+        }
         final Mapper.TypeParser.ParserContext parserContext = mapperService.documentMapperParser().parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
-        final Mapper.Builder<?> builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
+        final Mapper.Builder builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1));
         Mapper mapper = builder.build(builderContext);
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper)mapper).fieldType();
         }
         throw new IllegalArgumentException("Mapper for type [" + type + "] must be a leaf field");
-    }
-
-    public Analyzer getIndexAnalyzer() {
-        return mapperService.indexAnalyzer();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -327,7 +335,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public Collection<String> queryTypes() {
         String[] types = getTypes();
         if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = getMapperService().documentMapper();
+            DocumentMapper mapper = mapperService.documentMapper();
             return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
         }
         return Arrays.asList(types);
@@ -509,14 +517,26 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService;
     }
 
-    /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,
-     *  for instance if this rewrite context is used to index queries (percolation). */
+    public String getType() {
+        return mapperService.documentMapper() == null ? null : mapperService.documentMapper().type();
+    }
+
+    public boolean typeExists(String type) {
+        return mapperService.documentMapper(type) != null;
+    }
+
+    /**
+     * Return the current {@link IndexReader}, or {@code null} if no index reader is available,
+     * for instance if this rewrite context is used to index queries (percolation).
+     */
     public IndexReader getIndexReader() {
         return searcher == null ? null : searcher.getIndexReader();
     }
 
-    /** Return the current {@link IndexSearcher}, or {@code null} if no index reader is available,
-     *  for instance if this rewrite context is used to index queries (percolation). */
+    /**
+     * Return the current {@link IndexSearcher}, or {@code null} if no index reader is available,
+     * for instance if this rewrite context is used to index queries (percolation).
+     */
     public IndexSearcher searcher() {
         return searcher;
     }

@@ -38,9 +38,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -56,7 +54,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -190,15 +187,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> indexService1.mapperService().merge("type", objectMapping, updateOrPreflight()));
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] has been exceeded"));
-    }
-
-    public void testUnmappedFieldType() {
-        MapperService mapperService = createIndex("index").mapperService();
-        assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));
-        assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));
-        // back compat
-        assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
-        assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
     }
 
     public void testPartitionedConstraints() {

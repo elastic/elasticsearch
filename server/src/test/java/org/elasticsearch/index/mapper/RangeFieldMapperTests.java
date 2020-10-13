@@ -24,6 +24,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,8 +77,13 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field(getFromField(), getFrom("long_range")).field(getToField(), getTo("long_range")).endObject();
+    protected Object getSampleValueForDocument() {
+        return Map.of(getFromField(), getFrom("long_range"), getToField(), getTo("long_range"));
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return 6;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {

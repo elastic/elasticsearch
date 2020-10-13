@@ -69,8 +69,9 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         });
     }
 
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(stringEncode(1.3, 1.2));
+    @Override
+    protected Object getSampleValueForDocument() {
+        return stringEncode(1.3, 1.2);
     }
 
     public final void testExistsQueryDocValuesDisabled() throws IOException {
@@ -328,5 +329,10 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
     @Override
     protected GeoPointFieldMapper.Builder newBuilder() {
         return new GeoPointFieldMapper.Builder("geo");
+    }
+
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 }

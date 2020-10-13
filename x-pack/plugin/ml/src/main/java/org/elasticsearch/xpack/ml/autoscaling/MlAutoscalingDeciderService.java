@@ -71,7 +71,6 @@ public class MlAutoscalingDeciderService implements
     private volatile int maxMachineMemoryPercent;
     private volatile int maxOpenJobs;
     private volatile long lastTimeToScale;
-    private volatile AutoscalingDecision lastMaxDecision;
 
     public MlAutoscalingDeciderService(MlMemoryTracker memoryTracker, Settings settings, ClusterService clusterService) {
         this(new NodeLoadDetector(memoryTracker), settings, clusterService, System::currentTimeMillis);
@@ -235,12 +234,12 @@ public class MlAutoscalingDeciderService implements
         if (waitingAnalyticsJobs.size() > decider.getNumAnalyticsJobsInQueue()
             || waitingAnomalyJobs.size() > decider.getNumAnomalyJobsInQueue()) {
             MemoryCapacity updatedCapacity = MemoryCapacity.from(currentScale);
-            Optional<MemoryCapacity> analyticsCapacity  = requiredCapacityForUnassignedJobs(waitingAnalyticsJobs,
+            Optional<MemoryCapacity> analyticsCapacity = requiredCapacityForUnassignedJobs(waitingAnalyticsJobs,
                 this::getAnalyticsMemoryRequirement,
                 // TODO Better default???
                 AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB,
                 decider.getNumAnalyticsJobsInQueue());
-            Optional<MemoryCapacity> anomalyCapacity  = requiredCapacityForUnassignedJobs(waitingAnomalyJobs,
+            Optional<MemoryCapacity> anomalyCapacity = requiredCapacityForUnassignedJobs(waitingAnomalyJobs,
                 this::getAnomalyMemoryRequirement,
                 AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB,
                 decider.getNumAnomalyJobsInQueue());
@@ -403,6 +402,8 @@ public class MlAutoscalingDeciderService implements
         return mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(anomalyId);
     }
 
+    // TODO, actually calculate scale down,
+    //  but only return it as a scale option IF cool down period has passed (AFTER it was previously calculated)
     AutoscalingDecision checkForScaleDown(List<DiscoveryNode> nodes, ClusterState clusterState, MlScalingReason.Builder reasonBuilder) {
         List<NodeLoadDetector.NodeLoad> nodeLoads = new ArrayList<>();
         boolean isMemoryAccurateFlag = true;

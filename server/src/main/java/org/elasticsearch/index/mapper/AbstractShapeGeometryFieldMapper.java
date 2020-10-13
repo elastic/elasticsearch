@@ -48,8 +48,7 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
     }
 
-    public abstract static class Builder<T extends Builder<T, FT>,
-            FT extends AbstractShapeGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<T, FT> {
+    public abstract static class Builder extends AbstractGeometryFieldMapper.Builder {
         protected Boolean coerce;
         protected Orientation orientation;
 

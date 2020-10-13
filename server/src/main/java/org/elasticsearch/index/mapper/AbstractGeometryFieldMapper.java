@@ -118,8 +118,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractGeometryFieldType>
-            extends FieldMapper.Builder<T> {
+    public abstract static class Builder extends FieldMapper.Builder {
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
         protected boolean indexed = true;

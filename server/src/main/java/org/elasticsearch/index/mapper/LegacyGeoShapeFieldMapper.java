@@ -184,8 +184,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LegacyGeoShapeFieldMapper.class);
 
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder,
-        LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder> {
 
         DeprecatedParameters deprecatedParameters;
 
@@ -258,11 +257,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         private GeoShapeFieldType buildFieldType(BuilderContext context) {
-            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, fieldType.stored(), false, meta);
+            GeoShapeFieldType ft =
+                new GeoShapeFieldType(buildFullName(context), indexed, fieldType.stored(), false, new LegacyGeoShapeParser(), meta);
             setupFieldTypeDeprecatedParameters(ft);
             setupPrefixTrees(ft);
-            ft.setGeometryIndexer(new LegacyGeoShapeIndexer(ft));
-            ft.setGeometryParser(new LegacyGeoShapeParser());
             ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
             return ft;
         }
@@ -281,9 +279,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 // Check for an empty name early so we can throw a consistent error message
                 throw new IllegalArgumentException("name cannot be empty string");
             }
-            return new LegacyGeoShapeFieldMapper(name, fieldType, buildFieldType(context), ignoreMalformed(context),
+            GeoShapeFieldType ft = buildFieldType(context);
+            return new LegacyGeoShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context),
                 coerce(context), orientation(), ignoreZValue(), context.indexSettings(),
-                multiFieldsBuilder.build(this, context), copyTo);
+                multiFieldsBuilder.build(this, context), copyTo,
+                new LegacyGeoShapeIndexer(ft), new LegacyGeoShapeParser());
         }
     }
 
@@ -309,8 +309,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
-    public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>, Shape>
-        implements GeoShapeQueryable {
+    public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
 
         private String tree = DeprecatedParameters.Defaults.TREE;
         private SpatialStrategy strategy = DeprecatedParameters.Defaults.STRATEGY;
@@ -327,13 +326,14 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private final LegacyGeoShapeQueryProcessor queryProcessor;
 
-        private GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, false, meta);
+        private GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                  LegacyGeoShapeParser parser, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, false, parser, meta);
             this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 
         public GeoShapeFieldType(String name) {
-            this(name, true, false, true, Collections.emptyMap());
+            this(name, true, false, true, null, Collections.emptyMap());
         }
 
         @Override
@@ -430,9 +430,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     public LegacyGeoShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                      Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<Orientation> orientation,
                                      Explicit<Boolean> ignoreZValue, Settings indexSettings,
-                                     MultiFields multiFields, CopyTo copyTo) {
+                                     MultiFields multiFields, CopyTo copyTo,
+                                     LegacyGeoShapeIndexer indexer, LegacyGeoShapeParser parser) {
         super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
-            multiFields, copyTo);
+            multiFields, copyTo, indexer, parser);
         this.indexCreatedVersion = Version.indexCreated(indexSettings);
     }
 

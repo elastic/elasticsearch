@@ -80,130 +80,14 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
      * Note that as aggregations are initialized and executed in a serial manner,
      * no concurrency considerations are necessary here.
      */
-    public Weight[] getWeights(Query query, SearchContext searchContext) {
-        if (weights == null) {
-            try {
-                IndexSearcher contextSearcher = searchContext.searcher();
-                weights = new Weight[filters.length];
-                for (int i = 0; i < filters.length; ++i) {
-                    Query filter = filterMatchingBoth(query, filters[i]);
-                    this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1);
-                }
-            } catch (IOException e) {
-                throw new AggregationInitializationException("Failed to initialse filters for aggregation [" + name() + "]", e);
-            }
-        }
-        return weights;
-    }
-
-    private Query filterMatchingBoth(Query lhs, Query rhs) {
-        if (lhs instanceof MatchAllDocsQuery) {
-            return rhs;
-        }
-        if (rhs instanceof MatchAllDocsQuery) {
-            return lhs;
-        }
-        Query unwrappedLhs = unwrap(lhs);
-        Query unwrappedRhs = unwrap(rhs);
-        LogManager.getLogger().error("ADSFDSAF {} {}", unwrappedLhs, unwrappedRhs);
-        LogManager.getLogger().error("ADSFDSAF {} {}", unwrappedLhs instanceof PointRangeQuery, unwrappedRhs instanceof PointRangeQuery);
-        if (unwrappedLhs instanceof PointRangeQuery && unwrappedRhs instanceof PointRangeQuery) {
-            PointRangeQuery merged = mergePointRangeQueries((PointRangeQuery) unwrappedLhs, (PointRangeQuery) unwrappedRhs);
-            LogManager.getLogger().error("ADSFDSAF {}", merged);
-            if (merged != null) {
-                // TODO rewrap?
-                return merged;
-            }
-        }
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(lhs, BooleanClause.Occur.MUST);
-        builder.add(rhs, BooleanClause.Occur.MUST);
-        return builder.build();
-    }
-
-    private Query unwrap(Query query) {
-        if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
-            query = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
-        }
-        if (query instanceof IndexOrDocValuesQuery) {
-            query = ((IndexOrDocValuesQuery) query).getIndexQuery();
-        }
-        return query;
-    }
-
-    private PointRangeQuery mergePointRangeQueries(PointRangeQuery lhs, PointRangeQuery rhs) {
-        if (lhs.getField() != rhs.getField() || lhs.getNumDims() != rhs.getNumDims() || lhs.getBytesPerDim() != rhs.getBytesPerDim()) {
-            return null;
-        }
-        byte[] lower = mergePoint(lhs.getLowerPoint(), rhs.getLowerPoint(), lhs.getNumDims(), lhs.getBytesPerDim(), true);
-        LogManager.getLogger().error("ADSFDSAF {}", LongPoint.decodeDimension(lower, 0));
-        if (lower == null) {
-            return null;
-        }
-        byte[] upper = mergePoint(lhs.getUpperPoint(), rhs.getUpperPoint(), lhs.getNumDims(), lhs.getBytesPerDim(), false);
-        LogManager.getLogger().error("ADSFDSAF {}", LongPoint.decodeDimension(upper, 0));
-        if (upper == null) {
-            return null;
-        }
-        return new PointRangeQuery(lhs.getField(), lower, upper, lhs.getNumDims()) {
-            @Override
-            protected String toString(int dimension, byte[] value) {
-                // Stolen from Lucene's Binary range query. It'd be best to delegate, but the method isn't visible.
-                StringBuilder sb = new StringBuilder();
-                sb.append("binary(");
-                for (int i = 0; i < value.length; i++) {
-                    if (i > 0) {
-                        sb.append(' ');
-                    }
-                    sb.append(Integer.toHexString(value[i] & 0xFF));
-                }
-                sb.append(')');
-                return sb.toString();
-            }
-        };
-    }
-
-    /**
-     * Figure out if lhs's lower point is lower in all dimensions than
-     * rhs's lower point or if it is further. Return null if it is closer
-     * in some dimensions and further in others.
-     */
-    private byte[] mergePoint(byte[] lhs, byte[] rhs, int numDims, int bytesPerDim, boolean mergingLower) {
-        int runningCmp = 0;
-        for (int dim = 0; dim < numDims; dim++) {
-            int cmp = cmpDim(lhs, rhs, dim, bytesPerDim);
-            if (runningCmp == 0) {
-                // Previous dimensions were all equal
-                runningCmp = cmp;
-                continue;
-            }
-            if (cmp == 0) {
-                // This dimension has the same value.
-                continue;
-            }
-            if ((runningCmp ^ cmp) < 0) {
-                // Signs differ so this dimension doesn't compare the same way as the previous ones so we can't merge.
-                return null;
-            }
-        }
-        if (runningCmp < 0) {
-            // lhs is lower
-            return mergingLower ? rhs : lhs;
-        }
-        return mergingLower ? lhs : rhs;
-    }
-
-    private int cmpDim(byte[] lhs, byte[] rhs, int dim, int bytesPerDim) {
-        int offset = dim * bytesPerDim;
-        return compareUnsigned(lhs, offset, offset + bytesPerDim, rhs, offset, offset + bytesPerDim);
-    }
+    
 
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
-        return FiltersAggregator.build(name, factories, keys, query -> getWeights(query, searchContext), keyed,
+        return FiltersAggregator.build(name, factories, keys, filters, keyed,
             otherBucket ? otherBucketKey : null, searchContext, parent, cardinality, metadata);
     }
 

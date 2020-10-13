@@ -19,11 +19,19 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
@@ -49,8 +57,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.function.Supplier;
+
+import static java.util.Arrays.compareUnsigned;
 
 public abstract class FiltersAggregator extends BucketsAggregator {
 
@@ -124,7 +132,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         String name,
         AggregatorFactories factories,
         String[] keys,
-        Function<Query, Weight[]> filtersSupplier,
+        Query[] filters,
         boolean keyed,
         String otherBucketKey,
         SearchContext context,
@@ -136,7 +144,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             name,
             factories,
             keys,
-            filtersSupplier,
+            filters,
             keyed,
             otherBucketKey,
             context,
@@ -151,7 +159,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             name,
             factories,
             keys,
-            () -> filtersSupplier.apply(new MatchAllDocsQuery()),
+            filters,
             keyed,
             otherBucketKey,
             context,
@@ -165,7 +173,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         String name,
         AggregatorFactories factories,
         String[] keys,
-        Function<Query, Weight[]> filtersSupplier,
+        Query[] filters,
         boolean keyed,
         String otherBucketKey,
         SearchContext context,
@@ -184,11 +192,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
         return new FilterOrderAggregator(
             name,
-            factories,
             keys,
-            () -> filtersSupplier.apply(context.query()),
+            filters,
             keyed,
-            otherBucketKey,
             context,
             parent,
             cardinality,
@@ -196,33 +202,18 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         );
     }
 
-
     private final String[] keys;
-    private final Supplier<Weight[]> filtersSupplier;
     private final boolean keyed;
     protected final String otherBucketKey;
-    private Weight[] filters;
 
-    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filtersSupplier, boolean keyed,
+    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, boolean keyed,
             String otherBucketKey, SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
         this.keyed = keyed;
         this.keys = keys;
-        this.filtersSupplier = filtersSupplier;
         this.otherBucketKey = otherBucketKey;
     }
-
-    @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (filters == null) {
-            filters = this.filtersSupplier.get();
-        }
-        return getLeafCollector(ctx, sub, filters);
-    }
-
-    protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, Weight[] filters)
-        throws IOException;
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
@@ -253,28 +244,34 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         return new InternalFilters(name, buckets, keyed, metadata());
     }
 
+    public abstract boolean collectsInFilterOrder();
+
     private static class FilterOrderAggregator extends FiltersAggregator {
+        private final Query[] filters;
+        private Weight[] filterWeights;
+
         public FilterOrderAggregator(
             String name,
-            AggregatorFactories factories,
             String[] keys,
-            Supplier<Weight[]> filtersSupplier,
+            Query[] filters,
             boolean keyed,
-            String otherBucketKey,
             SearchContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, factories, keys, filtersSupplier, keyed, otherBucketKey, context, parent, cardinality, metadata);
+            super(name, AggregatorFactories.EMPTY, keys, keyed, null, context, parent, cardinality, metadata);
+            this.filters = filters;
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, Weight[] filters)
-            throws IOException {
+        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+            if (filterWeights == null) {
+                filterWeights = buildWeights(context.query(), filters);
+            }
             Bits live = ctx.reader().getLiveDocs();
             for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
-                DocIdSetIterator itr = filters[filterOrd].scorer(ctx).iterator();
+                DocIdSetIterator itr = filterWeights[filterOrd].scorer(ctx).iterator();
                 if (live == null) {
                     while (itr.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         collectBucket(sub, itr.docID(), filterOrd);
@@ -289,16 +286,24 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             }
             throw new CollectionTerminatedException();
         }
+
+        @Override
+        public boolean collectsInFilterOrder() {
+            return true;
+        }
     }
 
     private static class StandardOrderAggregator extends FiltersAggregator {
+        private final Query[] filters;
+        private Weight[] filterWeights;
+
         private final int totalNumKeys;
 
         public StandardOrderAggregator(
             String name,
             AggregatorFactories factories,
             String[] keys,
-            Supplier<Weight[]> filtersSupplier,
+            Query[] filters,
             boolean keyed,
             String otherBucketKey,
             SearchContext context,
@@ -306,7 +311,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, factories, keys, filtersSupplier, keyed, otherBucketKey, context, parent, cardinality, metadata);
+            super(name, factories, keys, keyed, otherBucketKey, context, parent, cardinality, metadata);
+            this.filters = filters;
             if (otherBucketKey == null) {
                 this.totalNumKeys = keys.length;
             } else {
@@ -315,11 +321,13 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, Weight[] filters)
-            throws IOException {
+        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+            if (filterWeights == null) {
+                filterWeights = buildWeights(new MatchAllDocsQuery(), filters);
+            }
             final Bits[] bits = new Bits[filters.length];
             for (int i = 0; i < filters.length; ++i) {
-                bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorerSupplier(ctx));
+                bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filterWeights[i].scorerSupplier(ctx));
             }
             return new LeafBucketCollectorBase(sub, null) {
                 @Override
@@ -341,5 +349,121 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
             return owningBucketOrdinal * totalNumKeys + filterOrd;
         }
+
+        @Override
+        public boolean collectsInFilterOrder() {
+            return false;
+        }
+    }
+
+    protected Weight[] buildWeights(Query topLevelQuery, Query filters[]) throws IOException{
+        Weight[] weights = new Weight[filters.length];
+        for (int i = 0; i < filters.length; ++i) {
+            Query filter = filterMatchingBoth(topLevelQuery, filters[i]);
+            weights[i] = context.searcher().createWeight(context.searcher().rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1);
+        }
+        return weights;
+    }
+
+    private Query filterMatchingBoth(Query lhs, Query rhs) {
+        if (lhs instanceof MatchAllDocsQuery) {
+            return rhs;
+        }
+        if (rhs instanceof MatchAllDocsQuery) {
+            return lhs;
+        }
+        Query unwrappedLhs = unwrap(lhs);
+        Query unwrappedRhs = unwrap(rhs);
+        LogManager.getLogger().error("ADSFDSAF {} {}", unwrappedLhs, unwrappedRhs);
+        LogManager.getLogger().error("ADSFDSAF {} {}", unwrappedLhs instanceof PointRangeQuery, unwrappedRhs instanceof PointRangeQuery);
+        if (unwrappedLhs instanceof PointRangeQuery && unwrappedRhs instanceof PointRangeQuery) {
+            PointRangeQuery merged = mergePointRangeQueries((PointRangeQuery) unwrappedLhs, (PointRangeQuery) unwrappedRhs);
+            LogManager.getLogger().error("ADSFDSAF {}", merged);
+            if (merged != null) {
+                // TODO rewrap?
+                return merged;
+            }
+        }
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(lhs, BooleanClause.Occur.MUST);
+        builder.add(rhs, BooleanClause.Occur.MUST);
+        return builder.build();
+    }
+
+    private Query unwrap(Query query) {
+        if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
+            query = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+        }
+        if (query instanceof IndexOrDocValuesQuery) {
+            query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+        }
+        return query;
+    }
+
+    private PointRangeQuery mergePointRangeQueries(PointRangeQuery lhs, PointRangeQuery rhs) {
+        if (lhs.getField() != rhs.getField() || lhs.getNumDims() != rhs.getNumDims() || lhs.getBytesPerDim() != rhs.getBytesPerDim()) {
+            return null;
+        }
+        byte[] lower = mergePoint(lhs.getLowerPoint(), rhs.getLowerPoint(), lhs.getNumDims(), lhs.getBytesPerDim(), true);
+        LogManager.getLogger().error("ADSFDSAF {}", LongPoint.decodeDimension(lower, 0));
+        if (lower == null) {
+            return null;
+        }
+        byte[] upper = mergePoint(lhs.getUpperPoint(), rhs.getUpperPoint(), lhs.getNumDims(), lhs.getBytesPerDim(), false);
+        LogManager.getLogger().error("ADSFDSAF {}", LongPoint.decodeDimension(upper, 0));
+        if (upper == null) {
+            return null;
+        }
+        return new PointRangeQuery(lhs.getField(), lower, upper, lhs.getNumDims()) {
+            @Override
+            protected String toString(int dimension, byte[] value) {
+                // Stolen from Lucene's Binary range query. It'd be best to delegate, but the method isn't visible.
+                StringBuilder sb = new StringBuilder();
+                sb.append("binary(");
+                for (int i = 0; i < value.length; i++) {
+                    if (i > 0) {
+                        sb.append(' ');
+                    }
+                    sb.append(Integer.toHexString(value[i] & 0xFF));
+                }
+                sb.append(')');
+                return sb.toString();
+            }
+        };
+    }
+
+    /**
+     * Figure out if lhs's lower point is lower in all dimensions than
+     * rhs's lower point or if it is further. Return null if it is closer
+     * in some dimensions and further in others.
+     */
+    private byte[] mergePoint(byte[] lhs, byte[] rhs, int numDims, int bytesPerDim, boolean mergingLower) {
+        int runningCmp = 0;
+        for (int dim = 0; dim < numDims; dim++) {
+            int cmp = cmpDim(lhs, rhs, dim, bytesPerDim);
+            if (runningCmp == 0) {
+                // Previous dimensions were all equal
+                runningCmp = cmp;
+                continue;
+            }
+            if (cmp == 0) {
+                // This dimension has the same value.
+                continue;
+            }
+            if ((runningCmp ^ cmp) < 0) {
+                // Signs differ so this dimension doesn't compare the same way as the previous ones so we can't merge.
+                return null;
+            }
+        }
+        if (runningCmp < 0) {
+            // lhs is lower
+            return mergingLower ? rhs : lhs;
+        }
+        return mergingLower ? lhs : rhs;
+    }
+
+    private int cmpDim(byte[] lhs, byte[] rhs, int dim, int bytesPerDim) {
+        int offset = dim * bytesPerDim;
+        return compareUnsigned(lhs, offset, offset + bytesPerDim, rhs, offset, offset + bytesPerDim);
     }
 }

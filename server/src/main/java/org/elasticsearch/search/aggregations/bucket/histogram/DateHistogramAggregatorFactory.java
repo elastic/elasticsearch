@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -43,64 +43,11 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         builder.register(
             DateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            DateHistogramAggregatorFactory::build,
+            DateHistogramAggregator::build,
                 true);
 
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
     }
-
-    private static Aggregator build(
-        String name,
-        AggregatorFactories factories,
-        Rounding rounding,
-        BucketOrder order,
-        boolean keyed,
-        long minDocCount,
-        @Nullable LongBounds extendedBounds,
-        @Nullable LongBounds hardBounds,
-        ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
-        Aggregator optimized = DateHistogramAdaptedFromDateRangeAggregator.buildOrNull(
-            name,
-            factories,
-            rounding,
-            preparedRounding,
-            order,
-            keyed,
-            minDocCount,
-            extendedBounds,
-            hardBounds,
-            valuesSourceConfig,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
-        if (optimized != null) {
-            return optimized;
-        }
-        return new DateHistogramAggregator(
-            name,
-            factories,
-            rounding,
-            preparedRounding,
-            order,
-            keyed,
-            minDocCount,
-            extendedBounds,
-            hardBounds,
-            valuesSourceConfig,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
-    };
 
     private final BucketOrder order;
     private final boolean keyed;

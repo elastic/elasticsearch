@@ -6,6 +6,8 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class AdaptingAggregator extends Aggregator {
     private final Aggregator delegate;
@@ -74,9 +76,10 @@ public abstract class AdaptingAggregator extends Aggregator {
         return adapt(delegate.buildEmptyAggregation());
     }
 
-    protected abstract InternalAggregation adapt(InternalAggregation delegateResult);
-
-    public final InternalAggregations buildEmptySubAggregations() {
-        return ((BucketsAggregator) delegate).buildEmptySubAggregations();
+    @Override
+    public Aggregator[] subAggregators() {
+        return delegate.subAggregators();
     }
+
+    protected abstract InternalAggregation adapt(InternalAggregation delegateResult);
 }

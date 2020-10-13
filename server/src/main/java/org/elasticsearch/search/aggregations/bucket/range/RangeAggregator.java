@@ -19,8 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -41,9 +44,12 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -217,12 +223,72 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    public static RangeAggregator build(
+    public static Aggregator build(
+        String name,
+        AggregatorFactories factories,
+        ValuesSourceConfig valuesSourceConfig,
+        InternalRange.Factory<?, ?> rangeFactory,
+        Range[] ranges,
+        boolean keyed,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        if (valuesSourceConfig.fieldType().isSearchable()) {
+            String[] keys = new String[ranges.length];
+            Query[] filters = new Query[ranges.length];
+            for (int i = 0; i < ranges.length; i++) {
+                keys[i] = Integer.toString(i);
+                filters[i] = valuesSourceConfig.fieldType()
+                    .rangeQuery(
+                        valuesSourceConfig.format().format(ranges[i].from),
+                        valuesSourceConfig.format().format(ranges[i].to),
+                        true,
+                        false,
+                        ShapeRelation.CONTAINS,
+                        null,
+                        null,
+                        context.getQueryShardContext()
+                    );
+            }
+            FiltersAggregator delegate = FiltersAggregator.build(
+                name,
+                factories,
+                keys,
+                filters,
+                false,
+                null,
+                context,
+                parent,
+                cardinality,
+                metadata
+            );
+            if (delegate.collectsInFilterOrder()) {
+                return new RangeAdaptedFromFiltersAggregator<>(delegate, valuesSourceConfig.format(), ranges, keyed, rangeFactory);
+            }
+        }
+        return build(
+            name,
+            factories,
+            (ValuesSource.Numeric) valuesSourceConfig.getValuesSource(),
+            valuesSourceConfig.format(),
+            rangeFactory,
+            ranges,
+            keyed,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+    }
+
+    public static Aggregator build(
         String name,
         AggregatorFactories factories,
         ValuesSource.Numeric valuesSource,
         DocValueFormat format,
-        InternalRange.Factory rangeFactory,
+        InternalRange.Factory<?, ?> rangeFactory,
         Range[] ranges,
         boolean keyed,
         SearchContext context,
@@ -245,7 +311,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 metadata
             );
         }
-        return new NoOverlapCollector(
+        return new NoOverlapAggregator(
             name,
             factories,
             valuesSource,
@@ -363,8 +429,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
     protected abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound)
         throws IOException;
 
-    private static class NoOverlapCollector extends RangeAggregator {
-        public NoOverlapCollector(
+    private static class NoOverlapAggregator extends RangeAggregator {
+        public NoOverlapAggregator(
             String name,
             AggregatorFactories factories,
             Numeric valuesSource,
@@ -470,6 +536,54 @@ public abstract class RangeAggregator extends BucketsAggregator {
             }
 
             return endHi + 1;
+        }
+    }
+
+    private static class RangeAdaptedFromFiltersAggregator<B extends InternalRange.Bucket> extends AdaptingAggregator {
+        private final DocValueFormat format;
+        private final Range[] ranges;
+        private final boolean keyed;
+        private final InternalRange.Factory<B, ?> rangeFactory;
+
+        public RangeAdaptedFromFiltersAggregator(
+            Aggregator delegate,
+            DocValueFormat format,
+            Range[] ranges,
+            boolean keyed,
+            InternalRange.Factory<B, ?> rangeFactory
+        ) {
+            super(delegate);
+            this.format = format;
+            this.ranges = ranges;
+            this.keyed = keyed;
+            this.rangeFactory = rangeFactory;
+        }
+
+        @Override
+        protected InternalAggregation adapt(InternalAggregation delegateResult) {
+            InternalFilters filters = (InternalFilters) delegateResult;
+            if (filters.getBuckets().size() != ranges.length) {
+                throw new IllegalStateException(
+                    "bad number of filters [" + filters.getBuckets().size() + "] expecting [" + ranges.length + "]"
+                );
+            }
+            List<B> buckets = new ArrayList<>(filters.getBuckets().size());
+            for (int i = 0; i < ranges.length; i++) {
+                Range r = ranges[i];
+                InternalFilters.InternalBucket b = filters.getBuckets().get(i);
+                buckets.add(
+                    rangeFactory.createBucket(
+                        r.getKey(),
+                        r.getFrom(),
+                        r.getTo(),
+                        b.getDocCount(),
+                        (InternalAggregations) b.getAggregations(),
+                        keyed,
+                        format
+                    )
+                );
+            }
+            return rangeFactory.create(name(), buckets, format, keyed, filters.getMetadata());
         }
     }
 

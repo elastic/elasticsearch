@@ -33,6 +33,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -235,40 +237,11 @@ public abstract class RangeAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (valuesSourceConfig.fieldType().isSearchable()) {
-            String[] keys = new String[ranges.length];
-            Query[] filters = new Query[ranges.length];
-            for (int i = 0; i < ranges.length; i++) {
-                keys[i] = Integer.toString(i);
-                filters[i] = valuesSourceConfig.fieldType()
-                    .rangeQuery(
-                        valuesSourceConfig.format().format(ranges[i].from),
-                        valuesSourceConfig.format().format(ranges[i].to),
-                        true,
-                        false,
-                        ShapeRelation.CONTAINS,
-                        null,
-                        null,
-                        context.getQueryShardContext()
-                    );
-            }
-            FiltersAggregator delegate = FiltersAggregator.build(
-                name,
-                factories,
-                keys,
-                filters,
-                false,
-                null,
-                context,
-                parent,
-                cardinality,
-                metadata
-            );
-            if (delegate.collectsInFilterOrder()) {
-                return new RangeAdaptedFromFiltersAggregator<>(delegate, valuesSourceConfig.format(), ranges, keyed, rangeFactory);
-            }
+        Aggregator adapted = adaptIntoFiltersOrNull(name, factories, valuesSourceConfig, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
+        if (adapted != null) {
+            return adapted;
         }
-        return build(
+        return buildWithoutAttemptedToAdaptToFilters(
             name,
             factories,
             (ValuesSource.Numeric) valuesSourceConfig.getValuesSource(),
@@ -283,7 +256,61 @@ public abstract class RangeAggregator extends BucketsAggregator {
         );
     }
 
-    public static Aggregator build(
+    public static Aggregator adaptIntoFiltersOrNull(
+        String name,
+        AggregatorFactories factories,
+        ValuesSourceConfig valuesSourceConfig,
+        InternalRange.Factory<?, ?> rangeFactory,
+        Range[] ranges,
+        boolean keyed,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        if (false == valuesSourceConfig.fieldType().isSearchable()) {
+            return null;
+        }
+        if (valuesSourceConfig.fieldType() instanceof DateFieldType
+            && ((DateFieldType) valuesSourceConfig.fieldType()).resolution() == Resolution.NANOSECONDS) {
+            // We don't generate sensible Queries for nanoseconds.
+            return null;
+        }
+        String[] keys = new String[ranges.length];
+        Query[] filters = new Query[ranges.length];
+        for (int i = 0; i < ranges.length; i++) {
+            keys[i] = Integer.toString(i);
+            filters[i] = valuesSourceConfig.fieldType()
+                .rangeQuery(
+                    valuesSourceConfig.format().format(ranges[i].from),
+                    valuesSourceConfig.format().format(ranges[i].to),
+                    true,
+                    false,
+                    ShapeRelation.CONTAINS,
+                    null,
+                    null,
+                    context.getQueryShardContext()
+                );
+        }
+        FiltersAggregator delegate = FiltersAggregator.build(
+            name,
+            factories,
+            keys,
+            filters,
+            false,
+            null,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+        if (false == delegate.collectsInFilterOrder()) {
+            return null;
+        }
+        return new RangeAdaptedFromFiltersAggregator<>(delegate, valuesSourceConfig.format(), ranges, keyed, rangeFactory);
+    }
+
+    public static Aggregator buildWithoutAttemptedToAdaptToFilters(
         String name,
         AggregatorFactories factories,
         ValuesSource.Numeric valuesSource,

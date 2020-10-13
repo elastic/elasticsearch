@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -32,6 +30,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
@@ -271,7 +270,12 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             }
             Bits live = ctx.reader().getLiveDocs();
             for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
-                DocIdSetIterator itr = filterWeights[filterOrd].scorer(ctx).iterator();
+                Scorer scorer = filterWeights[filterOrd].scorer(ctx);
+                if (scorer == null) {
+                    // the filter doesn't match any docs
+                    continue;
+                }
+                DocIdSetIterator itr = scorer.iterator();
                 if (live == null) {
                     while (itr.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         collectBucket(sub, itr.docID(), filterOrd);
@@ -374,11 +378,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
         Query unwrappedLhs = unwrap(lhs);
         Query unwrappedRhs = unwrap(rhs);
-        LogManager.getLogger().error("ADSFDSAF {} {}", unwrappedLhs, unwrappedRhs);
-        LogManager.getLogger().error("ADSFDSAF {} {}", unwrappedLhs instanceof PointRangeQuery, unwrappedRhs instanceof PointRangeQuery);
         if (unwrappedLhs instanceof PointRangeQuery && unwrappedRhs instanceof PointRangeQuery) {
             PointRangeQuery merged = mergePointRangeQueries((PointRangeQuery) unwrappedLhs, (PointRangeQuery) unwrappedRhs);
-            LogManager.getLogger().error("ADSFDSAF {}", merged);
             if (merged != null) {
                 // TODO rewrap?
                 return merged;
@@ -405,12 +406,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             return null;
         }
         byte[] lower = mergePoint(lhs.getLowerPoint(), rhs.getLowerPoint(), lhs.getNumDims(), lhs.getBytesPerDim(), true);
-        LogManager.getLogger().error("ADSFDSAF {}", LongPoint.decodeDimension(lower, 0));
         if (lower == null) {
             return null;
         }
         byte[] upper = mergePoint(lhs.getUpperPoint(), rhs.getUpperPoint(), lhs.getNumDims(), lhs.getBytesPerDim(), false);
-        LogManager.getLogger().error("ADSFDSAF {}", LongPoint.decodeDimension(upper, 0));
         if (upper == null) {
             return null;
         }

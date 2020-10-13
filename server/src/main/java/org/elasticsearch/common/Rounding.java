@@ -1316,7 +1316,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public long round(long utcMillis) {
-            assert values[0] <= utcMillis : "utcMillis must be after " + values[0];
+            assert values[0] <= utcMillis : utcMillis + " must be after " + values[0];
             int idx = Arrays.binarySearch(values, 0, max, utcMillis);
             assert idx != -1 : "The insertion point is before the array! This should have tripped the assertion above.";
             assert -1 - idx <= values.length : "This insertion point is after the end of the array.";

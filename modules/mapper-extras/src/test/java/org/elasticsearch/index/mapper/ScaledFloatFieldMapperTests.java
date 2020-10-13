@@ -44,8 +44,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(123);
+    protected Object getSampleValueForDocument() {
+        return 123;
     }
 
     @Override

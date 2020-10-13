@@ -200,6 +200,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -1901,18 +1902,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         createIndex(indexName, mappingForClassification());
         BulkRequest regressionBulk = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(docForClassification(indexName, "cat", "cat", 0.9))
-            .add(docForClassification(indexName, "cat", "cat", 0.85))
-            .add(docForClassification(indexName, "cat", "cat", 0.95))
-            .add(docForClassification(indexName, "cat", "dog", 0.4))
-            .add(docForClassification(indexName, "cat", "fish", 0.35))
-            .add(docForClassification(indexName, "dog", "cat", 0.5))
-            .add(docForClassification(indexName, "dog", "dog", 0.4))
-            .add(docForClassification(indexName, "dog", "dog", 0.35))
-            .add(docForClassification(indexName, "dog", "dog", 0.6))
-            .add(docForClassification(indexName, "ant", "cat", 0.1));
+            .add(docForClassification(indexName, "cat", "cat", "dog", "ant"))
+            .add(docForClassification(indexName, "cat", "cat", "dog", "ant"))
+            .add(docForClassification(indexName, "cat", "cat", "horse", "dog"))
+            .add(docForClassification(indexName, "cat", "dog", "cat", "mule"))
+            .add(docForClassification(indexName, "cat", "fish", "cat", "dog"))
+            .add(docForClassification(indexName, "dog", "cat", "dog", "mule"))
+            .add(docForClassification(indexName, "dog", "dog", "cat", "ant"))
+            .add(docForClassification(indexName, "dog", "dog", "cat", "ant"))
+            .add(docForClassification(indexName, "dog", "dog", "cat", "ant"))
+            .add(docForClassification(indexName, "ant", "cat", "ant", "wasp"));
         highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
-
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         {  // AucRoc
@@ -1927,8 +1927,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
             AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocResult.getScore(), closeTo(0.99995, 1e-9));
-            assertThat(aucRocResult.getDocCount(), equalTo(5L));
+            assertThat(aucRocResult.getScore(), closeTo(0.6425, 1e-9));
             assertNotNull(aucRocResult.getCurve());
         }
         {  // Accuracy
@@ -2143,15 +2142,19 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         .endObject();
     }
 
-    private static IndexRequest docForClassification(String indexName, String actualClass, String predictedClass, double p) {
+    private static IndexRequest docForClassification(String indexName,
+                                                     String actualClass,
+                                                     String... topPredictedClasses) {
+        assert topPredictedClasses.length > 0;
         return new IndexRequest()
             .index(indexName)
             .source(XContentType.JSON,
                 actualClassField, actualClass,
-                predictedClassField, predictedClass,
-                topClassesField, List.of(
-                    Map.of("class_name", predictedClass, "class_probability", p),
-                    Map.of("class_name", "other", "class_probability", 1 - p)));
+                predictedClassField, topPredictedClasses[0],
+                topClassesField, IntStream.range(0, topPredictedClasses.length)
+                    // Consecutive assigned probabilities are: 0.5, 0.25, 0.125, etc.
+                    .mapToObj(i -> Map.of("class_name", topPredictedClasses[i], "class_probability", 1.0 / (2 << i)))
+                    .collect(Collectors.toList()));
     }
 
     private static final String actualRegression = "regression_actual";

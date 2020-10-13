@@ -89,8 +89,8 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("POINT (14.0 15.0)");
+    protected Object getSampleValueForDocument() {
+        return "POINT (14.0 15.0)";
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -236,5 +236,10 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     @Override
     protected boolean supportsMeta() {
         return false;
+    }
+
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 }

@@ -29,11 +29,10 @@ Block write operations to the index.
 Remove the index as the write index for the rollover alias and 
 start indexing to a new index.
 
-ifdef::permanently-unreleased-branch[]
 [[ilm-searchable-snapshot-action]]<<ilm-searchable-snapshot, Searchable snapshot>>::
+beta:[]
 Take a snapshot of the managed index in the configured repository
 and mount it as a searchable snapshot.
-endif::[]
 
 [[ilm-set-priority-action]]<<ilm-set-priority,Set priority>>::
 Lower the priority of an index as it moves through the lifecycle
@@ -44,12 +43,7 @@ Reduce the number of primary shards by shrinking the index into a new index.
 
 [[ilm-unfollow-action]]<<ilm-unfollow,Unfollow>>::
 Convert a follower index to a regular index.
-ifdef::permanently-unreleased-branch[]
-Performed automatically before a rollover or shrink action.
-endif::[]
-ifndef::permanently-unreleased-branch[]
 Performed automatically before a rollover, shrink, or searchable snapshot action. 
-endif::[]
 
 [[ilm-wait-for-snapshot-action]]<<ilm-wait-for-snapshot,Wait for snapshot>>::
 Ensure that a snapshot exists before deleting the index. 
@@ -61,9 +55,7 @@ include::actions/ilm-freeze.asciidoc[]
 include::actions/ilm-migrate.asciidoc[]
 include::actions/ilm-readonly.asciidoc[]
 include::actions/ilm-rollover.asciidoc[]
-ifdef::permanently-unreleased-branch[]
 include::actions/ilm-searchable-snapshot.asciidoc[]
-endif::[]
 include::actions/ilm-set-priority.asciidoc[]
 include::actions/ilm-shrink.asciidoc[]
 include::actions/ilm-unfollow.asciidoc[]

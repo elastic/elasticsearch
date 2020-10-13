@@ -19,11 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+
+import java.util.Objects;
 
 /**
  * Encapsulates information about how to perform text searches over a field
@@ -50,11 +54,19 @@ public class TextSearchInfo {
     public static final TextSearchInfo WHITESPACE_MATCH_ONLY
         = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.WHITESPACE_ANALYZER, Lucene.WHITESPACE_ANALYZER);
 
+    private static final NamedAnalyzer FORBIDDEN_ANALYZER = new NamedAnalyzer("", AnalyzerScope.GLOBAL,
+        new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                throw new UnsupportedOperationException();
+            }
+        });
+
     /**
      * Specifies that this field does not support text searching of any kind
      */
     public static final TextSearchInfo NONE
-        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, null, null);
+        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, FORBIDDEN_ANALYZER, FORBIDDEN_ANALYZER);
 
     private final FieldType luceneFieldType;
     private final SimilarityProvider similarity;
@@ -64,16 +76,18 @@ public class TextSearchInfo {
     /**
      * Create a new TextSearchInfo
      *
-     * @param luceneFieldType   the lucene {@link FieldType} of the field to be searched
-     * @param similarity        defines which Similarity to use when searching.  If set to {@code null}
-     *                          then the default Similarity will be used.
+     * @param luceneFieldType       the lucene {@link FieldType} of the field to be searched
+     * @param similarity            defines which Similarity to use when searching.  If set to {@code null}
+     *                              then the default Similarity will be used.
+     * @param searchAnalyzer        the search-time analyzer to use.  May not be {@code null}
+     * @param searchQuoteAnalyzer   the search-time analyzer to use for phrase searches.  May not be {@code null}
      */
     public TextSearchInfo(FieldType luceneFieldType, SimilarityProvider similarity,
                           NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer) {
         this.luceneFieldType = luceneFieldType;
         this.similarity = similarity;
-        this.searchAnalyzer = searchAnalyzer;
-        this.searchQuoteAnalyzer = searchQuoteAnalyzer;
+        this.searchAnalyzer = Objects.requireNonNull(searchAnalyzer);
+        this.searchQuoteAnalyzer = Objects.requireNonNull(searchQuoteAnalyzer);
     }
 
     public SimilarityProvider getSimilarity() {

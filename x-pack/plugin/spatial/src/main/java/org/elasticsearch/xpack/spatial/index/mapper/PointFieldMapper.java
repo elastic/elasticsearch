@@ -36,10 +36,9 @@ import java.util.Map;
 public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
     public static final String CONTENT_TYPE = "point";
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, PointFieldType> {
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder {
         public Builder(String name) {
             super(name, new FieldType());
-            builder = this;
         }
 
         @Override

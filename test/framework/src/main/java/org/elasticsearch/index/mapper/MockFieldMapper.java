@@ -90,7 +90,6 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
         protected Builder(String name) {
             super(name);
             this.fieldType = new FakeFieldType(name);
-            this.builder = this;
         }
 
         @Override

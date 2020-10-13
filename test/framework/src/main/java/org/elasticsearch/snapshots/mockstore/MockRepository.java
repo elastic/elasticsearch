@@ -113,8 +113,15 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnDeleteIndexN;
 
-    /** Allows blocking on writing the index-N blob; this is a way to enforce blocking the
-     *  finalization of a snapshot, while permitting other IO operations to proceed unblocked. */
+    /**
+     * Allows blocking on writing the index-N blob and subsequently failing it on unblock.
+     * This is a way to enforce blocking the finalization of a snapshot, while permitting other IO operations to proceed unblocked.
+     */
+    private volatile boolean blockAndFailOnWriteIndexFile;
+
+    /**
+     * Same as {@link #blockAndFailOnWriteIndexFile} but proceeds without error after unblock.
+     */
     private volatile boolean blockOnWriteIndexFile;
 
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
@@ -192,6 +199,7 @@ public class MockRepository extends FsRepository {
         // Clean blocking flags, so we wouldn't try to block again
         blockOnDataFiles = false;
         blockOnAnyFiles = false;
+        blockAndFailOnWriteIndexFile = false;
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
         blockOnDeleteIndexN = false;
@@ -212,8 +220,14 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = blocked;
     }
 
-    public void setBlockOnWriteIndexFile(boolean blocked) {
-        blockOnWriteIndexFile = blocked;
+    public void setBlockAndFailOnWriteIndexFile() {
+        assert blockOnWriteIndexFile == false : "Either fail or wait after blocking on index-N not both";
+        blockAndFailOnWriteIndexFile = true;
+    }
+
+    public void setBlockOnWriteIndexFile() {
+        assert blockAndFailOnWriteIndexFile == false : "Either fail or wait after blocking on index-N not both";
+        blockOnWriteIndexFile = true;
     }
 
     public void setBlockOnDeleteIndexFile() {
@@ -244,7 +258,7 @@ public class MockRepository extends FsRepository {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
-            while (blockOnDataFiles || blockOnAnyFiles || blockOnWriteIndexFile ||
+            while (blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile ||
                 blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta) {
                 blocked = true;
                 this.wait();
@@ -469,8 +483,12 @@ public class MockRepository extends FsRepository {
                 if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
                     throw new IOException("Random IOException");
                 }
-                if (blobName.startsWith("index-") && blockOnWriteIndexFile) {
-                    blockExecutionAndFail(blobName);
+                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
+                    if (blockAndFailOnWriteIndexFile) {
+                        blockExecutionAndFail(blobName);
+                    } else if (blockOnWriteIndexFile) {
+                        blockExecutionAndMaybeWait(blobName);
+                    }
                 }
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer

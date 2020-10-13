@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
  * @deprecated prefer {@link FieldMapperTestCase2}
  */
 @Deprecated
-public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> extends ESSingleNodeTestCase {
+public abstract class FieldMapperTestCase<T extends FieldMapper.Builder> extends ESSingleNodeTestCase {
 
     protected final Settings SETTINGS = Settings.builder()
         .put("index.version.created", Version.CURRENT)

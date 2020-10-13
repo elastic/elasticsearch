@@ -57,8 +57,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         DEFAULT_FIELD_TYPE.freeze();
     }
 
-    public abstract static class Builder<T extends Builder<T, FT>,
-            FT extends AbstractPointGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<T, FT> {
+    public abstract static class Builder extends AbstractGeometryFieldMapper.Builder {
 
         protected ParsedPoint nullValue;
 

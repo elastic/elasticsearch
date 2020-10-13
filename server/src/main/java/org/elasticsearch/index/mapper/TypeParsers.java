@@ -156,7 +156,7 @@ public class TypeParsers {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public static boolean parseMultiField(Consumer<Mapper.Builder> multiFieldsBuilder, String name,
+    public static boolean parseMultiField(Consumer<FieldMapper.Builder> multiFieldsBuilder, String name,
                                           Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
@@ -214,7 +214,7 @@ public class TypeParsers {
                 if (typeParser == null) {
                     throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
                 }
-                multiFieldsBuilder.accept(typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
+                multiFieldsBuilder.accept((FieldMapper.Builder<?>) typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
                 DocumentMapperParser.checkNoRemainingFields(propName, multiFieldNodes, parserContext.indexVersionCreated());
             }

@@ -515,7 +515,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             for (Parameter<?> param : getParameters()) {
                 param.init(initializer);
             }
-            for (Mapper subField : initializer.multiFields) {
+            for (FieldMapper subField : initializer.multiFields) {
                 multiFieldsBuilder.add(subField);
             }
             return this;
@@ -525,7 +525,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            for (Mapper newSubField : in.multiFields) {
+            for (FieldMapper newSubField : in.multiFields) {
                 multiFieldsBuilder.update(newSubField, parentPath(newSubField.name()));
             }
             this.copyTo.reset(in.copyTo);

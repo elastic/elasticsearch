@@ -79,7 +79,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         String name,
         AggregatorFactories factories,
         Rounding rounding,
-        Rounding.Prepared preparedRounding,
         BucketOrder order,
         boolean keyed,
         long minDocCount,
@@ -94,7 +93,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
-        this.preparedRounding = preparedRounding;
+        this.preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
         this.order = order;
         order.validate(this);
         this.keyed = keyed;

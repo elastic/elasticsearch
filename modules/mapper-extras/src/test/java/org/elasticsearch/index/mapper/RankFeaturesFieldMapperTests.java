@@ -30,12 +30,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field("foo", 10).field("bar", 20).endObject();
+    protected Object getSampleValueForDocument() {
+        return Map.of("ten", 10, "twenty", 20);
     }
 
     @Override
@@ -73,10 +74,17 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
-        FeatureField featureField1 = (FeatureField) fields[0];
-        assertThat(featureField1.stringValue(), Matchers.equalTo("foo"));
-        FeatureField featureField2 = (FeatureField) fields[1];
-        assertThat(featureField2.stringValue(), Matchers.equalTo("bar"));
+        FeatureField featureField1 = null;
+        FeatureField featureField2 = null;
+        for (IndexableField field : fields) {
+            if (field.stringValue().equals("ten")) {
+                featureField1 = (FeatureField)field;
+            } else if (field.stringValue().equals("twenty")) {
+                featureField2 = (FeatureField)field;
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
 
         int freq1 = RankFeatureFieldMapperTests.getFrequency(featureField1.tokenStream(null, null));
         int freq2 = RankFeatureFieldMapperTests.getFrequency(featureField2.tokenStream(null, null));

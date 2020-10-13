@@ -192,10 +192,10 @@ belongs.
     positive.
 
     `class_name`::::
-      (Required, string) Name of the only class that will be treated as
-      positive during AUC ROC calculation. Other classes will be treated as
-      negative ("one-vs-all" strategy). All the evaluated documents must have `class_name`
-      in the list of their top classes.
+      (Required, string) Name of the only class that is treated as positive 
+      during AUC ROC calculation. Other classes are treated as negative 
+      ("one-vs-all" strategy). All the evaluated documents must have 
+      `class_name` in the list of their top classes.
 
     `include_curve`::::
       (Optional, boolean) Whether or not the curve should be returned in
@@ -497,3 +497,46 @@ predictions associated with the class.
 <5> The number of cats in the dataset that are incorrectly classified as dogs.
 <6> The number of documents that are classified as a class that is not listed as 
 a `predicted_class`.
+
+
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+   "index": "animal_classification",
+   "evaluation": {
+      "classification": { <1>
+         "actual_field": "animal_class", <2>
+         "metrics": {
+            "auc_roc" : { <3>
+              "class_name": "dog" <4>
+            }
+         }
+      }
+   }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The evaluation type.
+<2> The field that contains the ground truth value for the actual animal 
+classification. This is required in order to evaluate results.
+<3> Specifies the metric for the evaluation.
+<4> Specifies the class name that is treated as positive during the evaluation, 
+all the other classes are treated as negative.
+
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "classification" : {
+    "auc_roc" : {
+      "score" : 0.8941788639536681
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]

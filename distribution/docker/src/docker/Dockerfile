@@ -61,10 +61,14 @@ RUN apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file
 RUN mkdir /work
 WORKDIR /work
 
-# Fetch curl sources and files for validation
-RUN wget "https://daniel.haxx.se/mykey.asc" -O "curl-gpg.pub" && \\
-    wget "\${TARBALL_URL}.asc" -O "\${TARBALL_PATH}.asc" && \\
-    wget "\${TARBALL_URL}" -O "\${TARBALL_PATH}"
+# Fetch curl sources and files for validation. Note that alpine's `wget` doesn't have retry options.
+RUN for iter in {1..10}; do \\
+      wget "https://daniel.haxx.se/mykey.asc" -O "curl-gpg.pub" && \\
+      wget "\${TARBALL_URL}.asc" -O "\${TARBALL_PATH}.asc" && \\
+      wget "\${TARBALL_URL}" -O "\${TARBALL_PATH}" && \\
+      exit_code=0 || exit_code=\$? && echo "wget error: retry \$iter in 10s" && sleep 10; \\
+    done; \\
+    (exit \$exit_code)
 
 # Validate source
 RUN gpg --import --always-trust "curl-gpg.pub" && \\
@@ -216,7 +220,8 @@ RUN for iter in {1..10}; do \\
       ${package_manager} update --setopt=tsflags=nodocs -y && \\
       ${package_manager} install --setopt=tsflags=nodocs -y \\
         nc shadow-utils zip unzip findutils procps-ng && \\
-      ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
+      ${package_manager} clean all && \\
+      exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
       sleep 10; \\
     done; \\
     (exit \$exit_code)

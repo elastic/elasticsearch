@@ -97,7 +97,7 @@ public class XContentTypeTests extends ESTestCase {
     }
 
     public void testVersionedMediaType() {
-        String version = String.valueOf(Math.abs(randomByte()));
+        String version = String.valueOf(randomNonNegativeByte());
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version),
             equalTo(XContentType.JSON));
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+cbor;compatible-with=" + version),
@@ -119,7 +119,7 @@ public class XContentTypeTests extends ESTestCase {
     }
 
     public void testVersionParsing() {
-        byte version = (byte) Math.abs(randomByte());
+        byte version = randomNonNegativeByte();
         assertThat(XContentType.parseVersion("application/vnd.elasticsearch+json;compatible-with=" + version),
             equalTo(version));
         assertThat(XContentType.parseVersion("application/vnd.elasticsearch+cbor;compatible-with=" + version),
@@ -146,12 +146,12 @@ public class XContentTypeTests extends ESTestCase {
             is(nullValue()));    }
 
     public void testMediaTypeWithoutESSubtype() {
-        String version = String.valueOf(Math.abs(randomByte()));
+        String version = String.valueOf(randomNonNegativeByte());
         assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version), nullValue());
     }
 
     public void testAnchoring() {
-        String version = String.valueOf(Math.abs(randomByte()));
+        String version = String.valueOf(randomNonNegativeByte());
         assertThat(XContentType.fromMediaType("sth_application/json;compatible-with=" + version + ".0"), nullValue());
         assertThat(XContentType.fromMediaType("sth_application/json;compatible-with=" + version + "_sth"), nullValue());
         assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version + "_sth"), nullValue());

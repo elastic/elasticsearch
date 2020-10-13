@@ -214,7 +214,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     logger.info("--> deleting {} from repo {}", snapId, repo);
                     deleted.add(snapId);
                     if (deletionSuccess) {
-                        listener.onResponse(new AcknowledgedResponse(true));
+                        listener.onResponse(AcknowledgedResponse.TRUE);
                     } else {
                         listener.onFailure(new RuntimeException("deletion_failed"));
                     }
@@ -311,7 +311,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     }
                     deleted.add(snapId);
                     if (deletionSuccess) {
-                        listener.onResponse(new AcknowledgedResponse(true));
+                        listener.onResponse(AcknowledgedResponse.TRUE);
                     } else {
                         listener.onFailure(new RuntimeException("deletion_failed"));
                     }
@@ -453,7 +453,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                  void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                      if (request instanceof DeleteSnapshotRequest) {
                          logger.info("--> called");
-                         listener.onResponse((Response) new AcknowledgedResponse(true));
+                         listener.onResponse((Response) AcknowledgedResponse.TRUE);
                      } else {
                          super.doExecute(action, request, listener);
                      }

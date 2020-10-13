@@ -578,8 +578,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("test");
+    protected Object getSampleValueForDocument() {
+        return "test";
     }
 
     @Override

@@ -60,6 +60,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.junit.After;
 
 import java.io.IOException;
@@ -194,7 +195,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
-    public static void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
+    public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
+        logger.info("--> waiting for [{}] to be blocked on node [{}]", repository, node);
         long start = System.currentTimeMillis();
         RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
         MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
@@ -236,7 +238,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockOnWriteIndexFile(true);
+            .repository(repositoryName)).setBlockAndFailOnWriteIndexFile();
+        return masterName;
+    }
+
+    public static String blockMasterOnWriteIndexFile(final String repositoryName) {
+        final String masterName = internalCluster().getMasterName();
+        ((MockRepository)internalCluster().getMasterNodeInstance(RepositoriesService.class)
+            .repository(repositoryName)).setBlockOnWriteIndexFile();
         return masterName;
     }
 
@@ -569,5 +578,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .get().getSnapshots(repository);
         assertThat(snapshotInfos, hasSize(1));
         return snapshotInfos.get(0);
+    }
+
+    protected void awaitMasterFinishRepoOperations() throws Exception {
+        logger.info("--> waiting for master to finish all repo operations on its SNAPSHOT pool");
+        final ThreadPool masterThreadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
+        assertBusy(() -> {
+            for (ThreadPoolStats.Stats stat : masterThreadPool.stats()) {
+                if (ThreadPool.Names.SNAPSHOT.equals(stat.getName())) {
+                    assertEquals(stat.getActive(), 0);
+                    break;
+                }
+            }
+        });
     }
 }

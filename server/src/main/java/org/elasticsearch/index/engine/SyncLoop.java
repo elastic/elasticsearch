@@ -65,7 +65,7 @@ public class SyncLoop {
     }
 
     public void scheduleSync(Translog.Location location, Consumer<Exception> listener) {
-        if (lastSyncedLocation.compareTo(location) > 0) {
+        if (locationSynced(lastSyncedLocation, location)) {
             listener.accept(null);
             return;
         }
@@ -86,6 +86,7 @@ public class SyncLoop {
 
     private void runSyncLoop() {
         assert promiseSemaphore.availablePermits() == 0;
+        lastSyncedLocation = translog.getLastSyncedLocation();
         doSyncAndNotify();
         while ((isListenersEmpty() == false || translog.shouldIncrementalSync()) && promiseSemaphore.tryAcquire()) {
             doSyncAndNotify();
@@ -133,7 +134,7 @@ public class SyncLoop {
             Tuple<Translog.Location, Consumer<Exception>> tuple;
             while ((tuple = listeners.poll()) != null) {
                 // If the synced location is null, drain all the listeners
-                if (syncedLocation == null || syncedLocation.compareTo(tuple.v1()) > 0) {
+                if (syncedLocation == null || locationSynced(syncedLocation, tuple.v1())) {
                     --listenerCount;
                     syncedListeners.add(tuple.v2());
                 } else {
@@ -161,5 +162,17 @@ public class SyncLoop {
                 consumer.accept(e);
             }
         };
+    }
+
+    private static boolean locationSynced(Translog.Location synced, Translog.Location location) {
+        if (synced.generation > location.generation) {
+            return true;
+        } else {
+            if (synced.generation < location.generation) {
+                return false;
+            } else {
+                return synced.translogLocation >= (location.translogLocation + location.size);
+            }
+        }
     }
 }

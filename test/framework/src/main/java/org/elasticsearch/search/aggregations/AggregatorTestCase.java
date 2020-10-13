@@ -322,7 +322,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             String fieldName = (String) invocation.getArguments()[0];
             if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
                 BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
-                return new ObjectMapper.Builder<>(fieldName).nested(Nested.newNested()).build(context);
+                return new ObjectMapper.Builder(fieldName).nested(Nested.newNested()).build(context);
             }
             return null;
         });

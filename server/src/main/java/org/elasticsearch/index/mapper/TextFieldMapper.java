@@ -300,7 +300,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return this;
         }
 
-        public Builder addMultiField(Mapper.Builder<?> builder) {
+        public Builder addMultiField(Mapper.Builder builder) {
             this.multiFieldsBuilder.add(builder);
             return this;
         }

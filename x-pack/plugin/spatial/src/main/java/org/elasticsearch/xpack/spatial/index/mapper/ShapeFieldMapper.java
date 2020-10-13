@@ -43,13 +43,11 @@ import java.util.Map;
 public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "shape";
 
-    @SuppressWarnings({"unchecked"})
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, ShapeFieldType> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder {
 
         public Builder(String name) {
             super(name, new FieldType());
             fieldType.setDimensions(7, 4, Integer.BYTES);
-            builder = this;
         }
 
         @Override

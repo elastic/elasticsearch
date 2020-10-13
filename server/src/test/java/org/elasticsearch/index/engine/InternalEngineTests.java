@@ -5803,7 +5803,8 @@ public class InternalEngineTests extends EngineTestCase {
                     put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build());
             try (InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))) {
                 AssertionError error = expectThrows(AssertionError.class,
-                    () -> engine.newChangesSnapshot("test", createMapperService("test"), 0, randomNonNegativeLong(), randomBoolean()));
+                    () -> engine.newChangesSnapshot("test", createMapperService("test"),
+                        0, randomNonNegativeLong(), randomBoolean()));
                 assertThat(error.getMessage(), containsString("does not have soft-deletes enabled"));
             }
         }

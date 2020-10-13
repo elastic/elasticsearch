@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -119,13 +118,14 @@ public class ForEachSubIterableNode extends LoopNode {
     }
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(getLocation());
 
         Variable variable = writeScope.defineVariable(variableType, variableName);
         Variable iterator = writeScope.defineInternalVariable(iteratorType, iteratorName);
 
-        getConditionNode().write(classWriter, methodWriter, writeScope);
+        getConditionNode().write(writeScope);
 
         if (method == null) {
             org.objectweb.asm.Type methodType = org.objectweb.asm.Type
@@ -157,10 +157,7 @@ public class ForEachSubIterableNode extends LoopNode {
             methodWriter.writeLoopCounter(loop.getSlot(), getLocation());
         }
 
-        getBlockNode().continueLabel = begin;
-        getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, writeScope);
-
+        getBlockNode().write(writeScope.newLoopScope(begin, end));
         methodWriter.goTo(begin);
         methodWriter.mark(end);
     }

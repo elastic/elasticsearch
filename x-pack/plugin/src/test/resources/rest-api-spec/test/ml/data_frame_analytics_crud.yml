@@ -1868,10 +1868,10 @@ setup:
           }
 
 ---
-"Test put classification given num_top_classes is less than zero":
+"Test put classification given num_top_classes is less than minus one":
 
   - do:
-      catch: /\[num_top_classes\] must be an integer in \[0, 1000\]/
+      catch: /\[num_top_classes\] must be an integer in \[0, 1000\] or a special value -1/
       ml.put_data_frame_analytics:
         id: "classification-training-percent-is-less-than-one"
         body: >
@@ -1885,7 +1885,7 @@ setup:
             "analysis": {
               "classification": {
                 "dependent_variable": "foo",
-                "num_top_classes": -1
+                "num_top_classes": -2
               }
             }
           }
@@ -1894,7 +1894,7 @@ setup:
 "Test put classification given num_top_classes is greater than 1k":
 
   - do:
-      catch: /\[num_top_classes\] must be an integer in \[0, 1000\]/
+      catch: /\[num_top_classes\] must be an integer in \[0, 1000\] or a special value -1/
       ml.put_data_frame_analytics:
         id: "classification-training-percent-is-greater-than-hundred"
         body: >

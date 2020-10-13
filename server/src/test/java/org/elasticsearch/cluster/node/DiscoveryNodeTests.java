@@ -127,7 +127,7 @@ public class DiscoveryNodeTests extends ESTestCase {
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(Version.V_7_10_0);
+            streamOutput.setVersion(Version.V_7_9_0);
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);

@@ -441,7 +441,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             }
             DateMathParser dateMathParser = getForceDateParser();
             return fieldType.isFieldMinWithinQuery(shardContext.getIndexReader(), from, includeLower,
-                timeZone, dateMathParser, queryRewriteContext);
+                timeZone, dateMathParser, queryRewriteContext, false);
         }
 
         // Not on the shard, we have no way to know what the relation is.
@@ -462,7 +462,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             }
             DateMathParser dateMathParser = getForceDateParser();
             return fieldType.isFieldMaxWithinQuery(shardContext.getIndexReader(), to, includeUpper,
-                timeZone, dateMathParser, queryRewriteContext);
+                timeZone, dateMathParser, queryRewriteContext, false);
         }
 
         // Not on the shard, we have no way to know what the relation is.

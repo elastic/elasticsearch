@@ -68,7 +68,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType("my_date");
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                randomBoolean(), randomBoolean(), null, null, context));
+                randomBoolean(), randomBoolean(), null, null, context, false));
     }
 
     public void testIsFieldWithinQueryDateMillis() throws IOException {
@@ -108,7 +108,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType("my_date2");
 
-        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
+        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context, false));
 
         IOUtils.close(reader, w, dir);
     }
@@ -117,25 +117,25 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             DateTimeZone zone, DateMathParser alternateFormat) throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02",
-                randomBoolean(), randomBoolean(), null, null, context));
+                randomBoolean(), randomBoolean(), null, null, context, false));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2016-01-02", "2016-06-20",
-                randomBoolean(), randomBoolean(), null, null, context));
+                randomBoolean(), randomBoolean(), null, null, context, false));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2016-01-02", "2016-02-12",
-                randomBoolean(), randomBoolean(), null, null, context));
+                randomBoolean(), randomBoolean(), null, null, context, false));
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2014-01-02", "2015-02-12",
-                randomBoolean(), randomBoolean(), null, null, context));
+                randomBoolean(), randomBoolean(), null, null, context, false));
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2016-05-11", "2016-08-30",
-                randomBoolean(), randomBoolean(), null, null, context));
+                randomBoolean(), randomBoolean(), null, null, context, false));
         assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, "2015-09-25", "2016-05-29",
-                randomBoolean(), randomBoolean(), null, null, context));
+                randomBoolean(), randomBoolean(), null, null, context, false));
         assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                true, true, null, null, context));
+                true, true, null, null, context, false));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                false, false, null, null, context));
+                false, false, null, null, context, false));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                false, true, null, null, context));
+                false, true, null, null, context, false));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                true, false, null, null, context));
+                true, false, null, null, context, false));
     }
 
     public void testValueFormat() {

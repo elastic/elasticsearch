@@ -401,7 +401,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         Object maxValue = order() == SortOrder.DESC ? null : bottomSortValue;
         try {
             MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(context.getIndexReader(), minValue, maxValue,
-                true, true, null, dateMathParser, context);
+                true, true, null, dateMathParser, context, true);
             return relation == MappedFieldType.Relation.DISJOINT;
         } catch (ElasticsearchParseException exc) {
             // can happen if the sort field is mapped differently in another search index

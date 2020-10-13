@@ -94,7 +94,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new NumberFieldType("field", NumberType.INTEGER);
         // current impl ignores args and should always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomDouble(), randomDouble(),
-                randomBoolean(), randomBoolean(), null, null, null));
+                randomBoolean(), randomBoolean(), null, null, null, false));
     }
 
     public void testIntegerTermsQueryWithDecimalPart() {

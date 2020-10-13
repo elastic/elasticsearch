@@ -69,7 +69,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
             RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
             RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
-            randomBoolean(), randomBoolean(), null, null, null));
+            randomBoolean(), randomBoolean(), null, null, null, false));
     }
 
     public void testTermQuery() {

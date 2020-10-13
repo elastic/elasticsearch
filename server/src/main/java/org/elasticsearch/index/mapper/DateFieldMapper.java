@@ -252,9 +252,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return query;
         }
 
-        protected MappedFieldType.Relation isToWithin(long toInclusive, long minValue, long maxValue, boolean hasDocValues) {
+        protected MappedFieldType.Relation isToWithin(long toInclusive, long minValue, long maxValue,
+                                                      boolean hasDocValues, boolean fromIndex) {
             if (hasDocValues) {
-                final long approxToInclusive = toInclusive;//convertToIndex(toInclusive);
+                final long approxToInclusive = fromIndex ? toInclusive : convertToIndex(toInclusive);
                 if (maxValue < approxToInclusive - 1) {
                     return MappedFieldType.Relation.WITHIN;
                 } else if (minValue > approxToInclusive + 1) {
@@ -273,9 +274,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        protected MappedFieldType.Relation isFromWithin(long fromInclusive, long minValue, long maxValue, boolean hasDocValues) {
+        protected MappedFieldType.Relation isFromWithin(long fromInclusive, long minValue, long maxValue,
+                                                        boolean hasDocValues, boolean fromIndex) {
             if (hasDocValues) {
-                final long approxFromInclusive = fromInclusive;//convertToIndex(fromInclusive);
+                final long approxFromInclusive = fromIndex ? fromInclusive : convertToIndex(fromInclusive);
                 if (minValue >= approxFromInclusive) {
                     return MappedFieldType.Relation.WITHIN;
                 } else if (maxValue < approxFromInclusive) {
@@ -561,9 +563,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Relation isFieldMinWithinQuery(IndexReader reader,
-                                              Object from, boolean includeLower,
-                                              ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+        public Relation isFieldMinWithinQuery(IndexReader reader, Object from, boolean includeLower, ZoneId timeZone,
+                                              DateMathParser dateParser, QueryRewriteContext context, boolean fromIndex) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -587,13 +588,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
             long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
-            return resolution.isFromWithin(fromInclusive, minValue, maxValue, hasDocValues());
+            return resolution.isFromWithin(fromInclusive, minValue, maxValue, hasDocValues(), fromIndex);
         }
 
         @Override
-        public Relation isFieldMaxWithinQuery(IndexReader reader,
-                                              Object to, boolean includeUpper,
-                                              ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+        public Relation isFieldMaxWithinQuery(IndexReader reader, Object to, boolean includeUpper, ZoneId timeZone,
+                                              DateMathParser dateParser, QueryRewriteContext context, boolean fromIndex) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -617,7 +617,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
             long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
-            return resolution.isToWithin(toInclusive, minValue, maxValue, hasDocValues());
+            return resolution.isToWithin(toInclusive, minValue, maxValue, hasDocValues(), fromIndex);
         }
 
         @Override

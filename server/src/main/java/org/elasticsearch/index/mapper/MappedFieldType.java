@@ -311,7 +311,7 @@ public abstract class MappedFieldType {
      *  no way to check whether values are actually within bounds. */
     public Relation isFieldMaxWithinQuery(
         IndexReader reader, Object to, boolean includeUpper,
-        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context, boolean fromIndex) throws IOException {
         return Relation.INTERSECTS;
     }
 
@@ -323,10 +323,10 @@ public abstract class MappedFieldType {
         IndexReader reader,
         Object from, Object to,
         boolean includeLower, boolean includeUpper,
-        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context, boolean fromIndex) throws IOException {
 
-        final Relation minRelation = isFieldMinWithinQuery(reader, from, includeLower, timeZone, dateMathParser, context);
-       final  Relation maxRelation = isFieldMaxWithinQuery(reader, to, includeUpper, timeZone, dateMathParser, context);
+        final Relation minRelation = isFieldMinWithinQuery(reader, from, includeLower, timeZone, dateMathParser, context, fromIndex);
+       final  Relation maxRelation = isFieldMaxWithinQuery(reader, to, includeUpper, timeZone, dateMathParser, context, fromIndex);
         if (minRelation == Relation.DISJOINT || maxRelation == Relation.DISJOINT) {
             return Relation.DISJOINT;
         } else if (minRelation == Relation.WITHIN && maxRelation == Relation.WITHIN) {
@@ -343,7 +343,7 @@ public abstract class MappedFieldType {
     public Relation isFieldMinWithinQuery(
         IndexReader reader,
         Object from, boolean includeLower,
-        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context, boolean fromIndex) throws IOException {
         return Relation.INTERSECTS;
     }
 

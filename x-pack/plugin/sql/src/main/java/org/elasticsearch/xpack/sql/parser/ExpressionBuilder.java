@@ -270,12 +270,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (pattern == null) {
             throw new ParsingException(source(ctx.value), "Pattern must not be [null]");
         }
-        int pos = pattern.indexOf('*');
-        if (pos >= 0) {
-            throw new ParsingException(source(ctx.value),
-                    "Invalid char [*] found in pattern [{}] at position {}; use [%] or [_] instead",
-                    pattern, pos);
-        }
 
         char escape = 0;
         PatternEscapeContext escapeCtx = ctx.patternEscape();
@@ -288,7 +282,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             } else if (escapeString.length() == 1) {
                 escape = escapeString.charAt(0);
                 // these chars already have a meaning
-                if (escape == '*' || escape == '%' || escape == '_') {
+                if (escape == '%' || escape == '_') {
                     throw new ParsingException(source(escapeCtx.escape), "Char [{}] cannot be used for escaping", escape);
                 }
                 // lastly validate that escape chars (if present) are followed by special chars
@@ -303,8 +297,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                         char next = pattern.charAt(i + 1);
                         if (next != '%' && next != '_') {
                             throw new ParsingException(source(ctx.value),
-                                    "Pattern [{}] is invalid as escape char [{}] at position {} can only escape wildcard chars; found [{}]",
-                                    pattern, escape, i, next);
+                                    "Pattern [{}] is invalid as escape char [{}] at position {} can only escape "
+                                    + "wildcard chars [%_]; found [{}]", pattern, escape, i, next);
                         }
                     }
                 }

@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeTrue;
 
 /**
- * Check that the quota-aware filesystem plugin can be installed and operates as expected.
+ * Check that the quota-aware filesystem plugin can be installed, and that it operates as expected.
  */
 public class QuotaAwareFsTests extends PackagingTestCase {
 
@@ -59,6 +59,10 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         cleanup();
     }
 
+    /**
+     * Check that when the plugin is installed but the system property for passing the location of the related
+     * properties file is omitted, then Elasticsearch exits with the expected error message.
+     */
     public void test10ElasticsearchRequiresSystemPropertyToBeSet() throws Exception {
         install();
 
@@ -74,7 +78,31 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         );
     }
 
-    public void test20ElasticsearchStartsWhenSystemPropertySet() throws Exception {
+    /**
+     * Check that when the plugin is installed but the system property for passing the location of the related
+     * properties file contains a non-existent URI, then Elasticsearch exits with the expected error message.
+     */
+    public void test20ElasticsearchRejectsNonExistentPropertiesLocation() throws Exception {
+        install();
+
+        installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
+
+        sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=file:///this/does/not/exist.properties");
+
+        final Shell.Result result = runElasticsearchStartCommand(null, false, false);
+
+        assertThat("Elasticsearch should have terminated unsuccessfully", result.isSuccess(), equalTo(false));
+        assertThat(
+            result.stderr,
+            containsString("NoSuchFileException: /this/does/not/exist.properties")
+        );
+    }
+
+    /**
+     * Check that Elasticsearch can load the plugin and apply the quota limits in the properties file. Also check that
+     * Elasticsearch polls the file for changes.
+     */
+    public void test30ElasticsearchStartsWhenSystemPropertySet() throws Exception {
         install();
 
         int total = 20 * 1024 * 1024;

@@ -6355,6 +6355,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testMaxDocsOnPrimary() throws Exception {
         engine.close();
+        final boolean softDeleteEnabled = engine.config().getIndexSettings().isSoftDeleteEnabled();
         int maxDocs = randomIntBetween(1, 100);
         IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);
         try {
@@ -6362,10 +6363,12 @@ public class InternalEngineTests extends EngineTestCase {
             int numDocs = between(maxDocs + 1, maxDocs * 2);
             List<Engine.Operation> operations = new ArrayList<>(numDocs);
             for (int i = 0; i < numDocs; i++) {
-                final String id = Integer.toString(randomInt(numDocs));
-                if (randomBoolean()) {
+                final String id;
+                if (softDeleteEnabled == false || randomBoolean()) {
+                    id = Integer.toString(randomInt(numDocs));
                     operations.add(indexForDoc(createParsedDoc(id, null)));
                 } else {
+                    id = "not_found";
                     operations.add(new Engine.Delete("_doc", id, newUid(id), primaryTerm.get()));
                 }
             }
@@ -6392,6 +6395,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testMaxDocsOnReplica() throws Exception {
+        assumeTrue("Deletes do not add documents to Lucene with soft-deletes disabled",
+            engine.config().getIndexSettings().isSoftDeleteEnabled());
         engine.close();
         int maxDocs = randomIntBetween(1, 100);
         IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);

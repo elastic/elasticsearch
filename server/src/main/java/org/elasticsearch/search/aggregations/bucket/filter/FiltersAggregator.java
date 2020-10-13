@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
@@ -47,6 +49,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public abstract class FiltersAggregator extends BucketsAggregator {
@@ -121,7 +124,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         String name,
         AggregatorFactories factories,
         String[] keys,
-        Supplier<Weight[]> filtersSupplier,
+        Function<Query, Weight[]> filtersSupplier,
         boolean keyed,
         String otherBucketKey,
         SearchContext context,
@@ -148,7 +151,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             name,
             factories,
             keys,
-            filtersSupplier,
+            () -> filtersSupplier.apply(new MatchAllDocsQuery()),
             keyed,
             otherBucketKey,
             context,
@@ -162,7 +165,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         String name,
         AggregatorFactories factories,
         String[] keys,
-        Supplier<Weight[]> filtersSupplier,
+        Function<Query, Weight[]> filtersSupplier,
         boolean keyed,
         String otherBucketKey,
         SearchContext context,
@@ -179,12 +182,11 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (otherBucketKey != null) {
             return null;
         }
-        // NOCOMMIT this is only ok if there isn't a query or if the filter is "inside" the query already
         return new FilterOrderAggregator(
             name,
             factories,
             keys,
-            filtersSupplier,
+            () -> filtersSupplier.apply(context.query()),
             keyed,
             otherBucketKey,
             context,

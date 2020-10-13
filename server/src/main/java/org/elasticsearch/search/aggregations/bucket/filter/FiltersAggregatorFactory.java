@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
@@ -66,17 +69,24 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
      * necessary. This is done lazily so that the {@link Weight}s are only
      * created if the aggregation collects documents reducing the overhead of
      * the aggregation in the case where no documents are collected.
-     *
-     * Note that as aggregations are initialsed and executed in a serial manner,
+     * <p>
+     * Note that as aggregations are initialized and executed in a serial manner,
      * no concurrency considerations are necessary here.
      */
-    public Weight[] getWeights(SearchContext searchContext) {
+    public Weight[] getWeights(Query query, SearchContext searchContext) {
         if (weights == null) {
             try {
                 IndexSearcher contextSearcher = searchContext.searcher();
                 weights = new Weight[filters.length];
                 for (int i = 0; i < filters.length; ++i) {
-                    this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filters[i]), ScoreMode.COMPLETE_NO_SCORES, 1);
+                    Query filter = filters[i];
+                    if (false == query instanceof MatchAllDocsQuery) {
+                        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                        builder.add(query, BooleanClause.Occur.MUST);
+                        builder.add(filter, BooleanClause.Occur.MUST);
+                        filter = builder.build();
+                    }
+                    this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1);
                 }
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to initialse filters for aggregation [" + name() + "]", e);
@@ -90,7 +100,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
                                         Aggregator parent,
                                         CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
-        return FiltersAggregator.build(name, factories, keys, () -> getWeights(searchContext), keyed,
+        return FiltersAggregator.build(name, factories, keys, query -> getWeights(query, searchContext), keyed,
             otherBucket ? otherBucketKey : null, searchContext, parent, cardinality, metadata);
     }
 

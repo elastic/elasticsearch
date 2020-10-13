@@ -25,6 +25,19 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
+[[indexing-speed-improvement]]
+===  Indexing speed improvement
+
+{es} 7.10 improves the indexing speed by 5-20%, depending on your workload.
+We've reduced the amount of coordination needed to add entries to the
+<<index-modules-translog,transaction log>>, enabling more concurrency, and
+incresed the transaction log buffer size from `8KB` to `1MB`.
+
+The performance gains are lower in intensive analysis scenarios (ie. full-text
+search analysis).
+
+[discrete]
+[[more-space-efficient-indices]]
 === More space-efficient indices
 
 {es} 7.10 depends on Apache Lucene 8.7, which introduces higher compression of
@@ -40,12 +53,11 @@ Elasticsearch offers the ability to configure the <<index-codec,`index.codec`>>
 setting to tell Elasticsearch how aggressively to compress stored fields. Both
 supported values `default` and `best_compression` will get better compression
 with this change.
-// end::notable-highlights[]
 
-// tag::notable-highlights[]
 [discrete]
 [[data-tier-formalization]]
 === Data tiers
+
 7.10 introduces the concept of formalized data tiers within Elasticsearch. <<data-tiers,Data tiers>>
 are a simple, integrated approach that gives users control over optimizing for cost,
 performance, and breadth/depth of data. Prior to this formalization, many users configured their own

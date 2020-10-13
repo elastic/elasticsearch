@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.RepositoryOperation;
+import org.elasticsearch.snapshots.InFlightShardSnapshotStates;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -693,6 +694,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                             "Found duplicate shard assignments in " + entries;
                 }
             }
+        }
+        for (String repoName : assignedShardsByRepo.keySet()) {
+            // make sure in-flight-shard-states can be built cleanly for the entries without tripping assertions
+            InFlightShardSnapshotStates.forRepo(repoName, entries);
         }
         return true;
     }

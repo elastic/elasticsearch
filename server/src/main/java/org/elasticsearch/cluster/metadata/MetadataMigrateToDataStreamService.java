@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,6 +47,7 @@ public class MetadataMigrateToDataStreamService {
     private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
 
+    @Inject
     public MetadataMigrateToDataStreamService(ThreadPool threadPool,
                                               ClusterService clusterService,
                                               MetadataCreateIndexService metadataCreateIndexService) {

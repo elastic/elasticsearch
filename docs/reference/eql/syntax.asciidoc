@@ -725,7 +725,7 @@ double quotes (`"`) instead.
 * `?"` and `?'` do not indicate raw strings. Enclose raw strings in
 three double quotes (`"""`) instead.
 
-* {es} EQL does not support the following syntax:
+* {es} EQL does not support:
 
 ** Array functions:
 *** {eql-ref}/functions.html#arrayContains[`arrayContains`]

@@ -102,7 +102,8 @@ public class QuotaAwareFsTests extends PackagingTestCase {
             int updatedTotal = total * 3;
             int updatedAvailable = available * 3;
 
-            // Check that ES is polling the properties file for changes.
+            // Check that ES is polling the properties file for changes by modifying the properties file
+            // and waiting for ES to pick up the changes.
             Files.writeString(quotaPath, String.format("total=%d\nremaining=%d\n", updatedTotal, updatedAvailable));
 
             // The check interval is 1000ms, but give ourselves some leeway.

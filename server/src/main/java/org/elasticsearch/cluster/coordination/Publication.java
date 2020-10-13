@@ -360,10 +360,10 @@ public abstract class Publication {
 
             @Override
             public void onFailure(Exception e) {
-                assert e instanceof TransportException;
-                final TransportException exp = (TransportException) e;
+                assert e instanceof ElasticsearchException : e;
+                final ElasticsearchException exp = (ElasticsearchException) e;
                 logger.debug(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), exp);
-                assert ((TransportException) e).getRootCause() instanceof Exception;
+                assert exp.getRootCause() instanceof Exception;
                 setFailed((Exception) exp.getRootCause());
                 onPossibleCommitFailure();
                 assert publicationCompletedIffAllTargetsInactiveOrCancelled();

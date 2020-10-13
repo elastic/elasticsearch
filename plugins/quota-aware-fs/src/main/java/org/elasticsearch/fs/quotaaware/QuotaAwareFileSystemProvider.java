@@ -453,6 +453,11 @@ public class QuotaAwareFileSystemProvider extends FileSystemProvider implements 
         delegate.createLink(link, existing);
     }
 
+    @Override
+    public void createSymbolicLink(Path link, Path target, FileAttribute<?>... attrs) throws IOException {
+        delegate.createSymbolicLink(link, target, attrs);
+    }
+
     void purge(FileSystem delegateFileSystem) {
         systemsCache.remove(delegateFileSystem);
     }

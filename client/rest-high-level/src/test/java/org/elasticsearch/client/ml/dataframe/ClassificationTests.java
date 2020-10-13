@@ -47,7 +47,7 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
             .setTrainingPercent(randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true))
             .setRandomizeSeed(randomBoolean() ? null : randomLong())
             .setClassAssignmentObjective(randomBoolean() ? null : randomFrom(Classification.ClassAssignmentObjective.values()))
-            .setNumTopClasses(randomBoolean() ? null : randomInt())
+            .setNumTopClasses(randomBoolean() ? null : randomIntBetween(-1, 1000))
             .setFeatureProcessors(randomBoolean() ? null :
                 Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(),
                     OneHotEncodingTests.createRandom(),

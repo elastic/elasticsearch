@@ -249,7 +249,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         private final Query[] filters;
         private Weight[] filterWeights;
 
-        public FilterOrderAggregator(
+        FilterOrderAggregator(
             String name,
             String[] keys,
             Query[] filters,
@@ -303,7 +303,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         private final int totalNumKeys;
 
-        public StandardOrderAggregator(
+        StandardOrderAggregator(
             String name,
             AggregatorFactories factories,
             String[] keys,

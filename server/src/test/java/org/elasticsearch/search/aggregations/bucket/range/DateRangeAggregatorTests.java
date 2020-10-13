@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -53,7 +54,6 @@ import static java.util.Collections.singleton;
 public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     private String NUMBER_FIELD_NAME = "number";
-    private String UNMAPPED_FIELD_NAME = "field_not_appearing_in_this_index";
     private String DATE_FIELD_NAME = "date";
 
     private long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -146,8 +146,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+            iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 7), new IntPoint(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 1), new IntPoint(NUMBER_FIELD_NAME, 1)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());

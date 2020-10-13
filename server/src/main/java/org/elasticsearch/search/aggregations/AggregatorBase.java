@@ -278,7 +278,7 @@ public abstract class AggregatorBase extends Aggregator {
     protected void doPostCollection() throws IOException {
     }
 
-    public final InternalAggregations buildEmptySubAggregations() {
+    protected final InternalAggregations buildEmptySubAggregations() {
         List<InternalAggregation> aggs = new ArrayList<>();
         for (Aggregator aggregator : subAggregators) {
             aggs.add(aggregator.buildEmptyAggregation());

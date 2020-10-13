@@ -237,7 +237,18 @@ public abstract class RangeAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        Aggregator adapted = adaptIntoFiltersOrNull(name, factories, valuesSourceConfig, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
+        Aggregator adapted = adaptIntoFiltersOrNull(
+            name,
+            factories,
+            valuesSourceConfig,
+            rangeFactory,
+            ranges,
+            keyed,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
         if (adapted != null) {
             return adapted;
         }
@@ -268,9 +279,19 @@ public abstract class RangeAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
+        if (valuesSourceConfig.fieldType() == null) {
+            return null;
+        }
         if (false == valuesSourceConfig.fieldType().isSearchable()) {
             return null;
         }
+        if (valuesSourceConfig.missing() != null) {
+            return null;
+        }
+        if (valuesSourceConfig.script() != null) {
+            return null;
+        }
+        // TODO bail here for runtime fields. They'll be slower this way. Maybe we can somehow look at the Query?
         if (valuesSourceConfig.fieldType() instanceof DateFieldType
             && ((DateFieldType) valuesSourceConfig.fieldType()).resolution() == Resolution.NANOSECONDS) {
             // We don't generate sensible Queries for nanoseconds.
@@ -457,7 +478,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         throws IOException;
 
     private static class NoOverlapAggregator extends RangeAggregator {
-        public NoOverlapAggregator(
+        NoOverlapAggregator(
             String name,
             AggregatorFactories factories,
             Numeric valuesSource,
@@ -492,7 +513,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
     }
 
     private static class OverlapRangeAggregator extends RangeAggregator {
-        public OverlapRangeAggregator(
+        OverlapRangeAggregator(
             String name,
             AggregatorFactories factories,
             Numeric valuesSource,
@@ -572,7 +593,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         private final boolean keyed;
         private final InternalRange.Factory<B, ?> rangeFactory;
 
-        public RangeAdaptedFromFiltersAggregator(
+        RangeAdaptedFromFiltersAggregator(
             Aggregator delegate,
             DocValueFormat format,
             Range[] ranges,

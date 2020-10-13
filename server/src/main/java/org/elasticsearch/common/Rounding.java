@@ -291,7 +291,11 @@ public abstract class Rounding implements Writeable {
          * next rounded value in specified units if possible.
          */
         double roundingSize(long utcMillis, DateTimeUnit timeUnit);
-
+        /**
+         * An array of dates such that each date between each entry is will
+         * be rounded down to that entry or {@code null} if this rounding
+         * mechanism doesn't or can't precalculate these points.
+         */
         long[] fixedRoundingPoints();
     }
     /**

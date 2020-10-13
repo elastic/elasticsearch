@@ -75,7 +75,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         Map<String, Object> metadata
     ) throws IOException {
         Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
-        Aggregator asRange = buildAsRangeOrNull(
+        Aggregator asRange = adaptIntoRangeOrNull(
             name,
             factories,
             rounding,
@@ -112,7 +112,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         );
     }
 
-    private static DateHistogramAdaptedFromDateRangeAggregator buildAsRangeOrNull(
+    private static DateHistogramAdaptedFromDateRangeAggregator adaptIntoRangeOrNull(
         String name,
         AggregatorFactories factories,
         Rounding rounding,
@@ -325,7 +325,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
-    static class DateHistogramAdaptedFromDateRangeAggregator extends AdaptingAggregator {
+    private static class DateHistogramAdaptedFromDateRangeAggregator extends AdaptingAggregator {
         private final DocValueFormat format;
         private final Rounding rounding;
         private final BucketOrder order;
@@ -333,7 +333,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         private final LongBounds extendedBounds;
         private final boolean keyed;
 
-        public DateHistogramAdaptedFromDateRangeAggregator(
+        DateHistogramAdaptedFromDateRangeAggregator(
             Aggregator delegate,
             DocValueFormat format,
             Rounding rounding,

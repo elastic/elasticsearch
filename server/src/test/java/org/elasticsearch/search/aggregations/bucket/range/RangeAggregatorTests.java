@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -32,6 +34,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -71,9 +74,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     public void testMatchesSortedNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7), new IntPoint(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2), new IntPoint(NUMBER_FIELD_NAME, 2)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3), new IntPoint(NUMBER_FIELD_NAME, 3)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -85,9 +88,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     public void testMatchesNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 2)));
-            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 3)));
+            iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 7), new IntPoint(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 2), new IntPoint(NUMBER_FIELD_NAME, 2)));
+            iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 3), new IntPoint(NUMBER_FIELD_NAME, 3)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -98,7 +101,16 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDateFieldMillisecondResolution() throws IOException {
-        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME);
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
+            DATE_FIELD_NAME,
+            randomBoolean(),
+            randomBoolean(),
+            true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null
+        );
 
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
         long milli2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -108,8 +120,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(milli1 - 1, milli1 + 1);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1), new LongPoint(DATE_FIELD_NAME, milli1)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2), new LongPoint(DATE_FIELD_NAME, milli2)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
@@ -302,6 +314,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.addRange(0d, 5d);
         aggregationBuilder.addRange(10d, 20d);
         aggregationBuilder.addRange(0d, 20d);
+        aggregationBuilder.missing(100);            // Set a missing value to force the "normal" range collection instead of filter-based
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 11)));
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -327,8 +340,16 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
-        MappedFieldType fieldType
-            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
+            NUMBER_FIELD_NAME,
+            NumberFieldMapper.NumberType.INTEGER,
+            randomBoolean(),
+            randomBoolean(),
+            true,
+            false,
+            null,
+            null
+        );
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");
         aggregationBuilder.field(NUMBER_FIELD_NAME);
         aggregationBuilder.addRange(0d, 5d);

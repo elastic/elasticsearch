@@ -368,7 +368,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         if (analyzer == null) {
             analyzerObj = fieldType.getTextSearchInfo().getSearchAnalyzer();
         } else {
-            analyzerObj = context.getMapperService().getIndexAnalyzers().get(analyzer);
+            analyzerObj = context.getIndexAnalyzers().get(analyzer);
             if (analyzerObj == null) {
                 throw new QueryShardException(context, "[common] analyzer [" + analyzer + "] not found");
             }

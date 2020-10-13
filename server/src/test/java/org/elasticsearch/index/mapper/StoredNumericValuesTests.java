@@ -90,7 +90,8 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
         searcher.doc(0, fieldsVisitor);
 
-        fieldsVisitor.postProcess(mapperService::fieldType, mapperService.documentMapper());
+        fieldsVisitor.postProcess(mapperService::fieldType,
+            mapperService.documentMapper() == null ? null : mapperService.documentMapper()::type);
         assertThat(fieldsVisitor.fields().size(), equalTo(10));
         assertThat(fieldsVisitor.fields().get("field1").size(), equalTo(1));
         assertThat(fieldsVisitor.fields().get("field1").get(0), equalTo((byte) 1));

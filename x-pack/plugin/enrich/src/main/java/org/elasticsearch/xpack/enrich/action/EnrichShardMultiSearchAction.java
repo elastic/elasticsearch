@@ -234,10 +234,13 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 final QueryShardContext context = indexService.newQueryShardContext(
                     shardId.id(),
                     searcher,
-                    () -> { throw new UnsupportedOperationException(); },
+                    () -> {
+                        throw new UnsupportedOperationException();
+                    },
                     null
                 );
-                final Text typeText = context.getMapperService().documentMapper().typeText();
+                final String type = context.getType();
+                final Text typeText = new Text(type);
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
                     final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
@@ -262,7 +265,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                                 throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
                             }
                             return context.getFieldType(field);
-                        }, context.getMapperService().documentMapper());
+                        }, () -> type);
                         final SearchHit hit = new SearchHit(
                             scoreDoc.doc,
                             visitor.uid().id(),

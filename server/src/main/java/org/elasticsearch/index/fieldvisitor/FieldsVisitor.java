@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -40,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
@@ -85,13 +85,13 @@ public class FieldsVisitor extends StoredFieldVisitor {
         // All these fields are single-valued so we can stop when the set is
         // empty
         return requiredFields.isEmpty()
-                ? Status.STOP
-                : Status.NO;
+            ? Status.STOP
+            : Status.NO;
     }
 
-    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup, @Nullable DocumentMapper mapper) {
-        if (mapper != null) {
-            type = mapper.type();
+    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup, @Nullable Supplier<String> typeSupplier) {
+        if (typeSupplier != null) {
+            type = typeSupplier.get();
         }
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());

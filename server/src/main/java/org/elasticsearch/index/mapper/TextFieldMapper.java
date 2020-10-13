@@ -445,11 +445,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    private static final class PhraseFieldType extends StringFieldType {
+    static final class PhraseFieldType extends StringFieldType {
 
         final TextFieldType parent;
 
-        private PhraseFieldType(TextFieldType parent) {
+        PhraseFieldType(TextFieldType parent) {
             super(parent.name() + FAST_PHRASE_SUFFIX, true, false, false, parent.getTextSearchInfo(), Collections.emptyMap());
             setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer().analyzer());
             this.parent = parent;
@@ -466,7 +466,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
+            // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
+            // parent field in _source. So we don't need to use the parent field name here.
+            return SourceValueFetcher.toString(name(), mapperService, format);
         }
 
         @Override
@@ -494,7 +496,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
+            // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
+            // parent field in _source. So we don't need to use the parent field name here.
+            return SourceValueFetcher.toString(name(), mapperService, format);
         }
 
         void setAnalyzer(NamedAnalyzer delegate) {

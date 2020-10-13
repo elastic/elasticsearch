@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
@@ -69,8 +70,13 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field(getFromField(), getFrom("long_range")).field(getToField(), getTo("long_range")).endObject();
+    protected Object getSampleValueForDocument() {
+        return Map.of(getFromField(), getFrom("long_range"), getToField(), getTo("long_range"));
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return 6;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {

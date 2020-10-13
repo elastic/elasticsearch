@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
@@ -70,11 +70,11 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
                                 List<FieldAndFormat> fetchFields,
                                 List<ScriptFieldsContext.ScriptField> scriptFields,
                                 FetchSourceContext fetchSourceContext,
-                                QueryShardContext queryShardContext,
+                                AggregationContext context,
                                 AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactories,
                                 Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+        super(name, context, parent, subFactories, metadata);
         this.from = from;
         this.size = size;
         this.explain = explain;

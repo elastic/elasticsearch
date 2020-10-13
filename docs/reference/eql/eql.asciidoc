@@ -6,7 +6,7 @@
 <titleabbrev>EQL</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 {eql-ref}/index.html[Event Query Language (EQL)] is a query language for
 event-based, time series data, such as logs.

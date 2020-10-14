@@ -726,6 +726,8 @@ three double quotes (`"""`) instead.
 *** {eql-ref}/functions.html#arrayCount[`arrayCount`]
 *** {eql-ref}/functions.html#arraySearch[`arraySearch`]
 
+** The {eql-ref}//functions.html#match[`match`] function
+
 ** {eql-ref}/joins.html[Joins]
 
 ** {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:

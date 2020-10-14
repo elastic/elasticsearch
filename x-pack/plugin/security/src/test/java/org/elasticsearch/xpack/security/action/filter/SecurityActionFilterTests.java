@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
@@ -88,7 +89,8 @@ public class SecurityActionFilterTests extends ESTestCase {
         when(state.nodes()).thenReturn(nodes);
 
         SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        filter = new SecurityActionFilter(authcService, authzService, licenseState, threadPool, securityContext, destructiveOperations);
+        filter = new SecurityActionFilter(authcService, authzService, mock(AuditTrailService.class), licenseState, threadPool,
+                securityContext, destructiveOperations);
     }
 
     public void testApply() throws Exception {
@@ -102,7 +104,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         mockAuthorize();
         filter.apply(task, "_action", request, listener, chain);
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
-        verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
+        verify(chain).proceed(eq(task), eq("_action"), eq(request), any(ActionListener.class));
     }
 
     public void testApplyRestoresThreadContext() throws Exception {
@@ -122,7 +124,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
-        verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
+        verify(chain).proceed(eq(task), eq("_action"), eq(request), any(ActionListener.class));
     }
 
     public void testApplyAsSystemUser() throws Exception {

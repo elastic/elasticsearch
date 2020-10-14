@@ -33,11 +33,12 @@ import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivi
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
-import java.io.IOException;
 import java.util.function.Predicate;
 
 public class SecurityActionFilter implements ActionFilter {
@@ -48,6 +49,7 @@ public class SecurityActionFilter implements ActionFilter {
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
+    private final AuditTrailService auditTrailService;
     private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
@@ -55,10 +57,11 @@ public class SecurityActionFilter implements ActionFilter {
     private final DestructiveOperations destructiveOperations;
 
     public SecurityActionFilter(AuthenticationService authcService, AuthorizationService authzService,
-                                XPackLicenseState licenseState, ThreadPool threadPool,
+                                AuditTrailService auditTrailService, XPackLicenseState licenseState, ThreadPool threadPool,
                                 SecurityContext securityContext, DestructiveOperations destructiveOperations) {
         this.authcService = authcService;
         this.authzService = authzService;
+        this.auditTrailService = auditTrailService;
         this.licenseState = licenseState;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = securityContext;
@@ -83,8 +86,15 @@ public class SecurityActionFilter implements ActionFilter {
         if (licenseState.isSecurityEnabled()) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+            final ActionListener<Response> postActionExecutionListener = ActionListener.delegateFailure(contextPreservingListener,
+                    (ignore, response) -> {
+                        String requestId = AuditUtil.extractRequestId(threadContext);
+                        Authentication authentication = securityContext.getAuthentication();
+                        auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
+                        contextPreservingListener.onResponse(response);
+                    });
             ActionListener<Void> authenticatedListener = ActionListener.wrap(
-                    (aVoid) -> chain.proceed(task, action, request, contextPreservingListener), contextPreservingListener::onFailure);
+                    (aVoid) -> chain.proceed(task, action, request, postActionExecutionListener), postActionExecutionListener::onFailure);
             final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
             try {
                 if (useSystemUser) {

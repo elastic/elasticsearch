@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.audit;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -46,6 +47,10 @@ public interface AuditTrail {
 
     void accessDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
                       AuthorizationInfo authorizationInfo);
+
+    // this is the only audit method that is called *after* the action executed, when the response is available
+    void actionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
+                        TransportResponse transportResponse);
 
     void tamperedRequest(String requestId, RestRequest request);
 

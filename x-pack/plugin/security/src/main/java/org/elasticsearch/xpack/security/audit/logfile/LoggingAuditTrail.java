@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -550,6 +551,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 logger.info(AUDIT_MARKER, logEntry);
             }
         }
+    }
+
+    @Override
+    public void actionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
+                               TransportResponse transportResponse) {
+        // not implemented yet
     }
 
     @Override

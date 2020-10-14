@@ -10,6 +10,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -91,6 +92,10 @@ public class AuditTrailService {
         @Override
         public void accessDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
                                  AuthorizationInfo authorizationInfo) {}
+
+        @Override
+        public void actionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
+                                   TransportResponse transportResponse) {}
 
         @Override
         public void tamperedRequest(String requestId, RestRequest request) {}
@@ -227,6 +232,14 @@ public class AuditTrailService {
                                  AuthorizationInfo authorizationInfo) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.accessDenied(requestId, authentication, action, transportRequest, authorizationInfo);
+            }
+        }
+
+        @Override
+        public void actionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
+                                   TransportResponse transportResponse) {
+            for (AuditTrail auditTrail : auditTrails) {
+                auditTrail.actionResponse(requestId, authentication, action, transportRequest, transportResponse);
             }
         }
 

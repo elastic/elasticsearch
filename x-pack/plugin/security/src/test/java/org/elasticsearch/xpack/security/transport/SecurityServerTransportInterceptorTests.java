@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
@@ -63,6 +64,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     private Settings settings;
     private ThreadPool threadPool;
     private ThreadContext threadContext;
+    private AuditTrailService auditTrailService;
     private XPackLicenseState xPackLicenseState;
     private SecurityContext securityContext;
     private ClusterService clusterService;
@@ -74,6 +76,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         threadContext = threadPool.getThreadContext();
+        auditTrailService = mock(AuditTrailService.class);
         securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext()));
         xPackLicenseState = mock(XPackLicenseState.class);
         when(xPackLicenseState.isSecurityEnabled()).thenReturn(true);
@@ -87,8 +90,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
     public void testSendAsyncUserActionWhenUnlicensed() {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                mock(AuthenticationService.class), mock(AuthorizationService.class), auditTrailService, xPackLicenseState,
+                mock(SSLService.class), securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
                 Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))), clusterService);
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
         when(xPackLicenseState.isSecurityEnabled()).thenReturn(false);
@@ -115,8 +118,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
     public void testSendAsyncInternalActionWhenUnlicensed() {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                mock(AuthenticationService.class), mock(AuthorizationService.class), auditTrailService, xPackLicenseState,
+                mock(SSLService.class), securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
                 Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))), clusterService);
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
         when(xPackLicenseState.isSecurityEnabled()).thenReturn(false);
@@ -144,8 +147,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
     public void testSendAsyncWithStateNotRecovered() {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-            mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-            securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+            mock(AuthenticationService.class), mock(AuthorizationService.class), auditTrailService, xPackLicenseState,
+                mock(SSLService.class), securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
             Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))), clusterService);
         final boolean authAllowed = randomBoolean();
         when(xPackLicenseState.isSecurityEnabled()).thenReturn(authAllowed);
@@ -183,8 +186,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
         authentication.writeToContext(threadContext);
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                mock(AuthenticationService.class), mock(AuthorizationService.class), auditTrailService, xPackLicenseState,
+                mock(SSLService.class), securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
                 Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))), clusterService);
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -219,8 +222,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                mock(AuthenticationService.class), mock(AuthorizationService.class), auditTrailService, xPackLicenseState,
+                mock(SSLService.class), securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
                 Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))), clusterService);
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -250,8 +253,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
     public void testSendWithoutUser() throws Exception {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                mock(AuthenticationService.class), mock(AuthorizationService.class), auditTrailService, xPackLicenseState,
+                mock(SSLService.class), securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
                 Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))), clusterService) {
             @Override
             void assertNoAuthentication(String action) {
@@ -286,8 +289,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                mock(AuthenticationService.class), mock(AuthorizationService.class), auditTrailService, xPackLicenseState,
+                mock(SSLService.class), securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
                 Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))), clusterService);
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -327,8 +330,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                mock(AuthenticationService.class), mock(AuthorizationService.class), auditTrailService, xPackLicenseState,
+                mock(SSLService.class), securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
                 Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))), clusterService);
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 

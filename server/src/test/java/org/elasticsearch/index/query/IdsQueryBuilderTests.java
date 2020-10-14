@@ -24,6 +24,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -97,7 +99,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, instanceOf(IdsQueryBuilder.class));
-        return (IdsQueryBuilder) query;
+        return query;
     }
 
     @Override
@@ -108,5 +110,19 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testFoo() {
+        DateMathParser dateMathParser = DateFormatter.forPattern("strict_date_optional_time||epoch_millis").toDateMathParser();
+        System.out.println(dateMathParser.parse("10", null).toEpochMilli());
+        System.out.println(dateMathParser.parse("100", null).toEpochMilli());
+        System.out.println(dateMathParser.parse("999", null).toEpochMilli());
+        System.out.println(dateMathParser.parse("1000", null).toEpochMilli());
+        System.out.println(dateMathParser.parse("1500", null).toEpochMilli());
+        System.out.println(dateMathParser.parse("1968", null).toEpochMilli());
+        System.out.println(dateMathParser.parse("1969", null).toEpochMilli());
+        System.out.println(dateMathParser.parse("1970", null).toEpochMilli());
+        System.out.println(dateMathParser.parse("1990", null).toEpochMilli());
+        System.out.println(dateMathParser.parse("10000", null).toEpochMilli());
     }
 }

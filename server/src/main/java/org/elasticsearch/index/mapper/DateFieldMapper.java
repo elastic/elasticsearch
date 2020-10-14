@@ -73,6 +73,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
@@ -349,9 +350,17 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                         "] does not support DISJOINT ranges");
             }
-            DateMathParser parser = forcedDateParser == null
-                    ? dateMathParser
-                    : forcedDateParser;
+            DateMathParser parser;
+            if (forcedDateParser == null) {
+                if (lowerTerm instanceof Integer || upperTerm instanceof Integer) {
+                    // force epoch_millis
+                    parser = EPOCH_MILLIS_PARSER;
+                } else {
+                    parser = dateMathParser;
+                }
+            } else {
+                parser = forcedDateParser;
+            }
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
                 Query query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
@@ -443,7 +452,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                                            Object from, Object to, boolean includeLower, boolean includeUpper,
                                            ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
-                dateParser = this.dateMathParser;
+                if (from instanceof Integer || to instanceof Integer) {
+                    // force epoch_millis
+                    dateParser = EPOCH_MILLIS_PARSER;
+                } else {
+                    dateParser = this.dateMathParser;
+                }
             }
 
             long fromInclusive = Long.MIN_VALUE;

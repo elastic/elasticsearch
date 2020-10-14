@@ -772,7 +772,7 @@ end::scroll[]
 tag::scroll_size[]
 `scroll_size`::
 (Optional, integer) Size of the scroll request that powers the operation.
-Defaults to 100.
+Defaults to 1000.
 end::scroll_size[]
 
 tag::search-failures[]

@@ -39,12 +39,25 @@ public abstract class AdaptingAggregator extends Aggregator {
     private final Aggregator parent;
     private final Aggregator delegate;
 
+    /**
+     * Build the 
+     * @param parent
+     * @param subAggregators
+     * @param delegate
+     * @throws IOException
+     */
     public AdaptingAggregator(
         Aggregator parent,
         AggregatorFactories subAggregators,
         CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate
     ) throws IOException {
+        // Its important we set parent first or else when we build the sub-aggregators they can fail because they'll call this.parent.
         this.parent = parent;
+        /*
+         * Lock the parent of the sub-aggregators to *this* instead of to
+         * the delegate. This keeps the parent link shaped like the requested
+         * agg tree. Thisis how it has always been and some aggs rely on it.
+         */
         this.delegate = delegate.apply(subAggregators.fixParent(this));
         assert this.delegate.parent() == parent : "invalid parent set on delegate";
     }

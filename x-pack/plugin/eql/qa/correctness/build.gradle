@@ -26,7 +26,7 @@ testClusters.all {
   }
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
-  jvmArgs '-Xms8g', '-Xmx8g'
+  jvmArgs '-Xms4g', '-Xmx4g'
 }
 
 tasks.named('javaRestTest').configure {

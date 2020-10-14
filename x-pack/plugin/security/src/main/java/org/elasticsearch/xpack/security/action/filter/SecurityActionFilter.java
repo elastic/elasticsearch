@@ -89,19 +89,11 @@ public class SecurityActionFilter implements ActionFilter {
             try {
                 if (useSystemUser) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
-                        try {
-                            applyInternal(action, request, authenticatedListener);
-                        } catch (IOException e) {
-                            listener.onFailure(e);
-                        }
+                        applyInternal(action, request, authenticatedListener);
                     }, Version.CURRENT);
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
                     AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, (original) -> {
-                        try {
-                            applyInternal(action, request, authenticatedListener);
-                        } catch (IOException e) {
-                            listener.onFailure(e);
-                        }
+                        applyInternal(action, request, authenticatedListener);
                     });
                 } else {
                     try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
@@ -131,7 +123,7 @@ public class SecurityActionFilter implements ActionFilter {
     }
 
     private <Request extends ActionRequest> void applyInternal(String action, Request request,
-                                                               ActionListener<Void> listener) throws IOException {
+                                                               ActionListener<Void> listener) {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {

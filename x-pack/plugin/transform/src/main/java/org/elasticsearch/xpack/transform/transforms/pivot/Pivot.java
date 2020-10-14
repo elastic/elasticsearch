@@ -205,18 +205,7 @@ public class Pivot implements Function {
 
     @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
-        CompositeAggregationBuilder aggregationBuilder = null;
-
-        // only create the composite aggregation if required
-        if (config.getGroupConfig().getGroups().entrySet().stream().anyMatch(e -> e.getValue().supportsIncrementalBucketUpdate())) {
-            aggregationBuilder = createCompositeAggregationSources(config, true);
-        }
-
-        return CompositeBucketsChangeCollector.buildChangeCollector(
-            aggregationBuilder,
-            config.getGroupConfig().getGroups(),
-            synchronizationField
-        );
+        return CompositeBucketsChangeCollector.buildChangeCollector(config.getGroupConfig().getGroups(), synchronizationField);
     }
 
     public Stream<Map<String, Object>> extractResults(
@@ -329,7 +318,7 @@ public class Pivot implements Function {
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config) {
-        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config, false);
+        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config);
 
         config.getAggregationConfig().getAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
         config.getAggregationConfig().getPipelineAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
@@ -337,11 +326,11 @@ public class Pivot implements Function {
         return compositeAggregation;
     }
 
-    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config, boolean forChangeDetection) {
+    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config) {
         CompositeAggregationBuilder compositeAggregation;
 
         try (XContentBuilder builder = jsonBuilder()) {
-            config.toCompositeAggXContent(builder, forChangeDetection);
+            config.toCompositeAggXContent(builder);
             XContentParser parser = builder.generator()
                 .contentType()
                 .xContent()

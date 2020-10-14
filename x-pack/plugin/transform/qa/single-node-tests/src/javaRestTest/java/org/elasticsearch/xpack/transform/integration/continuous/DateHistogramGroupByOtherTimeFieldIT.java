@@ -63,9 +63,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         if (addGroupByTerms) {
             groups.groupBy("event", new TermsGroupSource.Builder().setField("event").build());
         }
-        pivotConfigBuilder.setGroups(
-            groups.build()
-        );
+        pivotConfigBuilder.setGroups(groups.build());
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
         addCommonAggregations(aggregations);
 
@@ -168,7 +166,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         List<? extends Bucket> buckets = ((Histogram) responseSource.getAggregations().get("second")).getBuckets();
 
         List<Map<String, Object>> flattenedBuckets = new ArrayList<>();
-        for (Bucket b: buckets) {
+        for (Bucket b : buckets) {
             if (b.getDocCount() == 0) {
                 continue;
             }
@@ -199,7 +197,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.get("count") + ", iteration: " + iteration,
                 XContentMapValues.extractValue("count", source),
-                equalTo(Double.valueOf(((Long)bucket.get("count"))))
+                equalTo(Double.valueOf(((Long) bucket.get("count"))))
             );
             assertThat(
                 "Term did not match, source: " + source + ", expected: " + bucket.get("event") + ", iteration: " + iteration,

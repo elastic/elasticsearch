@@ -9,11 +9,6 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -43,9 +38,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,7 +68,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         SingleGroupSource termsGroupBy = TermsGroupSourceTests.randomTermsGroupSourceNoScript();
         groups.put("terms", termsGroupBy);
 
-        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);
+        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, null);
         assertEquals(1_000, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 1_000)).size());
         assertEquals(10_000, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 10_000)).size());
         assertEquals(10, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 10)).size());
@@ -89,7 +82,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         SingleGroupSource geoGroupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
         groups.put("geo_tile", geoGroupBy);
 
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);
+        collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, null);
         assertEquals(1_000, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 1_000)).size());
         assertEquals(1_024, getCompositeAggregationBuilder(collector.buildChangesQuery(new SearchSourceBuilder(), null, 10_000)).size());
     }
@@ -101,10 +94,10 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         SingleGroupSource termsGroupBy = new TermsGroupSource("id", null, false);
         groups.put("id", termsGroupBy);
 
-        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, null);
+        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, null);
 
         CompositeAggregation composite = mock(CompositeAggregation.class);
-        when(composite.getName()).thenReturn("_transform");
+        when(composite.getName()).thenReturn("_transform_change_collector");
         when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
             List<CompositeAggregation.Bucket> compositeBuckets = new ArrayList<>();
             CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
@@ -146,11 +139,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         );
         groups.put("output_timestamp", groupBy);
 
-        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(
-            getCompositeAggregation(groups),
-            groups,
-            "timestamp"
-        );
+        ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "timestamp");
 
         QueryBuilder queryBuilder = collector.buildFilterQuery(66_666, 200_222);
         assertNotNull(queryBuilder);
@@ -161,14 +150,14 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         assertThat(((RangeQueryBuilder) queryBuilder).fieldName(), equalTo("timestamp"));
 
         // timestamp field does not match
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "sync_timestamp");
+        collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "sync_timestamp");
 
         SingleValue minTimestamp = mock(SingleValue.class);
-        when(minTimestamp.getName()).thenReturn("_transform.output_timestamp.min");
+        when(minTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.min");
         when(minTimestamp.value()).thenReturn(122_633.0);
 
         SingleValue maxTimestamp = mock(SingleValue.class);
-        when(maxTimestamp.getName()).thenReturn("_transform.output_timestamp.max");
+        when(maxTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.max");
         when(maxTimestamp.value()).thenReturn(302_523.0);
 
         // simulate the agg response, that should inject
@@ -190,12 +179,12 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         assertThat(((RangeQueryBuilder) queryBuilder).fieldName(), equalTo("timestamp"));
 
         // field does not match, but output field equals sync field
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "output_timestamp");
+        collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "output_timestamp");
 
-        when(minTimestamp.getName()).thenReturn("_transform.output_timestamp.min");
+        when(minTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.min");
         when(minTimestamp.value()).thenReturn(242_633.0);
 
-        when(maxTimestamp.getName()).thenReturn("_transform.output_timestamp.max");
+        when(maxTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.max");
         when(maxTimestamp.value()).thenReturn(602_523.0);
 
         // simulate the agg response, that should inject
@@ -222,12 +211,12 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         );
         groups.put("output_timestamp", groupBy);
 
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "timestamp");
+        collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "timestamp");
 
         queryBuilder = collector.buildFilterQuery(66_666, 200_222);
         assertNull(queryBuilder);
 
-        collector = CompositeBucketsChangeCollector.buildChangeCollector(getCompositeAggregation(groups), groups, "sync_timestamp");
+        collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "sync_timestamp");
 
         queryBuilder = collector.buildFilterQuery(66_666, 200_222);
         assertNull(queryBuilder);
@@ -249,32 +238,6 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
 
         fieldCollectors = CompositeBucketsChangeCollector.createFieldCollectors(groups, null);
         assertTrue(fieldCollectors.isEmpty());
-    }
-
-    private static CompositeAggregationBuilder getCompositeAggregation(Map<String, SingleGroupSource> groups) throws IOException {
-        CompositeAggregationBuilder compositeAggregation;
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
-            builder.startArray();
-            for (Entry<String, SingleGroupSource> groupBy : groups.entrySet()) {
-                builder.startObject();
-                builder.startObject(groupBy.getKey());
-                builder.field(groupBy.getValue().getType().value(), groupBy.getValue());
-                builder.endObject();
-                builder.endObject();
-            }
-            builder.endArray();
-            builder.endObject(); // sources
-
-            XContentParser parser = builder.generator()
-                .contentType()
-                .xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-            compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, "_transform");
-        }
-
-        return compositeAggregation;
     }
 
     private static CompositeAggregationBuilder getCompositeAggregationBuilder(SearchSourceBuilder builder) {

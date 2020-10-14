@@ -145,11 +145,14 @@ Infra/Scripting::
 
 Machine Learning::
 * Add a "verbose" option to the data frame analytics stats endpoint {es-pull}59589[#59589] (issue: {es-issue}59125[#59125])
-* Add new include flag to GET inference/<model_id> API for model training metadata {es-pull}61922[#61922]
-* Adds new feature_processors field for data frame analytics {es-pull}60528[#60528] (issue: {es-issue}59327[#59327])
-* Adds new n_gram_encoding custom processor {es-pull}61578[#61578]
-* Make MlDailyMaintenanceService delete jobs that are in deleting state anyway {es-pull}60121[#60121] (issue: {es-issue}42840[#42840])
+* Add new include flag to get trained models API for model training metadata {es-pull}61922[#61922]
+* Add new feature_processors field for data frame analytics {es-pull}60528[#60528] (issue: {es-issue}59327[#59327])
+* Add new n_gram_encoding custom processor {es-pull}61578[#61578]
+* Make MlDailyMaintenanceService delete jobs that are in deleting state {es-pull}60121[#60121] (issue: {es-issue}42840[#42840])
 * Respect ML upgrade mode in TrainedModelStatsService {es-pull}61143[#61143]
+* Calculate total feature importance to store with model metadata {ml-pull}1387[#1387]
+* Change outlier detection feature_influence format to array with nested objects {ml-pull}1475[#1475], {es-pull}62068[#62068]
+* Add timeouts to named pipe connections {ml-pull}1514[#1514], {es-pull}62993[#62993] (issue: {ml-issue}1504[#1504])
 
 Mapping::
 * Add field type for version strings {es-pull}59773[#59773] (issue: {es-issue}48878[#48878])
@@ -247,9 +250,11 @@ Infra/Packaging::
 
 Machine Learning::
 * Adjusting inference processor to support foreach usage {es-pull}60915[#60915] (issue: {es-issue}60867[#60867])
-* DFA Get Stats can return multiple responses if more than one error {es-pull}60900[#60900] (issue: {es-issue}60876[#60876])
-* Do not mark the DFA job as FAILED when a failure occurs after the node is shutdown {es-pull}61331[#61331] (issue: {es-issue}60596[#60596])
-* Improve handling of exception while starting DFA process {es-pull}61838[#61838] (issue: {es-issue}61704[#61704])
+* Get data frame analytics jobs stats API can return multiple responses if more than one error {es-pull}60900[#60900] (issue: {es-issue}60876[#60876])
+* Do not mark the data frame analytics job as FAILED when a failure occurs after the node is shutdown {es-pull}61331[#61331] (issue: {es-issue}60596[#60596])
+* Improve handling of exception while starting data frame analytics process {es-pull}61838[#61838] (issue: {es-issue}61704[#61704])
+* Fix progress on resume after final training has completed for classification and regression. Previously, progress was shown stuck at zero for final training. {ml-pull}1443[#1443]
+* Avoid potential "Failed to compute quantile" and "No values added to quantile sketch" log errors training regression and classification models if there are features with mostly missing values {ml-pull}1500[#1500]
 
 Mapping::
 * Improve 'ignore_malformed' handling for dates {es-pull}60211[#60211] (issue: {es-issue}52634[#52634])

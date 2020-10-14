@@ -59,11 +59,6 @@ public class DiskThresholdSettings {
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
-    // permits tests to force updating the disk watermarks on every cluster state update; deliberately unregistered since it is only for use
-    // in tests and can harm production by triggering too many reroute requests
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ALLOW_FORCED_UPDATE_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.disk.allow_forced_update_for_testing_purpose_only", false,
-            Setting.Property.NodeScope);
 
     private volatile String lowWatermarkRaw;
     private volatile String highWatermarkRaw;
@@ -75,7 +70,6 @@ public class DiskThresholdSettings {
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
-    private final boolean allowForcedUpdate;
 
     static {
         assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // this check is unnecessary in v9
@@ -100,7 +94,6 @@ public class DiskThresholdSettings {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
-        this.allowForcedUpdate = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ALLOW_FORCED_UPDATE_SETTING.get(settings);
     }
 
     static final class LowDiskWatermarkValidator implements Setting.Validator<String> {
@@ -300,10 +293,6 @@ public class DiskThresholdSettings {
 
     public boolean isEnabled() {
         return enabled;
-    }
-
-    boolean allowForcedUpdate() {
-        return allowForcedUpdate;
     }
 
     public TimeValue getRerouteInterval() {

@@ -28,11 +28,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterInfoService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -75,8 +72,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -133,7 +128,6 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), WATERMARK_BYTES + "b")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "0b")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ALLOW_FORCED_UPDATE_SETTING.getKey(), true)
                 .build();
     }
 
@@ -142,6 +136,7 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
         return List.of(InternalSettingsPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62326")
     public void testHighWatermarkNotExceeded() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -163,27 +158,16 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
                 .build());
         final long minShardSize = createReasonableSizedShards(indexName);
 
-        waitForNoInitializingOrRelocatingShards();
-        assertThat(getShardRoutings(dataNode0Id, indexName), hasSize(greaterThan(0)));
+        // reduce disk size of node 0 so that no shards fit below the high watermark, forcing all shards onto the other data node
+        // (subtract the translog size since the disk threshold decider ignores this and may therefore move the shard back again)
+        fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
+        refreshDiskUsage();
+        assertBusy(() -> assertThat(getShardRoutings(dataNode0Id, indexName), empty()));
 
-        expectRelocations(indexName, () -> {
-            // reduce disk size of node 0 so that no shards fit below the high watermark, forcing all shards onto the other data node
-            // (subtract the translog size since the disk threshold decider ignores this and may therefore move the shard back again)
-            fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
-            refreshDiskUsage();
-        });
-
-        waitForNoInitializingOrRelocatingShards();
-        assertThat(getShardRoutings(dataNode0Id, indexName), empty());
-
-        expectRelocations(indexName, () -> {
-            // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
-            fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
-            refreshDiskUsage();
-        });
-
-        waitForNoInitializingOrRelocatingShards();
-        assertThat(getShardRoutings(dataNode0Id, indexName), hasSize(1));
+        // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
+        fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
+        refreshDiskUsage();
+        assertBusy(() -> assertThat(getShardRoutings(dataNode0Id, indexName), hasSize(1)));
     }
 
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
@@ -199,8 +183,8 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
                 .put("compress", randomBoolean())));
 
         final InternalClusterInfoService clusterInfoService
-            = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
+            = (InternalClusterInfoService) internalCluster().getMasterNodeInstance(ClusterInfoService.class);
+        internalCluster().getMasterNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
 
         final String dataNode0Id = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
         final Path dataNode0Path = internalCluster().getInstance(Environment.class, dataNodeName).dataFiles()[0];
@@ -245,14 +229,10 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
                 .build())
             .get());
 
-        expectRelocations(indexName, () -> {
-            // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
-            fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
-            refreshDiskUsage();
-        });
-
-        waitForNoInitializingOrRelocatingShards();
-        assertThat(getShardRoutings(dataNode0Id, indexName), hasSize(1));
+        // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
+        fileSystemProvider.getTestFileStore(dataNode0Path).setTotalSpace(minShardSize + WATERMARK_BYTES + 1L);
+        refreshDiskUsage();
+        assertBusy(() -> assertThat(getShardRoutings(dataNode0Id, indexName), hasSize(1)));
     }
 
     private Set<ShardRouting> getShardRoutings(final String nodeId, final String indexName) {
@@ -297,7 +277,14 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
     }
 
     private void refreshDiskUsage() {
-        final ClusterInfoService clusterInfoService = internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
+        assertFalse(client().admin().cluster().prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .get()
+            .isTimedOut());
+
+        final ClusterInfoService clusterInfoService = internalCluster().getMasterNodeInstance(ClusterInfoService.class);
         ((InternalClusterInfoService) clusterInfoService).refresh();
         // if the nodes were all under the low watermark already (but unbalanced) then a change in the disk usage doesn't trigger a reroute
         // even though it's now possible to achieve better balance, so we have to do an explicit reroute. TODO fix this?
@@ -305,42 +292,13 @@ public class DiskThresholdDeciderIT extends ESIntegTestCase {
             .allMatch(cur -> cur.value.getFreeBytes() > WATERMARK_BYTES)) {
             assertAcked(client().admin().cluster().prepareReroute());
         }
-    }
 
-    private static void waitForNoInitializingOrRelocatingShards() {
         assertFalse(client().admin().cluster().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
             .setWaitForNoInitializingShards(true)
             .get()
             .isTimedOut());
-    }
-
-    private static void expectRelocations(final String indexName, final Runnable runnable) throws Exception {
-        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        assertThat(hasRelocatingShards(indexName, clusterService.state()), is(false));
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        final ClusterStateListener relocatingListener = event -> {
-            if (hasRelocatingShards(indexName, event.state())) {
-                latch.countDown();
-            }
-        };
-        clusterService.addListener(relocatingListener);
-        try {
-            runnable.run();
-            assertThat("Expecting relocating shards but no relocation was seen", latch.await(30L, TimeUnit.SECONDS), is(true));
-        } finally {
-            clusterService.removeListener(relocatingListener);
-        }
-    }
-
-    private static boolean hasRelocatingShards(final String indexName, final ClusterState clusterState) {
-        final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
-        if (indexRoutingTable != null) {
-            return indexRoutingTable.shardsWithState(ShardRoutingState.RELOCATING).size() > 0;
-        }
-        return false;
     }
 
     private static class TestFileStore extends FilterFileStore {

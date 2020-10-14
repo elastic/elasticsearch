@@ -56,6 +56,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static java.util.Arrays.compareUnsigned;
 
@@ -139,7 +140,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        FiltersAggregator filterOrder = filterOrderAggregatorOrNull(
+        FiltersAggregator filterOrder = filterOrderOrNull(
             name,
             factories,
             keys,
@@ -154,7 +155,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (filterOrder != null) {
             return filterOrder;
         }
-        return new StandardOrderAggregator(
+        return new FiltersAggregator.Compatible(
             name,
             factories,
             keys,
@@ -168,7 +169,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         );
     }
 
-    private static FiltersAggregator filterOrderAggregatorOrNull(
+    private static FiltersAggregator filterOrderOrNull(
         String name,
         AggregatorFactories factories,
         String[] keys,
@@ -189,7 +190,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (otherBucketKey != null) {
             return null;
         }
-        return new FilterOrderAggregator(
+        return new FiltersAggregator.FilterByFilter(
             name,
             keys,
             filters,
@@ -245,11 +246,18 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
     public abstract boolean collectsInFilterOrder();
 
-    private static class FilterOrderAggregator extends FiltersAggregator {
+    /**
+     * Collects results by running each filter against the searcher and doesn't
+     * build any {@link LeafBucketCollector}s which is generally faster than
+     * {@link Compatible} but doesn't support when there is a parent aggregator
+     * or any child aggregators.
+     */
+    private static class FilterByFilter extends FiltersAggregator {
         private final Query[] filters;
         private Weight[] filterWeights;
+        private int segmentsWithDeletedDocs;
 
-        FilterOrderAggregator(
+        FilterByFilter(
             String name,
             String[] keys,
             Query[] filters,
@@ -281,6 +289,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                         collectBucket(sub, itr.docID(), filterOrd);
                     }
                 } else {
+                    segmentsWithDeletedDocs++;
                     while (itr.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         if (live.get(itr.docID())) {
                             collectBucket(sub, itr.docID(), filterOrd);
@@ -295,15 +304,27 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         public boolean collectsInFilterOrder() {
             return true;
         }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {
+            super.collectDebugInfo(add);
+            add.accept("segments_with_deleted_docs", segmentsWithDeletedDocs);
+        }
     }
 
-    private static class StandardOrderAggregator extends FiltersAggregator {
+    /**
+     * Collects results by building a {@link Bits} per filter and testing if
+     * each doc sent to its {@link LeafBucketCollector} is in each filter
+     * which is generally slower than {@link FilterByFilter} but is compatible
+     * with parent and child aggregations.
+     */
+    private static class Compatible extends FiltersAggregator {
         private final Query[] filters;
         private Weight[] filterWeights;
 
         private final int totalNumKeys;
 
-        StandardOrderAggregator(
+        Compatible(
             String name,
             AggregatorFactories factories,
             String[] keys,

@@ -306,7 +306,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                     ranges[i].from == Double.NEGATIVE_INFINITY ? null : valuesSourceConfig.format().format(ranges[i].from),
                     ranges[i].to == Double.POSITIVE_INFINITY ? null : valuesSourceConfig.format().format(ranges[i].to),
                     true,
-                    ranges[i].to == Double.NEGATIVE_INFINITY,
+                    false,
                     ShapeRelation.CONTAINS,
                     null,
                     null,
@@ -328,7 +328,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         if (false == delegate.collectsInFilterOrder()) {
             return null;
         }
-        return new RangeAdaptedFromFiltersAggregator<>(delegate, valuesSourceConfig.format(), ranges, keyed, rangeFactory);
+        return new RangeAggregator.FromFilters<>(delegate, valuesSourceConfig.format(), ranges, keyed, rangeFactory);
     }
 
     public static Aggregator buildWithoutAttemptedToAdaptToFilters(
@@ -587,13 +587,13 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    private static class RangeAdaptedFromFiltersAggregator<B extends InternalRange.Bucket> extends AdaptingAggregator {
+    private static class FromFilters<B extends InternalRange.Bucket> extends AdaptingAggregator {
         private final DocValueFormat format;
         private final Range[] ranges;
         private final boolean keyed;
         private final InternalRange.Factory<B, ?> rangeFactory;
 
-        RangeAdaptedFromFiltersAggregator(
+        FromFilters(
             Aggregator delegate,
             DocValueFormat format,
             Range[] ranges,

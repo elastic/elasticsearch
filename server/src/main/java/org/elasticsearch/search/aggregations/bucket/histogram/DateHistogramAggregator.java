@@ -112,7 +112,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         );
     }
 
-    private static DateHistogramAdaptedFromDateRangeAggregator adaptIntoRangeOrNull(
+    private static FromDateRange adaptIntoRangeOrNull(
         String name,
         AggregatorFactories factories,
         Rounding rounding,
@@ -169,7 +169,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             cardinality,
             metadata
         );
-        return new DateHistogramAdaptedFromDateRangeAggregator(
+        return new DateHistogramAggregator.FromDateRange(
             delegate,
             valuesSourceConfig.format(),
             rounding,
@@ -325,7 +325,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
-    private static class DateHistogramAdaptedFromDateRangeAggregator extends AdaptingAggregator {
+    private static class FromDateRange extends AdaptingAggregator {
         private final DocValueFormat format;
         private final Rounding rounding;
         private final BucketOrder order;
@@ -333,7 +333,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         private final LongBounds extendedBounds;
         private final boolean keyed;
 
-        DateHistogramAdaptedFromDateRangeAggregator(
+        FromDateRange(
             Aggregator delegate,
             DocValueFormat format,
             Rounding rounding,

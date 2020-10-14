@@ -22,8 +22,12 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An {@linkplain Aggregator} that delegates collection to another
@@ -106,5 +110,14 @@ public abstract class AdaptingAggregator extends Aggregator {
     @Override
     public final Aggregator[] subAggregators() {
         return delegate.subAggregators();
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        add.accept("delegate", InternalAggregationProfileTree.typeFromAggregator(delegate));
+        Map<String, Object> delegateDebug = new HashMap<>();
+        delegate.collectDebugInfo(delegateDebug::put);
+        add.accept("delegate_debug", delegateDebug);
     }
 }

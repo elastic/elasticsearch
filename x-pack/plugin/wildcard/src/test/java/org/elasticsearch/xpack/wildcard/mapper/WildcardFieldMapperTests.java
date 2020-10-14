@@ -37,7 +37,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-//import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -54,36 +54,39 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class WildcardFieldMapperTests extends ESTestCase {
+//import org.apache.lucene.util.automaton.RegExp;
+
+public class WildcardFieldMapperTests extends MapperTestCase {
 
     static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries, Version version) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        when(queryShardContext.indexVersionCreated()).thenReturn(version);        
+        when(queryShardContext.indexVersionCreated()).thenReturn(version);
         return queryShardContext;
-    }    
+    }
 
     private static final String KEYWORD_FIELD_NAME = "keyword_field";
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
@@ -96,36 +99,29 @@ public class WildcardFieldMapperTests extends ESTestCase {
     static KeywordFieldMapper keywordFieldType;
 
     @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return Collections.singleton(new Wildcard());
+    }
+
+    @Override
     @Before
     public void setUp() throws Exception {
-        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME);
+        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldType = builder.build(
-            new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0))
+            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0))
         );
-        wildcardFieldType79 = builder.build(
-            new Mapper.BuilderContext(createIndexSettings(Version.V_7_9_0).getSettings(), new ContentPath(0))
+
+        Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
+        wildcardFieldType79 = builder79.build(
+            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0))
         );
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
         keywordFieldType = kwBuilder.build(
-            new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0))
+            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0))
         );
         super.setUp();
-    }
-
-    public void testIllegalDocValuesArgument() {
-        Builder ft = new WildcardFieldMapper.Builder("test");
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> ft.docValues(false));
-        assertEquals("The field [test] cannot have doc values = false", e.getMessage());
-    }
-
-    public void testIllegalIndexedArgument() {
-        Builder ft = new WildcardFieldMapper.Builder("test");
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> ft.index(false));
-        assertEquals("The field [test] cannot have index = false", e.getMessage());
     }
 
     public void testTooBigKeywordField() throws IOException {
@@ -153,7 +149,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();
     }
-    
+
     public void testBWCIndexVersion() throws IOException {
         // Create old format index using wildcard ngram analyzer used in 7.9 launch
         Directory dir = newDirectory();
@@ -170,14 +166,14 @@ public class WildcardFieldMapperTests extends ESTestCase {
         DirectoryReader reader = iw.getReader();
         IndexSearcher searcher = newSearcher(reader);
         iw.close();
-        
+
 
         // Unnatural circumstance - testing we fail if we were to use the new analyzer on old index
         Query oldWildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("a b", null, null);
         TopDocs oldWildcardFieldTopDocs = searcher.search(oldWildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(oldWildcardFieldTopDocs.totalHits.value, equalTo(0L));
-        
-        
+
+
         // Natural circumstance test we revert to the old analyzer for old indices
         Query wildcardFieldQuery = wildcardFieldType79.fieldType().wildcardQuery("a b", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
@@ -185,7 +181,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
 
         reader.close();
         dir.close();
-    }    
+    }
 
     //Test long query strings don't cause exceptions
     public void testTooBigQueryField() throws IOException {
@@ -221,8 +217,8 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();
     }
-    
-    
+
+
     public void testTermAndPrefixQueryIgnoreWildcardSyntax() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
@@ -238,7 +234,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         DirectoryReader reader = iw.getReader();
         IndexSearcher searcher = newSearcher(reader);
         iw.close();
-        
+
         expectTermMatch(searcher, "f*oo*", 0);
         expectTermMatch(searcher, "f*oo?", 1);
         expectTermMatch(searcher, "*oo?", 0);
@@ -246,22 +242,22 @@ public class WildcardFieldMapperTests extends ESTestCase {
         expectPrefixMatch(searcher, "f*o", 1);
         expectPrefixMatch(searcher, "f*oo?", 1);
         expectPrefixMatch(searcher, "f??o", 0);
-        
+
         reader.close();
         dir.close();
     }
-    
+
     private void expectTermMatch(IndexSearcher searcher, String term,long count) throws IOException {
         Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_QSC);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));        
+        assertThat(td.totalHits.value, equalTo(count));
     }
-    
+
     private void expectPrefixMatch(IndexSearcher searcher, String term,long count) throws IOException {
         Query q = wildcardFieldType.fieldType().prefixQuery(term, null, MOCK_QSC);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));        
-    }    
+        assertThat(td.totalHits.value, equalTo(count));
+    }
 
 
     public void testSearchResultsVersusKeywordField() throws IOException {
@@ -576,6 +572,24 @@ public class WildcardFieldMapperTests extends ESTestCase {
 
     }
 
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "wildcard");
+    }
+
+    @Override
+    protected Object getSampleValueForDocument() {
+        return "test";
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
+        checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((WildcardFieldMapper)m).ignoreAbove()));
+
+    }
+
     static class FuzzyTest {
         String pattern;
         int prefixLength;
@@ -871,28 +885,6 @@ public class WildcardFieldMapperTests extends ESTestCase {
         return result.toString();
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        WildcardFieldMapper mapper = new WildcardFieldMapper.Builder("field").build(context);
-        assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
-
-        WildcardFieldMapper ignoreAboveMapper = new WildcardFieldMapper.Builder("field")
-            .ignoreAbove(4)
-            .build(context);
-        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
-
-        WildcardFieldMapper nullValueMapper = new WildcardFieldMapper.Builder("field")
-            .nullValue("NULL")
-            .build(context);
-        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
-    }
-
     protected MappedFieldType provideMappedFieldType(String name) {
         if (name.equals(WILDCARD_FIELD_NAME)) {
             return wildcardFieldType.fieldType();
@@ -909,14 +901,14 @@ public class WildcardFieldMapperTests extends ESTestCase {
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup =
             (fieldType, fieldIndexName, searchLookup) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
-            return builder.build(new IndexFieldDataCache.None(), null, null);
+            return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, xContentRegistry(), null, null, null,
                 () -> randomNonNegativeLong(), null, null, () -> true, null) {
 
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType getFieldType(String name) {
                 return provideMappedFieldType(name);
             }
         };

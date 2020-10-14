@@ -1253,7 +1253,7 @@ public class TranslogTests extends ESTestCase {
         final TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1);
         final Set<Long> persistedSeqNos = new HashSet<>();
         persistedSeqNoConsumer.set(persistedSeqNos::add);
-        final int numOps = randomIntBetween(8, 128);
+        final int numOps = scaledRandomIntBetween(8, 250000);
         final Set<Long> seenSeqNos = new HashSet<>();
         boolean opsHaveValidSequenceNumbers = randomBoolean();
         for (int i = 0; i < numOps; i++) {
@@ -1313,6 +1313,86 @@ public class TranslogTests extends ESTestCase {
             assertEquals(2048, value);
         }
         IOUtils.close(writer);
+    }
+
+    public void testTranslogWriterCanFlushInAddOrReadCall() throws IOException {
+        Path tempDir = createTempDir();
+        final TranslogConfig temp = getTranslogConfig(tempDir);
+        final TranslogConfig config = new TranslogConfig(temp.getShardId(), temp.getTranslogPath(), temp.getIndexSettings(),
+            temp.getBigArrays(), new ByteSizeValue(1, ByteSizeUnit.KB));
+
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        final AtomicInteger writeCalls = new AtomicInteger();
+
+        final ChannelFactory channelFactory = (file, openOption) -> {
+            FileChannel delegate = FileChannel.open(file, openOption);
+            boolean success = false;
+            try {
+                // don't do partial writes for checkpoints we rely on the fact that the bytes are written as an atomic operation
+                final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp");
+
+                final FileChannel channel;
+                if (isCkpFile) {
+                    channel = delegate;
+                } else {
+                    channel = new FilterFileChannel(delegate) {
+
+                        @Override
+                        public int write(ByteBuffer src) throws IOException {
+                            writeCalls.incrementAndGet();
+                            return super.write(src);
+                        }
+                    };
+                }
+                success = true;
+                return channel;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(delegate);
+                }
+            }
+        };
+
+        String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, channelFactory, primaryTerm.get());
+
+        try (Translog translog = new Translog(config, translogUUID, new TranslogDeletionPolicy(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, persistedSeqNos::add) {
+            @Override
+            ChannelFactory getChannelFactory() {
+                return channelFactory;
+            }
+        }) {
+            TranslogWriter writer = translog.getCurrent();
+            int initialWriteCalls = writeCalls.get();
+            byte[] bytes = new byte[256];
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 3);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 4);
+            assertThat(persistedSeqNos, empty());
+            assertEquals(initialWriteCalls, writeCalls.get());
+
+            if (randomBoolean()) {
+                // Since the buffer is full, this will flush before performing the add.
+                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 5);
+                assertThat(persistedSeqNos, empty());
+                assertThat(writeCalls.get(), greaterThan(initialWriteCalls));
+            } else {
+                // Will flush on read
+                writer.readBytes(ByteBuffer.allocate(256), 0);
+                assertThat(persistedSeqNos, empty());
+                assertThat(writeCalls.get(), greaterThan(initialWriteCalls));
+
+                // Add after we the read flushed the buffer
+                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 5);
+            }
+
+            writer.sync();
+
+            // Sequence numbers are marked as persisted after sync
+            assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L, 5L));
+        }
     }
 
     public void testTranslogWriterDoesNotBlockAddsOnWrite() throws IOException, InterruptedException {
@@ -1385,33 +1465,33 @@ public class TranslogTests extends ESTestCase {
                 return channelFactory;
             }
         }) {
-            try (TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1)) {
-                byte[] bytes = new byte[4];
-                ByteArrayDataOutput out = new ByteArrayDataOutput(new byte[4]);
-                out.writeInt(1);
-                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
-                assertThat(persistedSeqNos, empty());
-                startBlocking.set(true);
-                Thread thread = new Thread(() -> {
-                    try {
-                        writer.sync();
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
-                    }
-                });
-                thread.start();
-                writeStarted.await();
+            TranslogWriter writer = translog.getCurrent();
 
-                // Add will not block even though we are currently writing/syncing
-                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
+            byte[] bytes = new byte[4];
+            ByteArrayDataOutput out = new ByteArrayDataOutput(new byte[4]);
+            out.writeInt(1);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
+            assertThat(persistedSeqNos, empty());
+            startBlocking.set(true);
+            Thread thread = new Thread(() -> {
+                try {
+                    writer.sync();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            thread.start();
+            writeStarted.await();
 
-                blocker.countDown();
-                // Sync against so that both operations are written
-                writer.sync();
+            // Add will not block even though we are currently writing/syncing
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
 
-                assertThat(persistedSeqNos, contains(1L, 2L));
-                thread.join();
-            }
+            blocker.countDown();
+            // Sync against so that both operations are written
+            writer.sync();
+
+            assertThat(persistedSeqNos, contains(1L, 2L));
+            thread.join();
         }
     }
 
@@ -2564,7 +2644,11 @@ public class TranslogTests extends ESTestCase {
         @Override
         public void force(boolean metadata) throws IOException {
             if (fail.fail()) {
-                throw new MockDirectoryWrapper.FakeIOException();
+                if (throwUnknownException) {
+                    throw new UnknownException();
+                } else {
+                    throw new MockDirectoryWrapper.FakeIOException();
+                }
             }
             super.force(metadata);
         }
@@ -2572,7 +2656,11 @@ public class TranslogTests extends ESTestCase {
         @Override
         public long position() throws IOException {
             if (fail.fail()) {
-                throw new MockDirectoryWrapper.FakeIOException();
+                if (throwUnknownException) {
+                    throw new UnknownException();
+                } else {
+                    throw new MockDirectoryWrapper.FakeIOException();
+                }
             }
             return super.position();
         }

@@ -50,6 +50,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
@@ -145,9 +146,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 null, new ActionFilters(Collections.emptySet()), null,
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    new IndexNameExpressionResolver(),
-                    new SystemIndices(Map.of())),
-                new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
+                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                    new SystemIndices(Map.of())
+                ), new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
             );
         }
         @Override

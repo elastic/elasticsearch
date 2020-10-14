@@ -22,19 +22,21 @@ IDs, or the special wildcard `_all` to get all trained models.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new GET request referencing an existing trained model
-<2> Set the paging parameters
-<3> Indicate if the complete model definition should be included
+<1> Constructing a new GET request referencing an existing trained model.
+<2> Set the paging parameters.
+<3> Indicate if the complete model definition should be included.
 <4> Indicate if the total feature importance for the features used in training
-    should be included in the model `metadata` field.
-<5> Should the definition be fully decompressed on GET
-<6> Allow empty response if no trained models match the provided ID patterns.
+    should is included in the metadata.
+<5> Indicate if the feature importance baselines that were used in training are
+    included in the metadata.
+<6> Should the definition be fully decompressed on GET.
+<7> Allow empty response if no trained models match the provided ID patterns.
     If false, an error will be thrown if no trained models match the
     ID patterns.
-<7> An optional list of tags used to narrow the model search. A trained model
+<8> An optional list of tags used to narrow the model search. A trained model
     can have many tags or none. The trained models in the response will
     contain all the provided tags.
-<8> Optional boolean value for requesting the trained model in a format that can
+<9> Optional boolean value for requesting the trained model in a format that can
     then be put into another cluster. Certain fields that can only be set when
     the model is imported are removed.
 

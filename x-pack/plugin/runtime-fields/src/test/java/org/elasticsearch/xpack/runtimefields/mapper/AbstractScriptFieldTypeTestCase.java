@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -71,15 +70,13 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(anyString())).thenReturn(mappedFieldType);
         QueryShardContext context = mock(QueryShardContext.class);
-        when(context.getMapperService()).thenReturn(mapperService);
         if (mappedFieldType != null) {
-            when(context.fieldMapper(anyString())).thenReturn(mappedFieldType);
-            when(context.getSearchAnalyzer(any())).thenReturn(mappedFieldType.getTextSearchInfo().getSearchAnalyzer());
+            when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
         }
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             mapperService,
-            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null, mapperService)
+            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);
         return context;

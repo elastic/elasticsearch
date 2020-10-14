@@ -219,7 +219,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
             when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
-            when(queryShardContext.fieldMapper(anyString())).thenReturn(mock(MappedFieldType.class));
+            when(queryShardContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
             when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
 
             readerContext.close();

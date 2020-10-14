@@ -367,7 +367,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String predictedClassField = dependentVariable + "_prediction";
         indexData(sourceIndex, 300, 0, dependentVariable);
 
-        int numTopClasses = 2;
+        int numTopClasses = randomBoolean() ? 2 : -1;  // Occasionally it's worth testing the special value -1.
+        int expectedNumTopClasses = 2;
         DataFrameAnalyticsConfig config =
             buildAnalytics(
                 jobId,
@@ -391,7 +392,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(dependentVariableValues)));
-            assertTopClasses(resultsObject, numTopClasses, dependentVariable, dependentVariableValues);
+            assertTopClasses(resultsObject, expectedNumTopClasses, dependentVariable, dependentVariableValues);
 
             // Let's just assert there's both training and non-training results
             //
@@ -979,7 +980,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             AucRoc.Result aucRocResult = (AucRoc.Result) evaluateDataFrameResponse.getMetrics().get(1);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRoc.NAME.getPreferredName()));
             assertThat(aucRocResult.getScore(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
-            assertThat(aucRocResult.getDocCount(), allOf(greaterThanOrEqualTo(1L), lessThanOrEqualTo(350L)));
             assertThat(aucRocResult.getCurve(), hasSize(greaterThan(0)));
         }
 

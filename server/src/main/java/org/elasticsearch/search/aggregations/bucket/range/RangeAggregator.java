@@ -302,10 +302,17 @@ public abstract class RangeAggregator extends BucketsAggregator {
         Query[] filters = new Query[ranges.length];
         for (int i = 0; i < ranges.length; i++) {
             keys[i] = Integer.toString(i);
+            /*
+             * Use the native format on the field rather than the one provided
+             * on the valuesSourceConfig because the format on the field is what
+             * we parse. With https://github.com/elastic/elasticsearch/pull/63692
+             * we can just cast to a long here and it'll be taken as millis.
+             */
+            DocValueFormat format = valuesSourceConfig.fieldType().docValueFormat(null, null);
             filters[i] = valuesSourceConfig.fieldType()
                 .rangeQuery(
-                    ranges[i].from == Double.NEGATIVE_INFINITY ? null : valuesSourceConfig.format().format(ranges[i].from),
-                    ranges[i].to == Double.POSITIVE_INFINITY ? null : valuesSourceConfig.format().format(ranges[i].to),
+                    ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from),
+                    ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to),
                     true,
                     false,
                     ShapeRelation.CONTAINS,

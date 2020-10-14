@@ -57,7 +57,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String classname;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
-    private final boolean bootstrapOnly;
+    private final String type;
+    private final String javaOpts;
 
     /**
      * Construct plugin info.
@@ -70,11 +71,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param classname             the entry point to the plugin
      * @param extendedPlugins       other plugins this plugin extends through SPI
      * @param hasNativeController   whether or not the plugin has a native controller
-     * @param bootstrapOnly         whether this plugin applies to the bootstrap process only
+     * @param type                  the type of the plugin. Expects "bootstrap" or "isolated".
+     * @param javaOpts              any additional JVM CLI parameters added by this plugin
      */
     public PluginInfo(String name, String description, String version, Version elasticsearchVersion, String javaVersion,
                       String classname, List<String> extendedPlugins, boolean hasNativeController,
-                      boolean bootstrapOnly) {
+                      String type, String javaOpts) {
         this.name = name;
         this.description = description;
         this.version = version;
@@ -83,7 +85,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.classname = classname;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
-        this.bootstrapOnly = bootstrapOnly;
+        this.type = type;
+        this.javaOpts = javaOpts;
     }
 
     /**
@@ -101,7 +104,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.classname = in.readString();
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
-        bootstrapOnly = in.readBoolean();
+        type = in.readString();
+        javaOpts = in.readString();
     }
 
     @Override
@@ -114,7 +118,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(classname);
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-        out.writeBoolean(bootstrapOnly);
+        out.writeString(type);
+        out.writeString(javaOpts);
     }
 
     /**
@@ -179,14 +184,29 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         final boolean hasNativeController = parseBooleanValue("has.native.controller", propsMap.remove("has.native.controller"));
-        final boolean isBootstrapOnly = parseBooleanValue("bootstrap.only", propsMap.remove("bootstrap.only"));
+
+        final String type = propsMap.remove("type");
+        if (type == null) {
+            throw new IllegalArgumentException(
+                "property [type] is missing for plugin [" + name + "]");
+        } else if (type.equals("isolated") == false && type.equals("bootstrap") == false) {
+            throw new IllegalArgumentException(
+                "property [" + name + "] must be [isolated], [bootstrap], or unspecified but was [" + type + "]"
+            );
+        }
+
+        final String javaOpts = propsMap.remove("java.opts");
+
+        if (Strings.isNullOrEmpty(javaOpts) == false && type.equals("bootstrap") == false) {
+            throw new IllegalArgumentException("property [java.opts] must be empty or unspecified unless [type] is set to [bootstrap]");
+        }
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 
         return new PluginInfo(name, description, version, esVersion, javaVersionString,
-                              classname, extendedPlugins, hasNativeController, isBootstrapOnly);
+                              classname, extendedPlugins, hasNativeController, type, javaOpts);
     }
 
     private static boolean parseBooleanValue(String name, String rawValue) {
@@ -284,12 +304,23 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Whether this plugin only applies during the Elasticsearch bootstrap process.
+     * Returns the type of this plugin. Can be "isolated" for regular sandboxed plugins, or "bootstrap"
+     * for plugins that affect how Elasticsearch's JVM runs.
      *
-     * @return {@code true} if the plugin is a bootstrap-only plugin
+     * @return the type of the plugin
      */
-    public boolean isBootstrapOnly() {
-        return bootstrapOnly;
+    public String getType() {
+        return type;
+    }
+
+    /**
+     * Returns any additional JVM command-line options that this plugin adds. Only applies to
+     * plugins whose <code>type</code> is "bootstrap".
+     *
+     * @return any additional JVM options.
+     */
+    public String getJavaOpts() {
+        return javaOpts;
     }
 
     @Override
@@ -304,7 +335,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("classname", classname);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
-            builder.field("bootstrap_only", bootstrapOnly);
+            builder.field("type", type);
+            if (type.equals("bootstrap")) {
+                builder.field("java_opts", javaOpts);
+            }
         }
         builder.endObject();
 
@@ -344,7 +378,13 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix).append("Elasticsearch Version: ").append(elasticsearchVersion).append("\n")
             .append(prefix).append("Java Version: ").append(javaVersion).append("\n")
             .append(prefix).append("Native Controller: ").append(hasNativeController).append("\n")
-            .append(prefix).append("Bootstrap Only: ").append(bootstrapOnly).append("\n")
+            .append(prefix).append("Type: ").append(type).append("\n");
+
+        if (type.equals("bootstrap")) {
+            information.append(prefix).append("Java Opts: ").append(javaOpts).append("\n");
+        }
+
+        information
             .append(prefix).append("Extended Plugins: ").append(extendedPlugins).append("\n")
             .append(prefix).append(" * Classname: ").append(classname);
         return information.toString();

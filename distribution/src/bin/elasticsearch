@@ -54,12 +54,30 @@ fi
 #   - fourth, ergonomic JVM options are applied
 ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
 
-# If the quote-aware filesystem plugin is installed, then we need to pass extra
-# flags to Java in order to use the plugin.
-if [[ -d "$ES_HOME/plugins/quota-aware-fs" ]]; then
-  PLUGIN_JAR_PATH="$(find $ES_HOME/plugins/quota-aware-fs -name quota-aware-fs\*.jar)"
-  ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.nio.file.spi.DefaultFileSystemProvider=org.elasticsearch.fs.quotaaware.QuotaAwareFileSystemProvider"
-  ES_JAVA_OPTS="$ES_JAVA_OPTS -Xbootclasspath/a:$PLUGIN_JAR_PATH"
+# Look for plugins whose "type" is "bootstrap". Such plugins will be added to the JVM's
+# boot classpath. The plugins may also define additional JVM options, in order to
+# configure the bootstrap plugins.
+BOOTCLASSPATH=""
+for PLUGIN_DIR in "$ES_HOME"/plugins/*; do
+  # Guard against unexpected items in the plugins directory
+  if [[ -d "$PLUGIN_DIR" && -f "$PLUGIN_DIR/plugin-descriptor.properties" ]]; then
+    if grep '^ *type *= *bootstrap$' "$PLUGIN_DIR/plugin-descriptor.properties"; then
+      for PLUGIN_JAR in "$PLUGIN_DIR/"*.jar; do
+        BOOTCLASSPATH="$BOOTCLASSPATH:$PLUGIN_JAR"
+      done
+
+      # cut -f2- means select fields 2 and all later fields
+      EXTRA_ES_JAVA_OPTS="$(grep "^ *java.opts *=" "$PLUGIN_DIR/plugin-descriptor.properties" | cut -f2- -d=)"
+      if [[ -n "$EXTRA_ES_JAVA_OPTS" ]]; then
+        ES_JAVA_OPTS="$ES_JAVA_OPTS $EXTRA_ES_JAVA_OPTS"
+      fi
+    fi
+  fi
+done
+
+if [[ -n "$BOOTCLASSPATH" ]]; then
+  # The value here will have a leading ":"
+  ES_JAVA_OPTS="$ES_JAVA_OPTS -Xbootclasspath/a$BOOTCLASSPATH"
 fi
 
 # manual parsing to find out, if process should be detached
@@ -93,6 +111,7 @@ else
   retval=$?
   pid=$!
   [ $retval -eq 0 ] || exit $retval
+  sleep 5
   if ! ps -p $pid > /dev/null ; then
     exit 1
   fi

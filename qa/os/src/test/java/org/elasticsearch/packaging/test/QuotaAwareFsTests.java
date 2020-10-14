@@ -92,10 +92,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         final Shell.Result result = runElasticsearchStartCommand(null, false, false);
 
         assertThat("Elasticsearch should have terminated unsuccessfully", result.isSuccess(), equalTo(false));
-        assertThat(
-            result.stderr,
-            containsString("NoSuchFileException: /this/does/not/exist.properties")
-        );
+        assertThat(result.stderr, containsString("NoSuchFileException: /this/does/not/exist.properties"));
     }
 
     /**

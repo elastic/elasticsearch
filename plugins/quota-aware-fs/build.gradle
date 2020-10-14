@@ -3,5 +3,6 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   description 'A bootstrap plugin that adds support for interfacing with filesystem that enforce user quotas.'
   classname 'org.elasticsearch.fs.quotaaware.QuoteAwareFsPlugin'
-  bootstrapOnly = true
+  type = 'bootstrap'
+  javaOpts = '-Djava.nio.file.spi.DefaultFileSystemProvider=org.elasticsearch.fs.quotaaware.QuotaAwareFileSystemProvider'
 }

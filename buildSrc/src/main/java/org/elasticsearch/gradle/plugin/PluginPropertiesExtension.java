@@ -43,7 +43,9 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
-    private boolean bootstrapOnly;
+    private String type = "isolated";
+
+    private String javaOpts = "";
 
     /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
     private boolean requiresKeystore;
@@ -107,12 +109,23 @@ public class PluginPropertiesExtension {
         this.hasNativeController = hasNativeController;
     }
 
-    public boolean isBootstrapOnly() {
-        return bootstrapOnly;
+    public String getType() {
+        return type;
     }
 
-    public void setBootstrapOnly(boolean bootstrapOnly) {
-        this.bootstrapOnly = bootstrapOnly;
+    public void setType(String type) {
+        if (type != null && type.equals("bootstrap") == false && type.equals("isolated") == false) {
+            throw new IllegalArgumentException("type must one of: null, 'boostrap', 'isolated'");
+        }
+        this.type = type;
+    }
+
+    public String getJavaOpts() {
+        return javaOpts;
+    }
+
+    public void setJavaOpts(String javaOpts) {
+        this.javaOpts = javaOpts;
     }
 
     public boolean isRequiresKeystore() {

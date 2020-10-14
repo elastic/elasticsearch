@@ -119,7 +119,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
-                                                   pluginClass.getName(), Collections.emptyList(), false, false);
+                                                   pluginClass.getName(), Collections.emptyList(), false, "isolated", "");
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -351,7 +351,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         final Set<Bundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
             final Bundle bundle = readPluginBundle(plugin, type);
-            if (bundle.plugin.isBootstrapOnly()) {
+            if (bundle.plugin.getType().equals("bootstrap")) {
                 logger.trace("--- skipping bootstrap only [{}] [{}]", type, plugin.toAbsolutePath());
             } else {
                 if (bundles.add(bundle) == false) {

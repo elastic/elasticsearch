@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
@@ -61,6 +62,20 @@ import java.util.function.BiConsumer;
  * @see Rounding
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
+    /**
+     * Build an {@link Aggregator} for a {@code date_histogram} aggregation.
+     * If we can determine the bucket boundaries from
+     * {@link Rounding.Prepared#fixedRoundingPoints()} we use
+     * {@link RangeAggregator} to do the actual collecting, otherwise we use
+     * an specialized {@link DateHistogramAggregator Aggregator} specifically
+     * for the {@code date_histogram}s. We prefer to delegate to the
+     * {@linkplain RangeAggregator} because it can sometimes be further
+     * optimized into a {@link FiltersAggregator}. Even when it can't be
+     * optimized, it is going to be marginally faster and consume less memory
+     * than the {@linkplain DateHistogramAggregator} because it doesn't need
+     * to the rounding points and because it can pass precise cardinality
+     * estimates to its child aggregations.
+     */
     public static Aggregator build(
         String name,
         AggregatorFactories factories,

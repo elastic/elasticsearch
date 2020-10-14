@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -55,7 +53,6 @@ import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-@Seed("32AC488589A4F6FE")
 public class RangeAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMBER_FIELD_NAME = "number";

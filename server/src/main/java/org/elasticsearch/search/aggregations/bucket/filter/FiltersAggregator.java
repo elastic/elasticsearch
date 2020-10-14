@@ -128,6 +128,13 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
     }
 
+    /**
+     * Build an {@link Aggregator} for a {@code filters} aggregation. If there
+     * isn't a parent, there aren't children, and we don't collect "other"
+     * buckets then this will a faster {@link FilterByFilter} aggregator.
+     * Otherwise it'll fall back to a slower aggregator that is
+     * {@link Compatible} with parent, children, and "other" buckets.
+     */
     public static FiltersAggregator build(
         String name,
         AggregatorFactories factories,

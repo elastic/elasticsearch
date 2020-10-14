@@ -226,6 +226,15 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
     }
 
+    /**
+     * Build an {@link Aggregator} for a {@code range} aggregation. If the
+     * {@code ranges} can be converted into filters then it builds a
+     * {@link FiltersAggregator} and uses that to collect the results
+     * <strong>if</strong> that aggregator can run in "filter by filter"
+     * collection mode. If it can't then we'll collect the ranges using
+     * a native {@link RangeAggregator} which is significantly faster
+     * than the "compatible" collection mechanism for the filters agg.
+     */
     public static Aggregator build(
         String name,
         AggregatorFactories factories,

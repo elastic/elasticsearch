@@ -66,7 +66,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettingsNoAlias;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
@@ -796,15 +795,15 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         policy = otherPolicy;
         createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueHours(13));
 
-        createIndexWithSettingsNoAlias(client(), managedIndex1, Settings.builder()
+        createIndexWithSettings(client(), managedIndex1, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
             .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), originalPolicy));
-        createIndexWithSettingsNoAlias(client(), managedIndex2, Settings.builder()
+        createIndexWithSettings(client(), managedIndex2, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
             .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), originalPolicy));
-        createIndexWithSettingsNoAlias(client(), unmanagedIndex, Settings.builder()
+        createIndexWithSettings(client(), unmanagedIndex, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)));
-        createIndexWithSettingsNoAlias(client(), managedByOtherPolicyIndex, Settings.builder()
+        createIndexWithSettings(client(), managedByOtherPolicyIndex, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
             .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), otherPolicy));
 

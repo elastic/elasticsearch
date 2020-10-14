@@ -33,7 +33,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettingsNoAlias;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
@@ -91,14 +90,14 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
-        createIndexWithSettingsNoAlias(client(), errorIndex, Settings.builder()
+        createIndexWithSettings(client(), errorIndex, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-only-policy")
         );
-        createIndexWithSettingsNoAlias(client(), nonexistantPolicyIndex, Settings.builder()
+        createIndexWithSettings(client(), nonexistantPolicyIndex, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(3, 10))));
-        createIndexWithSettingsNoAlias(client(), unmanagedIndex, Settings.builder()
+        createIndexWithSettings(client(), unmanagedIndex, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
 
         assertBusy(() -> {
@@ -123,7 +122,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         createFullPolicy(client(), policy, TimeValue.ZERO);
 
         // create index without alias so the rollover action fails and is retried
-        createIndexWithSettingsNoAlias(client(), index, Settings.builder()
+        createIndexWithSettings(client(), index, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );

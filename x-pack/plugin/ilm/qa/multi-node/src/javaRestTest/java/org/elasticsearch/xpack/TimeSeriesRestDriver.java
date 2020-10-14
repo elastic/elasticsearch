@@ -242,10 +242,9 @@ public final class TimeSeriesRestDriver {
         ensureGreen(index);
     }
 
-    public static void createIndexWithSettingsNoAlias(RestClient client, String index, Settings.Builder settings) throws IOException {
+    public static void createIndexWithSettings(RestClient client, String index, Settings.Builder settings) throws IOException {
         Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
-            + "}");
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build()) + "}");
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);

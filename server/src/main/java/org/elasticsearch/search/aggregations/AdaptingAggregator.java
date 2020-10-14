@@ -39,13 +39,6 @@ public abstract class AdaptingAggregator extends Aggregator {
     private final Aggregator parent;
     private final Aggregator delegate;
 
-    /**
-     * Build the 
-     * @param parent
-     * @param subAggregators
-     * @param delegate
-     * @throws IOException
-     */
     public AdaptingAggregator(
         Aggregator parent,
         AggregatorFactories subAggregators,

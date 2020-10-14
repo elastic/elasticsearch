@@ -106,7 +106,8 @@ public class DiskThresholdMonitor {
     }
 
     public void onNewInfo(ClusterInfo info) {
-
+        // TODO find a better way to limit concurrent updates (and potential associated reroutes) while allowing tests to ensure that
+        // all ClusterInfo updates are processed and never ignored
         if (checkInProgress.compareAndSet(false, true) == false) {
             logger.info("skipping monitor as a check is already in progress");
             return;

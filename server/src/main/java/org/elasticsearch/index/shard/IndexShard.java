@@ -3363,7 +3363,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
         final RootObjectMapper.Builder noopRootMapper = new RootObjectMapper.Builder("__noop");
         final DocumentMapper noopDocumentMapper = mapperService != null ?
-            new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService) :
+            new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService.getIndexSettings(),
+                mapperService.documentMapperParser(), mapperService.getIndexAnalyzers()) :
             null;
         return new EngineConfig.TombstoneDocSupplier() {
             @Override

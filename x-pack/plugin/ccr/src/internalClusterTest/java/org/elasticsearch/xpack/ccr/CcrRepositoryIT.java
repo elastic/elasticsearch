@@ -68,6 +68,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -468,11 +469,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         final String leaderIndex = "leader";
         final int numberOfShards = randomIntBetween(1, 2);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
-            .setSource(getIndexSettings(numberOfShards, 0,
-                Map.of(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO.getStringRep())), XContentType.JSON));
+            .setSource(getIndexSettings(numberOfShards, 0, singletonMap(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(),
+                TimeValue.ZERO.getStringRep())), XContentType.JSON));
 
         final int numDocs = scaledRandomIntBetween(0, 1_000);
-        final BulkRequestBuilder bulkRequest = leaderClient().prepareBulk(leaderIndex);
+        final BulkRequestBuilder bulkRequest = leaderClient().prepareBulk(leaderIndex, "_doc");
         for (int i = 0; i < numDocs; i++) {
             bulkRequest.add(new IndexRequest(leaderIndex).id(Integer.toString(i)).source("field", i));
         }
@@ -578,8 +579,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         final String leaderIndex = "leader";
         final int numberOfShards = randomIntBetween(1, 2);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
-            .setSource(getIndexSettings(numberOfShards, 0,
-                Map.of(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO.getStringRep())), XContentType.JSON));
+            .setSource(getIndexSettings(numberOfShards, 0, singletonMap(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(),
+                TimeValue.ZERO.getStringRep())), XContentType.JSON));
 
         final IndexMetadata indexMetadata = leaderClient().admin().cluster().prepareState().setIndices(leaderIndex)
             .clear().setMetadata(true).get().getState().metadata().index(leaderIndex);

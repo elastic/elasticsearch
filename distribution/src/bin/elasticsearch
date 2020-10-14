@@ -71,6 +71,9 @@ for PLUGIN_DIR in "$ES_HOME"/plugins/*; do
       if [[ -n "$EXTRA_ES_JAVA_OPTS" ]]; then
         ES_JAVA_OPTS="$ES_JAVA_OPTS $EXTRA_ES_JAVA_OPTS"
       fi
+    elif grep "^ *java.opts *=" "$PLUGIN_DIR/plugin-descriptor.properties" 2>&1 >/dev/null; then
+      echo "Plugin [$(basename "$PLUGIN_DIR")] cannot specify a value for [java.opts] because its [type] is not [bootstrap]" 1>&2
+      exit 1
     fi
   fi
 done
@@ -111,7 +114,6 @@ else
   retval=$?
   pid=$!
   [ $retval -eq 0 ] || exit $retval
-  sleep 5
   if ! ps -p $pid > /dev/null ; then
     exit 1
   fi

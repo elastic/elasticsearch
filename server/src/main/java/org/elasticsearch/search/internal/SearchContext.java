@@ -381,8 +381,6 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
-     * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object
-     * is function of the provided {@link Lifetime}.
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {

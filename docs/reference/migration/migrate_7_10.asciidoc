@@ -45,7 +45,7 @@ To avoid errors, specify the `name` property when creating or granting API keys.
 
 [discrete]
 [[breaking_710_indices_changes]]
-==== Indices changes
+=== Indices changes
 
 [[bc-deprecate-rest-api-access-to-system-indices]]
 .REST API access to system indices is deprecated.
@@ -83,7 +83,7 @@ indices.
 
 [discrete]
 [[breaking_710_java_changes]]
-==== Java changes
+=== Java changes
 
 [[supplier-searchlookup-arg]]
 .The `MappedFieldType#fielddataBuilder` method now accepts a `Supplier<SearchLookup>` argument.

@@ -1318,17 +1318,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}");
         client().performRequest(moveToStepRequest);
 
-        assertTrue("ILM did not start retrying the update-rollover-lifecycle-date step", waitUntil(() -> {
-            try {
-                Map<String, Object> explainIndexResponse = explainIndex(client(), index);
-                String failedStep = (String) explainIndexResponse.get("failed_step");
-                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return failedStep != null && failedStep.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null
-                    && retryCount >= 1;
-            } catch (IOException e) {
-                return false;
-            }
-        }, 30, TimeUnit.SECONDS));
+        assertBusy(() -> assertThat((Integer) explainIndex(client(), index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
+            30, TimeUnit.SECONDS);
 
         index(client(), index, "1", "foo", "bar");
         Request refreshIndex = new Request("POST", "/" + index + "/_refresh");

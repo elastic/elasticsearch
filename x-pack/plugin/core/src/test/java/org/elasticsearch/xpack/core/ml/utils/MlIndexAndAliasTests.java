@@ -90,8 +90,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
             .thenReturn(new CreateIndexRequestBuilder(client, CreateIndexAction.INSTANCE, FIRST_CONCRETE_INDEX));
         doAnswer(withResponse(new CreateIndexResponse(true, true, FIRST_CONCRETE_INDEX))).when(indicesAdminClient).create(any(), any());
         when(indicesAdminClient.prepareAliases()).thenReturn(new IndicesAliasesRequestBuilder(client, IndicesAliasesAction.INSTANCE));
-        doAnswer(withResponse(new AcknowledgedResponse(true))).when(indicesAdminClient).aliases(any(), any());
-        doAnswer(withResponse(new AcknowledgedResponse(true))).when(indicesAdminClient).putTemplate(any(), any());
+        doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).aliases(any(), any());
+        doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).putTemplate(any(), any());
 
         clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {

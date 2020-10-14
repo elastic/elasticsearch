@@ -185,7 +185,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 } else {
                     LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
                 }
-                finalListener.onResponse(new AcknowledgedResponse(true));
+                finalListener.onResponse(AcknowledgedResponse.TRUE);
             },
             finalListener::onFailure
         );
@@ -215,7 +215,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 } else {
                     LOGGER.info("The following ML jobs could not be deleted: [" + String.join(",", jobIds) + "]");
                 }
-                finalListener.onResponse(new AcknowledgedResponse(true));
+                finalListener.onResponse(AcknowledgedResponse.TRUE);
             },
             finalListener::onFailure
         );
@@ -231,7 +231,7 @@ public class MlDailyMaintenanceService implements Releasable {
                         .collect(toSet());
                 Set<String> jobsInStateDeletingWithoutDeletionTask = Sets.difference(jobsInStateDeleting, jobsWithDeletionTask);
                 if (jobsInStateDeletingWithoutDeletionTask.isEmpty()) {
-                    finalListener.onResponse(new AcknowledgedResponse(true));
+                    finalListener.onResponse(AcknowledgedResponse.TRUE);
                     return;
                 }
                 TypedChainTaskExecutor<Tuple<DeleteJobAction.Request, AcknowledgedResponse>> chainTaskExecutor =
@@ -261,7 +261,7 @@ public class MlDailyMaintenanceService implements Releasable {
                         .map(Job::getId)
                         .collect(toSet());
                 if (jobsInStateDeleting.isEmpty()) {
-                    finalListener.onResponse(new AcknowledgedResponse(true));
+                    finalListener.onResponse(AcknowledgedResponse.TRUE);
                     return;
                 }
                 jobsInStateDeletingHolder.set(jobsInStateDeleting);

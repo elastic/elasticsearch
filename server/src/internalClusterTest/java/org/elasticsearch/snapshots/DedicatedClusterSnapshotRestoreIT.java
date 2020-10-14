@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -562,11 +561,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testRestoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        Settings nodeSettings = Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                .build();
 
-        internalCluster().startNodes(2, nodeSettings);
+        internalCluster().startNodes(2);
         cluster().wipeIndices("_all");
 
         createRepository("test-repo", "fs");
@@ -577,6 +573,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ensureGreen();
 
         indexRandomDocs("test-idx", 100);
+
+        logger.info("--> force merging down to a single segment to get a deterministic set of files");
+        assertEquals(client().admin().indices().prepareForceMerge("test-idx").setMaxNumSegments(1).setFlush(true).get().getFailedShards(),
+            0);
 
         createSnapshot("test-repo", "test-snap-1", Collections.singletonList("test-idx"));
 

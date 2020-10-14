@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -44,10 +44,10 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
             true);
     }
 
-    MinAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+    MinAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                          Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -64,7 +64,7 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
+        return context.getValuesSourceRegistry()
             .getAggregator(MinAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, searchContext, parent, metadata);
     }

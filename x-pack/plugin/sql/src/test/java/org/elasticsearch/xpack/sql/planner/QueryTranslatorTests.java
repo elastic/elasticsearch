@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
@@ -100,7 +102,9 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
@@ -133,7 +137,11 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private PhysicalPlan optimizeAndPlan(String sql) {
-        return  planner.plan(optimizer.optimize(plan(sql)), true);
+        return optimizeAndPlan(plan(sql));
+    }
+
+    private PhysicalPlan optimizeAndPlan(LogicalPlan plan) {
+        return planner.plan(optimizer.optimize(plan),true);
     }
 
     private QueryTranslation translate(Expression condition) {
@@ -142,6 +150,10 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private QueryTranslation translateWithAggs(Expression condition) {
         return QueryTranslator.toQuery(condition, true);
+    }
+
+    private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
+        return analyzer.analyze(parser.createStatement(sql, Arrays.asList(params), org.elasticsearch.xpack.ql.type.DateUtils.UTC), true);
     }
 
     public void testTermEqualityAnalyzer() {
@@ -2238,5 +2250,28 @@ public class QueryTranslatorTests extends ESTestCase {
             + "{\"a0\":\"" + aggName + ".min\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt("
             + "InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\","
             + "\"params\":{\"v0\":\"2020-05-03T00:00:00.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
+    }
+
+    public void testFoldingWithParamsWithoutIndex() {
+        // note: this query failed before, no breaking change
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("integer", 200)));
+        assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?2{r}#"));
+    }
+
+    public void testFoldingWithMixedParamsWithoutAlias() {
+        // note: this query executed before, we are introducing a breaking change here
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("text", "200")));
+        assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        // note: this case worked before, both references were aliased as `?`
+        // the query successfully executed and returned two columns with the same name
+        // the same query will executed, but the text field will be aliased to `?2` instead of `?`
+        assertThat(p.output().get(1).toString(), startsWith("?2{r}#"));
     }
 }

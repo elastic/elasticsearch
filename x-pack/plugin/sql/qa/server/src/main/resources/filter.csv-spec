@@ -150,3 +150,11 @@ null
 null
 null
 ;
+
+inWithCompatibleTimeTypes
+SELECT count(*) AS c FROM test_emp WHERE birth_date::time IN ('00:00:00Z'::TIME, '00:00:00.000Z');
+
+   c:l
+---------------
+90
+;

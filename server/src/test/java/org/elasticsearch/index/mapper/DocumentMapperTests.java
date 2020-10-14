@@ -43,9 +43,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class DocumentMapperTests extends MapperServiceTestCase {
 
     public void testAddFields() throws Exception {
-        MapperService mapperService = createMapperService(mapping(b -> b.startObject("name").field("type", "text").endObject()));
-        DocumentMapper stage1 = mapperService.documentMapper();
-
+        DocumentMapper stage1 = createDocumentMapper(mapping(b -> b.startObject("name").field("type", "text").endObject()));
         DocumentMapper stage2 = createDocumentMapper(mapping(b -> {
             b.startObject("name").field("type", "text").endObject();
             b.startObject("age").field("type", "integer").endObject();
@@ -72,8 +70,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 }
 
     public void testMergeObjectDynamic() throws Exception {
-        MapperService mapperService = createMapperService(mapping(b -> { }));
-        DocumentMapper mapper = mapperService.documentMapper();
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> { }));
         assertNull(mapper.root().dynamic());
 
         DocumentMapper withDynamicMapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
@@ -84,8 +81,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeObjectAndNested() throws Exception {
-        MapperService mapperService = createMapperService(mapping(b -> b.startObject("obj").field("type", "object").endObject()));
-        DocumentMapper objectMapper = mapperService.documentMapper();
+        DocumentMapper objectMapper = createDocumentMapper(mapping(b -> b.startObject("obj").field("type", "object").endObject()));
         DocumentMapper nestedMapper = createDocumentMapper((mapping(b -> b.startObject("obj").field("type", "nested").endObject())));
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
@@ -225,9 +221,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeMeta() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_meta").field("foo", "bar").endObject()));
-        DocumentMapper initMapper = mapperService.documentMapper();
-
+        DocumentMapper initMapper = createDocumentMapper(topMapping(b -> b.startObject("_meta").field("foo", "bar").endObject()));
         assertThat(initMapper.meta().get("foo"), equalTo("bar"));
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
@@ -242,8 +236,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeMetaForIndexTemplate() throws IOException {
-
-        MapperService mapperService = createMapperService(topMapping(b -> {
+        DocumentMapper initMapper = createDocumentMapper(topMapping(b -> {
             b.startObject("_meta");
             {
                 b.field("field", "value");
@@ -256,7 +249,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        DocumentMapper initMapper = mapperService.documentMapper();
 
         Map<String, Object> expected = Map.of("field", "value",
             "object", Map.of("field1", "value1", "field2", "value2"));

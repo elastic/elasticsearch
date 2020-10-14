@@ -79,7 +79,6 @@ public class MapperTestUtils {
     public static void assertConflicts(String mapping1,
                                        String mapping2,
                                        DocumentMapperParser parser,
-                                       MapperService mapperService,
                                        String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
         if (conflicts.length == 0) {

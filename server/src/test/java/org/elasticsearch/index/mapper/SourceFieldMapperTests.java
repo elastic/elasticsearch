@@ -120,58 +120,55 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEnabledNotUpdateable() throws Exception {
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapperParser parser = mapperService.documentMapperParser();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         // using default of true
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").field("enabled", false).endObject()
             .endObject().endObject());
-        assertConflicts(mapping1, mapping2, parser, mapperService, "Cannot update parameter [enabled] from [true] to [false]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [enabled] from [true] to [false]");
 
         // not changing is ok
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").field("enabled", true).endObject()
             .endObject().endObject());
-        assertConflicts(mapping1, mapping3, parser, mapperService);
+        assertConflicts(mapping1, mapping3, parser);
     }
 
     public void testIncludesNotUpdateable() throws Exception {
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapperParser parser = mapperService.documentMapperParser();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*").endObject()
             .endObject().endObject());
-        assertConflicts(defaultMapping, mapping1, parser, mapperService, "Cannot update parameter [includes] from [[]] to [[foo.*]]");
-        assertConflicts(mapping1, defaultMapping, parser, mapperService, "Cannot update parameter [includes] from [[foo.*]] to [[]]");
+        assertConflicts(defaultMapping, mapping1, parser, "Cannot update parameter [includes] from [[]] to [[foo.*]]");
+        assertConflicts(mapping1, defaultMapping, parser, "Cannot update parameter [includes] from [[foo.*]] to [[]]");
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("includes", "foo.*", "bar.*").endObject()
             .endObject().endObject());
-        assertConflicts(mapping1, mapping2, parser, mapperService, "Cannot update parameter [includes] from [[foo.*]] to [[foo.*, bar.*]]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [includes] from [[foo.*]] to [[foo.*, bar.*]]");
 
         // not changing is ok
-        assertConflicts(mapping1, mapping1, parser, mapperService);
+        assertConflicts(mapping1, mapping1, parser);
     }
 
     public void testExcludesNotUpdateable() throws Exception {
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapperParser parser = mapperService.documentMapperParser();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String defaultMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*").endObject()
             .endObject().endObject());
-        assertConflicts(defaultMapping, mapping1, parser, mapperService, "Cannot update parameter [excludes] from [[]] to [[foo.*]]");
-        assertConflicts(mapping1, defaultMapping, parser, mapperService, "Cannot update parameter [excludes] from [[foo.*]] to [[]]");
+        assertConflicts(defaultMapping, mapping1, parser, "Cannot update parameter [excludes] from [[]] to [[foo.*]]");
+        assertConflicts(mapping1, defaultMapping, parser, "Cannot update parameter [excludes] from [[foo.*]] to [[]]");
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_source").array("excludes", "foo.*", "bar.*").endObject()
             .endObject().endObject());
-        assertConflicts(mapping1, mapping2, parser, mapperService, "Cannot update parameter [excludes]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [excludes]");
 
         // not changing is ok
-        assertConflicts(mapping1, mapping1, parser, mapperService);
+        assertConflicts(mapping1, mapping1, parser);
     }
 
     public void testComplete() throws Exception {

@@ -279,8 +279,7 @@ public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotUpdateTimestampField() throws IOException {
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapperParser parser = mapperService.documentMapperParser();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping1 =
             "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":false}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
         String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": {\"@timestamp2\": "
@@ -289,7 +288,6 @@ public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
             mapping1,
             mapping2,
             parser,
-            mapperService,
             "Mapper for [_data_stream_timestamp]",
             "[enabled] from [false] to [true]"
         );
@@ -301,7 +299,6 @@ public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
             mapping1,
             mapping2,
             parser,
-            mapperService,
             "Mapper for [_data_stream_timestamp]",
             "[enabled] from [false] to [true]"
         );

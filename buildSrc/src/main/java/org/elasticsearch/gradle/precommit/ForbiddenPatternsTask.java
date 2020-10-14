@@ -23,15 +23,18 @@ import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -51,7 +54,7 @@ import java.util.stream.Stream;
 /**
  * Checks for patterns in source files for the project which are forbidden.
  */
-public class ForbiddenPatternsTask extends DefaultTask {
+public abstract class ForbiddenPatternsTask extends DefaultTask {
 
     /*
      * A pattern set of which files should be checked.
@@ -73,8 +76,12 @@ public class ForbiddenPatternsTask extends DefaultTask {
      * The rules: a map from the rule name, to a rule regex pattern.
      */
     private final Map<String, String> patterns = new HashMap<>();
+    private final ProjectLayout projectLayout;
+    private File rootDir;
 
-    public ForbiddenPatternsTask() {
+    @Inject
+    public ForbiddenPatternsTask(ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout;
         setDescription("Checks source files for invalid patterns like nocommits or tabs");
         getInputs().property("excludes", filesFilter.getExcludes());
         getInputs().property("rules", patterns);
@@ -88,13 +95,11 @@ public class ForbiddenPatternsTask extends DefaultTask {
     @InputFiles
     @SkipWhenEmpty
     public FileCollection getFiles() {
-        return getProject().getConvention()
-            .getPlugin(JavaPluginConvention.class)
-            .getSourceSets()
+        return getSourceFolders().get()
             .stream()
-            .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
+            .map(sourceFolder -> sourceFolder.matching(filesFilter))
             .reduce(FileTree::plus)
-            .orElse(getProject().files().getAsFileTree());
+            .orElse(projectLayout.files().getAsFileTree());
     }
 
     @TaskAction
@@ -113,7 +118,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
                 .boxed()
                 .collect(Collectors.toList());
 
-            String path = getProject().getRootProject().getProjectDir().toURI().relativize(f.toURI()).toString();
+            String path = getRoot().toURI().relativize(f.toURI()).toString();
             failures.addAll(
                 invalidLines.stream()
                     .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
@@ -135,9 +140,13 @@ public class ForbiddenPatternsTask extends DefaultTask {
         Files.write(outputMarker.toPath(), "done".getBytes(StandardCharsets.UTF_8));
     }
 
+    private File getRoot() {
+        return rootDir != null ? rootDir : projectLayout.getProjectDirectory().getAsFile();
+    }
+
     @OutputFile
     public File getOutputMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
+        return new File(projectLayout.getBuildDirectory().getAsFile().get(), "markers/" + getName());
     }
 
     @Input
@@ -163,5 +172,12 @@ public class ForbiddenPatternsTask extends DefaultTask {
         }
         // TODO: fail if pattern contains a newline, it won't work (currently)
         patterns.put(name, pattern);
+    }
+
+    @Internal
+    abstract ListProperty<FileTree> getSourceFolders();
+
+    void setRootDir(File rootDir) {
+        this.rootDir = rootDir;
     }
 }

@@ -19,13 +19,31 @@
 
 package org.elasticsearch.gradle.precommit
 
+import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.provider.ProviderFactory
 import org.gradle.api.tasks.TaskProvider
 
+import javax.inject.Inject
+
 class LicenseHeadersPrecommitPlugin extends PrecommitPlugin {
+
+    private ProviderFactory providerFactory
+
+    @Inject
+    LicenseHeadersPrecommitPlugin(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory
+    }
+
     @Override
     TaskProvider<? extends Task> createTask(Project project) {
-        return project.getTasks().register("licenseHeaders", LicenseHeadersTask.class);
+        return project.getTasks().register("licenseHeaders", LicenseHeadersTask.class) {
+            it.getSourceFolders().addAll(
+                    providerFactory.provider() {
+                        return GradleUtils.getJavaSourceSets(getProject()).collect { it.allJava }.flatten()
+                    }
+            )
+        }
     }
 }

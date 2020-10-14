@@ -30,10 +30,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -812,63 +810,4 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             featureStates);
     }
 
-    private static class SnapshotFeatureInfo implements Writeable, ToXContentObject {
-        final String pluginName;
-        final List<String> indices;
-
-        static final ConstructingObjectParser<SnapshotFeatureInfo, Void> SNAPSHOT_PLUGIN_INFO_PARSER =
-            new ConstructingObjectParser<>("plugin_info", true, (a, name) -> {
-                String pluginName = (String) a[0];
-                List<String> indices = (List<String>) a[1];
-                return new SnapshotFeatureInfo(pluginName, indices);
-            });
-
-        static {
-            SNAPSHOT_PLUGIN_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("plugin_name"));
-            SNAPSHOT_PLUGIN_INFO_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), new ParseField("indices"));
-        }
-
-        private SnapshotFeatureInfo(String pluginName, List<String> indices) {
-            this.pluginName = pluginName;
-            this.indices = indices;
-        }
-
-        SnapshotFeatureInfo(final StreamInput in) throws IOException {
-            this.pluginName = in.readString();
-            this.indices = in.readStringList();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(pluginName);
-            out.writeStringCollection(indices);
-        }
-
-        public static SnapshotFeatureInfo fromXContent(XContentParser parser) throws IOException {
-            return SNAPSHOT_PLUGIN_INFO_PARSER.parse(parser, null);
-        }
-
-        public String getPluginName() {
-            return pluginName;
-        }
-
-        public List<String> getIndices() {
-            return indices;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("plugin_name", pluginName);
-                builder.startArray("indices");
-                for (String index : indices) {
-                    builder.value(index);
-                }
-                builder.endArray();
-            }
-            builder.endObject();
-            return builder;
-        }
-    }
 }

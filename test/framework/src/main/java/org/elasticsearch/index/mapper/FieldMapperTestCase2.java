@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Base class for testing {@link FieldMapper}s.
  * @param <T> builder for the mapper to test
  */
-public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> extends MapperTestCase {
+public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder> extends MapperTestCase {
     private final class Modifier {
         final String property;
         final boolean updateable;

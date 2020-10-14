@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -75,7 +76,7 @@ import static org.mockito.Mockito.when;
 
 public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
-    private final IndexNameExpressionResolver expressionResolver = new IndexNameExpressionResolver();
+    private final IndexNameExpressionResolver expressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
     private ClusterService clusterService;
 
     @Before

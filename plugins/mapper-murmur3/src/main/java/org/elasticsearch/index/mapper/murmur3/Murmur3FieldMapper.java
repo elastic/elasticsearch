@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -91,7 +90,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
         private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
-            super(name, false, isStored, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, false, isStored, true, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -107,20 +106,12 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-            }
-            return new SourceValueFetcher(name(), mapperService, false) {
-                @Override
-                protected String parseSourceValue(Object value) {
-                    return value.toString();
-                }
-            };
+            return SourceValueFetcher.toString(name(), mapperService, format);
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Murmur3 fields are not searchable: [" + name() + "]");
+            throw new IllegalArgumentException("Murmur3 fields are not searchable: [" + name() + "]");
         }
     }
 

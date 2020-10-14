@@ -60,7 +60,7 @@ algorithmic stemming with a built-in dictionary.
 * <<analysis-porterstem-tokenfilter,`porter_stem`>>, our recommended algorithmic
 stemmer for English.
 * <<analysis-snowball-tokenfilter,`snowball`>>, which uses
-http://snowball.tartarus.org/[Snowball]-based stemming rules for several
+https://snowballstem.org/[Snowball]-based stemming rules for several
 languages.
 
 [[dictionary-stemmers]]

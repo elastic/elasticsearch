@@ -58,7 +58,7 @@ ext.expansions = { Architecture architecture, boolean oss, DockerBase base, bool
 RUN curl --retry 8 -S -L \\
       --output /opt/elasticsearch.tar.gz \\
       https://artifacts.elastic.co/downloads/elasticsearch/$elasticsearch
-"""
+""".trim()
   }
 
   return [

@@ -127,8 +127,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         protected Builder(String name) {
             super(name);
             // only output search analyzer if different to analyzer
-            searchAnalyzer.setShouldSerialize(
-                () -> Objects.equals(analyzer.getValue().name(), searchAnalyzer.getValue().name()) == false);
+            searchAnalyzer.setSerializerCheck(
+                (id, ic, v) -> Objects.equals(analyzer.getValue().name(), searchAnalyzer.getValue().name()) == false);
         }
 
         @Override
@@ -146,7 +146,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.parse(name, parserContext, node);
             return builder;

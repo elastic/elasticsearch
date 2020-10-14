@@ -350,17 +350,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                         "] does not support DISJOINT ranges");
             }
-            DateMathParser parser;
-            if (forcedDateParser == null) {
-                if (lowerTerm instanceof Integer || upperTerm instanceof Integer) {
-                    // force epoch_millis
-                    parser = EPOCH_MILLIS_PARSER;
-                } else {
-                    parser = dateMathParser;
-                }
-            } else {
-                parser = forcedDateParser;
-            }
+            DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
                 Query query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
@@ -391,7 +381,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 if (lowerTerm == null) {
                     l = Long.MIN_VALUE;
                 } else {
-                    l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier, resolution);
+                    if (lowerTerm instanceof Number && parser == null) {
+                        // force epoch_millis
+                        l = ((Number) lowerTerm).longValue();
+                    } else {
+                        l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier, resolution);
+                    }
                     if (includeLower == false) {
                         ++l;
                     }
@@ -399,7 +394,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 if (upperTerm == null) {
                     u = Long.MAX_VALUE;
                 } else {
-                    u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
+                    if (lowerTerm instanceof Number && parser == null) {
+                        // force epoch_millis
+                        u = ((Number) lowerTerm).longValue();
+                    } else {
+                        u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
+                    }
                     if (includeUpper == false) {
                         --u;
                     }
@@ -451,18 +451,18 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public Relation isFieldWithinQuery(IndexReader reader,
                                            Object from, Object to, boolean includeLower, boolean includeUpper,
                                            ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+            DateMathParser forcedDateParser = dateParser;
             if (dateParser == null) {
-                if (from instanceof Integer || to instanceof Integer) {
-                    // force epoch_millis
-                    dateParser = EPOCH_MILLIS_PARSER;
-                } else {
-                    dateParser = this.dateMathParser;
-                }
+                forcedDateParser = this.dateMathParser;
             }
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context::nowInMillis, resolution);
+                if (dateParser == null && from instanceof Number) {
+                    fromInclusive = ((Number) from).longValue();
+                } else {
+                    fromInclusive = parseToLong(from, !includeLower, timeZone, forcedDateParser, context::nowInMillis, resolution);
+                }
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -473,7 +473,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context::nowInMillis, resolution);
+                if (dateParser == null && to instanceof Number) {
+                    toInclusive = ((Number) to).longValue();
+                } else {
+                    toInclusive = parseToLong(to, includeUpper, timeZone, forcedDateParser, context::nowInMillis, resolution);
+                }
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;

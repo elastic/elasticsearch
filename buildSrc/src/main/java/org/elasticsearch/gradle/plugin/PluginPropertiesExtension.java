@@ -43,7 +43,7 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
-    private String type = "isolated";
+    private PluginType type = PluginType.ISOLATED;
 
     private String javaOpts = "";
 
@@ -109,14 +109,11 @@ public class PluginPropertiesExtension {
         this.hasNativeController = hasNativeController;
     }
 
-    public String getType() {
+    public PluginType getType() {
         return type;
     }
 
-    public void setType(String type) {
-        if (type != null && type.equals("bootstrap") == false && type.equals("isolated") == false) {
-            throw new IllegalArgumentException("type must one of: null, 'boostrap', 'isolated'");
-        }
+    public void setType(PluginType type) {
         this.type = type;
     }
 

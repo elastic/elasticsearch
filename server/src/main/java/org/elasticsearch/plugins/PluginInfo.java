@@ -57,7 +57,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String classname;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
-    private final String type;
+    private final PluginType type;
     private final String javaOpts;
 
     /**
@@ -76,7 +76,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public PluginInfo(String name, String description, String version, Version elasticsearchVersion, String javaVersion,
                       String classname, List<String> extendedPlugins, boolean hasNativeController,
-                      String type, String javaOpts) {
+                      PluginType type, String javaOpts) {
         this.name = name;
         this.description = description;
         this.version = version;
@@ -104,7 +104,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.classname = in.readString();
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
-        type = in.readString();
+        type = PluginType.valueOf(in.readString());
         javaOpts = in.readString();
     }
 
@@ -118,7 +118,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(classname);
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-        out.writeString(type);
+        out.writeString(type.name());
         out.writeString(javaOpts);
     }
 
@@ -185,21 +185,14 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         final boolean hasNativeController = parseBooleanValue("has.native.controller", propsMap.remove("has.native.controller"));
 
-        final String type = propsMap.remove("type");
-        if (type == null) {
-            throw new IllegalArgumentException(
-                "property [type] is missing for plugin [" + name + "]");
-        } else if (type.equals("isolated") == false && type.equals("bootstrap") == false) {
-            throw new IllegalArgumentException(
-                "property [" + name + "] must be [isolated], [bootstrap], or unspecified but was [" + type + "]"
-            );
+        final String typeString = propsMap.remove("type");
+        if (Strings.isNullOrEmpty(typeString)) {
+            throw new IllegalArgumentException("property [type] is missing for plugin [" + name + "]");
         }
+
+        final PluginType type = PluginType.valueOf(typeString.toUpperCase());
 
         final String javaOpts = propsMap.remove("java.opts");
-
-        if (Strings.isNullOrEmpty(javaOpts) == false && type.equals("bootstrap") == false) {
-            throw new IllegalArgumentException("property [java.opts] must be empty or unspecified unless [type] is set to [bootstrap]");
-        }
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
@@ -309,7 +302,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      *
      * @return the type of the plugin
      */
-    public String getType() {
+    public PluginType getType() {
         return type;
     }
 
@@ -336,7 +329,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
             builder.field("type", type);
-            if (type.equals("bootstrap")) {
+            if (type == PluginType.BOOTSTRAP) {
                 builder.field("java_opts", javaOpts);
             }
         }
@@ -380,7 +373,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix).append("Native Controller: ").append(hasNativeController).append("\n")
             .append(prefix).append("Type: ").append(type).append("\n");
 
-        if (type.equals("bootstrap")) {
+        if (type == PluginType.BOOTSTRAP) {
             information.append(prefix).append("Java Opts: ").append(javaOpts).append("\n");
         }
 

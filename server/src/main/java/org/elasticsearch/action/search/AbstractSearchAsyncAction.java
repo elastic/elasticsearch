@@ -52,7 +52,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -398,8 +397,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {
                     try {
-                        searchTransportService.cancelSearchTask(task, new CancellationException(
-                            "Search is cancelled because partial results are not allowed and at least one shard has failed"));
+                        searchTransportService.cancelSearchTask(task, "partial results are not allowed and at least one shard has failed");
                     } catch (Exception cancelFailure) {
                         logger.debug("Failed to cancel search request", cancelFailure);
                     }

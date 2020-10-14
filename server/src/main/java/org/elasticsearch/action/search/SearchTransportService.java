@@ -431,11 +431,10 @@ public class SearchTransportService {
         }
     }
 
-    public void cancelSearchTask(SearchTask task, Exception exc) {
-        String errorMsg = exc.getMessage() != null ? exc.getMessage() : "";
+    public void cancelSearchTask(SearchTask task, String reason) {
         CancelTasksRequest req = new CancelTasksRequest()
             .setTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
-            .setReason("Fatal failure during search: " + errorMsg);
+            .setReason("Fatal failure during search: " + reason);
         // force the origin to execute the cancellation as a system user
         new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }

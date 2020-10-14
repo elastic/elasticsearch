@@ -794,7 +794,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(executor,
                 circuitBreaker, task.getProgressListener(), searchRequest, shardIterators.size(),
-                exc -> searchTransportService.cancelSearchTask(task, exc));
+                exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]"));
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:

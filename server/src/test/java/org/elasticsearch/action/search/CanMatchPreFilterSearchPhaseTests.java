@@ -204,11 +204,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     ActionListener<SearchService.CanMatchResponse> listener) {
                     listener.onResponse(new SearchService.CanMatchResponse(randomBoolean(), null));
                 }
-
-                @Override
-                public void cancelSearchTask(SearchTask task, Exception exc) {
-                    super.cancelSearchTask(task, exc);
-                }
             };
 
         final CountDownLatch latch = new CountDownLatch(1);

@@ -30,12 +30,7 @@ public class TransportStartSLMAction extends AcknowledgedTransportMasterNodeActi
     public TransportStartSLMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(StartSLMAction.NAME, transportService, clusterService, threadPool, actionFilters, StartSLMAction.Request::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
+            indexNameExpressionResolver, ThreadPool.Names.SAME);
     }
 
     @Override

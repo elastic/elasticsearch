@@ -55,8 +55,8 @@ import static org.mockito.Mockito.when;
 public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyGeoShapeFieldMapper.Builder> {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("POINT (14.0 15.0)");
+    protected Object getSampleValueForDocument() {
+        return "POINT (14.0 15.0)";
     }
 
     @Override
@@ -630,5 +630,10 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         IndexableField[] fields = document.docs().get(0).getFields("field");
         assertThat(fields.length, equalTo(2));
         assertFieldWarnings("tree", "strategy");
+    }
+
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 }

@@ -12,12 +12,12 @@ import java.util.Map;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -33,12 +33,12 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
         String name,
         ValuesSourceConfig config,
         Rounding.DateTimeUnit rateUnit,
-        QueryShardContext queryShardContext,
+        AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.rateUnit = rateUnit;
     }
 
@@ -74,7 +74,7 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
+        return context.getValuesSourceRegistry()
             .getAggregator(RateAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, rateUnit, searchContext, parent, metadata);
     }

@@ -1,8 +1,9 @@
 [[docker]]
 === Install {es} with Docker
 
-{es} is also available as Docker images.
-The images use https://hub.docker.com/_/centos/[centos:8] as the base image.
+{es} is also available as Docker images. Starting with version 8.0.0, these
+are based upon a tiny core of essential files. Prior versions used
+https://hub.docker.com/_/centos/[centos:8] as the base image.
 
 A list of all published Docker images and tags is available at
 https://www.docker.elastic.co[www.docker.elastic.co]. The source files
@@ -423,5 +424,24 @@ You must explicitly accept them either by:
 
 See {plugins}/_other_command_line_parameters.html[Plugin management]
 for more information.
+
+The {es} Docker image only includes what is required to run {es}, and does
+not provide a package manager. It is possible to add additional utilities
+with a multi-phase Docker build. You must also copy any dependencies, for
+example shared libraries.
+
+[source,sh,subs="attributes"]
+--------------------------------------------
+FROM centos:8 AS builder
+yum install -y some-package
+
+FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
+COPY --from=builder /usr/bin/some-utility /usr/bin/
+COPY --from=builder /usr/lib/some-lib.so /usr/lib/
+--------------------------------------------
+
+You should use `centos:8` as a base in order to avoid incompatibilities.
+Use http://man7.org/linux/man-pages/man1/ldd.1.html[`ldd`] to list the
+shared libraries required by a utility.
 
 include::next-steps.asciidoc[]

@@ -46,29 +46,24 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -76,49 +71,41 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
-
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
  */
-public class WildcardFieldMapper extends FieldMapper {
+public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "wildcard";
     public static short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10;
     public static final int NGRAM_SIZE = 3;
+
     static final NamedAnalyzer WILDCARD_ANALYZER_7_10 = new NamedAnalyzer("_wildcard_7_10", AnalyzerScope.GLOBAL, new Analyzer() {
         @Override
         public TokenStreamComponents createComponents(String fieldName) {
             Tokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
-
             TokenStream tok = new LowerCaseFilter(tokenizer);
             tok = new PunctuationFoldingFilter(tok);
-
-            return new TokenStreamComponents(r -> {
-                tokenizer.setReader(r);
-            }, tok);
-
-
+            return new TokenStreamComponents(tokenizer::setReader, tok);
         }
     });
 
+    @Deprecated
     // @deprecated - used for BWC with elasticsearch 7.9
     static final NamedAnalyzer WILDCARD_ANALYZER_7_9 = new NamedAnalyzer("_wildcard", AnalyzerScope.GLOBAL, new Analyzer() {
         @Override
         public TokenStreamComponents createComponents(String fieldName) {
             Tokenizer tokenizer = new NGramTokenizer(NGRAM_SIZE, NGRAM_SIZE);
             TokenStream tok = new LowerCaseFilter(tokenizer);
-            return new TokenStreamComponents(r -> {
-                tokenizer.setReader(r);
-            }, tok);
+            return new TokenStreamComponents(tokenizer::setReader, tok);
         }
     });
 
@@ -185,7 +172,6 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
-
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
@@ -193,107 +179,66 @@ public class WildcardFieldMapper extends FieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
+        public static final TextSearchInfo TEXT_SEARCH_INFO
+            = new TextSearchInfo(FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
-        public static final String NULL_VALUE = null;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
-        protected int ignoreAbove = Defaults.IGNORE_ABOVE;
-        protected String nullValue = Defaults.NULL_VALUE;
+    private static WildcardFieldMapper toType(FieldMapper in) {
+        return (WildcardFieldMapper) in;
+    }
 
-        public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        final Parameter<Integer> ignoreAbove
+            = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Defaults.IGNORE_ABOVE)
+            .setValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
+        final Parameter<String> nullValue
+            = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
+
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        final Version indexVersionCreated;
+
+        public Builder(String name, Version indexVersionCreated) {
+            super(name);
+            this.indexVersionCreated = indexVersionCreated;
         }
 
         @Override
-        public Builder docValues(boolean docValues) {
-            if (docValues == false) {
-                throw new MapperParsingException("The field [" + name + "] cannot have doc values = false");
-            }
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(ignoreAbove, nullValue, meta);
+        }
+
+        Builder ignoreAbove(int ignoreAbove) {
+            this.ignoreAbove.setValue(ignoreAbove);
             return this;
         }
 
-        @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
-            if (indexOptions != IndexOptions.DOCS) {
-                throw new MapperParsingException("The field [" + name + "] cannot have indexOptions = " + indexOptions);
-            }
+        Builder nullValue(String nullValue) {
+            this.nullValue.setValue(nullValue);
             return this;
         }
-
-        @Override
-        public Builder store(boolean store) {
-            if (store) {
-                throw new MapperParsingException("The field [" + name + "] cannot have store = true");
-            }
-            return this;
-        }
-
-        @Override
-        public Builder index(boolean index) {
-            if (index == false) {
-                throw new MapperParsingException("The field [" + name + "] cannot have index = false");
-            }
-            return this;
-        }
-
-        public Builder nullValue(String nullValue) {
-            this.nullValue = nullValue;
-            return this;
-        }
-
-        public Builder ignoreAbove(int ignoreAbove) {
-            if (ignoreAbove < 0) {
-                throw new IllegalArgumentException("[ignore_above] must be positive, got " + ignoreAbove);
-            }
-            this.ignoreAbove = ignoreAbove;
-            return this;
-        }
-
-
 
         @Override
         public WildcardFieldMapper build(BuilderContext context) {
-            Version version = context.indexCreatedVersion();
             return new WildcardFieldMapper(
                 name,
-                fieldType,
-                new WildcardFieldType(buildFullName(context), fieldType, nullValue, ignoreAbove, version, meta),
-                ignoreAbove,
+                new WildcardFieldType(buildFullName(context), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                ignoreAbove.get(),
                 multiFieldsBuilder.build(this, context),
-                copyTo,
-                nullValue
+                copyTo.build(),
+                nullValue.get(),
+                indexVersionCreated
             );
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(name);
-            parseField(builder, name, node, parserContext);
-
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals("null_value")) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
-                    builder.nullValue(propNode.toString());
-                    iterator.remove();
-                } else if (propName.equals("ignore_above")) {
-                    builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
-                    iterator.remove();
-                }
-            }
-
-            return builder;
-        }
-    }
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()));
 
      public static final char TOKEN_START_OR_END_CHAR = 0;
      public static final String TOKEN_START_STRING = Character.toString(TOKEN_START_OR_END_CHAR);
@@ -306,10 +251,9 @@ public class WildcardFieldMapper extends FieldMapper {
         private final String nullValue;
         private final int ignoreAbove;
 
-        private WildcardFieldType(String name, FieldType fieldType, String nullValue, int ignoreAbove,
+        private WildcardFieldType(String name, String nullValue, int ignoreAbove,
                                   Version version, Map<String, String> meta) {
-            super(name, true, fieldType.stored(), true,
-                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
+            super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
             if (version.onOrAfter(Version.V_7_10_0)) {
                 setIndexAnalyzer(WILDCARD_ANALYZER_7_10);
             } else {
@@ -690,12 +634,6 @@ public class WildcardFieldMapper extends FieldMapper {
             return q instanceof MatchAllDocsQuery || q instanceof MatchAllButRequireVerificationQuery;
         }
 
-        protected String firstNgramToken(String fragment, Analyzer analyzer) {
-            LinkedHashSet<String> tokens = new LinkedHashSet<>();
-            getNgramTokens(tokens, fragment);
-            return tokens.iterator().next();
-        }
-
         protected void getNgramTokens(Set<String> tokens, String fragment) {
             if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
                 // If a regex is a form of match-all e.g. ".*" we only produce the token start/end markers as search
@@ -806,9 +744,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     }
                 }
             }
-            Supplier <Automaton> deferredAutomatonSupplier = ()->{
-                return TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
-            };
+            Supplier <Automaton> deferredAutomatonSupplier
+                = () -> TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
             AutomatonQueryOnBinaryDv slowQuery = new AutomatonQueryOnBinaryDv(name(), lower + "-" + upper, deferredAutomatonSupplier);
 
             if (accelerationQuery == null) {
@@ -965,15 +902,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new IndexFieldData.Builder() {
-                @Override
-                public IndexFieldData<?> build(
-                    IndexFieldDataCache cache,
-                    CircuitBreakerService breakerService
-                ) {
-                    return new StringBinaryIndexFieldData(name(), CoreValuesSourceType.BYTES);
-                }
-            };
+            return (cache, breakerService) -> new StringBinaryIndexFieldData(name(), CoreValuesSourceType.BYTES);
         }
 
          @Override
@@ -996,20 +925,22 @@ public class WildcardFieldMapper extends FieldMapper {
 
      }
 
-    private int ignoreAbove;
+    private final int ignoreAbove;
     private final String nullValue;
     private final FieldType ngramFieldType;
+    private final Version indexVersionCreated;
 
-    private WildcardFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                int ignoreAbove, MultiFields multiFields, CopyTo copyTo,
-                                String nullValue) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
+    private WildcardFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                int ignoreAbove, MultiFields multiFields, CopyTo copyTo,
+                                String nullValue, Version indexVersionCreated) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
-        this.ngramFieldType = new FieldType(fieldType);
+        this.indexVersionCreated = indexVersionCreated;
+        this.ngramFieldType = new FieldType(Defaults.FIELD_TYPE);
         this.ngramFieldType.setTokenized(true);
-        this.ngramFieldType.freeze();;
-        assert fieldType.indexOptions() == IndexOptions.DOCS;
+        this.ngramFieldType.freeze();
+        assert ngramFieldType.indexOptions() == IndexOptions.DOCS;
     }
 
     /** Values that have more chars than the return value of this method will
@@ -1027,17 +958,6 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     public WildcardFieldType fieldType() {
         return (WildcardFieldType) super.fieldType();
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (nullValue != null) {
-            builder.field("null_value", nullValue);
-        }
-        if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
-            builder.field("ignore_above", ignoreAbove);
-        }
     }
 
     @Override
@@ -1060,7 +980,7 @@ public class WildcardFieldMapper extends FieldMapper {
         parseDoc.addAll(fields);
     }
 
-    void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {
+    void createFields(String value, Document parseDoc, List<IndexableField>fields) {
         if (value == null || value.length() > ignoreAbove) {
             return;
         }
@@ -1088,7 +1008,7 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        this.ignoreAbove = ((WildcardFieldMapper) other).ignoreAbove;
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), indexVersionCreated).init(this);
     }
 }

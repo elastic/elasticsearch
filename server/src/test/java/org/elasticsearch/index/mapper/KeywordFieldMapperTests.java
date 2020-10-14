@@ -86,8 +86,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("value");
+    protected Object getSampleValueForDocument() {
+        return "value";
     }
 
     public final void testExistsQueryDocValuesDisabled() throws IOException {

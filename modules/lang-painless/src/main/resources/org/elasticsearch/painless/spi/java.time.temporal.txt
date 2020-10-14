@@ -40,6 +40,8 @@ class java.time.temporal.TemporalAccessor {
   boolean isSupported(TemporalField)
   def query(TemporalQuery)
   ValueRange range(TemporalField)
+  # An easy method to convert temporalAccessors to millis since epoch similar to Instan#toEpochMilli.
+  long org.elasticsearch.painless.api.Augmentation toEpochMilli()
 }
 
 class java.time.temporal.TemporalAdjuster {

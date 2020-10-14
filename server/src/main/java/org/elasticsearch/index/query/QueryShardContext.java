@@ -56,7 +56,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -259,7 +258,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
-        final Mapper.Builder<?> builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
+        final Mapper.Builder builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1));
         Mapper mapper = builder.build(builderContext);
         if (mapper instanceof FieldMapper) {
@@ -507,9 +506,5 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public BitsetFilterCache getBitsetFilterCache() {
         return bitsetFilterCache;
-    }
-
-    public AggregationUsageService getUsageService() {
-        return valuesSourceRegistry.getUsageService();
     }
 }

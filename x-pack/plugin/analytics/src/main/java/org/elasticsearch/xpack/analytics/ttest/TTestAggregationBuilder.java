@@ -13,11 +13,11 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
@@ -126,7 +126,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     @Override
     protected MultiValuesSourceAggregatorFactory innerBuild(
-        QueryShardContext queryShardContext,
+        AggregationContext context,
         Map<String, ValuesSourceConfig> configs,
         Map<String, QueryBuilder> filters,
         DocValueFormat format,
@@ -146,7 +146,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
         }
 
         return new TTestAggregatorFactory(name, configs, testType, tails,
-            filterA, filterB, format, queryShardContext, parent,
+            filterA, filterB, format, context, parent,
             subFactoriesBuilder, metadata);
     }
 

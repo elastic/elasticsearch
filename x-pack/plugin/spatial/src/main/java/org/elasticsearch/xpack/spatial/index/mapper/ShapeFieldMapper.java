@@ -52,14 +52,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
 
         @Override
         public ShapeFieldMapper build(BuilderContext context) {
-            ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, meta);
             GeometryParser geometryParser
                 = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(), ignoreZValue().value());
-            ft.setGeometryParser(new GeoShapeParser(geometryParser));
-            ft.setGeometryIndexer(new ShapeIndexer(ft.name()));
+            Parser<Geometry> parser = new GeoShapeParser(geometryParser);
+            ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, parser, meta);
             ft.setOrientation(orientation().value());
             return new ShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), orientation(), multiFieldsBuilder.build(this, context), copyTo);
+                ignoreZValue(), orientation(), multiFieldsBuilder.build(this, context), copyTo,
+                new ShapeIndexer(ft.name()), parser);
         }
     }
 
@@ -76,13 +76,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         }
     }
 
-    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry>
+    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType
         implements ShapeQueryable {
 
         private final ShapeQueryProcessor queryProcessor;
 
-        public ShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, false, meta);
+        public ShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                              Parser<Geometry> parser, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, false, parser, meta);
             this.queryProcessor = new ShapeQueryProcessor();
         }
 
@@ -95,19 +96,15 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         public String typeName() {
             return CONTENT_TYPE;
         }
-
-        @Override
-        protected Indexer<Geometry, Geometry> geometryIndexer() {
-            return geometryIndexer;
-        }
     }
 
     public ShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                             Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
-                            MultiFields multiFields, CopyTo copyTo) {
+                            MultiFields multiFields, CopyTo copyTo,
+                            Indexer<Geometry, Geometry> indexer, Parser<Geometry> parser) {
         super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
-            multiFields, copyTo);
+            multiFields, copyTo, indexer, parser);
     }
 
     @Override

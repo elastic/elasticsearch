@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
+import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
@@ -58,7 +58,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, false, true, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, false, true, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -86,7 +86,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, false, true, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, false, true, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -108,7 +108,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             w.addDocument(doc);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, false, true, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, false, true, null, Collections.emptyMap());
 
             Point point = GeometryTestUtils.randomPoint(false);
             double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getX()));
@@ -140,7 +140,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             w.addDocument(doc);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, false, true, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, false, true, null, Collections.emptyMap());
 
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
                 .field("field")
@@ -201,7 +201,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType("field", true, false, true, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, false, true, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);

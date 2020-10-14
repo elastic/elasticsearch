@@ -29,6 +29,7 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
@@ -71,10 +72,13 @@ public class CopyRestTestsTask extends DefaultTask {
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
+    private final ProjectLayout projectLayout;
 
-    public CopyRestTestsTask() {
+    @Inject
+    public CopyRestTestsTask(ProjectLayout projectLayout) {
         corePatternSet = getPatternSetFactory().create();
         xpackPatternSet = getPatternSetFactory().create();
+        this.projectLayout = projectLayout;
     }
 
     @Inject
@@ -124,9 +128,9 @@ public class CopyRestTestsTask extends DefaultTask {
                 coreFileTree = coreConfig.getAsFileTree(); // jar file
             }
         }
-        ConfigurableFileCollection fileCollection = additionalConfig == null
-            ? getProject().files(coreFileTree, xpackFileTree)
-            : getProject().files(coreFileTree, xpackFileTree, additionalConfigToFileTree.apply(additionalConfig));
+        FileCollection fileCollection = additionalConfig == null
+            ? projectLayout.files(coreFileTree, xpackFileTree)
+            : projectLayout.files(coreFileTree, xpackFileTree, additionalConfigToFileTree.apply(additionalConfig));
 
         // copy tests only if explicitly requested
         return includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false || additionalConfig != null

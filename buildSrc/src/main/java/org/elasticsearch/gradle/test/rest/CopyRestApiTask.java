@@ -29,6 +29,7 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
@@ -74,10 +75,13 @@ public class CopyRestApiTask extends DefaultTask {
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
+    private final ProjectLayout projectLayout;
 
-    public CopyRestApiTask() {
+    @Inject
+    public CopyRestApiTask(ProjectLayout projectLayout) {
         corePatternSet = getPatternSetFactory().create();
         xpackPatternSet = getPatternSetFactory().create();
+        this.projectLayout = projectLayout;
     }
 
     @Inject
@@ -134,9 +138,9 @@ public class CopyRestApiTask extends DefaultTask {
             }
         }
 
-        ConfigurableFileCollection fileCollection = additionalConfig == null
-            ? getProject().files(coreFileTree, xpackFileTree)
-            : getProject().files(coreFileTree, xpackFileTree, additionalConfigToFileTree.apply(additionalConfig));
+        FileCollection fileCollection = additionalConfig == null
+            ? projectLayout.files(coreFileTree, xpackFileTree)
+            : projectLayout.files(coreFileTree, xpackFileTree, additionalConfigToFileTree.apply(additionalConfig));
 
         // if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
         return projectHasYamlRestTests || includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false

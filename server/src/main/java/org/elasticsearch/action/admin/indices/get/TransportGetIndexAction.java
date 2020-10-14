@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -59,15 +58,10 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                                    IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService,
                                    IndexScopedSettings indexScopedSettings) {
         super(GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexRequest::new,
-                indexNameExpressionResolver);
+                indexNameExpressionResolver, GetIndexResponse::new);
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;
         this.indexScopedSettings = indexScopedSettings;
-    }
-
-    @Override
-    protected GetIndexResponse read(StreamInput in) throws IOException {
-        return new GetIndexResponse(in);
     }
 
     @Override

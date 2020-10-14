@@ -136,7 +136,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
             String fieldName = expectedFieldName(queryBuilder.fieldName());
             Query expected;
-            if (context.fieldMapper(fieldName) != null) {
+            if (context.getFieldType(fieldName) != null) {
                 expected = new TermInSetQuery(fieldName,
                         terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
             } else {
@@ -281,8 +281,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testGeo() throws Exception {
         TermsQueryBuilder query = new TermsQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> query.toQuery(context));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: "
                 + "[mapped_geo_point]", e.getMessage());
     }

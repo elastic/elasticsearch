@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
@@ -58,9 +58,14 @@ public class LoadBraceDefNode extends ExpressionNode {
 
     /* ---- end visitor ---- */
 
+    public LoadBraceDefNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeDebugInfo(getLocation());
         Type methodType = Type.getMethodType(
                 MethodWriter.getType(getExpressionType()),
                 MethodWriter.getType(def.class),

@@ -71,6 +71,19 @@
         "inference_config": {
           "enabled": false
         },
+        "feature_importance_baseline": {
+          "properties": {
+            "baseline": {
+              "type": "double"
+            },
+            "classes": {
+              "properties": {
+                "class_name": { "type": "keyword"},
+                "baseline": {"type" : "double"}
+              }
+            }
+          }
+        },
         "total_feature_importance": {
           "type": "nested",
           "dynamic": "false",

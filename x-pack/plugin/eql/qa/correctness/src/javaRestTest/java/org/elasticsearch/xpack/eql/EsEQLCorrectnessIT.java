@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Properties;
 
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
@@ -42,18 +43,19 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "queries.toml";
-    private static final String INDEX_NAME = "mitre";
-    private static final int FETCH_SIZE = 10000;
-    private static final String GCS_REPO_NAME = "eql_correctness_gcs_repo";
-    private static final String SNAPSHOT_NAME = "mitre-snapshot";
-    private static final String GCS_BUCKET_NAME = "matriv-gcs";
-    private static final String GCS_BASE_PATH = "mitre-data";
-    private static final String GCS_CLIENT_NAME = "eql_test";
+    private static final String PROPERTIES_FILENAME = "config.properties";
+
     private static RestHighLevelClient highLevelClient;
+    private static Properties CFG;
     private static RequestOptions COMMON_REQUEST_OPTIONS;
 
     @BeforeClass
-    public static void init() {
+    public static void init() throws IOException {
+        try (InputStream is = EsEQLCorrectnessIT.class.getClassLoader().getResourceAsStream(PROPERTIES_FILENAME)) {
+            CFG = new Properties();
+            CFG.load(is);
+        }
+
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.setHttpAsyncResponseConsumerFactory(
             new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(1000 * 1024 * 1024)
@@ -63,21 +65,26 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     @Before
     public void restoreDataFromGcsRepo() throws Exception {
-        if (client().performRequest(new Request("HEAD", "/" + INDEX_NAME)).getStatusLine().getStatusCode() == 404) {
+        if (client().performRequest(new Request("HEAD", "/" + CFG.getProperty("index_name"))).getStatusLine().getStatusCode() == 404) {
             highLevelClient().snapshot()
                 .createRepository(
-                    new PutRepositoryRequest(GCS_REPO_NAME).type("gcs")
+                    new PutRepositoryRequest(CFG.getProperty("gcs_repo_name")).type("gcs")
                         .settings(
                             Settings.builder()
-                                .put("bucket", GCS_BUCKET_NAME)
-                                .put("base_path", GCS_BASE_PATH)
-                                .put("client", GCS_CLIENT_NAME)
+                                .put("bucket", CFG.getProperty("gcs_bucket_name"))
+                                .put("base_path", CFG.getProperty("gcs_base_path"))
+                                .put("client", CFG.getProperty("gcs_client_name"))
                                 .build()
                         ),
                     RequestOptions.DEFAULT
                 );
             highLevelClient().snapshot()
-                .restore(new RestoreSnapshotRequest(GCS_REPO_NAME, SNAPSHOT_NAME).waitForCompletion(true), RequestOptions.DEFAULT);
+                .restore(
+                    new RestoreSnapshotRequest(CFG.getProperty("gcs_repo_name"), CFG.getProperty("gcs_snapshot_name")).waitForCompletion(
+                        true
+                    ),
+                    RequestOptions.DEFAULT
+                );
         }
     }
 
@@ -160,11 +167,11 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
                     spec.filterCounts()[i], response.hits().events().size());
         } */
 
-        EqlSearchRequest eqlSearchRequest = new EqlSearchRequest(INDEX_NAME, spec.query());
+        EqlSearchRequest eqlSearchRequest = new EqlSearchRequest(CFG.getProperty("index_name"), spec.query());
         eqlSearchRequest.eventCategoryField("event_type");
         eqlSearchRequest.tiebreakerField("serial_id");
-        eqlSearchRequest.size(2000);
-        eqlSearchRequest.fetchSize(FETCH_SIZE);
+        eqlSearchRequest.size(Integer.parseInt(CFG.getProperty("size")));
+        eqlSearchRequest.fetchSize(Integer.parseInt(CFG.getProperty("fetch_size")));
         EqlSearchResponse response = highLevelClient.eql().search(eqlSearchRequest, RequestOptions.DEFAULT);
         totalTime += response.took();
         assertEquals(

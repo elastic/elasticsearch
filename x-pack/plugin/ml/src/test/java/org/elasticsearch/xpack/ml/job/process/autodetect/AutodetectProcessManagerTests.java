@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -76,7 +75,6 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -138,7 +136,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("foo").build();
     private ModelSnapshot modelSnapshot = new ModelSnapshot.Builder("foo").build();
     private Quantiles quantiles = new Quantiles("foo", new Date(), "state");
-    private Set<MlFilter> filters = new HashSet<>();
 
     @Before
     public void setup() throws Exception {
@@ -711,7 +708,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 .setModelSizeStats(modelSizeStats)
                 .setModelSnapshot(modelSnapshot)
                 .setQuantiles(quantiles)
-                .setFilters(filters)
                 .build();
     }
 

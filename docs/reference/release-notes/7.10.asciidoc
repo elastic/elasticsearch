@@ -149,7 +149,7 @@ Machine Learning::
 * Add new feature_processors field for data frame analytics {es-pull}60528[#60528] (issue: {es-issue}59327[#59327])
 * Add new n_gram_encoding custom processor {es-pull}61578[#61578]
 * During nightly maintenance delete jobs whose original deletion tasks were lost {es-pull}60121[#60121] (issue: {es-issue}42840[#42840])
-* Respect ML upgrade mode in TrainedModelStatsService {es-pull}61143[#61143]
+* Suspend persistence of trained model stats when ML upgrade mode is enabled {es-pull}61143[#61143]
 * Calculate total feature importance to store with model metadata {ml-pull}1387[#1387]
 * Change outlier detection feature_influence format to array with nested objects {ml-pull}1475[#1475], {es-pull}62068[#62068]
 * Add timeouts to named pipe connections {ml-pull}1514[#1514], {es-pull}62993[#62993] (issue: {ml-issue}1504[#1504])

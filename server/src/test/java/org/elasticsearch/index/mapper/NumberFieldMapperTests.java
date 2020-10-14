@@ -67,8 +67,9 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
     }
 
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(123);
+    @Override
+    protected Object getSampleValueForDocument() {
+        return 123;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {

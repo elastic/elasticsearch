@@ -52,6 +52,7 @@ import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -151,7 +152,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             return;
         }
 
-        MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
+        MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
             String queryValue = queryBuilder.value().toString();
             if (isTextField(queryBuilder.fieldName())
@@ -303,14 +304,23 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testExactOnUnsupportedField() throws Exception {
         MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
-        assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: " +
-            "[mapped_geo_point]", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_geo_point] of type [geo_point] does not support match queries", e.getMessage());
         query.lenient(true);
-        query.toQuery(context); // no exception
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
     }
 
-    public void testParseFailsWithMultipleFields() throws IOException {
+    public void testLenientFlag() throws Exception {
+        MatchQueryBuilder query = new MatchQueryBuilder(BINARY_FIELD_NAME, "test");
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
+        query.lenient(true);
+        query.toQuery(context);
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testParseFailsWithMultipleFields() {
         String json = "{\n" +
             "  \"match\" : {\n" +
             "    \"message1\" : {\n" +
@@ -334,7 +344,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
-    public void testParseFailsWithTermsArray() throws Exception {
+    public void testParseFailsWithTermsArray() {
         String json1 = "{\n" +
             "  \"match\" : {\n" +
             "    \"message1\" : {\n" +

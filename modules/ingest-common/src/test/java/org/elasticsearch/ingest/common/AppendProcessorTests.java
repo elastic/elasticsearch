@@ -30,8 +30,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -199,9 +201,9 @@ public class AppendProcessorTests extends ESTestCase {
         List<String> expectedValues = new ArrayList<>(list);
         List<String> existingValues = randomSubsetOf(list);
         int uniqueValuesSize = randomIntBetween(0, 10);
-        List<String> uniqueValues = new ArrayList<>();
-        for (int i = 0; i < uniqueValuesSize; i++) {
-            uniqueValues.add(randomAlphaOfLengthBetween(1, 10));
+        Set<String> uniqueValues = new HashSet<>(uniqueValuesSize);
+        while (uniqueValues.size() < uniqueValuesSize) {
+            uniqueValues.add(randomValueOtherThanMany(list::contains, () -> randomAlphaOfLengthBetween(1, 10)));
         }
         List<String> valuesToAppend = new ArrayList<>(existingValues);
         valuesToAppend.addAll(uniqueValues);

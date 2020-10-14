@@ -91,6 +91,16 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return false;
     }
 
+    /**
+     * When serializing a {@link DiscoveryNodeRole}, the role may not be available to nodes of
+     * previous versions, where the role had not yet been added. This method allows overriding
+     * the role that should be serialized when communicating to versions prior to the introduction
+     * of the discovery node role.
+     */
+    public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+        return this;
+    }
+
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;

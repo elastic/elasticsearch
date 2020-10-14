@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.SearchParseException;
@@ -28,8 +27,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +44,6 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     private final Map<String, Object> combineScriptParams;
     private final Script reduceScript;
     private final Map<String, Object> aggParams;
-    private final SearchLookup lookup;
     @Nullable
     private final ScriptedMetricAggContexts.InitScript.Factory initScript;
     private final Map<String, Object> initScriptParams;
@@ -60,13 +58,12 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         Map<String, Object> combineScriptParams,
         Script reduceScript,
         Map<String, Object> aggParams,
-        SearchLookup lookup,
-        QueryShardContext queryShardContext,
+        AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactories,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+        super(name, context, parent, subFactories, metadata);
         this.mapScript = mapScript;
         this.mapScriptParams = mapScriptParams;
         this.initScript = initScript;
@@ -74,7 +71,6 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         this.combineScript = combineScript;
         this.combineScriptParams = combineScriptParams;
         this.reduceScript = reduceScript;
-        this.lookup = lookup;
         this.aggParams = aggParams;
     }
 
@@ -89,7 +85,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
 
         return new ScriptedMetricAggregator(
             name,
-            lookup,
+            context.lookup(),
             aggParams,
             initScript,
             initScriptParams,

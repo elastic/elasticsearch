@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -160,11 +160,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                       QueryBuilder backgroundFilter,
                                       TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                       SignificanceHeuristic significanceHeuristic,
-                                      QueryShardContext queryShardContext,
+                                      AggregationContext context,
                                       AggregatorFactory parent,
                                       AggregatorFactories.Builder subFactoriesBuilder,
                                       Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         if (config.hasValues()) {
             if (config.fieldContext().fieldType().isSearchable() == false) {
@@ -201,7 +201,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        SignificantTermsAggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+        SignificantTermsAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry()
             .getAggregator(SignificantTermsAggregationBuilder.REGISTRY_KEY, config);
 
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
@@ -222,7 +222,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         }
 
         SignificanceLookup lookup = new SignificanceLookup(
-            queryShardContext,
+            context,
             config.fieldContext().fieldType(),
             config.format(),
             backgroundFilter

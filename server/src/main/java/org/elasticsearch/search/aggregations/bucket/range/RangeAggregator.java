@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -313,9 +314,9 @@ public abstract class RangeAggregator extends BucketsAggregator {
                     context.getQueryShardContext()
                 );
         }
-        FiltersAggregator delegate = FiltersAggregator.build(
+        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate = subAggregators -> FiltersAggregator.build(
             name,
-            factories,
+            subAggregators,
             keys,
             filters,
             false,
@@ -325,10 +326,19 @@ public abstract class RangeAggregator extends BucketsAggregator {
             cardinality,
             metadata
         );
-        if (false == delegate.collectsInFilterOrder()) {
+        RangeAggregator.FromFilters<?> fromFilters = new RangeAggregator.FromFilters<>(
+            parent,
+            factories,
+            delegate,
+            valuesSourceConfig.format(),
+            ranges,
+            keyed,
+            rangeFactory
+        );
+        if (false == ((FiltersAggregator) fromFilters.delegate()).collectsInFilterOrder()) {
             return null;
         }
-        return new RangeAggregator.FromFilters<>(delegate, valuesSourceConfig.format(), ranges, keyed, rangeFactory);
+        return fromFilters;
     }
 
     public static Aggregator buildWithoutAttemptedToAdaptToFilters(
@@ -594,13 +604,15 @@ public abstract class RangeAggregator extends BucketsAggregator {
         private final InternalRange.Factory<B, ?> rangeFactory;
 
         FromFilters(
-            Aggregator delegate,
+            Aggregator parent,
+            AggregatorFactories subAggregators,
+            CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate,
             DocValueFormat format,
             Range[] ranges,
             boolean keyed,
             InternalRange.Factory<B, ?> rangeFactory
-        ) {
-            super(delegate);
+        ) throws IOException {
+            super(parent, subAggregators, delegate);
             this.format = format;
             this.ranges = ranges;
             this.keyed = keyed;

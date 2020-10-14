@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
@@ -35,10 +36,17 @@ import java.util.function.BiConsumer;
  * you'd expect from another aggregation.
  */
 public abstract class AdaptingAggregator extends Aggregator {
+    private final Aggregator parent;
     private final Aggregator delegate;
 
-    public AdaptingAggregator(Aggregator delegate) {
-        this.delegate = delegate;
+    public AdaptingAggregator(
+        Aggregator parent,
+        AggregatorFactories subAggregators,
+        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate
+    ) throws IOException {
+        this.parent = parent;
+        this.delegate = delegate.apply(subAggregators.fixParent(this));
+        assert this.delegate.parent() == parent : "invalid parent set on delegate";
     }
 
     /**
@@ -69,7 +77,7 @@ public abstract class AdaptingAggregator extends Aggregator {
 
     @Override
     public final Aggregator parent() {
-        return delegate.parent();
+        return parent;
     }
 
     @Override
@@ -119,5 +127,9 @@ public abstract class AdaptingAggregator extends Aggregator {
         Map<String, Object> delegateDebug = new HashMap<>();
         delegate.collectDebugInfo(delegateDebug::put);
         add.accept("delegate_debug", delegateDebug);
+    }
+
+    public Aggregator delegate() {
+        return delegate;
     }
 }

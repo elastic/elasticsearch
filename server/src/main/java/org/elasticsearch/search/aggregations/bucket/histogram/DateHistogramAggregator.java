@@ -22,8 +22,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.Rounding.DateTimeUnit;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
@@ -134,16 +136,16 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (valuesSourceConfig.hasValues() == false) {
             return null;
         }
-        long[] points = preparedRounding.fixedRoundingPoints();
-        if (points == null) {
+        long[] fixedRoundingPoints = preparedRounding.fixedRoundingPoints();
+        if (fixedRoundingPoints == null) {
             return null;
         }
         // Range aggs use a double to aggregate and we don't want to lose precision.
-        long max = points[points.length - 1];
+        long max = fixedRoundingPoints[fixedRoundingPoints.length - 1];
         if ((double) max != max) {
             return null;
         }
-        if ((double) points[0] != points[0]) {
+        if ((double) fixedRoundingPoints[0] != fixedRoundingPoints[0]) {
             return null;
         }
         RangeAggregatorSupplier rangeSupplier = context.getQueryShardContext()
@@ -152,14 +154,14 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (rangeSupplier == null) {
             return null;
         }
-        RangeAggregator.Range[] ranges = new RangeAggregator.Range[points.length];
-        for (int i = 0; i < points.length - 1; i++) {
-            ranges[i] = new RangeAggregator.Range(null, (double) points[i], (double) points[i + 1]);
+        RangeAggregator.Range[] ranges = new RangeAggregator.Range[fixedRoundingPoints.length];
+        for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
+            ranges[i] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]);
         }
-        ranges[ranges.length - 1] = new RangeAggregator.Range(null, (double) points[points.length - 1], null);
-        Aggregator delegate = rangeSupplier.build(
+        ranges[ranges.length - 1] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null);
+        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate = subAggregators -> rangeSupplier.build(
             name,
-            factories,
+            subAggregators,
             valuesSourceConfig,
             InternalDateRange.FACTORY,
             ranges,
@@ -170,13 +172,17 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             metadata
         );
         return new DateHistogramAggregator.FromDateRange(
+            parent,
+            factories,
             delegate,
             valuesSourceConfig.format(),
             rounding,
+            preparedRounding,
             order,
             minDocCount,
             extendedBounds,
-            keyed
+            keyed,
+            fixedRoundingPoints
         );
     }
 
@@ -325,30 +331,38 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
-    private static class FromDateRange extends AdaptingAggregator {
+    private static class FromDateRange extends AdaptingAggregator implements SizedBucketAggregator {
         private final DocValueFormat format;
         private final Rounding rounding;
+        private final Rounding.Prepared preparedRounding;
         private final BucketOrder order;
         private final long minDocCount;
         private final LongBounds extendedBounds;
         private final boolean keyed;
+        private final long[] fixedRoundingPoints;
 
         FromDateRange(
-            Aggregator delegate,
+            Aggregator parent,
+            AggregatorFactories subAggregators,
+            CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate,
             DocValueFormat format,
             Rounding rounding,
+            Rounding.Prepared preparedRounding,
             BucketOrder order,
             long minDocCount,
             LongBounds extendedBounds,
-            boolean keyed
-        ) {
-            super(delegate);
+            boolean keyed,
+            long[] fixedRoundingPoints
+        ) throws IOException {
+            super(parent, subAggregators, delegate);
             this.format = format;
             this.rounding = rounding;
+            this.preparedRounding = preparedRounding;
             this.order = order;
             this.minDocCount = minDocCount;
             this.extendedBounds = extendedBounds;
             this.keyed = keyed;
+            this.fixedRoundingPoints = fixedRoundingPoints;
         }
 
         @Override
@@ -394,6 +408,16 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 aggs.add(aggregator.buildEmptyAggregation());
             }
             return InternalAggregations.from(aggs);
+        }
+
+        @Override
+        public double bucketSize(long bucket, DateTimeUnit unitSize) {
+            if (unitSize != null) {
+                long startPoint = bucket < fixedRoundingPoints.length ? fixedRoundingPoints[(int) bucket] : Long.MIN_VALUE;
+                return preparedRounding.roundingSize(startPoint, unitSize);
+            } else {
+                return 1.0;
+            }
         }
     }
 }

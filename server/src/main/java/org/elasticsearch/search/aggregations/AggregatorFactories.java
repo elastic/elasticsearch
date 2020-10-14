@@ -227,6 +227,18 @@ public class AggregatorFactories {
         return factories.length;
     }
 
+    public AggregatorFactories fixParent(Aggregator fixedParent) {
+        AggregatorFactories previous = this;
+        return new AggregatorFactories(factories) {
+            @Override
+            public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality)
+                throws IOException {
+                // Note that we're throwing out the "parent" passed in to this method and using the parent passed to fixParent
+                return previous.createSubAggregators(searchContext, fixedParent, cardinality);
+            }
+        };
+    }
+
     /**
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.

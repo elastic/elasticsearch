@@ -58,6 +58,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
@@ -431,7 +432,7 @@ public abstract class PackagingTestCase extends Assert {
         Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempDir));
 
         if (distribution.isPackage()) {
-            Files.copy(installation.envFile, tempDir.resolve("elasticsearch.bk"));// backup
+            Files.copy(installation.envFile, tempDir.resolve("elasticsearch.bk"), StandardCopyOption.COPY_ATTRIBUTES);// backup
             append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
         } else {
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
@@ -440,7 +441,7 @@ public abstract class PackagingTestCase extends Assert {
         action.accept(tempConf);
         if (distribution.isPackage()) {
             IOUtils.rm(installation.envFile);
-            Files.copy(tempDir.resolve("elasticsearch.bk"), installation.envFile);
+            Files.copy(tempDir.resolve("elasticsearch.bk"), installation.envFile, StandardCopyOption.COPY_ATTRIBUTES);
         } else {
             sh.getEnv().remove("ES_PATH_CONF");
         }

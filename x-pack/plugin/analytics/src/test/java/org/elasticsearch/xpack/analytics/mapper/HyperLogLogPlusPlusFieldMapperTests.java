@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapperTestCase2;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
@@ -21,14 +19,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-
-public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<HyperLogLogPlusPlusFieldMapper.Builder> {
+public class HyperLogLogPlusPlusFieldMapperTests extends MapperTestCase {
 
     private static final int[] RUNLENS = new int[16];
     static {
@@ -41,10 +37,12 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
 
     private static final long[] MURMUR3_HASHES = new long[] {1, 2};
 
-    private static final int[] RUNLENS1024 = new int[1024];
+    private static final int DEFAULT_BUCKETS = 1 << HyperLogLogPlusPlusFieldMapper.DEFAULT_PRECISION;
+
+    private static final int[] RUNLENS_DEFAULT = new int[DEFAULT_BUCKETS];
     static {
-        for (int i = 0; i < 1024; i++) {
-            RUNLENS1024[i] = i / 128;
+        for (int i = 0; i < DEFAULT_BUCKETS; i++) {
+            RUNLENS_DEFAULT[i] =  (128 * i / DEFAULT_BUCKETS);
         }
     }
 
@@ -55,15 +53,16 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
     private static final String FIELD = "pre_aggregated";
 
     private DocumentMapper getMapping(int precision, boolean ignoreMalformed) throws IOException {
-       return createDocumentMapper(mapping(b -> {
+        return createDocumentMapper(mapping(b -> {
             b.startObject(FIELD).field("type", TYPE);
-            if (precision != HyperLogLogPlusPlusFieldMapper.Defaults.PRECISION.value() || randomBoolean()) {
-                 b.field("precision", precision);
+            if (precision != HyperLogLogPlusPlusFieldMapper.DEFAULT_PRECISION || randomBoolean()) {
+                b.field("precision", precision);
             }
-           if (ignoreMalformed != HyperLogLogPlusPlusFieldMapper.Defaults.IGNORE_MALFORMED.value() || randomBoolean()) {
-               b.field("ignore_malformed", ignoreMalformed);
-           }
-           b.endObject();
+            boolean ignoreMalformedByDefault = HyperLogLogPlusPlusFieldMapper.IGNORE_MALFORMED_SETTING.get(Settings.EMPTY).booleanValue();
+            if (ignoreMalformed != ignoreMalformedByDefault || randomBoolean()) {
+                b.field("ignore_malformed", ignoreMalformed);
+            }
+            b.endObject();
         }));
     }
 
@@ -90,10 +89,10 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
         SourceToParse source = source(b ->
             b.startArray(FIELD)
                 .startObject()
-                  .field(HLL, RUNLENS)
-                  .field(LC, LC_HASHES)
+                .field(HLL, RUNLENS)
+                .field(LC, LC_HASHES)
                 .endObject()
-             .endArray());
+                .endArray());
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expected only one field from [hll], [lc] and [murmur3]"));
     }
@@ -102,13 +101,13 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
         DocumentMapper mapper = getMapping(4, false);
         SourceToParse source = source(b ->
             b.startArray(FIELD)
-              .startObject()
+                .startObject()
                 .field(HLL, RUNLENS)
-              .endObject()
-              .startObject()
+                .endObject()
+                .startObject()
                 .field(HLL, RUNLENS)
-              .endObject()
-            .endArray());
+                .endObject()
+                .endArray());
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("doesn't not support indexing multiple values " +
             "for the same field in the same document"));
@@ -158,17 +157,17 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
         ParsedDocument doc = mapper.parse(
             source(b ->
                 b.startObject(FIELD)
-                  .startObject("values")
+                    .startObject("values")
                     .field("values", new double[] {2, 2})
                     .startObject("object1")
-                      .startObject("object2")
-                        .field("field", 1)
-                      .endObject()
+                    .startObject("object2")
+                    .field("field", 1)
                     .endObject()
-                  .endObject()
-                  .field("run_lens", RUNLENS)
-               .endObject()
-               .field("extra", "value")));
+                    .endObject()
+                    .endObject()
+                    .field("run_lens", RUNLENS)
+                    .endObject()
+                    .field("extra", "value")));
 
         assertThat(doc.rootDoc().getField(FIELD), nullValue());
         assertThat(doc.rootDoc().getField("extra"), notNullValue());
@@ -264,31 +263,6 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
         assertThat(e.getCause().getMessage(), containsString("[" + HLL + "] elements must be >= 0 but got " + runLens[pos]));
     }
 
-    public void testMergeField() {
-        Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
-        HyperLogLogPlusPlusFieldMapper.Builder builder1 = newBuilder();
-        {
-            FieldMapper mapper = builder1.build(context);
-            HyperLogLogPlusPlusFieldMapper.Builder builder2 = newBuilder();
-            builder2.ignoreMalformed(true);
-            FieldMapper toMerge = builder2.build(context);
-            mapper.merge(toMerge);  // ignore_malformed should merge with no issue
-        }
-        {
-            FieldMapper mapper = builder1.build(context);
-            HyperLogLogPlusPlusFieldMapper.Builder builder2 = newBuilder();
-            builder2.precision(4);
-            FieldMapper toMerge = builder2.build(context);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(toMerge));
-            assertThat(e.getMessage(), containsString("mapper [" + FIELD + "] has different [precision]"));
-        }
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "doc_values", "store", "index");
-    }
-
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new AnalyticsPlugin());
@@ -303,7 +277,7 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
     protected Object getSampleValueForDocument() {
         switch (randomInt(2)) {
             case 0:
-                return Map.of(HLL, RUNLENS1024);
+                return Map.of(HLL, RUNLENS_DEFAULT);
             case 1:
                 return Map.of(LC, LC_HASHES);
             default:
@@ -311,15 +285,12 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
         }
     }
 
-
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
             m -> assertTrue(((HyperLogLogPlusPlusFieldMapper)m).ignoreMalformed()));
-    }
-
-    @Override
-    protected HyperLogLogPlusPlusFieldMapper.Builder newBuilder() {
-        return new HyperLogLogPlusPlusFieldMapper.Builder(FIELD);
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", false),
+            m -> assertFalse(((HyperLogLogPlusPlusFieldMapper)m).ignoreMalformed()));
+        checker.registerConflictCheck("precision", b -> b.field("precision", HyperLogLogPlusPlusFieldMapper.DEFAULT_PRECISION));
     }
 }

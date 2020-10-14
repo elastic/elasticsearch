@@ -146,7 +146,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Map.of(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER,
-            HyperLogLogPlusPlusFieldMapper.CONTENT_TYPE, new HyperLogLogPlusPlusFieldMapper.TypeParser());
+            HyperLogLogPlusPlusFieldMapper.CONTENT_TYPE, HyperLogLogPlusPlusFieldMapper.PARSER);
     }
 
     @Override

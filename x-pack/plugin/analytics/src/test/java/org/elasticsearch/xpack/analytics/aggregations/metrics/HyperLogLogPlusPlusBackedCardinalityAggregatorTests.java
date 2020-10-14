@@ -134,7 +134,7 @@ public class HyperLogLogPlusPlusBackedCardinalityAggregatorTests extends Aggrega
                     new CardinalityAggregationBuilder("test").field("field").precisionThreshold(192);
 
                 MappedFieldType fieldType =
-                    new HyperLogLogPlusPlusFieldMapper.HyperLogLogPlusPlusFieldType("field", true, 10, false, Collections.emptyMap());
+                    new HyperLogLogPlusPlusFieldMapper.HyperLogLogPlusPlusFieldType("field", Collections.emptyMap(), 10);
                 IllegalArgumentException ex =
                     expectThrows(IllegalArgumentException.class, () -> createAggregator(builder, indexSearcher, fieldType));
                 assertThat(ex.getMessage(),
@@ -162,7 +162,7 @@ public class HyperLogLogPlusPlusBackedCardinalityAggregatorTests extends Aggrega
                             .precisionThreshold(AbstractHyperLogLog.thresholdFromPrecision(4));
 
                 MappedFieldType fieldType =
-                    new HyperLogLogPlusPlusFieldMapper.HyperLogLogPlusPlusFieldType("field", true, 4, false, Collections.emptyMap());
+                    new HyperLogLogPlusPlusFieldMapper.HyperLogLogPlusPlusFieldType("field", Collections.emptyMap(), 4);
                 Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);

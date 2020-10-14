@@ -379,6 +379,23 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         /**
+         * Defines a parameter that takes an {@code int} value, and will always serialize
+         * its value if configured.
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<Explicit<Integer>> explicitIntParam(String name, boolean updateable,
+                                                                     Function<FieldMapper, Explicit<Integer>> initializer,
+                                                                     int defaultValue) {
+            Explicit<Integer> defaultExplicit = new Explicit<>(defaultValue, false);
+            return new Parameter<>(name, updateable, () -> defaultExplicit,
+                (n, c, o) -> new Explicit<>(XContentMapValues.nodeIntegerValue(o), true), initializer)
+                .setSerializer((b, n, v) -> b.field(n, v.value()), v -> Integer.toString(v.value()));
+        }
+
+        /**
          * Defines a parameter that takes a string value
          * @param name          the parameter name
          * @param updateable    whether the parameter can be changed by a mapping update

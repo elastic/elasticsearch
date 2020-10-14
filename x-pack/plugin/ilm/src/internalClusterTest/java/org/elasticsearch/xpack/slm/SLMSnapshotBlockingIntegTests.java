@@ -78,8 +78,8 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     }
 
     @After
-    public void awaitNoMoreRunningOps() throws Exception {
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+    public void cleanUp() throws Exception {
+        awaitNoMoreRunningOperations();
     }
 
     @Override
@@ -208,7 +208,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
             // Check that the executed snapshot shows up in the SLM output as in_progress
             logger.info("--> Waiting for at least one data node to hit the block");
-            waitForBlockOnAnyDataNode(REPO, TimeValue.timeValueSeconds(30L));
+            waitForBlockOnAnyDataNode(REPO);
             assertBusy(() -> {
                 logger.info("--> at least one data node has hit the block");
                 GetSnapshotLifecycleAction.Response getResp =
@@ -303,14 +303,13 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 assertBusy(() -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
                         30, TimeUnit.SECONDS);
 
-                final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
+                blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
 
                 logger.info("-->  start snapshot");
                 ActionFuture<ExecuteSnapshotLifecycleAction.Response> snapshotFuture = client()
                         .execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId));
 
-                logger.info("--> waiting for block to kick in on " + masterNode);
-                waitForBlock(masterNode, REPO, TimeValue.timeValueSeconds(60));
+                waitForBlock(internalCluster().getMasterName(), REPO);
 
                 logger.info("-->  stopping master node");
                 internalCluster().stopCurrentMasterNode();

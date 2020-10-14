@@ -171,7 +171,7 @@ public class QueryContainer {
 
             sortingColumns.add(new Tuple<>(Integer.valueOf(atIndex), comp));
         }
-        
+
         return sortingColumns;
     }
 
@@ -331,7 +331,7 @@ public class QueryContainer {
         FieldAttribute actualField = fieldAttr;
         FieldAttribute rootField = fieldAttr;
         StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-        
+
         // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
         // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
         // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
@@ -366,8 +366,8 @@ public class QueryContainer {
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
-                attr.nestedParent().name(), name, 
-                SqlDataTypes.format(attr.field().getDataType()), 
+                attr.nestedParent().name(), name,
+                SqlDataTypes.format(attr.field().getDataType()),
                 SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
@@ -432,9 +432,7 @@ public class QueryContainer {
 
         // update proc (if needed)
         if (qContainer.scalarFunctions().size() != scalarFunctions.size()) {
-            Map<Attribute, Pipe> procs = new LinkedHashMap<>(qContainer.scalarFunctions());
-            procs.put(attr, proc);
-            qContainer = qContainer.withScalarProcessors(new AttributeMap<>(procs));
+            qContainer = qContainer.withScalarProcessors(qContainer.scalarFunctions().combine(new AttributeMap<>(attr, proc)));
         }
 
         return new Tuple<>(qContainer, new ComputedRef(proc));

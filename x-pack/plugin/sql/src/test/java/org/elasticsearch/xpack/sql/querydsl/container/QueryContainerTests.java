@@ -86,11 +86,8 @@ public class QueryContainerTests extends ESTestCase {
         Attribute fourth = new FieldAttribute(Source.EMPTY, "fourth", esField);
         Alias firstAliased = new Alias(Source.EMPTY, "firstAliased", first);
 
-        Map<Attribute, Expression> aliasesMap = new LinkedHashMap<>();
-        aliasesMap.put(firstAliased.toAttribute(), first);
-
         QueryContainer queryContainer = new QueryContainer()
-            .withAliases(new AttributeMap<>(aliasesMap))
+            .withAliases(new AttributeMap<>(firstAliased.toAttribute(), first))
             .addColumn(third)
             .addColumn(first)
             .addColumn(fourth)

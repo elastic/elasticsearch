@@ -13,11 +13,9 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
-
 public class AttributeSet implements Set<Attribute> {
 
-    private static final AttributeMap<Object> EMPTY_DELEGATE = new AttributeMap<>(emptyMap());
+    private static final AttributeMap<Object> EMPTY_DELEGATE = AttributeMap.emptyAttributeMap();
 
     public static final AttributeSet EMPTY = new AttributeSet(EMPTY_DELEGATE);
 

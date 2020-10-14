@@ -14,10 +14,12 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * There are two main types of plans, {@code LogicalPlan} and {@code PhysicalPlan}
@@ -108,7 +110,22 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     }
 
     public void forEachExpressions(Consumer<? super Expression> rule) {
-        forEachPropertiesOnly(e -> doForEachExpression(e, rule::accept), Object.class);
+        forEachPropertiesOnly(e -> doForEachExpression(e, rule), Object.class);
+    }
+
+    public <T extends Expression> List<T> collectExpressions(Class<T> typeToken) {
+        return collectExpressions(typeToken, x -> true);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends Expression> List<T> collectExpressions(Class<T> typeToken, Predicate<T> predicate) {
+        final List<T> collected = new LinkedList<>();
+        forEachExpressionsUp(e -> {
+            if (typeToken.isInstance(e) && predicate.test((T) e)) {
+                collected.add((T) e);
+            }
+        });
+        return collected;
     }
 
     private void doForEachExpression(Object arg, Consumer<? super Expression> traversal) {

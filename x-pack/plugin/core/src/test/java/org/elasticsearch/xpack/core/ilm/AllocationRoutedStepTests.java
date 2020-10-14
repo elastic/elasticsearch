@@ -75,21 +75,17 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         includes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         excludes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
         });
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
 
@@ -174,12 +170,10 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         boolean primaryOnNode1 = randomBoolean();
@@ -206,21 +200,17 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             () -> AllocateActionTests.randomMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         includes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         excludes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
         });
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
 
@@ -243,21 +233,17 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             () -> AllocateActionTests.randomMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         includes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         excludes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
         });
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
 
@@ -282,21 +268,17 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             () -> AllocateActionTests.randomMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         includes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         excludes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
         });
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
 
@@ -329,15 +311,10 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
      */
     public void testExecuteReplicasNotAllocatedOnSingleNode() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = Collections.singletonMap("_name", "node1");
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
-        requires.forEach((k, v) -> {
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-        });
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))

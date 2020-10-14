@@ -538,7 +538,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void awaitMasterFinishRepoOperations() throws Exception {
         logger.info("--> waiting for master to finish all repo operations on its SNAPSHOT pool");
-        final ThreadPool masterThreadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
+        final ThreadPool masterThreadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertBusy(() -> {
             for (ThreadPoolStats.Stats stat : masterThreadPool.stats()) {
                 if (ThreadPool.Names.SNAPSHOT.equals(stat.getName())) {

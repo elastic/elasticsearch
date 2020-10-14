@@ -30,6 +30,7 @@ import org.junit.BeforeClass;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,7 +109,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
 
         final Path quotaPath = getRootTempDir().resolve("quota.properties");
-        Files.writeString(quotaPath, String.format("total=%d\nremaining=%d\n", total, available));
+        Files.writeString(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available));
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
 
@@ -125,7 +126,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
             // Check that ES is polling the properties file for changes by modifying the properties file
             // and waiting for ES to pick up the changes.
-            Files.writeString(quotaPath, String.format("total=%d\nremaining=%d\n", updatedTotal, updatedAvailable));
+            Files.writeString(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", updatedTotal, updatedAvailable));
 
             // The check interval is 1000ms, but give ourselves some leeway.
             Thread.sleep(2000);

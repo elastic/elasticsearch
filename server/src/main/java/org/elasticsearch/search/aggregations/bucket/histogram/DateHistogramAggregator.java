@@ -159,22 +159,21 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             ranges[i] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]);
         }
         ranges[ranges.length - 1] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null);
-        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate = subAggregators -> rangeSupplier.build(
-            name,
-            subAggregators,
-            valuesSourceConfig,
-            InternalDateRange.FACTORY,
-            ranges,
-            false,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
         return new DateHistogramAggregator.FromDateRange(
             parent,
             factories,
-            delegate,
+            subAggregators -> rangeSupplier.build(
+                name,
+                subAggregators,
+                valuesSourceConfig,
+                InternalDateRange.FACTORY,
+                ranges,
+                false,
+                context,
+                parent,
+                cardinality,
+                metadata
+            ),
             valuesSourceConfig.format(),
             rounding,
             preparedRounding,

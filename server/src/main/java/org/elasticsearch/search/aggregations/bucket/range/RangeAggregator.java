@@ -321,22 +321,21 @@ public abstract class RangeAggregator extends BucketsAggregator {
                     context.getQueryShardContext()
                 );
         }
-        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate = subAggregators -> FiltersAggregator.build(
-            name,
-            subAggregators,
-            keys,
-            filters,
-            false,
-            null,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
         RangeAggregator.FromFilters<?> fromFilters = new RangeAggregator.FromFilters<>(
             parent,
             factories,
-            delegate,
+            subAggregators -> FiltersAggregator.build(
+                name,
+                subAggregators,
+                keys,
+                filters,
+                false,
+                null,
+                context,
+                parent,
+                cardinality,
+                metadata
+            ),
             valuesSourceConfig.format(),
             ranges,
             keyed,

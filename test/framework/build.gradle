@@ -49,7 +49,7 @@ tasks.named('forbiddenApisMain').configure {
 // TODO: should we have licenses for our test deps?
 tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
-dependenciesGraph.enabled = false
+tasks.named("dependenciesGraph").configure { it.enabled = false }
 
 thirdPartyAudit.ignoreMissingClasses(
   // classes are missing

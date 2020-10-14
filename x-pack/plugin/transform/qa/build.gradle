@@ -10,9 +10,5 @@ gradle.projectsEvaluated {
     if (dependenciesInfo) {
       dependenciesInfo.enabled = false
     }
-    Task dependenciesGraph = project.tasks.findByName('dependenciesGraph')
-    if (dependenciesGraph) {
-      dependenciesGraph.enabled = false
-    }
   }
 }

@@ -11,7 +11,7 @@ beta::[]
 
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
-In {es}, EQL assumes each document in a data stream or index corresponds to an
+EQL assumes each document in a data stream or index corresponds to an
 event.
 
 [source,console]
@@ -210,9 +210,6 @@ If both parameters are specified, only the query parameter is used.
 `query`::
 (Required, string)
 <<eql-syntax,EQL>> query you wish to run.
-+
-IMPORTANT: This parameter supports a subset of EQL syntax. See
-<<eql-unsupported-syntax>>.
 
 `size`::
 (Optional, integer or float)

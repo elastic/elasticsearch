@@ -8,8 +8,8 @@
 
 beta::[]
 
-{eql-ref}/index.html[Event Query Language (EQL)] is a query language for
-event-based, time series data, such as logs.
+Event Query Language (EQL) is a query language for event-based, time series
+data, such as logs.
 
 [discrete]
 [[eql-advantages]]
@@ -32,9 +32,9 @@ makes it easy to describe activity that goes beyond IOCs.
 [[eql-required-fields]]
 == Required fields
 
-TIP: While no schema is required to use EQL in {es}, we recommend using the
-{ecs-ref}[Elastic Common Schema (ECS)]. EQL search is designed to work
-with core ECS fields by default.
+TIP: While no schema is required to use EQL, we recommend using the
+{ecs-ref}[Elastic Common Schema (ECS)]. EQL searches are designed to work with
+core ECS fields by default.
 
 EQL assumes each document in a data stream or index corresponds to an event. To
 run an EQL search, each document must contain a _timestamp_ and _event category_

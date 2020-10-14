@@ -85,7 +85,7 @@ public class LdapMetadataResolver {
                                             .map((sidBytes) -> convertToString(sidBytes))
                                             .collect(Collectors.toList());
                                     }
-                                    return values.length == 1 ? values[0] : List.of(values);
+                                    return values.length == 1 ? values[0] : Arrays.asList(values);
                                  })
                         )
         );

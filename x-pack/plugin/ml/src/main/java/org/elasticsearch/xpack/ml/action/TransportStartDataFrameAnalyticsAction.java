@@ -690,8 +690,7 @@ public class TransportStartDataFrameAnalyticsAction
                 maxOpenJobs,
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,
-                //TODO, account for possible dynamic memory percent calculation
-                maxNodeMemory * maxMachineMemoryPercent / 100,
+                maxNodeMemory,
                 isMemoryTrackerRecentlyRefreshed);
         }
 

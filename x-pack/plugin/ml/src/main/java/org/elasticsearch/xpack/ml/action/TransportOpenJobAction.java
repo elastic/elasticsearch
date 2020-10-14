@@ -430,8 +430,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 maxOpenJobs,
                 maxConcurrentJobAllocations,
                 maxMachineMemoryPercent,
-                //TODO, account for possible dynamic memory percent calculation
-                maxNodeMemory * maxMachineMemoryPercent / 100,
+                maxNodeMemory,
                 isMemoryTrackerRecentlyRefreshed);
         }
 

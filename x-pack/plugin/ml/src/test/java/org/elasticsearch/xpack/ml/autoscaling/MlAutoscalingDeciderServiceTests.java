@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +76,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         MlAutoscalingDeciderService service = buildService();
         service.offMaster();
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-            () -> service.scale(new MlAutoscalingDeciderConfiguration(0, 0),
+            () -> service.scale(new MlAutoscalingDeciderConfiguration(0, 0, TimeValue.ZERO),
                 mock(AutoscalingDeciderContext.class)));
         assertThat(iae.getMessage(), equalTo("request for scaling information is only allowed on the master node"));
     }
@@ -85,7 +86,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         service.onMaster();
 
         assertThat(service.checkForScaleUp(
-            new MlAutoscalingDeciderConfiguration(0, 0),
+            new MlAutoscalingDeciderConfiguration(0, 0, TimeValue.ZERO),
             Collections.emptyList(),
             Collections.emptyList(),
             null,
@@ -101,7 +102,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         { // No time in queue
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
             Optional<AutoscalingDecision> decision = service.checkForScaleUp(
-                new MlAutoscalingDeciderConfiguration(0, 0),
+                new MlAutoscalingDeciderConfiguration(0, 0, TimeValue.ZERO),
                 jobTasks,
                 analytics,
                 null,
@@ -114,7 +115,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         { // we allow one job in the analytics queue
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
             Optional<AutoscalingDecision> decision = service.checkForScaleUp(
-                new MlAutoscalingDeciderConfiguration(0, 1),
+                new MlAutoscalingDeciderConfiguration(0, 1, TimeValue.ZERO),
                 jobTasks,
                 analytics,
                 null,
@@ -127,7 +128,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         { // we allow one job in the anomaly queue and analytics queue
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
             Optional<AutoscalingDecision> decision = service.checkForScaleUp(
-                new MlAutoscalingDeciderConfiguration(1, 1),
+                new MlAutoscalingDeciderConfiguration(1, 1, TimeValue.ZERO),
                 jobTasks,
                 analytics,
                 null,
@@ -146,7 +147,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         { // with null future capacity and current capacity has a small node
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
             Optional<AutoscalingDecision> decision = service.checkForScaleUp(
-                new MlAutoscalingDeciderConfiguration(2, 1),
+                new MlAutoscalingDeciderConfiguration(2, 1, TimeValue.ZERO),
                 jobTasks,
                 analytics,
                 null,
@@ -159,7 +160,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         {
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
             Optional<AutoscalingDecision> decision = service.checkForScaleUp(
-                new MlAutoscalingDeciderConfiguration(2, 1),
+                new MlAutoscalingDeciderConfiguration(2, 1, TimeValue.ZERO),
                 jobTasks,
                 analytics,
                 new MlAutoscalingDeciderService.MemoryCapacity(new ByteSizeValue(3, ByteSizeUnit.GB).getBytes(),
@@ -172,7 +173,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         {
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
             Optional<AutoscalingDecision> decision = service.checkForScaleUp(
-                new MlAutoscalingDeciderConfiguration(2, 1),
+                new MlAutoscalingDeciderConfiguration(2, 1, TimeValue.ZERO),
                 jobTasks,
                 analytics,
                 new MlAutoscalingDeciderService.MemoryCapacity(new ByteSizeValue(1, ByteSizeUnit.MB).getBytes(),

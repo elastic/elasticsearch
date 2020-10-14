@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -84,7 +85,7 @@ public class JobNodeSelector {
     public PersistentTasksCustomMetadata.Assignment selectNode(int dynamicMaxOpenJobs,
                                                                int maxConcurrentJobAllocations,
                                                                int maxMachineMemoryPercent,
-                                                               long maxJobSize,
+                                                               long maxNodeSize,
                                                                boolean isMemoryTrackerRecentlyRefreshed) {
         // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
         // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
@@ -204,7 +205,7 @@ public class JobNodeSelector {
         return createAssignment(
             allocateByMemory ? minLoadedNodeByMemory : minLoadedNodeByCount,
             reasons,
-            allocateByMemory ? maxJobSize : Long.MAX_VALUE);
+            allocateByMemory ? NativeMemoryCalculator.allowedBytesForMl(maxNodeSize, maxMachineMemoryPercent) : Long.MAX_VALUE);
     }
 
     PersistentTasksCustomMetadata.Assignment createAssignment(DiscoveryNode minLoadedNode,

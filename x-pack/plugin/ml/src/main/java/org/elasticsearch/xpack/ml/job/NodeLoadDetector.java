@@ -20,11 +20,13 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 
 
 public class NodeLoadDetector {
@@ -60,16 +62,15 @@ public class NodeLoadDetector {
                 maxNumberOfOpenJobs = -1;
             }
         }
-        String machineMemoryStr = nodeAttributes.get(MachineLearning.MACHINE_MEMORY_NODE_ATTR);
-        long machineMemory = -1;
-        try {
-            machineMemory = Long.parseLong(machineMemoryStr);
-        } catch (NumberFormatException e) {
-            errors.add(MachineLearning.MACHINE_MEMORY_NODE_ATTR + " attribute [" + machineMemoryStr + "] is not a long");
+        OptionalLong maxMlMemory = NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent);
+        if (maxMlMemory.isEmpty()) {
+            errors.add(MachineLearning.MACHINE_MEMORY_NODE_ATTR
+                + " attribute ["
+                + nodeAttributes.get(MachineLearning.MACHINE_MEMORY_NODE_ATTR)
+                + "] is not a long");
         }
-        long maxMlMemory = machineMemory * maxMachineMemoryPercent / 100;
 
-        NodeLoad nodeLoad = new NodeLoad(node.getId(), maxMlMemory, maxNumberOfOpenJobs, isMemoryTrackerRecentlyRefreshed);
+        NodeLoad nodeLoad = new NodeLoad(node.getId(), maxMlMemory.orElse(-1L), maxNumberOfOpenJobs, isMemoryTrackerRecentlyRefreshed);
         if (errors.isEmpty() == false) {
             nodeLoad.error = Strings.collectionToCommaDelimitedString(errors);
             return nodeLoad;

@@ -418,6 +418,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
      * same already-loaded code.
      */
     public static final ByteSizeValue NATIVE_EXECUTABLE_CODE_OVERHEAD = new ByteSizeValue(30, ByteSizeUnit.MB);
+    public static final int DYNAMIC_MEMORY_PERCENT = -1;
     // Values higher than 100% are allowed to accommodate use cases where swapping has been determined to be acceptable.
     // Anomaly detector jobs only use their full model memory during background persistence, and this is deliberately
     // staggered, so with large numbers of jobs few will generally be persisting state at the same time.
@@ -425,7 +426,18 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
     // can handle.
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
-            Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_machine_memory_percent",
+                30,
+                -1,
+                (i) -> {
+                if ((i < 5 && i != DYNAMIC_MEMORY_PERCENT) || i > 200) {
+                    throw new IllegalArgumentException(
+                        "Setting \"xpack.ml.max_machine_memory_percent\" must be between 5 and 200 or set to -1."
+                    );
+                }
+                },
+                Property.Dynamic,
+                Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
             Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 

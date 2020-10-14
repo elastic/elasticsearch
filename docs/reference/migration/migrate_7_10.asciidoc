@@ -85,14 +85,6 @@ indices.
 [[breaking_710_java_changes]]
 ==== Java changes
 
-[discrete]
-==== Machine Learning: `allow_no_jobs` and `allow_no_datafeeds` deprecated in favor of `allow_no_match`
-`allow_no_jobs` and `allow_no_datafeeds` API parameters are deprecated in favor
-of `allow_no_match`. The old parameters are still accepted by the APIs but the
-deprecation warning is emitted if the old parameter name is used in the request
-body or as a request param.
-High-level REST client classes will now send the new `allow_no_match` parameter.
-
 [[supplier-searchlookup-arg]]
 .The `MappedFieldType#fielddataBuilder` method now accepts a `Supplier<SearchLookup>` argument.
 [%collapsible]
@@ -105,6 +97,25 @@ To support future feature development, the existing
 *Impact* +
 If you develop or maintain a mapper plugin, update your implementation of the
 `MappedFieldType#fielddataBuilder` method to accommodate the new signature.
+====
+
+[discrete]
+[[breaking_710_ml_changes]]
+=== Machine learning changes
+
+[[ml-allow-no-deprecations]]
+.The `allow_no_jobs` and `allow_no_datafeeds` API parameters are deprecated.
+[%collapsible]
+====
+*Details* +
+The `allow_no_jobs` and `allow_no_datafeeds` parameters in {ml} APIs are
+deprecated in favor of `allow_no_match`. The old parameters are still accepted
+by the APIs but a deprecation warning is emitted when the old parameter name is
+used in the request body or as a request parameter. High-level REST client
+classes now send the new `allow_no_match` parameter.
+
+*Impact* +
+To avoid deprecation warnings, use the `allow_no_match` parameter.
 ====
 
 [discrete]
@@ -128,7 +139,7 @@ directly on queries instead.
 
 [discrete]
 [[breaking_710_networking_changes]]
-=== Networking Changes
+=== Networking changes
 
 [keep-idle-and-keep-internal-limits]
 .The `*.tcp.keep_idle` and `*.tcp.keep_interval` settings are now limited to `300` seconds.
@@ -149,7 +160,7 @@ seconds in `elasticsearch.yml` will result in an error on startup.
 
 [discrete]
 [[breaking_710_search_changes]]
-=== Search Changes
+=== Search changes
 
 [[max-doc-value-field-search-limits]]
 .The `index.max_docvalue_fields_search` setting now limits doc value fields returned by `inner_hits` or the `top_hits` aggregation.

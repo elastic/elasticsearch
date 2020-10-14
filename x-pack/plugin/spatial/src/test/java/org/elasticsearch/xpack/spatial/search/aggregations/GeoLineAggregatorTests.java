@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.io.IOException;
@@ -49,38 +50,45 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         return Collections.singletonList(new SpatialPlugin());
     }
 
-    public void testSomething() throws IOException {
+
+    public void testAggregator() throws IOException {
+        testAggregator(SortOrder.ASC);
+        testAggregator(SortOrder.DESC);
+    }
+
+    private void testAggregator(SortOrder sortOrder) throws IOException {
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
             .setFieldName("value_field")
             .build();
         MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
         GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name")
             .value(valueConfig)
+            .sortOrder(sortOrder)
             .sort(sortConfig);
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
             .field("group_id")
             .subAggregation(lineAggregationBuilder);
 
-        int numGroups = randomIntBetween(1, 3);
+        int numGroups = randomIntBetween(1, 4);
         Map<String, InternalGeoLine> lines = new HashMap<>(numGroups);
         Map<Integer, long[]> indexedPoints = new HashMap<>(numGroups);
         Map<Integer, double[]> indexedSortValues = new HashMap<>(numGroups);
         for (int groupOrd = 0; groupOrd < numGroups; groupOrd++) {
             int numPoints = randomIntBetween(2, 20000);
-            boolean complete = numPoints <= 10000;
-            int arrayLength = randomIntBetween(numPoints, numPoints);
-            long[] points = new long[arrayLength];
-            double[] sortValues = new double[arrayLength];
+            boolean complete = numPoints < GeoLineAggregator.MAX_PATH_SIZE;
+            long[] points = new long[numPoints];
+            double[] sortValues = new double[numPoints];
             for (int i = 0; i < numPoints; i++) {
                 Point point = GeometryTestUtils.randomPoint(false);
                 int encodedLat = GeoEncodingUtils.encodeLatitude(point.getLat());
                 int encodedLon = GeoEncodingUtils.encodeLongitude(point.getLon());
                 long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
                 points[i] = lonLat;
-                sortValues[i] = i;
+                sortValues[i] = SortOrder.ASC.equals(sortOrder) ? i : numPoints - i;
             }
+            int lineSize = Math.min(numPoints, GeoLineAggregator.MAX_PATH_SIZE);
             lines.put(String.valueOf(groupOrd), new InternalGeoLine("_name",
-                Arrays.copyOf(points, arrayLength), Arrays.copyOf(sortValues, arrayLength), numPoints, null, complete, true));
+                Arrays.copyOf(points, lineSize), Arrays.copyOf(sortValues, lineSize), null, complete, true, sortOrder));
 
             for (int i = 0; i < randomIntBetween(1, numPoints); i++) {
                 int idx1 = randomIntBetween(0, numPoints - 1);
@@ -114,10 +122,14 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         }, terms -> {
             for (Terms.Bucket bucket : terms.getBuckets()) {
                 InternalGeoLine expectedGeoLine = lines.get(bucket.getKeyAsString());
-                assertThat(bucket.getDocCount(), equalTo((long) expectedGeoLine.length()));
                 InternalGeoLine geoLine = bucket.getAggregations().get("_name");
+                assertThat(geoLine.length(), equalTo(expectedGeoLine.length()));
                 assertThat(geoLine.isComplete(), equalTo(expectedGeoLine.isComplete()));
-                //assertArrayEquals(expectedGeoLine.line(), geoLine.line());
+                for (int i = 0; i < geoLine.sortVals().length; i++) {
+                    geoLine.sortVals()[i] = NumericUtils.sortableLongToDouble((long) geoLine.sortVals()[i]);
+                }
+                assertArrayEquals(expectedGeoLine.sortVals(), geoLine.sortVals(), 0.0001);
+                assertArrayEquals(expectedGeoLine.line(), geoLine.line());
             }
         });
     }

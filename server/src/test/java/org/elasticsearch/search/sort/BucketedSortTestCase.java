@@ -212,7 +212,7 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
             assertThat(sort.getValues(0, extra.valueBuilder()), contains(extraValue(3000, 3), extraValue(200, 2)));
         }
     }
-    
+
     public void testTwoHitsAsc() throws IOException {
         try (T sort = build(SortOrder.ASC, 2, new double[] {1, 2, 3})) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);

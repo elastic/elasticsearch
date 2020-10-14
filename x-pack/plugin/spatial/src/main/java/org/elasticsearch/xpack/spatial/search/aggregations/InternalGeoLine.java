@@ -5,42 +5,41 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A single line string representing a sorted sequence of geo-points
  */
 public class InternalGeoLine extends InternalAggregation {
-    private static final Logger logger = LogManager.getLogger(InternalGeoLine.class);
     private static final double SCALE = Math.pow(10, 6);
 
     private long[] line;
     private double[] sortVals;
-    private int length;
     private boolean complete;
     private boolean includeSorts;
+    private SortOrder sortOrder;
 
-    InternalGeoLine(String name, long[] line, double[] sortVals, int length, Map<String, Object> metadata, boolean complete,
-                    boolean includeSorts) {
+    InternalGeoLine(String name, long[] line, double[] sortVals, Map<String, Object> metadata, boolean complete,
+                    boolean includeSorts, SortOrder sortOrder) {
         super(name, metadata);
         this.line = line;
         this.sortVals = sortVals;
-        this.length = length;
         this.complete = complete;
         this.includeSorts = includeSorts;
+        this.sortOrder = sortOrder;
     }
 
     /**
@@ -49,17 +48,19 @@ public class InternalGeoLine extends InternalAggregation {
     public InternalGeoLine(StreamInput in) throws IOException {
         super(in);
         this.line = in.readLongArray();
-        this.length = in.readVInt();
+        this.sortVals = in.readDoubleArray();
         this.complete = in.readBoolean();
         this.includeSorts = in.readBoolean();
+        this.sortOrder = SortOrder.readFromStream(in);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeLongArray(line);
-        out.writeVInt(length);
+        out.writeDoubleArray(sortVals);
         out.writeBoolean(complete);
         out.writeBoolean(includeSorts);
+        sortOrder.writeTo(out);
     }
 
     @Override
@@ -69,29 +70,34 @@ public class InternalGeoLine extends InternalAggregation {
         boolean includeSorts = true;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
-            mergedSize += geoLine.length;
+            mergedSize += geoLine.line.length;
             complete &= geoLine.complete;
             includeSorts &= geoLine.includeSorts;
         }
 
-        complete &= mergedSize <= 10000;
+        complete &= mergedSize <= GeoLineAggregator.MAX_PATH_SIZE;
 
         long[] finalList = new long[mergedSize];
         double[] finalSortVals = new double[mergedSize];
         int idx = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
-            for (int i = 0; i < geoLine.length; i++) {
+            for (int i = 0; i < geoLine.line.length; i++) {
                 finalSortVals[idx] = geoLine.sortVals[i];
                 finalList[idx] = geoLine.line[i];
                 idx += 1;
             }
         }
 
-        new PathArraySorter(finalList, finalSortVals, mergedSize).sort();
-        long[] finalCappedList = Arrays.copyOf(finalList, Math.min(10000, mergedSize));
-        double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(10000, mergedSize));
-        return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, mergedSize, getMetadata(), complete, includeSorts);
+        new PathArraySorter(finalList, finalSortVals, sortOrder).sort();
+        long[] finalCappedList = Arrays.copyOf(finalList, Math.min(GeoLineAggregator.MAX_PATH_SIZE, mergedSize));
+        double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(GeoLineAggregator.MAX_PATH_SIZE, mergedSize));
+        return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, getMetadata(), complete, includeSorts, sortOrder);
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
     }
 
     @Override
@@ -103,18 +109,30 @@ public class InternalGeoLine extends InternalAggregation {
         return line;
     }
 
+    public double[] sortVals() {
+        return sortVals;
+    }
+
     public int length() {
-        return length;
+        return line.length;
     }
 
     public boolean isComplete() {
         return complete;
     }
 
+    public boolean includeSorts() {
+        return includeSorts;
+    }
+
+    public SortOrder sortOrder() {
+        return sortOrder;
+    }
+
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final List<double[]> coordinates = new ArrayList<>();
-        for (int i = 0; i < length; i++) {
+        for (int i = 0; i < line.length; i++) {
             int x = (int) (line[i] >> 32);
             int y = (int) line[i];
             coordinates.add(new double[] {
@@ -142,13 +160,7 @@ public class InternalGeoLine extends InternalAggregation {
     }
 
     @Override
-    public String toString() {
-        return Strings.toString(this);
-    }
-
-    @Override
     public Object getProperty(List<String> path) {
-        logger.error("what in the world");
         if (path.isEmpty()) {
             return this;
         } else if (path.size() == 1 && "value".equals(path.get(0))) {
@@ -156,5 +168,31 @@ public class InternalGeoLine extends InternalAggregation {
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), Arrays.hashCode(line), Arrays.hashCode(sortVals), complete, includeSorts, sortOrder);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
+        InternalGeoLine that = (InternalGeoLine) obj;
+        return super.equals(obj)
+            && Arrays.equals(line, that.line)
+            && Arrays.equals(sortVals, that.sortVals)
+            && Objects.equals(complete, that.complete)
+            && Objects.equals(includeSorts, that.includeSorts)
+            && Objects.equals(sortOrder, that.sortOrder);
+
     }
 }

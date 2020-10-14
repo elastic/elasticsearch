@@ -5,16 +5,17 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,21 +23,23 @@ import java.util.Map;
 final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     private boolean includeSort;
+    private SortOrder sortOrder;
 
     GeoLineAggregatorFactory(String name,
                              Map<String, ValuesSourceConfig> configs,
-                             DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
+                             DocValueFormat format, AggregationContext aggregationContext, AggregatorFactory parent,
                              AggregatorFactories.Builder subFactoriesBuilder,
-                             Map<String, Object> metaData, boolean includeSort) throws IOException {
-        super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
+                             Map<String, Object> metaData, boolean includeSort, SortOrder sortOrder) throws IOException {
+        super(name, configs, format, aggregationContext, parent, subFactoriesBuilder, metaData);
         this.includeSort = includeSort;
+        this.sortOrder = sortOrder;
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
                                         Map<String, Object> metaData) throws IOException {
-        return new GeoLineAggregator(name, null, searchContext, parent, metaData, includeSort);
+        return new GeoLineAggregator(name, null, searchContext, parent, metaData, includeSort, sortOrder);
     }
 
     @Override
@@ -48,11 +51,11 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
                                           Map<String, Object> metaData) throws IOException {
         MultiValuesSource.AnyMultiValuesSource valuesSources =
             new MultiValuesSource.AnyMultiValuesSource(configs, searchContext.getQueryShardContext());
-        return new GeoLineAggregator(name, valuesSources, searchContext, parent, metaData, includeSort);
+        return new GeoLineAggregator(name, valuesSources, searchContext, parent, metaData, includeSort, sortOrder);
     }
 
     @Override
     public String getStatsSubtype() {
-        return configs.get(GeoLineAggregationBuilder.GEO_POINT_FIELD.getPreferredName()).valueSourceType().typeName();
+        return configs.get(GeoLineAggregationBuilder.POINT_FIELD.getPreferredName()).valueSourceType().typeName();
     }
 }

@@ -5,30 +5,20 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.GEO_POINT_FIELD;
-import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.SORT_FIELD;
 
 /**
  * Metric Aggregation for joining sorted geo_point values into a single path
@@ -36,27 +26,26 @@ import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggrega
 final class GeoLineAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
     private final MultiValuesSource.AnyMultiValuesSource valuesSources;
-    private static final int PATH_ARRAY_SIZE = 10000;
+    static final int MAX_PATH_SIZE = 10000;
 
-    private ObjectArray<long[]> paths;
-    private ObjectArray<double[]> sortValues;
-    private IntArray idxs;
+    private final GeoLineBucketedSort sort;
+    private final GeoLineBucketedSort.Extra extra;
     private final boolean includeSorts;
+    private final SortOrder sortOrder;
 
     GeoLineAggregator(String name, MultiValuesSource.AnyMultiValuesSource valuesSources, SearchContext context,
-                      Aggregator parent, Map<String,Object> metaData, boolean includeSorts) throws IOException {
+                      Aggregator parent, Map<String,Object> metaData, boolean includeSorts, SortOrder sortOrder) throws IOException {
         super(name, context, parent, metaData);
         this.valuesSources = valuesSources;
         if (valuesSources != null) {
-            paths = context.bigArrays().newObjectArray(1);
-            sortValues = context.bigArrays().newObjectArray(1);
-            idxs = context.bigArrays().newIntArray(1);
+            this.extra = new GeoLineBucketedSort.Extra(context.bigArrays(), valuesSources);
+            this.sort = new GeoLineBucketedSort(context.bigArrays(), sortOrder, null, MAX_PATH_SIZE, valuesSources, extra);
         } else {
-            paths = null;
-            sortValues = null;
-            idxs = null;
+            this.extra = null;
+            this.sort = null;
         }
         this.includeSorts = includeSorts;
+        this.sortOrder = sortOrder;
     }
 
     @Override
@@ -73,58 +62,12 @@ final class GeoLineAggregator extends MetricsAggregator {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
-        MultiGeoPointValues docGeoPointValues = valuesSources.getGeoPointField(GEO_POINT_FIELD.getPreferredName(), ctx);
-        SortedNumericDoubleValues docSortValues = valuesSources.getNumericField(SORT_FIELD.getPreferredName(), ctx);
+        BucketedSort.Leaf leafSort = sort.forLeaf(ctx);
 
-        return new LeafBucketCollectorBase(sub, docGeoPointValues) {
+        return new LeafBucketCollector(){
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                paths = bigArrays.grow(paths, bucket + 1);
-                sortValues = bigArrays.grow(sortValues, bucket + 1);
-                idxs = bigArrays.grow(idxs, bucket + 1);
-                if (docGeoPointValues.advanceExact(doc) && docSortValues.advanceExact(doc)) {
-                    if (docSortValues.docValueCount() > 1) {
-                        throw new AggregationExecutionException("Encountered more than one sort value for a " +
-                            "single document. Use a script to combine multiple sort-values-per-doc into a single value.");
-                    }
-                    if (docGeoPointValues.docValueCount() > 1) {
-                        throw new AggregationExecutionException("Encountered more than one geo_point value for a " +
-                            "single document. Use a script to combine multiple geo_point-values-per-doc into a single value.");
-                    }
-
-                    // There should always be one weight if advanceExact lands us here, either
-                    // a real weight or a `missing` weight
-                    assert docSortValues.docValueCount() == 1;
-                    assert docGeoPointValues.docValueCount() == 1;
-                    final double sort = docSortValues.nextValue();
-                    final GeoPoint point = docGeoPointValues.nextValue();
-
-                    int idx = idxs.get(bucket);
-                    long[] bucketLine = paths.get(bucket);
-                    double[] sortVals = sortValues.get(bucket);
-                    if (bucketLine == null) {
-                        bucketLine = new long[PATH_ARRAY_SIZE];
-                        addRequestCircuitBreakerBytes(Long.BYTES * PATH_ARRAY_SIZE);
-                    }
-                    if (sortVals == null) {
-                        sortVals = new double[PATH_ARRAY_SIZE];
-                        addRequestCircuitBreakerBytes(Long.BYTES * PATH_ARRAY_SIZE);
-                    }
-
-                    int encodedLat = GeoEncodingUtils.encodeLatitude(point.lat());
-                    int encodedLon = GeoEncodingUtils.encodeLongitude(point.lon());
-                    long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
-
-                    if (idx < PATH_ARRAY_SIZE) {
-                        sortVals[idx] = sort;
-                        bucketLine[idx] = lonLat;
-
-                        paths.set(bucket, bucketLine);
-                        sortValues.set(bucket, sortVals);
-                    }
-                    idxs.set(bucket, idx + 1);
-                }
+                leafSort.collect(doc, bucket);
             }
         };
     }
@@ -134,20 +77,20 @@ final class GeoLineAggregator extends MetricsAggregator {
         if (valuesSources == null) {
             return buildEmptyAggregation();
         }
-        long[] bucketLine = paths.get(bucket);
-        double[] sortVals = sortValues.get(bucket);
-        int length = Math.min(10000, idxs.get(bucket));
-        new PathArraySorter(bucketLine, sortVals, length).sort();
-        return new InternalGeoLine(name, bucketLine, sortVals, length, metadata(), idxs.get(bucket) < 10000, includeSorts);
+        boolean complete = sort.inHeapMode(bucket) == false;
+        double[] sortVals = sort.getSortValues(bucket);
+        long[] bucketLine = sort.getPoints(bucket);
+        new PathArraySorter(bucketLine, sortVals, sortOrder).sort();
+        return new InternalGeoLine(name, bucketLine, sortVals, metadata(), complete, includeSorts, sortOrder);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoLine(name, null, null, 0, metadata(), true, includeSorts);
+        return new InternalGeoLine(name, null, null, metadata(), true, includeSorts, sortOrder);
     }
 
     @Override
     public void doClose() {
-        Releasables.close(paths, idxs, sortValues);
+        Releasables.close(sort, extra);
     }
 }

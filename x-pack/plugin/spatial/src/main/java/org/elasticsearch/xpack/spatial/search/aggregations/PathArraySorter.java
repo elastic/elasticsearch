@@ -6,23 +6,25 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.search.sort.SortOrder;
 
 final class PathArraySorter extends IntroSorter {
 
     private final long[] points;
     private final double[] sortValues;
     private double sortValuePivot;
-    private int length;
+    private final SortOrder sortOrder;
 
-    PathArraySorter(long[] points, double[] sortValues, int length) {
+    PathArraySorter(long[] points, double[] sortValues, SortOrder sortOrder) {
+        assert points.length == sortValues.length;
         this.points = points;
         this.sortValues = sortValues;
         this.sortValuePivot = 0;
-        this.length = length;
+        this.sortOrder = sortOrder;
     }
 
     public void sort() {
-        sort(0, length);
+        sort(0, points.length);
     }
 
     @Override
@@ -42,6 +44,9 @@ final class PathArraySorter extends IntroSorter {
 
     @Override
     protected int comparePivot(int j) {
-        return Double.compare(sortValuePivot, sortValues[j]);
+        if (SortOrder.ASC.equals(sortOrder)) {
+            return Double.compare(sortValuePivot, sortValues[j]);
+        }
+        return Double.compare(sortValues[j], sortValuePivot);
     }
 }

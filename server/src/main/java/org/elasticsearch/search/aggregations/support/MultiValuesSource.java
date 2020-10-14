@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.io.IOException;

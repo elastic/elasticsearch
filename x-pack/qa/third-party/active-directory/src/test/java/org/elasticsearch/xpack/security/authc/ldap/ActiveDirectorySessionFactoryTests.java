@@ -390,14 +390,14 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
-            String userName = "ironman";
+            String userName = "hulk";
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 resolver.resolve(ldap.getConnection(), BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, null, future);
-                Map<String, Object> metadata_groupSIDs = future.get();
-                assertThat(metadata_groupSIDs.size(), equalTo(1));
-                assertNotNull(metadata_groupSIDs.get("tokenGroups"));
-                List<String> SIDs = ((List<String>) metadata_groupSIDs.get("tokenGroups"));
+                Map<String, Object> metadataGroupSIDs = future.get();
+                assertThat(metadataGroupSIDs.size(), equalTo(1));
+                assertNotNull(metadataGroupSIDs.get("tokenGroups"));
+                List<String> SIDs = ((List<String>) metadataGroupSIDs.get("tokenGroups"));
                 assertThat(SIDs.size(), equalTo(7));
                 assertThat(SIDs, everyItem(matchesPattern("S-1-5-(?:21|32)-\\d+(?:-\\d+\\-\\d+\\-\\d+)?")));
             }

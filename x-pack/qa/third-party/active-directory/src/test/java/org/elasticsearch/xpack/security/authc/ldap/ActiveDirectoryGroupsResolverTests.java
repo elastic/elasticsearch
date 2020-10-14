@@ -23,7 +23,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
-
 public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
     private static final String BRUCE_BANNER_DN =

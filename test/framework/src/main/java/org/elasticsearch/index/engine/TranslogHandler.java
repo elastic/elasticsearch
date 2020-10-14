@@ -71,7 +71,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
     private DocumentMapperForType docMapper(String type) {
         RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
         DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
-        return new DocumentMapperForType(b.build(mapperService), null);
+        return new DocumentMapperForType(b.build(mapperService.getIndexSettings(), mapperService.documentMapperParser(),
+            mapperService.getIndexAnalyzers()), null);
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {

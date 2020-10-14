@@ -56,7 +56,7 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         private final BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
         private final GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
         private final GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
-        private final Mapper.Builder<?> stringBuilder;
+        private final Mapper.Builder stringBuilder;
         private final String generatedValue;
         private final String mapperName;
 

@@ -280,6 +280,18 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
+    public void resolveAsMergedMapping(String indexWildcard, String javaRegex, IndicesOptions indicesOptions, QueryBuilder filter,
+            ActionListener<IndexResolution> listener) {
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions, filter);
+        client.fieldCaps(fieldRequest,
+                ActionListener.wrap(
+                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get())),
+                        listener::onFailure));
+    }
+
+    /**
+     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
+     */
     public void resolveAsMergedMapping(String indexWildcard, String javaRegex, boolean includeFrozen, QueryBuilder filter,
             ActionListener<IndexResolution> listener) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, filter);
@@ -458,7 +470,7 @@ public class IndexResolver {
         return new EsField(fieldName, esType, props, isAggregateable, isAlias);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen, QueryBuilder filter) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, IndicesOptions indicesOptions, QueryBuilder filter) {
         return new FieldCapabilitiesRequest()
                 .indices(Strings.commaDelimitedListToStringArray(index))
                 .fields("*")
@@ -466,7 +478,12 @@ public class IndexResolver {
                 .indexFilter(filter)
                 //lenient because we throw our own errors looking at the response e.g. if something was not resolved
                 //also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
-                .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
+                .indicesOptions(indicesOptions);
+    }
+
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen, QueryBuilder filter) {
+        IndicesOptions indicesOptions = includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
+        return createFieldCapsRequest(index, indicesOptions, filter);
     }
 
     /**

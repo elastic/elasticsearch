@@ -68,7 +68,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     public void testDatePrepareRoundingWithQuery() throws IOException {
-        long min = randomLongBetween(0, 1000000);
+        long min = randomLongBetween(100000, 1000000);   // The minimum has to be fairly large or we might accidentally think its a year....
         long max = randomLongBetween(min + 10, 100000000000L);
         MapperService mapperService = dateMapperService();
         Query query = mapperService.fieldType("field")
@@ -81,7 +81,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     public void testDatePrepareRoundingWithDocAndQuery() throws IOException {
-        long min = randomLongBetween(0, 1000000);
+        long min = randomLongBetween(100000, 1000000); // The minimum has to be fairly large or we might accidentally think its a year....
         long minQuery, minDocs;
         if (randomBoolean()) {
             minQuery = min;

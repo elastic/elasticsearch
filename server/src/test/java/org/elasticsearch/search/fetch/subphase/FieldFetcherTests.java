@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 
@@ -358,6 +359,34 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "object");
         assertFalse(fields.containsKey("object"));
+    }
+
+    public void testTextSubFields() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("field")
+                    .field("type", "text")
+                    .startObject("index_prefixes").endObject()
+                    .field("index_phrases", true)
+                .endObject()
+            .endObject()
+        .endObject();
+
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
+        MapperService mapperService = indexService.mapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .array("field", "some text")
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(3));
+        assertThat(fields.keySet(), containsInAnyOrder("field", "field._index_prefix", "field._index_phrase"));
+
+        for (DocumentField field : fields.values()) {
+            assertThat(field.getValues().size(), equalTo(1));
+            assertThat(field.getValue(), equalTo("some text"));
+        }
     }
 
     private Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)

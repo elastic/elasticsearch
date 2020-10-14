@@ -37,6 +37,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class BitArrayTests extends ESTestCase {
+
     public void testRandom() {
         try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
             int numBits = randomIntBetween(1000, 10000);
@@ -161,6 +162,24 @@ public class BitArrayTests extends ESTestCase {
                         assertEquals(false, bitArray.get(i));
                     }
                 }
+            }
+        }
+    }
+
+    public void testCardinality() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int numBits = randomIntBetween(1000, 10000);
+            long cardinality = 0;
+            for (int step = 0; step < 3; step++) {
+                for (int i = 0; i < numBits; i++) {
+                    if (randomBoolean()) {
+                        if (bitArray.get(i) == false) {
+                            cardinality++;
+                        }
+                        bitArray.set(i);
+                    }
+                }
+                assertEquals(cardinality, bitArray.cardinality());
             }
         }
     }

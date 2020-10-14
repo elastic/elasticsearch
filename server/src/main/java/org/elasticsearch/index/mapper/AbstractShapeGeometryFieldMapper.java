@@ -153,12 +153,12 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         }
     }
 
-    public abstract static class AbstractShapeGeometryFieldType<Parsed, Processed> extends AbstractGeometryFieldType<Parsed, Processed> {
+    public abstract static class AbstractShapeGeometryFieldType extends AbstractGeometryFieldType {
         protected Orientation orientation = Defaults.ORIENTATION.value();
 
         protected AbstractShapeGeometryFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                                 boolean parsesArrayValue, Map<String, String> meta) {
-            super(name, isSearchable, isStored, hasDocValues, parsesArrayValue, meta);
+                                                 boolean parsesArrayValue, Parser<?> parser, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, parsesArrayValue, parser, meta);
         }
 
         public Orientation orientation() { return this.orientation; }
@@ -174,8 +174,9 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     protected AbstractShapeGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                                Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
-                                               MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo);
+                                               MultiFields multiFields, CopyTo copyTo,
+                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
         this.coerce = coerce;
         this.orientation = orientation;
     }
@@ -186,9 +187,10 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected final void mergeOptions(FieldMapper other, List<String> conflicts) {
         super.mergeOptions(other, conflicts);
-        AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)other;
+        AbstractShapeGeometryFieldMapper<Parsed, Processed> gsfm = (AbstractShapeGeometryFieldMapper<Parsed, Processed>)other;
         if (gsfm.coerce.explicit()) {
             this.coerce = gsfm.coerce;
         }
@@ -203,7 +205,6 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        AbstractShapeGeometryFieldType ft = (AbstractShapeGeometryFieldType)fieldType();
         if (includeDefaults || coerce.explicit()) {
             builder.field(AbstractShapeGeometryFieldMapper.Names.COERCE.getPreferredName(), coerce.value());
         }

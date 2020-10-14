@@ -114,18 +114,19 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
     ParsedPoint nullValue;
 
-    public abstract static class AbstractPointGeometryFieldType<Parsed, Processed>
-            extends AbstractGeometryFieldType<Parsed, Processed> {
+    public abstract static class AbstractPointGeometryFieldType
+        extends AbstractGeometryFieldType {
         protected AbstractPointGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                                                 Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, true, meta);
+                                                 Parser<?> parser, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, true, parser, meta);
         }
     }
 
     protected AbstractPointGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                                MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                               Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo);
+                                               Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo,
+                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
         this.nullValue = nullValue;
     }
 
@@ -135,9 +136,10 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         super.mergeOptions(other, conflicts);
-        AbstractPointGeometryFieldMapper gpfm = (AbstractPointGeometryFieldMapper)other;
+        AbstractPointGeometryFieldMapper<Parsed, Processed> gpfm = (AbstractPointGeometryFieldMapper<Parsed, Processed>)other;
         // TODO make this un-updateable
         if (gpfm.nullValue != null) {
             this.nullValue = gpfm.nullValue;

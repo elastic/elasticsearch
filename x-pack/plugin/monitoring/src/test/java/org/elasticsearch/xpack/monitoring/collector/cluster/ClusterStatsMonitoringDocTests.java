@@ -45,6 +45,7 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -256,7 +257,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
         final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", Version.CURRENT,
-            "1.8", "_plugin_class", Collections.emptyList(), false);
+            "1.8", "_plugin_class", Collections.emptyList(), false, PluginType.ISOLATED, "");
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);

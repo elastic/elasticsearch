@@ -366,7 +366,6 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
                 .endObject()
             .endObject()
         .endObject());
-        MapperService mapperService = indexService.mapperService();
         DocumentMapper newMapper = mapper.merge(
             parser.parse("type", new CompressedXContent(newMapping)).mapping(), MergeReason.MAPPING_UPDATE);
 
@@ -429,7 +428,6 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
                 .endObject()
             .endObject()
         .endObject());
-        MapperService mapperService = indexService.mapperService();
         DocumentMapper newMapper = mapper.merge(
             parser.parse("type", new CompressedXContent(newMapping)).mapping(), MergeReason.MAPPING_UPDATE);
 

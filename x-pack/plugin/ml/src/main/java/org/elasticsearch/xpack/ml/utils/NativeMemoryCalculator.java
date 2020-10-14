@@ -16,30 +16,39 @@ import java.util.OptionalLong;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.DYNAMIC_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_JVM_SIZE_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 
 public final class NativeMemoryCalculator {
 
-    private static final long JVM_SIZE = Runtime.getRuntime().maxMemory();
     private static final long OS_OVERHEAD = new ByteSizeValue(200, ByteSizeUnit.MB).getBytes();
 
     private NativeMemoryCalculator() {
     }
 
     public static OptionalLong allowedBytesForMl(DiscoveryNode node, Settings settings) {
-        return allowedBytesForMl(node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR), MAX_MACHINE_MEMORY_PERCENT.get(settings));
+        return allowedBytesForMl(
+            node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
+            node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
+            MAX_MACHINE_MEMORY_PERCENT.get(settings));
     }
 
     public static OptionalLong allowedBytesForMl(DiscoveryNode node, ClusterSettings settings) {
-        return allowedBytesForMl(node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR), settings.get(MAX_MACHINE_MEMORY_PERCENT));
+        return allowedBytesForMl(
+            node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
+            node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
+            settings.get(MAX_MACHINE_MEMORY_PERCENT));
     }
 
     public static OptionalLong allowedBytesForMl(DiscoveryNode node, int maxMemoryPercent) {
-        return allowedBytesForMl(node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR), maxMemoryPercent);
+        return allowedBytesForMl(
+            node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
+            node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
+            maxMemoryPercent);
     }
 
-    private static OptionalLong allowedBytesForMl(String nodeBytes, int maxMemoryPercent) {
-        if (nodeBytes == null) {
+    private static OptionalLong allowedBytesForMl(String nodeBytes, String jvmBytes, int maxMemoryPercent) {
+        if (nodeBytes == null || jvmBytes == null) {
             return OptionalLong.empty();
         }
         final long machineMemory;
@@ -48,10 +57,16 @@ public final class NativeMemoryCalculator {
         } catch (NumberFormatException e) {
             return OptionalLong.empty();
         }
-        return OptionalLong.of(allowedBytesForMl(machineMemory, maxMemoryPercent));
+        final long jvmMemory;
+        try {
+            jvmMemory = Long.parseLong(jvmBytes);
+        } catch (NumberFormatException e) {
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(allowedBytesForMl(machineMemory, jvmMemory, maxMemoryPercent));
     }
 
-    public static long allowedBytesForMl(long machineMemory, int maxMemoryPercent) {
+    public static long allowedBytesForMl(long machineMemory, long jvmSize, int maxMemoryPercent) {
         if (maxMemoryPercent == DYNAMIC_MEMORY_PERCENT) {
             // This calculation is dynamic and designed to maximally take advantage of the underlying machine for machine learning
             // We only allow 200MB for the Operating system itself and take up to 90% of the underlying native memory left
@@ -60,11 +75,34 @@ public final class NativeMemoryCalculator {
             // 2GB node -> 66%
             // 16GB node -> 87%
             // 64GB node -> 90%
-            long memoryPercent = Math.min(90, (int)Math.ceil(((machineMemory - JVM_SIZE - OS_OVERHEAD) / (double)machineMemory) * 100.0D));
+            long memoryPercent = Math.min(90, (int)Math.ceil(((machineMemory - jvmSize - OS_OVERHEAD) / (double)machineMemory) * 100.0D));
             return machineMemory * memoryPercent / 100;
         }
 
         return machineMemory * maxMemoryPercent / 100;
+    }
+
+    public static long allowedBytesForMl(long machineMemory, int maxMemoryPercent) {
+        return allowedBytesForMl(machineMemory,
+            maxMemoryPercent == DYNAMIC_MEMORY_PERCENT ? dynamicallyCalculateJvm(machineMemory) : machineMemory / 2,
+            maxMemoryPercent);
+    }
+
+    // TODO how can we make this better???
+    private static long dynamicallyCalculateJvm(long nodeSize) {
+        if (nodeSize < new ByteSizeValue(2, ByteSizeUnit.GB).getBytes()) {
+            return (long)(nodeSize * 0.40);
+        }
+        if (nodeSize < new ByteSizeValue(8, ByteSizeUnit.GB).getBytes()) {
+            return (long) (nodeSize * 0.25);
+        }
+        return new ByteSizeValue(2, ByteSizeUnit.GB).getBytes();
+    }
+
+    // TODO
+    // How can we determine the accurate node size needed knowing the required memory for the job?
+    public static long requiredNodeSize(long requiredModelMemory, long jvmSize, int maxMemoryPercent) {
+        return 0L;
     }
 
 }

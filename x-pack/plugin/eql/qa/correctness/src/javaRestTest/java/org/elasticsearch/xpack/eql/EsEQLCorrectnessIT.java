@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.eql;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -22,6 +24,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -45,9 +48,11 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     private static final String QUERIES_FILENAME = "queries.toml";
     private static final String PROPERTIES_FILENAME = "config.properties";
 
-    private static RestHighLevelClient highLevelClient;
     private static Properties CFG;
+    private static RestHighLevelClient highLevelClient;
     private static RequestOptions COMMON_REQUEST_OPTIONS;
+
+    private final Logger logger = LogManager.getLogger(getClass());
 
     @BeforeClass
     public static void init() throws IOException {
@@ -124,7 +129,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         return builder.build();
     }
 
-    private EqlSpec spec;
+    private final EqlSpec spec;
 
     public EsEQLCorrectnessIT(EqlSpec spec) {
         this.spec = spec;
@@ -153,26 +158,35 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         return params;
     }
 
+    // To enable test of subqueries (filtering) results: -Dtests.eql_correctness_debug=true
+    // FIXME: -Dtests.heap.size=8g check is currently required to be able to restore the index
+    @TestLogging(value = "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT:DEBUG", reason = "Test subqueries and log total time")
     public void test() throws Exception {
+        boolean debugMode = Boolean.parseBoolean(System.getProperty("tests.eql_correctness_debug", "false"));
         long totalTime = 0;
         int queryNo = spec.queryNo();
-        /* For debugging
-        for (int i = 0; i < spec.filters().length; i++) {
-            String filterQuery = spec.filters()[i];
-            EqlSearchRequest eqlSearchRequest = new EqlSearchRequest(INDEX_NAME, filterQuery);
-            eqlSearchRequest.eventCategoryField("event_type");
-            eqlSearchRequest.size(100000);
-            EqlSearchResponse response = client.eql().search(eqlSearchRequest, commonRequestOptions);
-            assertEquals("Failed to match filter counts for query No: " + queryNo + " filterCount: " + i,
-                    spec.filterCounts()[i], response.hits().events().size());
-        } */
+
+        if (debugMode) {
+            for (int i = 0; i < spec.filters().length; i++) {
+                String filterQuery = spec.filters()[i];
+                EqlSearchRequest eqlSearchRequest = new EqlSearchRequest(CFG.getProperty("index_name"), filterQuery);
+                eqlSearchRequest.eventCategoryField("event_type");
+                eqlSearchRequest.size(100000);
+                EqlSearchResponse response = highLevelClient().eql().search(eqlSearchRequest, COMMON_REQUEST_OPTIONS);
+                assertEquals(
+                    "Failed to match filter counts for query No: " + queryNo + " filterCount: " + i,
+                    spec.filterCounts()[i],
+                    response.hits().events().size()
+                );
+            }
+        }
 
         EqlSearchRequest eqlSearchRequest = new EqlSearchRequest(CFG.getProperty("index_name"), spec.query());
         eqlSearchRequest.eventCategoryField("event_type");
         eqlSearchRequest.tiebreakerField("serial_id");
         eqlSearchRequest.size(Integer.parseInt(CFG.getProperty("size")));
         eqlSearchRequest.fetchSize(Integer.parseInt(CFG.getProperty("fetch_size")));
-        EqlSearchResponse response = highLevelClient.eql().search(eqlSearchRequest, RequestOptions.DEFAULT);
+        EqlSearchResponse response = highLevelClient().eql().search(eqlSearchRequest, RequestOptions.DEFAULT);
         totalTime += response.took();
         assertEquals(
             "Failed to match sequence count for query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
@@ -189,6 +203,9 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
                 );
             }
         }
-        // System.out.println("Total time: " + totalTime + "ms");
+
+        if (debugMode) {
+            logger.error("Total time: {} ms", totalTime);
+        }
     }
 }

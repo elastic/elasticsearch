@@ -112,15 +112,13 @@ public class DocumentMapper implements ToXContentFragment {
 
     private final String type;
     private final Text typeText;
-
     private final CompressedXContent mappingSource;
-
     private final Mapping mapping;
-
     private final DocumentParser documentParser;
-
     private final MappingLookup fieldMappers;
-
+    private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
+    private final DocumentMapperParser documentMapperParser;
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
@@ -131,6 +129,9 @@ public class DocumentMapper implements ToXContentFragment {
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
         this.mapping = mapping;
+        this.documentMapperParser = documentMapperParser;
+        this.indexSettings = indexSettings;
+        this.indexAnalyzers = indexAnalyzers;
         this.documentParser = new DocumentParser(indexSettings, documentMapperParser, this);
         this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
 
@@ -264,13 +265,9 @@ public class DocumentMapper implements ToXContentFragment {
         return nestedObjectMapper;
     }
 
-    public DocumentMapper merge(Mapping mapping,
-                                MergeReason reason,
-                                IndexSettings indexSettings,
-                                DocumentMapperParser documentMapperParser,
-                                IndexAnalyzers indexAnalyzers) {
+    public DocumentMapper merge(Mapping mapping, MergeReason reason) {
         Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(indexSettings, documentMapperParser, indexAnalyzers, merged);
+        return new DocumentMapper(this.indexSettings, this.documentMapperParser, this.indexAnalyzers, merged);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

@@ -256,8 +256,7 @@ public class MetadataMappingService {
                 DocumentMapper newMapper = mapperService.parse(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
                 if (existingMapper != null) {
                     // first, simulate: just call merge and ignore the result
-                    existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE, mapperService.getIndexSettings(),
-                        mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+                    existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE);
                 }
             }
             Metadata.Builder builder = Metadata.builder(metadata);

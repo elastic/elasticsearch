@@ -83,12 +83,10 @@ public class MapperTestUtils {
                                        String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
         if (conflicts.length == 0) {
-            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE,
-                mapperService.getIndexSettings(), mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);
         } else {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE,
-                    mapperService.getIndexSettings(), mapperService.documentMapperParser(), mapperService.getIndexAnalyzers()));
+                () -> docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE));
             for (String conflict : conflicts) {
                 assertThat(e.getMessage(), containsString(conflict));
             }

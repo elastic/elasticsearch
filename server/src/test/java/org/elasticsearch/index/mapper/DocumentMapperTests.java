@@ -61,8 +61,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }));
 
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        DocumentMapper merged = stage1.merge(stage2.mapping(), reason, mapperService.getIndexSettings(),
-            mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+        DocumentMapper merged = stage1.merge(stage2.mapping(), reason);
 
         // stage1 mapping should not have been modified
         assertThat(stage1.mappers().getMapper("age"), nullValue());
@@ -80,8 +79,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         DocumentMapper withDynamicMapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
         assertThat(withDynamicMapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
-        DocumentMapper merged = mapper.merge(withDynamicMapper.mapping(), MergeReason.MAPPING_UPDATE, mapperService.getIndexSettings(),
-            mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+        DocumentMapper merged = mapper.merge(withDynamicMapper.mapping(), MergeReason.MAPPING_UPDATE);
         assertThat(merged.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
     }
 
@@ -93,14 +91,12 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> objectMapper.merge(nestedMapper.mapping(), reason, mapperService.getIndexSettings(),
-                    mapperService.documentMapperParser(), mapperService.getIndexAnalyzers()));
+                () -> objectMapper.merge(nestedMapper.mapping(), reason));
             assertThat(e.getMessage(), containsString("cannot change object mapping from non-nested to nested"));
         }
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> nestedMapper.merge(objectMapper.mapping(), reason, mapperService.getIndexSettings(),
-                    mapperService.documentMapperParser(), mapperService.getIndexAnalyzers()));
+                () -> nestedMapper.merge(objectMapper.mapping(), reason));
             assertThat(e.getMessage(), containsString("cannot change object mapping from nested to non-nested"));
         }
     }
@@ -236,14 +232,12 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
 
-        DocumentMapper mergedMapper = initMapper.merge(updatedMapper.mapping(), MergeReason.MAPPING_UPDATE,
-            mapperService.getIndexSettings(), mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+        DocumentMapper mergedMapper = initMapper.merge(updatedMapper.mapping(), MergeReason.MAPPING_UPDATE);
         assertThat(mergedMapper.meta().get("foo"), equalTo("bar"));
 
         updatedMapper
             = createDocumentMapper(topMapping(b -> b.startObject("_meta").field("foo", "new_bar").endObject()));
-        mergedMapper = initMapper.merge(updatedMapper.mapping(), MergeReason.MAPPING_UPDATE, mapperService.getIndexSettings(),
-            mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+        mergedMapper = initMapper.merge(updatedMapper.mapping(), MergeReason.MAPPING_UPDATE);
         assertThat(mergedMapper.meta().get("foo"), equalTo("new_bar"));
     }
 
@@ -269,8 +263,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(initMapper.meta(), equalTo(expected));
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
-        DocumentMapper mergedMapper = initMapper.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE,
-            mapperService.getIndexSettings(), mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+        DocumentMapper mergedMapper = initMapper.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
         assertThat(mergedMapper.meta(), equalTo(expected));
 
         updatedMapper = createDocumentMapper(topMapping(b -> {
@@ -286,8 +279,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        mergedMapper = mergedMapper.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE, mapperService.getIndexSettings(),
-            mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+        mergedMapper = mergedMapper.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
 
         expected = Map.of("field", "value",
             "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));

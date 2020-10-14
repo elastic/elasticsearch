@@ -368,8 +368,7 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         .endObject());
         MapperService mapperService = indexService.mapperService();
         DocumentMapper newMapper = mapper.merge(
-            parser.parse("type", new CompressedXContent(newMapping)).mapping(), MergeReason.MAPPING_UPDATE,
-            mapperService.getIndexSettings(), mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+            parser.parse("type", new CompressedXContent(newMapping)).mapping(), MergeReason.MAPPING_UPDATE);
 
         expectThrows(MapperParsingException.class, () ->
             newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON)));
@@ -432,9 +431,7 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         .endObject());
         MapperService mapperService = indexService.mapperService();
         DocumentMapper newMapper = mapper.merge(
-            parser.parse("type", new CompressedXContent(newMapping)).mapping(),
-            MergeReason.MAPPING_UPDATE, mapperService.getIndexSettings(), mapperService.documentMapperParser(),
-            mapperService.getIndexAnalyzers());
+            parser.parse("type", new CompressedXContent(newMapping)).mapping(), MergeReason.MAPPING_UPDATE);
 
         ParsedDocument newParsedDoc = newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
         IndexableField[] newFields = newParsedDoc.rootDoc().getFields("field");

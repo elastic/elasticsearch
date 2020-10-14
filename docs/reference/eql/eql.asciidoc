@@ -20,10 +20,11 @@ Many query languages allow you to match only single events. EQL lets you match a
 sequence of events across different event categories and time spans.
 
 * *EQL has a low learning curve.* +
-<<eql-syntax,EQL syntax>> looks like other query languages. It lets you write
-and read queries intuitively, which makes for quick, iterative searching.
+<<eql-syntax,EQL syntax>> looks like other common query languages, such as SQL.
+It lets you write and read queries intuitively, which makes for quick, iterative
+searching.
 
-* *We designed EQL for security use cases.* +
+* *EQL is designed for security use cases.* +
 While you can use EQL for any event-based data, we created EQL for threat
 hunting. EQL not only supports indicator of compromise (IOC) searching but
 makes it easy to describe activity that goes beyond IOCs.

@@ -23,10 +23,10 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -82,7 +82,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                        ClusterState state,
                                        ActionListener<CreateIndexResponse> finalListener) {
             AtomicReference<String> indexNameRef = new AtomicReference<>();
-            ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
+            ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
                 response -> {
                     String indexName = indexNameRef.get();
                     assert indexName != null;
@@ -103,31 +103,25 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 finalListener::onFailure
             );
             clusterService.submitStateUpdateTask("auto create [" + request.index() + "]",
-                new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
-
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
-                    if (dataStreamTemplate != null) {
-                        CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
-                            request.index(), request.masterNodeTimeout(), request.timeout());
-                        ClusterState clusterState =  metadataCreateDataStreamService.createDataStream(createRequest, currentState);
-                        indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
-                        return clusterState;
-                    } else {
-                        String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-                        indexNameRef.set(indexName);
-                        CreateIndexClusterStateUpdateRequest updateRequest =
-                            new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
-                                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
-                        return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
+                new SimpleAckedStateUpdateTask(Priority.URGENT, request, listener) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
+                        if (dataStreamTemplate != null) {
+                            CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
+                                request.index(), request.masterNodeTimeout(), request.timeout());
+                            ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
+                            indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
+                            return clusterState;
+                        } else {
+                            String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+                            indexNameRef.set(indexName);
+                            CreateIndexClusterStateUpdateRequest updateRequest =
+                                new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
+                                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+                            return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
+                        }
                     }
-                }
             });
         }
 

@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -36,18 +36,12 @@ public class TransportStartSLMAction extends AcknowledgedTransportMasterNodeActi
     @Override
     protected void masterOperation(Task task, StartSLMAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("slm_operation_mode_update",
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return (OperationModeUpdateTask.slmMode(OperationMode.RUNNING)).execute(currentState);
-                }
-
-                @Override
-                protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    return AcknowledgedResponse.of(acknowledged);
-                }
-            });
+        clusterService.submitStateUpdateTask("slm_operation_mode_update", new SimpleAckedStateUpdateTask(request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return (OperationModeUpdateTask.slmMode(OperationMode.RUNNING)).execute(currentState);
+            }
+        });
     }
 
     @Override

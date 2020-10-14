@@ -34,15 +34,15 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -2073,7 +2073,7 @@ public final class TokenService {
         return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
     }
 
-    void rotateKeysOnMaster(ActionListener<ClusterStateUpdateResponse> listener) {
+    void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
         logger.info("rotate keys on master");
         TokenMetadata tokenMetadata = generateSpareKey();
         clusterService.submitStateUpdateTask("publish next key to prepare key rotation",
@@ -2089,11 +2089,11 @@ public final class TokenService {
                 }, listener::onFailure)));
     }
 
-    private final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
+    private static final class TokenMetadataPublishAction extends SimpleAckedStateUpdateTask {
 
         private final TokenMetadata tokenMetadata;
 
-        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<ClusterStateUpdateResponse> listener) {
+        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<AcknowledgedResponse> listener) {
             super(new AckedRequest() {
                 @Override
                 public TimeValue ackTimeout() {
@@ -2117,12 +2117,6 @@ public final class TokenService {
             }
             return ClusterState.builder(currentState).putCustom(TokenMetadata.TYPE, tokenMetadata).build();
         }
-
-        @Override
-        protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-            return new ClusterStateUpdateResponse(acknowledged);
-        }
-
     }
 
     private void initialize(ClusterService clusterService) {

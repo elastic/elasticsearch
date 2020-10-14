@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -45,17 +45,11 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
 
     @Override
     protected void masterOperation(final Task task, final Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) throws Exception {
+                                   final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("activate-auto-follow-pattern-" + request.getName(),
-            new AckedClusterStateUpdateTask<>(request, listener) {
-
+            new SimpleAckedStateUpdateTask(request, listener) {
                 @Override
-                protected AcknowledgedResponse newResponse(final boolean acknowledged) {
-                    return AcknowledgedResponse.of(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(final ClusterState currentState) throws Exception {
+                public ClusterState execute(final ClusterState currentState) {
                     return innerActivate(request, currentState);
                 }
             });

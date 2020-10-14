@@ -17,13 +17,24 @@ PUT /_autoscaling/policy/my_autoscaling_policy
 {
   "policy": {
     "deciders": {
-      "always": {
+      "fixed": {
       }
     }
   }
 }
 --------------------------------------------------
 // TESTSETUP
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST
+// TEARDOWN
+
+//////////////////////////
 
 [source,console]
 --------------------------------------------------

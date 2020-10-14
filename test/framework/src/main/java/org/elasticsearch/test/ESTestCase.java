@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -65,11 +66,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -116,6 +119,7 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
@@ -179,6 +183,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
+    private HeaderWarningAppender headerWarningAppender;
 
     @AfterClass
     public static void resetPortCounter() {
@@ -331,6 +336,21 @@ public abstract class ESTestCase extends LuceneTestCase {
             logger.warn("Attempting to run tests in an unusable locale in a FIPS JVM. Certificate expiration validation will fail, " +
                 "switching to English. See: https://github.com/bcgit/bc-java/issues/405");
             Locale.setDefault(Locale.ENGLISH);
+        }
+    }
+
+    @Before
+    public void setHeaderWarningAppender() {
+        this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
+        this.headerWarningAppender.start();
+        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+    }
+
+    @After
+    public void removeHeaderWarningAppender() {
+        if (this.headerWarningAppender != null) {
+            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+            this.headerWarningAppender = null;
         }
     }
 
@@ -587,6 +607,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return (byte) random().nextInt();
     }
 
+    public static byte randomNonNegativeByte() {
+        byte randomByte =  randomByte();
+        return (byte) (randomByte == Byte.MIN_VALUE ? 0 : Math.abs(randomByte));
+    }
+
     /**
      * Helper method to create a byte array of a given length populated with random byte values
      *
@@ -655,6 +680,16 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    /**
+     * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
+     * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
+     * Modify this random generator if a wider range for BigIntegers is necessary.
+     * @return a random bigInteger in the range [0 ; 2^64 - 1]
+     */
+    public static BigInteger randomBigInteger() {
+        return new BigInteger(64, random());
     }
 
     /** A random integer from 0..max (inclusive). */
@@ -834,6 +869,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static String randomJodaAndJavaSupportedTimezone(List<String> zoneIds) {
         return randomValueOtherThanMany(id -> JODA_TIMEZONE_IDS.contains(id) == false,
             () -> randomFrom(zoneIds));
+    }
+
+    /**
+     * Generate a random valid date formatter pattern.
+     */
+    public static String randomDateFormatterPattern() {
+        return randomFrom(FormatNames.values()).getName();
     }
 
     /**
@@ -1226,8 +1268,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
-        return builder.generator().contentType().xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+        return createParser(builder.contentType().xContent(), BytesReference.bytes(builder));
     }
 
     /**
@@ -1255,7 +1296,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data.streamInput());
+        return createParser(xContentRegistry(), xContent, data);
     }
 
     /**
@@ -1263,6 +1304,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(NamedXContentRegistry namedXContentRegistry, XContent xContent,
                                                 BytesReference data) throws IOException {
+        if (data instanceof BytesArray) {
+            final BytesArray array = (BytesArray) data;
+            return xContent.createParser(
+                    namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, array.array(), array.offset(), array.length());
+        }
         return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
     }
 
@@ -1447,5 +1493,4 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new AssertionError();
         }
     }
-
 }

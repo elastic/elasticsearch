@@ -320,7 +320,7 @@ $ => DIGIT
 
 # in some cases you might not want to split on ZWJ
 # this also tests the case where we need a bigger byte[]
-# see http://en.wikipedia.org/wiki/Zero-width_joiner
+# see https://en.wikipedia.org/wiki/Zero-width_joiner
 \\u200D => ALPHANUM
 ----
 

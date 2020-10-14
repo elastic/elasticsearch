@@ -67,3 +67,26 @@ POST /_security/role/example2
   ]
 }
 --------------------------------------------------
+
+If your metadata field contains an object or array, you can access it using the
+`{{#toJson}}parameter{{/toJson}}` function.
+
+[source,console]
+----
+POST /_security/role/example3
+{
+  "indices" : [
+    {
+      "names" : [ "my-index-000001" ],
+      "privileges" : [ "read" ],
+      "query" : {
+        "template" : {
+          "source" : {
+            "terms" : { "group.statuses" : "{{#toJson}}_user.metadata.statuses{{/toJson}}" }
+          }
+        }
+      }
+    }
+  ]
+}
+----

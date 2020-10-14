@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -93,13 +92,8 @@ public class FieldStats implements ToXContentObject, Writeable {
         maxValue = in.readOptionalDouble();
         meanValue = in.readOptionalDouble();
         medianValue = in.readOptionalDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            earliestTimestamp = in.readOptionalString();
-            latestTimestamp = in.readOptionalString();
-        } else {
-            earliestTimestamp = null;
-            latestTimestamp = null;
-        }
+        earliestTimestamp = in.readOptionalString();
+        latestTimestamp = in.readOptionalString();
         topHits = in.readList(StreamInput::readMap);
     }
 
@@ -111,10 +105,8 @@ public class FieldStats implements ToXContentObject, Writeable {
         out.writeOptionalDouble(maxValue);
         out.writeOptionalDouble(meanValue);
         out.writeOptionalDouble(medianValue);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalString(earliestTimestamp);
-            out.writeOptionalString(latestTimestamp);
-        }
+        out.writeOptionalString(earliestTimestamp);
+        out.writeOptionalString(latestTimestamp);
         out.writeCollection(topHits, StreamOutput::writeMap);
     }
 

@@ -4,7 +4,7 @@
 <titleabbrev>Shingle</titleabbrev>
 ++++
 
-Add shingles, or word https://en.wikipedia.org/wiki/N-gram[n-grams], to a token
+Add shingles, or word {wikipedia}/N-gram[n-grams], to a token
 stream by concatenating adjacent tokens. By default, the `shingle` token filter
 outputs two-word shingles and unigrams.
 

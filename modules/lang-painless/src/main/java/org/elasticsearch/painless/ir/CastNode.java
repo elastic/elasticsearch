@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -42,16 +42,27 @@ public class CastNode extends UnaryNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitCast(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitCast(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getChildNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */
 
+    public CastNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getChildNode().write(classWriter, methodWriter, writeScope);
-        methodWriter.writeDebugInfo(location);
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+
+        getChildNode().write(writeScope);
+        methodWriter.writeDebugInfo(getLocation());
         methodWriter.writeCast(cast);
     }
 }

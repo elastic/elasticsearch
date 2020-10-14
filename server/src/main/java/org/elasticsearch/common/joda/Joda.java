@@ -69,14 +69,6 @@ public class Joda {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
-        FormatNames formatName = FormatNames.forName(input);
-        if (formatName != null && formatName.isCamelCase(input)) {
-            String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
-                "Use snake case name {} instead.";
-            getDeprecationLogger()
-                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
-        }
-
         DateTimeFormatter formatter;
         if ("basicDate".equals(input) || "basic_date".equals(input)) {
             formatter = ISODateTimeFormat.basicDate();
@@ -156,7 +148,7 @@ public class Joda {
             formatter = ISODateTimeFormat.weekDateTime();
         } else if ("weekDateTimeNoMillis".equals(input) || "week_date_time_no_millis".equals(input)) {
             formatter = ISODateTimeFormat.weekDateTimeNoMillis();
-        } else if ("weekyear".equals(input) || "week_year".equals(input)) {
+        } else if ("weekyear".equals(input) ) {
             formatter = ISODateTimeFormat.weekyear();
         } else if ("weekyearWeek".equals(input) || "weekyear_week".equals(input)) {
             formatter = ISODateTimeFormat.weekyearWeek();

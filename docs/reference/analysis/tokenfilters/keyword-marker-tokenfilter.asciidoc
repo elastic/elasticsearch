@@ -332,7 +332,7 @@ You cannot specify this parameter and `keywords_pattern`.
 +
 --
 (Required*, string)
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java
 regular expression] used to match tokens. Tokens that match this expression are
 marked as keywords and not stemmed.
 

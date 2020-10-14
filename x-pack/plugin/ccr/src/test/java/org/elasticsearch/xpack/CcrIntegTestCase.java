@@ -10,6 +10,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -355,7 +356,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     protected final ClusterHealthStatus ensureFollowerGreen(boolean waitForNoInitializingShards, String... indices) {
         logger.info("ensure green follower indices {}", Arrays.toString(indices));
-        return ensureColor(clusterGroup.followerCluster, ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30),
+        return ensureColor(clusterGroup.followerCluster, ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(60),
             waitForNoInitializingShards, indices);
     }
 
@@ -377,16 +378,32 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
         ClusterHealthResponse actionGet = testCluster.client().admin().cluster().health(healthRequest).actionGet();
         if (actionGet.isTimedOut()) {
-            logger.info("{} timed out, cluster state:\n{}\n{}",
+            logger.info("{} timed out: " +
+                    "\nleader cluster state:\n{}" +
+                    "\nleader cluster hot threads:\n{}" +
+                    "\nleader cluster tasks:\n{}" +
+                    "\nfollower cluster state:\n{}" +
+                    "\nfollower cluster hot threads:\n{}" +
+                    "\nfollower cluster tasks:\n{}",
                 method,
-                testCluster.client().admin().cluster().prepareState().get().getState(),
-                testCluster.client().admin().cluster().preparePendingClusterTasks().get());
+                leaderClient().admin().cluster().prepareState().get().getState(),
+                getHotThreads(leaderClient()),
+                leaderClient().admin().cluster().preparePendingClusterTasks().get(),
+                followerClient().admin().cluster().prepareState().get().getState(),
+                getHotThreads(followerClient()),
+                followerClient().admin().cluster().preparePendingClusterTasks().get()
+            );
             fail("timed out waiting for " + color + " state");
         }
         assertThat("Expected at least " + clusterHealthStatus + " but got " + actionGet.getStatus(),
             actionGet.getStatus().value(), lessThanOrEqualTo(clusterHealthStatus.value()));
         logger.debug("indices {} are {}", indices.length == 0 ? "[_all]" : indices, color);
         return actionGet.getStatus();
+    }
+
+    static String getHotThreads(Client client) {
+        return client.admin().cluster().prepareNodesHotThreads().setThreads(99999).setIgnoreIdleThreads(false)
+            .get().getNodes().stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
     }
 
     protected final Index resolveLeaderIndex(String index) {

@@ -23,7 +23,7 @@ public class CloseJobActionRequestTests extends AbstractSerializingTestCase<Requ
             request.setForce(randomBoolean());
         }
         if (randomBoolean()) {
-            request.setAllowNoJobs(randomBoolean());
+            request.setAllowNoMatch(randomBoolean());
         }
         return request;
     }

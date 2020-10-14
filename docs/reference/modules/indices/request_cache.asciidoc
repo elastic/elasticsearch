@@ -45,9 +45,9 @@ The cache can be expired manually with the <<indices-clearcache,`clear-cache` AP
 
 [source,console]
 ------------------------
-POST /kimchy,elasticsearch/_cache/clear?request=true
+POST /my-index-000001,my-index-000002/_cache/clear?request=true
 ------------------------
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 [discrete]
 ==== Enabling and disabling caching

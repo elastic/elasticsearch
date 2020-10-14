@@ -159,11 +159,6 @@ public class FunctionScoreTests extends ESTestCase {
                 SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
-
-        @Override
-        public void clear() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
     }
 
     /**
@@ -248,11 +243,6 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         protected boolean sortRequiresCustomComparator() {
             return false;
-        }
-
-        @Override
-        public void clear() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
         }
     }
 

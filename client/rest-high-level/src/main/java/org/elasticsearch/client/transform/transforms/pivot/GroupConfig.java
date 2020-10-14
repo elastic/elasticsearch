@@ -63,7 +63,7 @@ public class GroupConfig implements ToXContentObject {
         }
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 // leniently skip over key-value and array fields in the root of the object
@@ -74,9 +74,9 @@ public class GroupConfig implements ToXContentObject {
             }
 
             String destinationFieldName = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
             token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String groupType = parser.currentName();
 
             token = parser.nextToken();

@@ -74,6 +74,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_ilm",
     "manage_index_templates",
     "manage_ingest_pipelines",
+    "manage_logstash_pipelines",
     "manage_ml",
     "manage_oidc",
     "manage_own_api_key",

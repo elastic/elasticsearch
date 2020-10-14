@@ -23,13 +23,13 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -46,9 +46,9 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
     private final String otherBucketKey;
 
     public FiltersAggregatorFactory(String name, List<KeyedFilter> filters, boolean keyed, boolean otherBucket,
-                                    String otherBucketKey, QueryShardContext queryShardContext, AggregatorFactory parent,
+                                    String otherBucketKey, AggregationContext context, AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+        super(name, context, parent, subFactories, metadata);
         this.keyed = keyed;
         this.otherBucket = otherBucket;
         this.otherBucketKey = otherBucketKey;
@@ -57,7 +57,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         for (int i = 0; i < filters.size(); ++i) {
             KeyedFilter keyedFilter = filters.get(i);
             this.keys[i] = keyedFilter.key();
-            this.filters[i] = keyedFilter.filter().toQuery(queryShardContext);
+            this.filters[i] = context.buildQuery(keyedFilter.filter());
         }
     }
 

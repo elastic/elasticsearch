@@ -34,8 +34,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 +
 --
-If you do not specify this optional parameter, the API returns information about
-all model snapshots.
+You can multiple snapshots for a single job in a single API request
+by using a comma-separated list of `<snapshot_id>` or a wildcard expression.
+You can get all snapshots for all calendars by using `_all`,
+by specifying `*` as the `<snapshot_id>`, or by omitting the `<snapshot_id>`.
 --
 
 [[ml-get-snapshot-request-body]]
@@ -64,7 +66,7 @@ all model snapshots.
 [[ml-get-snapshot-results]]
 == {api-response-body-title}
 
-The API returns an array of model snapshot objects, which have the following 
+The API returns an array of model snapshot objects, which have the following
 properties:
 
 `description`::
@@ -73,7 +75,7 @@ properties:
 `job_id`::
 (string) A numerical character string that uniquely identifies the job that
   the snapshot was created for.
-  
+
 `latest_record_time_stamp`::
 (date) The timestamp of the latest processed record.
 

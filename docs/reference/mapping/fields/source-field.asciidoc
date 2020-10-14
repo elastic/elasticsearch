@@ -14,7 +14,7 @@ within the index. For this reason, it can be disabled as follows:
 
 [source,console]
 --------------------------------------------------
-PUT tweets
+PUT my-index-000001
 {
   "mappings": {
     "_source": {
@@ -50,21 +50,6 @@ and <<docs-reindex,`reindex`>> APIs.
 
 TIP: If disk space is a concern, rather increase the
 <<index-codec,compression level>> instead of disabling the `_source`.
-
-.The metrics use case
-**************************************************
-
-The _metrics_ use case is distinct from other time-based or logging use cases
-in that there are many small documents which consist only of numbers, dates,
-or keywords.  There are no updates, no highlighting requests, and the data
-ages quickly so there is no need to reindex.  Search requests typically use
-simple queries to filter the dataset by date or tags, and the results are
-returned as aggregations.
-
-In this case, disabling the `_source` field will save space and reduce I/O.
-
-**************************************************
-
 
 [[include-exclude]]
 ==== Including / Excluding fields from `_source`

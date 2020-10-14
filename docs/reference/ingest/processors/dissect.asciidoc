@@ -1,9 +1,13 @@
 [[dissect-processor]]
-=== Dissect Processor
+=== Dissect processor
+++++
+<titleabbrev>Dissect</titleabbrev>
+++++
+
 
 Similar to the <<grok-processor,Grok Processor>>, dissect also extracts structured fields out of a single text field
 within a document.  However unlike the <<grok-processor,Grok Processor>>, dissect does not use
-https://en.wikipedia.org/wiki/Regular_expression[Regular Expressions]. This allows dissect's syntax to be simple and for
+{wikipedia}/Regular_expression[Regular Expressions]. This allows dissect's syntax to be simple and for
 some cases faster than the <<grok-processor,Grok Processor>>.
 
 Dissect matches a single text field against a defined pattern.

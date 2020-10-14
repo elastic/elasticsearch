@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.nodes;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -60,10 +61,24 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     protected final Class<NodeResponse> nodeResponseClass;
     protected final String transportNodeAction;
 
+    private final String finalExecutor;
+
+    /**
+     * @param actionName        action name
+     * @param threadPool        thread-pool
+     * @param clusterService    cluster service
+     * @param transportService  transport service
+     * @param actionFilters     action filters
+     * @param request           node request writer
+     * @param nodeRequest       node request reader
+     * @param nodeExecutor      executor to execute node action on
+     * @param finalExecutor     executor to execute final collection of all responses on
+     * @param nodeResponseClass class of the node responses
+     */
     protected TransportNodesAction(String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    Writeable.Reader<NodesRequest> request, Writeable.Reader<NodeRequest> nodeRequest, String nodeExecutor,
-                                   Class<NodeResponse> nodeResponseClass) {
+                                   String finalExecutor, Class<NodeResponse> nodeResponseClass) {
         super(actionName, transportService, actionFilters, request);
         this.threadPool = threadPool;
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -71,9 +86,24 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
 
         this.transportNodeAction = actionName + "[n]";
-
+        this.finalExecutor = finalExecutor;
         transportService.registerRequestHandler(
-            transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
+                transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
+    }
+
+    /**
+     * Same as {@link #TransportNodesAction(String, ThreadPool, ClusterService, TransportService, ActionFilters, Writeable.Reader,
+     * Writeable.Reader, String, String, Class)} but executes final response collection on the transport thread except for when the final
+     * node response is received from the local node, in which case {@code nodeExecutor} is used.
+     * This constructor should only be used for actions for which the creation of the final response is fast enough to be safely executed
+     * on a transport thread.
+     */
+    protected TransportNodesAction(String actionName, ThreadPool threadPool,
+                                   ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+                                   Writeable.Reader<NodesRequest> request, Writeable.Reader<NodeRequest> nodeRequest, String nodeExecutor,
+                                   Class<NodeResponse> nodeResponseClass) {
+        this(actionName, threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor,
+                ThreadPool.Names.SAME, nodeResponseClass);
     }
 
     @Override
@@ -226,15 +256,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         }
 
         private void finishHim() {
-            NodesResponse finalResponse;
-            try {
-                finalResponse = newResponse(request, responses);
-            } catch (Exception e) {
-                logger.debug("failed to combine responses from nodes", e);
-                listener.onFailure(e);
-                return;
-            }
-            listener.onResponse(finalResponse);
+            threadPool.executor(finalExecutor).execute(ActionRunnable.supply(listener, () -> newResponse(request, responses)));
         }
     }
 

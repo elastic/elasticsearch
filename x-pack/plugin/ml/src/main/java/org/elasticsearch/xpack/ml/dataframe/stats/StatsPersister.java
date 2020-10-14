@@ -44,6 +44,7 @@ public class StatsPersister {
                 new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
                 WriteRequest.RefreshPolicy.NONE,
                 docIdSupplier.apply(jobId),
+                true,
                 () -> true,
                 errorMsg -> auditor.error(jobId,
                     "failed to persist result with id [" + docIdSupplier.apply(jobId) + "]; " + errorMsg)

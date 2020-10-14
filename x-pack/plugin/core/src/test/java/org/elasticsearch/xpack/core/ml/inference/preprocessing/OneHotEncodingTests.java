@@ -24,7 +24,9 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
 
     @Override
     protected OneHotEncoding doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? OneHotEncoding.fromXContentLenient(parser) : OneHotEncoding.fromXContentStrict(parser);
+        return lenient ?
+            OneHotEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT) :
+            OneHotEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
     }
 
     @Override
@@ -33,6 +35,10 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
     }
 
     public static OneHotEncoding createRandom() {
+        return createRandom(randomBoolean() ? randomBoolean() : null);
+    }
+
+    public static OneHotEncoding createRandom(Boolean isCustom) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, String> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
@@ -40,7 +46,7 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         }
         return new OneHotEncoding(randomAlphaOfLength(10),
             valueMap,
-            randomBoolean() ? randomBoolean() : null);
+            isCustom);
     }
 
     @Override

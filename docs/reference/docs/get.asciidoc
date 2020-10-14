@@ -8,9 +8,9 @@ Retrieves the specified JSON document from an index.
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0
+GET my-index-000001/_doc/0
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-get-api-request]]
 ==== {api-request-title}
@@ -51,9 +51,9 @@ You can turn off `_source` retrieval by using the `_source` parameter:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0?_source=false
+GET my-index-000001/_doc/0?_source=false
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 If you only need one or two fields from the `_source`, use the `_source_includes`
 or `_source_excludes` parameters to include or filter out particular fields.
@@ -63,17 +63,17 @@ of fields or wildcard expressions. Example:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0?_source_includes=*.id&_source_excludes=entities
+GET my-index-000001/_doc/0?_source_includes=*.id&_source_excludes=entities
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 If you only want to specify includes, you can use a shorter notation:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0?_source=*.id,retweeted
+GET my-index-000001/_doc/0?_source=*.id
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[get-routing]]
@@ -84,11 +84,11 @@ specified to retrieve a document. For example:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/2?routing=user1
+GET my-index-000001/_doc/2?routing=user1
 --------------------------------------------------
 // TEST[continued]
 
-This request gets the tweet with id `2`, but it is routed based on the
+This request gets the document with id `2`, but it is routed based on the
 user. The document is not fetched if the correct routing is not specified.
 
 [discrete]
@@ -218,33 +218,43 @@ If the `stored_fields` parameter is set to `true` and `found` is
 [[docs-get-api-example]]
 ==== {api-examples-title}
 
-Retrieve the JSON document with the `_id` 0 from the `twitter` index:
+Retrieve the JSON document with the `_id` 0 from the `my-index-000001` index:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0
+GET my-index-000001/_doc/0
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following result:
 
 [source,console-result]
 --------------------------------------------------
 {
-  "_index": "twitter",
+  "_index": "my-index-000001",
   "_id": "0",
   "_version": 1,
-  "_seq_no": 10,
+  "_seq_no": 0,
   "_primary_term": 1,
   "found": true,
   "_source": {
-    "user": "kimchy",
-    "date": "2009-11-15T14:12:12",
-    "likes": 0,
-    "message": "trying out Elasticsearch",
-    "location": {
-      "city": "Amsterdam",
-      "country": "Netherlands"
+    "@timestamp": "2099-11-15T14:12:12",
+    "http": {
+      "request": {
+        "method": "get"
+      },
+      "response": {
+        "status_code": 200,
+        "bytes": 1070000
+      },
+      "version": "1.1"
+    },
+    "source": {
+      "ip": "127.0.0.1"
+    },
+    "message": "GET /search HTTP/1.1 200 1070000",
+    "user": {
+      "id": "kimchy"
     }
   }
 }
@@ -255,9 +265,9 @@ Check to see if a document with the `_id` 0 exists:
 
 [source,console]
 --------------------------------------------------
-HEAD twitter/_doc/0
+HEAD my-index-000001/_doc/0
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 {es} returns a status code of `200 - OK` if the document exists, or
 `404 - Not Found` if it doesn't.
@@ -271,7 +281,7 @@ just the `_source` field of a document. For example:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_source/1
+GET my-index-000001/_source/1
 --------------------------------------------------
 // TEST[continued]
 
@@ -280,7 +290,7 @@ You can use the source filtering parameters to control which parts of the
 
 [source,console]
 --------------------------------------------------
-GET twitter/_source/1/?_source_includes=*.id&_source_excludes=entities
+GET my-index-000001/_source/1/?_source_includes=*.id&_source_excludes=entities
 --------------------------------------------------
 // TEST[continued]
 
@@ -290,7 +300,7 @@ available if it is disabled in the <<mapping-source-field,mapping>>.
 
 [source,console]
 --------------------------------------------------
-HEAD twitter/_source/1
+HEAD my-index-000001/_source/1
 --------------------------------------------------
 // TEST[continued]
 
@@ -304,7 +314,7 @@ Consider for instance the following mapping:
 
 [source,console]
 --------------------------------------------------
-PUT twitter
+PUT my-index-000001
 {
    "mappings": {
        "properties": {
@@ -325,10 +335,10 @@ Now we can add a document:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1
+PUT my-index-000001/_doc/1
 {
   "counter": 1,
-  "tags": [ "red" ]
+  "tags": [ "production" ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -337,7 +347,7 @@ And then try to retrieve it:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/1?stored_fields=tags,counter
+GET my-index-000001/_doc/1?stored_fields=tags,counter
 --------------------------------------------------
 // TEST[continued]
 
@@ -346,7 +356,7 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-   "_index": "twitter",
+   "_index": "my-index-000001",
    "_id": "1",
    "_version": 1,
    "_seq_no" : 22,
@@ -354,7 +364,7 @@ The API returns the following result:
    "found": true,
    "fields": {
       "tags": [
-         "red"
+         "production"
       ]
    }
 }
@@ -368,17 +378,17 @@ You can also retrieve metadata fields like the `_routing` field:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/2?routing=user1
+PUT my-index-000001/_doc/2?routing=user1
 {
   "counter" : 1,
-  "tags" : ["white"]
+  "tags" : ["env2"]
 }
 --------------------------------------------------
 // TEST[continued]
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/2?routing=user1&stored_fields=tags,counter
+GET my-index-000001/_doc/2?routing=user1&stored_fields=tags,counter
 --------------------------------------------------
 // TEST[continued]
 
@@ -387,7 +397,7 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-   "_index": "twitter",
+   "_index": "my-index-000001",
    "_id": "2",
    "_version": 1,
    "_seq_no" : 13,
@@ -396,7 +406,7 @@ The API returns the following result:
    "found": true,
    "fields": {
       "tags": [
-         "white"
+         "env2"
       ]
    }
 }

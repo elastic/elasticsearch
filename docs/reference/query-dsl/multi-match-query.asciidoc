@@ -500,9 +500,11 @@ per-term `blended` queries. It accepts:
 
 [horizontal]
 `0.0`::             Take the single best score out of (eg) `first_name:will`
-                    and `last_name:will` (*default*)
+                    and `last_name:will` (*default* for all `multi_match`
+                    query types except `bool_prefix` and `most_fields`)
 `1.0`::             Add together the scores for (eg) `first_name:will` and
-                    `last_name:will`
+                    `last_name:will` (*default* for the `bool_prefix` and
+                    `most_fields` `multi_match` query types)
 `0.0 < n < 1.0`::   Take the single best score plus +tie_breaker+ multiplied
                     by each of the scores from other matching fields.
 

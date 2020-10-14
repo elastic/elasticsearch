@@ -204,6 +204,7 @@ public class SamlServiceProviderIndex implements Closeable {
         final ClusterState state = clusterService.state();
         if (isTemplateUpToDate(state)) {
             listener.onResponse(false);
+            return;
         }
         final String template = TemplateUtils.loadTemplate(TEMPLATE_RESOURCE, Version.CURRENT.toString(), TEMPLATE_VERSION_SUBSTITUTE);
         final PutIndexTemplateRequest request = new PutIndexTemplateRequest(TEMPLATE_NAME).source(template, XContentType.JSON);

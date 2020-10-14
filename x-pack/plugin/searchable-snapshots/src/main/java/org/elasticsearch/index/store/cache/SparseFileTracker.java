@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.index.store.cache;
 
+import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.Nullable;
@@ -95,6 +96,9 @@ public class SparseFileTracker {
             );
         }
 
+        final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
+        final List<Range> requiredRanges;
+
         final List<Gap> gaps = new ArrayList<>();
         synchronized (mutex) {
             assert invariant();
@@ -155,52 +159,146 @@ public class SparseFileTracker {
             assert targetRange.start == end : targetRange;
             assert invariant();
 
-            if (pendingRanges.isEmpty() == false) {
-                assert ranges.containsAll(pendingRanges) : ranges + " vs " + pendingRanges;
-                assert pendingRanges.stream().allMatch(Range::isPending) : pendingRanges;
-                assert pendingRanges.size() != 1 || gaps.size() <= 1 : gaps;
+            assert ranges.containsAll(pendingRanges) : ranges + " vs " + pendingRanges;
+            assert pendingRanges.stream().allMatch(Range::isPending) : pendingRanges;
+            assert pendingRanges.size() != 1 || gaps.size() <= 1 : gaps;
 
-                // Pending ranges that needs to be filled before executing the listener
-                final List<Range> requiredRanges = (start == subRange.v1() && end == subRange.v2())
-                    ? pendingRanges
-                    : pendingRanges.stream()
-                        .filter(pendingRange -> pendingRange.start < subRange.v2())
-                        .filter(pendingRange -> subRange.v1() < pendingRange.end)
-                        .sorted(Comparator.comparingLong(r -> r.start))
-                        .collect(Collectors.toList());
-
-                switch (requiredRanges.size()) {
-                    case 0:
-                        // no need to wait for the gaps to be filled, the listener can be executed immediately
-                        listener.onResponse(null);
-                        break;
-                    case 1:
-                        final Range requiredRange = requiredRanges.get(0);
-                        requiredRange.completionListener.addListener(
-                            ActionListener.map(listener, progress -> null),
-                            Math.min(requiredRange.end, subRange != null ? subRange.v2() : Long.MAX_VALUE)
-                        );
-                        break;
-                    default:
-                        final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                            ActionListener.map(listener, progress -> null),
-                            requiredRanges.size()
-                        );
-                        requiredRanges.forEach(
-                            r -> r.completionListener.addListener(
-                                groupedActionListener,
-                                Math.min(r.end, subRange != null ? subRange.v2() : Long.MAX_VALUE)
-                            )
-                        );
-                }
-
-                return Collections.unmodifiableList(gaps);
-            }
+            // Pending ranges that needs to be filled before executing the listener
+            requiredRanges = (start == subRange.v1() && end == subRange.v2())
+                ? pendingRanges
+                : pendingRanges.stream()
+                    .filter(pendingRange -> pendingRange.start < subRange.v2())
+                    .filter(pendingRange -> subRange.v1() < pendingRange.end)
+                    .sorted(Comparator.comparingLong(r -> r.start))
+                    .collect(Collectors.toList());
         }
 
-        assert gaps.isEmpty(); // or else pendingRanges.isEmpty() == false so we already returned
-        listener.onResponse(null);
-        return Collections.emptyList();
+        // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
+        // there is no risk of concurrent modification.
+
+        switch (requiredRanges.size()) {
+            case 0:
+                // no need to wait for the gaps to be filled, the listener can be executed immediately
+                wrappedListener.onResponse(null);
+                break;
+            case 1:
+                final Range requiredRange = requiredRanges.get(0);
+                requiredRange.completionListener.addListener(
+                    ActionListener.map(wrappedListener, progress -> null),
+                    Math.min(requiredRange.completionListener.end, subRange.v2())
+                );
+                break;
+            default:
+                final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
+                    ActionListener.map(wrappedListener, progress -> null),
+                    requiredRanges.size()
+                );
+                requiredRanges.forEach(
+                    r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, subRange.v2()))
+                );
+        }
+
+        return Collections.unmodifiableList(gaps);
+    }
+
+    /**
+     * Called before reading a range from the file to ensure that this range is present. Unlike
+     * {@link SparseFileTracker#waitForRange(Tuple, Tuple, ActionListener)} this method does not expect the caller to fill in any gaps.
+     *
+     * @param range    A tuple that contains the (inclusive) start and (exclusive) end of the desired range
+     * @param listener Listener for when the listening range is fully available
+     * @return {@code true} if the requested range is entirely pending or present and the listener will eventually be notified when the
+     *                      range is entirely present; {@code false} if the requested range contains gaps that are not currently being
+     *                      filled.
+     * @throws IllegalArgumentException if invalid range is requested
+     */
+    public boolean waitForRangeIfPending(final Tuple<Long, Long> range, final ActionListener<Void> listener) {
+        final long start = range.v1();
+        final long end = range.v2();
+        if (end < start || start < 0L || length < end) {
+            throw new IllegalArgumentException("invalid range [start=" + start + ", end=" + end + ", length=" + length + "]");
+        }
+
+        final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
+        final List<Range> pendingRanges = new ArrayList<>();
+
+        synchronized (mutex) {
+            assert invariant();
+
+            final Range targetRange = new Range(start, end, null);
+            final SortedSet<Range> earlierRanges = ranges.headSet(targetRange, false); // ranges with strictly earlier starts
+            if (earlierRanges.isEmpty() == false) {
+                final Range lastEarlierRange = earlierRanges.last();
+                if (start < lastEarlierRange.end) {
+                    if (lastEarlierRange.isPending()) {
+                        pendingRanges.add(lastEarlierRange);
+                    }
+                    targetRange.start = Math.min(end, lastEarlierRange.end);
+                }
+            }
+
+            while (targetRange.start < end) {
+                assert 0 <= targetRange.start : targetRange;
+                assert invariant();
+
+                final SortedSet<Range> existingRanges = ranges.tailSet(targetRange);
+                if (existingRanges.isEmpty()) {
+                    return false;
+                } else {
+                    final Range firstExistingRange = existingRanges.first();
+                    assert targetRange.start <= firstExistingRange.start : targetRange + " vs " + firstExistingRange;
+
+                    if (targetRange.start == firstExistingRange.start) {
+                        if (firstExistingRange.isPending()) {
+                            pendingRanges.add(firstExistingRange);
+                        }
+                        targetRange.start = Math.min(end, firstExistingRange.end);
+                    } else {
+                        return false;
+                    }
+                }
+            }
+            assert targetRange.start == targetRange.end : targetRange;
+            assert targetRange.start == end : targetRange;
+            assert invariant();
+        }
+
+        // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
+        // there is no risk of concurrent modification.
+
+        switch (pendingRanges.size()) {
+            case 0:
+                wrappedListener.onResponse(null);
+                break;
+            case 1:
+                final Range pendingRange = pendingRanges.get(0);
+                pendingRange.completionListener.addListener(
+                    ActionListener.map(wrappedListener, progress -> null),
+                    Math.min(pendingRange.completionListener.end, end)
+                );
+                return true;
+            default:
+                final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
+                    ActionListener.map(wrappedListener, progress -> null),
+                    pendingRanges.size()
+                );
+                pendingRanges.forEach(
+                    r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, end))
+                );
+                return true;
+        }
+        return true;
+    }
+
+    private ActionListener<Void> wrapWithAssertions(ActionListener<Void> listener) {
+        if (Assertions.ENABLED) {
+            return ActionListener.runAfter(
+                listener,
+                () -> { assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held in listener"; }
+            );
+        } else {
+            return listener;
+        }
     }
 
     /**

@@ -58,8 +58,9 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
-        // kill worker so that next one will be scheduled
-        throw new KillWorkerError();
+        // kill worker so that next one will be scheduled, using cached Error instance to not incur the cost of filling in the stack trace
+        // on every task
+        throw KillWorkerError.INSTANCE;
     }
 
     @Override
@@ -69,5 +70,6 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
     }
 
     private static final class KillWorkerError extends Error {
+        private static final KillWorkerError INSTANCE = new KillWorkerError();
     }
 }

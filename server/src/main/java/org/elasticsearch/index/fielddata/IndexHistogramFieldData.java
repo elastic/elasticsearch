@@ -44,8 +44,4 @@ public abstract class IndexHistogramFieldData implements IndexFieldData<LeafHist
         return valuesSourceType;
     }
 
-    @Override
-    public final void clear() {
-        // can't do
-    }
 }

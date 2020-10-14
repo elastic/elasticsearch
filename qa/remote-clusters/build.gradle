@@ -31,7 +31,7 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-task copyKeystore(type: Sync) {
+tasks.register("copyKeystore", Sync) {
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
   into "${buildDir}/certs"
@@ -52,7 +52,7 @@ elasticsearch_distributions {
 }
 
 preProcessFixture {
-  dependsOn copyKeystore, elasticsearch_distributions.docker
+  dependsOn "copyKeystore", elasticsearch_distributions.docker
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -87,15 +87,15 @@ def createAndSetWritable(Object... locations) {
   }
 }
 
-processTestResources {
+tasks.named("processTestResources").configure {
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
 }
 
-task integTest(type: Test) {
+tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
 }
 
-check.dependsOn integTest
+tasks.named("check").configure { dependsOn "integTest" }

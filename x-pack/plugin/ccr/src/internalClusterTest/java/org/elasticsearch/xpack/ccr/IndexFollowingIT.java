@@ -248,38 +248,23 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int firstBatchNumDocs = randomIntBetween(2, 64);
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource("f", i).get();
         }
 
         AtomicBoolean isRunning = new AtomicBoolean(true);
 
         // Concurrently index new docs with mapping changes
+        int numFields = between(10, 20);
         Thread thread = new Thread(() -> {
-            int docID = 10000;
-            char[] chars = "abcdeghijklmnopqrstuvwxyz".toCharArray();
-            for (char c : chars) {
+            int numDocs = between(10, 200);
+            for (int i = 0; i < numDocs; i++) {
                 if (isRunning.get() == false) {
                     break;
                 }
-                final String source;
-                long valueToPutInDoc = randomLongBetween(0, 50000);
-                if (randomBoolean()) {
-                    source = String.format(Locale.ROOT, "{\"%c\":%d}", c, valueToPutInDoc);
-                } else {
-                    source = String.format(Locale.ROOT, "{\"%c\":\"%d\"}", c, valueToPutInDoc);
-                }
-                for (int i = 1; i < 10; i++) {
-                    if (isRunning.get() == false) {
-                        break;
-                    }
-                    leaderClient().prepareIndex("index1").setId(Long.toString(docID++)).setSource(source, XContentType.JSON).get();
-                    if (rarely()) {
-                        leaderClient().admin().indices().prepareFlush("index1").setForce(true).get();
-                    }
-                }
-                if (between(0, 100) < 20) {
-                    leaderClient().admin().indices().prepareFlush("index1").setForce(false).setWaitIfOngoing(false).get();
+                final String field = "f-" + between(1, numFields);
+                leaderClient().prepareIndex("index1").setSource(field, between(0, 1000)).get();
+                if (rarely()) {
+                    leaderClient().admin().indices().prepareFlush("index1").setWaitIfOngoing(false).setForce(false).get();
                 }
             }
         });
@@ -297,16 +282,14 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
         for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource("f", i).get();
         }
-
-        for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
+        for (int i = 0; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i), 1, TimeUnit.MINUTES);
         }
-
         isRunning.set(false);
         thread.join();
+        assertIndexFullyReplicatedToFollower("index1", "index2");
     }
 
     public void testFollowIndexWithoutWaitForComplete() throws Exception {

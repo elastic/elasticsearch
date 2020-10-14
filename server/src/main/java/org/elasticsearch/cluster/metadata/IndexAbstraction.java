@@ -79,6 +79,11 @@ public interface IndexAbstraction {
     boolean isHidden();
 
     /**
+     * @return whether this index abstraction should be treated as a system index or not
+     */
+    boolean isSystem();
+
+    /**
      * An index abstraction type.
      */
     enum Type {
@@ -160,6 +165,11 @@ public interface IndexAbstraction {
         public boolean isHidden() {
             return INDEX_HIDDEN_SETTING.get(concreteIndex.getSettings());
         }
+
+        @Override
+        public boolean isSystem() {
+            return concreteIndex.isSystem();
+        }
     }
 
     /**
@@ -208,6 +218,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isHidden() {
             return isHidden;
+        }
+
+        @Override
+        public boolean isSystem() {
+            return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
         }
 
         /**
@@ -275,6 +290,29 @@ public interface IndexAbstraction {
                     Strings.collectionToCommaDelimitedString(nonHiddenOn) + "]; alias must have the same is_hidden setting " +
                     "on all indices");
             }
+
+            // Validate system status
+
+            final Map<Boolean, List<IndexMetadata>> groupedBySystemStatus = referenceIndexMetadatas.stream()
+                .collect(Collectors.groupingBy(IndexMetadata::isSystem));
+            // If the alias has either all system or all non-system, then no more validation is required
+            if (isNonEmpty(groupedBySystemStatus.get(false)) && isNonEmpty(groupedBySystemStatus.get(true))) {
+                final List<String> newVersionSystemIndices = groupedBySystemStatus.get(true).stream()
+                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
+                    .map(i -> i.getIndex().getName())
+                    .sorted() // reliable error message for testing
+                    .collect(Collectors.toList());
+
+                if (newVersionSystemIndices.isEmpty() == false) {
+                    final List<String> nonSystemIndices = groupedBySystemStatus.get(false).stream()
+                        .map(i -> i.getIndex().getName())
+                        .sorted() // reliable error message for testing
+                        .collect(Collectors.toList());
+                    throw new IllegalStateException("alias [" + aliasName + "] refers to both system indices " + newVersionSystemIndices +
+                        " and non-system indices: " + nonSystemIndices + ", but aliases must refer to either system or" +
+                        " non-system indices, not both");
+                }
+            }
         }
 
         private boolean isNonEmpty(List<IndexMetadata> idxMetas) {
@@ -322,6 +360,12 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isHidden() {
+            return false;
+        }
+
+        @Override
+        public boolean isSystem() {
+            // No such thing as system data streams (yet)
             return false;
         }
 

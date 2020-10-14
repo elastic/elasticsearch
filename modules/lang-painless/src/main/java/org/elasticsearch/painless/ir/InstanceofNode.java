@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
@@ -27,9 +27,9 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
 public class InstanceofNode extends UnaryNode {
-    
+
     /* ---- begin node data ---- */
-    
+
     private Class<?> instanceType;
 
     public void setInstanceType(Class<?> instanceType) {
@@ -47,15 +47,26 @@ public class InstanceofNode extends UnaryNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitInstanceof(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitInstanceof(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getChildNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */
 
+    public InstanceofNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getChildNode().write(classWriter, methodWriter, writeScope);
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+
+        getChildNode().write(writeScope);
 
         if (instanceType == def.class) {
             methodWriter.writePop(MethodWriter.getType(getExpressionType()).getSize());

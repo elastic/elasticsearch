@@ -8,9 +8,9 @@ Flushes one or more data streams or indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_flush
+POST /my-index-000001/_flush
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[flush-api-request]]
@@ -117,9 +117,9 @@ Defaults to `true`.
 
 [source,console]
 ----
-POST /kimchy/_flush
+POST /my-index-000001/_flush
 ----
-// TEST[s/^/PUT kimchy\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 
 [[flush-multi-index]]
@@ -127,9 +127,9 @@ POST /kimchy/_flush
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_flush
+POST /my-index-000001,my-index-000002/_flush
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[flush-api-all-ex]]

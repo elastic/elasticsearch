@@ -16,16 +16,20 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
-    protected RootFlatObjectFieldType createDefaultFieldType() {
+    private static RootFlatObjectFieldType createDefaultFieldType() {
         return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
     }
 
@@ -42,6 +46,10 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
         Query expected = new TermQuery(new Term("field", "value"));
         assertEquals(expected, ft.termQuery("value", null));
+
+        expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "Value"));
+        assertEquals(expected, ft.termQueryCaseInsensitive("Value", null));
+
 
         RootFlatObjectFieldType unsearchable = new RootFlatObjectFieldType("field", false, true,
             Collections.emptyMap(), false);
@@ -97,11 +105,11 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
         RootFlatObjectFieldType ft = createDefaultFieldType();
 
         Query expected = new RegexpQuery(new Term("field", "val.*"));
-        Query actual = ft.regexpQuery("val.*", 0, 10, null, MOCK_QSC);
+        Query actual = ft.regexpQuery("val.*", 0, 0, 10, null, MOCK_QSC);
         assertEquals(expected, actual);
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.regexpQuery("val.*", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.regexpQuery("val.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }
@@ -116,5 +124,13 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key", "value");
+        RootFlatObjectFieldType ft = createDefaultFieldType();
+
+        assertEquals(List.of(sourceValue), fetchSourceValue(ft, sourceValue));
+        assertEquals(List.of(), fetchSourceValue(ft, null));
     }
 }

@@ -41,6 +41,11 @@ public class TestSingleValueAggregation extends InternalAggregation {
     }
 
     @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
+    }
+
+    @Override
     public Object getProperty(List<String> path) {
         if (this.path.equals(path)) {
             return value;

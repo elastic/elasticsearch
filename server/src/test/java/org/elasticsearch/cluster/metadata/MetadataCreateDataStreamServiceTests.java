@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -72,7 +73,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+        ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class,
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] already exists"));
     }

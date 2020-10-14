@@ -24,6 +24,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
@@ -72,8 +73,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE);
     }
 
+    /**
+     * Due to the way that plugins may not be available when settings are being initialized,
+     * not all roles may be available from a static/initializing context such as a {@link Setting}
+     * default value function. In that case, be warned that this may not include all plugin roles.
+     */
     public static boolean isDataNode(final Settings settings) {
-        return hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
     public static boolean isIngestNode(final Settings settings) {
@@ -279,8 +285,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         out.writeVInt(roles.size());
         for (final DiscoveryNodeRole role : roles) {
-            out.writeString(role.roleName());
-            out.writeString(role.roleNameAbbreviation());
+            final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
+            out.writeString(compatibleRole.roleName());
+            out.writeString(compatibleRole.roleNameAbbreviation());
         }
         Version.writeVersion(version, out);
     }
@@ -328,7 +335,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * Should this node hold data (shards) or not.
      */
     public boolean isDataNode() {
-        return roles.contains(DiscoveryNodeRole.DATA_ROLE);
+        return roles.stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
     /**

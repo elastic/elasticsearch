@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -55,6 +54,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -97,20 +96,22 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private final JobConfigProvider jobConfigProvider;
     private final MlMemoryTracker memoryTracker;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
+    private final Client client;
 
     @Inject
     public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                  JobConfigProvider jobConfigProvider, MlMemoryTracker memoryTracker) {
+                                  JobConfigProvider jobConfigProvider, MlMemoryTracker memoryTracker, Client client) {
         super(OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters,OpenJobAction.Request::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, NodeAcknowledgedResponse::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.jobConfigProvider = jobConfigProvider;
         this.memoryTracker = memoryTracker;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        this.client = client;
     }
 
     /**
@@ -190,18 +191,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     @Override
-    protected String executor() {
-        // This api doesn't do heavy or blocking operations (just delegates PersistentTasksService),
-        // so we can do this on the network thread
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected NodeAcknowledgedResponse read(StreamInput in) throws IOException {
-        return new NodeAcknowledgedResponse(in);
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(OpenJobAction.Request request, ClusterState state) {
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,
@@ -224,7 +213,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
                 response -> {
                     if (response.isAcknowledged()) {
-                        clearJobFinishedTime(response, jobParams.getJobId(), listener);
+                        clearJobFinishedTime(response, state, jobParams.getJobId(), listener);
                     } else {
                         listener.onResponse(response);
                     }
@@ -309,17 +298,33 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         });
     }
 
-    private void clearJobFinishedTime(NodeAcknowledgedResponse response, String jobId, ActionListener<NodeAcknowledgedResponse> listener) {
-        JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
-
-        jobConfigProvider.updateJob(jobId, update, null, ActionListener.wrap(
-                job -> listener.onResponse(response),
-                e  -> {
-                    logger.error("[" + jobId + "] Failed to clear finished_time", e);
-                    // Not a critical error so continue
-                    listener.onResponse(response);
-                }
-        ));
+    private void clearJobFinishedTime(NodeAcknowledgedResponse response,
+                                      ClusterState clusterState,
+                                      String jobId,
+                                      ActionListener<NodeAcknowledgedResponse> listener) {
+        final JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
+        ActionListener<Job> clearedTimeListener = ActionListener.wrap(
+            job -> listener.onResponse(response),
+            e -> {
+                logger.error(new ParameterizedMessage("[{}] Failed to clear finished_time", jobId), e);
+                // Not a critical error so continue
+                listener.onResponse(response);
+            }
+        );
+        ActionListener<Boolean> mappingsUpdatedListener = ActionListener.wrap(
+            mappingUpdateResponse -> jobConfigProvider.updateJob(jobId, update, null, clearedTimeListener),
+            e -> {
+                logger.error(new ParameterizedMessage("[{}] Failed to update mapping; not clearing finished_time", jobId), e);
+                // Not a critical error so continue without attempting to clear finish time
+                listener.onResponse(response);
+            }
+        );
+        ElasticsearchMappings.addDocMappingIfMissing(
+            MlConfigIndex.indexName(),
+            MlConfigIndex::mapping,
+            client,
+            clusterState,
+            mappingsUpdatedListener);
     }
 
     private void cancelJobStart(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,

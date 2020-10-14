@@ -42,8 +42,6 @@ tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
 
 javaRestTest {
   dependsOn exampleFixture
-  runner {
-    nonInputProperties.systemProperty 'external.address', "${-> exampleFixture.addressAndPort}"
-  }
+  nonInputProperties.systemProperty 'external.address', "${-> exampleFixture.addressAndPort}"
 }
 

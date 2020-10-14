@@ -25,6 +25,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+
 public class ContextPreservingActionListenerTests extends ESTestCase {
 
     public void testOriginalContextIsPreservedAfterOnResponse() throws IOException {
@@ -150,4 +153,30 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
         assertNull(threadContext.getHeader("foo"));
         assertEquals(nonEmptyContext ? "value" : null, threadContext.getHeader("not empty"));
     }
+
+    public void testToStringIncludesDelegate() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ContextPreservingActionListener<Void> actionListener;
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            final ActionListener<Void> delegate = new ActionListener<>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                }
+
+                @Override
+                public String toString() {
+                    return "test delegate";
+                }
+            };
+
+            actionListener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+        }
+
+        assertThat(actionListener.toString(), allOf(containsString("test delegate"), containsString("ContextPreservingActionListener")));
+    }
+
 }

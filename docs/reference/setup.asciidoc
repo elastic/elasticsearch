@@ -24,14 +24,14 @@ platforms, but it is possible that it will work on other platforms too.
 == Java (JVM) Version
 
 Elasticsearch is built using Java, and includes a bundled version of
-http://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
+https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
 within each distribution. The bundled JVM is the recommended JVM and
 is located within the `jdk` directory of the Elasticsearch home directory.
 
 To use your own version of Java, set the `JAVA_HOME` environment variable.
 If you must use a version of Java that is different from the bundled JVM,
 we recommend using a link:/support/matrix[supported]
-http://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
+https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
 Elasticsearch will refuse to start if a known-bad version of Java is used.
 The bundled JVM directory may be removed when using your own JVM.
 

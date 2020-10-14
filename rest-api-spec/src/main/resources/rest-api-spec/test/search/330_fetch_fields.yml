@@ -21,7 +21,7 @@ setup:
         index:  test
         id:     1
         body:
-          keyword: [ "x", "y" ]
+          keyword: [ "a", "b" ]
           integer_range:
             gte: 0
             lte: 42
@@ -39,8 +39,8 @@ setup:
   - is_true: hits.hits.0._id
   - is_true: hits.hits.0._source
 
-  - match: { hits.hits.0.fields.keyword.0: x }
-  - match: { hits.hits.0.fields.keyword.1: y }
+  - match: { hits.hits.0.fields.keyword.0: a }
+  - match: { hits.hits.0.fields.keyword.1: b }
 
   - match: { hits.hits.0.fields.integer_range.0.gte: 0 }
   - match: { hits.hits.0.fields.integer_range.0.lte: 42 }
@@ -92,6 +92,7 @@ setup:
           fields:
             - field: keyword
               format: "yyyy/MM/dd"
+
 ---
 "Test disable source":
   - do:
@@ -112,7 +113,11 @@ setup:
         index:  test
         id:     1
         body:
-          keyword: [ "x" ]
+          keyword: [ "a" ]
+
+  - do:
+      indices.refresh:
+        index: [ test ]
 
   - do:
       catch: bad_request
@@ -145,7 +150,7 @@ setup:
         index:  test
         id:     1
         body:
-          keyword: "x"
+          keyword: "a"
           integer: 42
 
   - do:
@@ -153,7 +158,7 @@ setup:
         index:  test
         id:     2
         body:
-          keyword: "y"
+          keyword: "b"
           integer: "not an integer"
 
   - do:
@@ -192,7 +197,7 @@ setup:
         id:     1
         refresh: true
         body:
-          keyword: "x"
+          keyword: "a"
           integer: 42
 
   - do:
@@ -202,7 +207,7 @@ setup:
           fields: [ keyword ]
           _source: false
 
-  - match: { hits.hits.0.fields.keyword.0: "x" }
+  - match: { hits.hits.0.fields.keyword.0: "a" }
 
   - do:
       search:
@@ -212,5 +217,81 @@ setup:
           stored_fields: [ integer ]
           _source: false
 
-  - match: { hits.hits.0.fields.keyword.0: "x" }
+  - match: { hits.hits.0.fields.keyword.0: "a" }
   - match: { hits.hits.0.fields.integer.0: 42 }
+
+---
+"Test search rewrite":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              date:
+                from: "1990-12-29T22:30:00.000Z"
+          fields:
+            - field: date
+              format: "yyyy/MM/dd"
+
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._source
+  - match: { hits.hits.0.fields.date.0: "1990/12/29" }
+
+---
+"Test token count":
+  - skip:
+      version: " - 7.99.99"
+      reason: "support for token_count isn't yet backported"
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              count:
+                type: token_count
+                analyzer: standard
+              count_without_dv:
+                type: token_count
+                analyzer: standard
+                doc_values: false
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        refresh: true
+        body:
+          count: "some text"
+  - do:
+      search:
+        index: test
+        body:
+          fields: [count, count_without_dv]
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0.fields.count: [2] }
+  - is_false: hits.hits.0.fields.count_without_dv

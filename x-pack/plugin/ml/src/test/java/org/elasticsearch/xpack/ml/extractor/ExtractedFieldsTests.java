@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -31,8 +32,10 @@ public class ExtractedFieldsTests extends ESTestCase {
         ExtractedField scriptField2 = new ScriptField("scripted2");
         ExtractedField sourceField1 = new SourceField("src1", Collections.singleton("text"));
         ExtractedField sourceField2 = new SourceField("src2", Collections.singleton("text"));
-        ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
-                docValue1, docValue2, scriptField1, scriptField2, sourceField1, sourceField2), Collections.emptyMap());
+        ExtractedFields extractedFields = new ExtractedFields(
+            Arrays.asList(docValue1, docValue2, scriptField1, scriptField2, sourceField1, sourceField2),
+            Collections.emptyList(),
+            Collections.emptyMap());
 
         assertThat(extractedFields.getAllFields().size(), equalTo(6));
         assertThat(extractedFields.getDocValueFields().stream().map(ExtractedField::getName).toArray(String[]::new),
@@ -53,8 +56,11 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("value")).thenReturn(valueCaps);
         when(fieldCapabilitiesResponse.getField("airline")).thenReturn(airlineCaps);
 
-        ExtractedFields extractedFields = ExtractedFields.build(Arrays.asList("time", "value", "airline", "airport"),
-            new HashSet<>(Collections.singletonList("airport")), fieldCapabilitiesResponse, Collections.emptyMap());
+        ExtractedFields extractedFields = ExtractedFields.build(new TreeSet<>(Arrays.asList("time", "value", "airline", "airport")),
+            new HashSet<>(Collections.singletonList("airport")),
+            fieldCapabilitiesResponse,
+            Collections.emptyMap(),
+            Collections.emptyList());
 
         assertThat(extractedFields.getDocValueFields().size(), equalTo(2));
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("time"));
@@ -76,8 +82,8 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("airport")).thenReturn(text);
         when(fieldCapabilitiesResponse.getField("airport.keyword")).thenReturn(keyword);
 
-        ExtractedFields extractedFields = ExtractedFields.build(Arrays.asList("airline.text", "airport.keyword"),
-                Collections.emptySet(), fieldCapabilitiesResponse, Collections.emptyMap());
+        ExtractedFields extractedFields = ExtractedFields.build(new TreeSet<>(Arrays.asList("airline.text", "airport.keyword")),
+                Collections.emptySet(), fieldCapabilitiesResponse, Collections.emptyMap(), Collections.emptyList());
 
         assertThat(extractedFields.getDocValueFields().size(), equalTo(1));
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("airport.keyword"));
@@ -112,14 +118,18 @@ public class ExtractedFieldsTests extends ESTestCase {
         assertThat(mapped.getName(), equalTo(aBool.getName()));
         assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));
         assertThat(mapped.supportsFromSource(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> mapped.newFromSource());
+        expectThrows(UnsupportedOperationException.class, mapped::newFromSource);
     }
 
     public void testBuildGivenFieldWithoutMappings() {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ExtractedFields.build(
-                Collections.singletonList("value"), Collections.emptySet(), fieldCapabilitiesResponse, Collections.emptyMap()));
+            Collections.singleton("value"),
+            Collections.emptySet(),
+            fieldCapabilitiesResponse,
+            Collections.emptyMap(),
+            Collections.emptyList()));
         assertThat(e.getMessage(), equalTo("cannot retrieve field [value] because it has no mappings"));
     }
 

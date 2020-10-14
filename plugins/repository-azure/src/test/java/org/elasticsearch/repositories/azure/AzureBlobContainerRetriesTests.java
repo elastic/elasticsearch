@@ -217,20 +217,13 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
     public void testReadRangeBlobWithRetries() throws Exception {
         final int maxRetries = randomIntBetween(1, 5);
-        final CountDown countDownHead = new CountDown(maxRetries);
         final CountDown countDownGet = new CountDown(maxRetries);
         final byte[] bytes = randomBlobContent();
         httpServer.createContext("/container/read_range_blob_max_retries", exchange -> {
             try {
                 Streams.readFully(exchange.getRequestBody());
                 if ("HEAD".equals(exchange.getRequestMethod())) {
-                    if (countDownHead.countDown()) {
-                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
-                        exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-                        return;
-                    }
+                    throw new AssertionError("Should not HEAD blob for ranged reads");
                 } else if ("GET".equals(exchange.getRequestMethod())) {
                     if (countDownGet.countDown()) {
                         final int rangeStart = getRangeStart(exchange);
@@ -262,7 +255,6 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         try (InputStream inputStream = blobContainer.readBlob("read_range_blob_max_retries", position, length)) {
             final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(inputStream));
             assertArrayEquals(Arrays.copyOfRange(bytes, position, Math.min(bytes.length, position + length)), bytesRead);
-            assertThat(countDownHead.isCountedDown(), is(true));
             assertThat(countDownGet.isCountedDown(), is(true));
         }
     }

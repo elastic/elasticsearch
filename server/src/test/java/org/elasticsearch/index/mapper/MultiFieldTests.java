@@ -26,11 +26,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -40,6 +42,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -94,25 +97,25 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(mapperService.fieldType("name"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
         assertTrue(mapperService.fieldType("name").isSearchable());
-        assertTrue(mapperService.fieldType("name").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name").isStored());
         assertTrue(mapperService.fieldType("name").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
         assertTrue(mapperService.fieldType("name.indexed").isSearchable());
-        assertFalse(mapperService.fieldType("name.indexed").getTextSearchInfo().isStored());
+        assertFalse(mapperService.fieldType("name.indexed").isStored());
         assertTrue(mapperService.fieldType("name.indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
         assertFalse(mapperService.fieldType("name.not_indexed").isSearchable());
-        assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name.not_indexed").isStored());
         assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.test1"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
         assertTrue(mapperService.fieldType("name.test1").isSearchable());
-        assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name.test1").isStored());
         assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isTokenized());
         assertThat(mapperService.fieldType("name.test1").eagerGlobalOrdinals(), equalTo(true));
 
@@ -127,11 +130,12 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
+        Supplier<NamedAnalyzer> a = () -> Lucene.STANDARD_ANALYZER;
 
         DocumentMapper builderDocMapper = new DocumentMapper.Builder(new RootObjectMapper.Builder("person").add(
-                new TextFieldMapper.Builder("name").store(true)
-                        .addMultiField(new TextFieldMapper.Builder("indexed").index(true))
-                        .addMultiField(new TextFieldMapper.Builder("not_indexed").index(false).store(true))
+                new TextFieldMapper.Builder("name", a).store(true)
+                        .addMultiField(new TextFieldMapper.Builder("indexed", a).index(true))
+                        .addMultiField(new TextFieldMapper.Builder("not_indexed", a).index(false).store(true))
         ), indexService.mapperService()).build(indexService.mapperService());
 
         String builtMapping = builderDocMapper.mappingSource().string();

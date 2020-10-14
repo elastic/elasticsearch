@@ -37,7 +37,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
@@ -45,13 +44,13 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.threeten.bp.Duration;
@@ -61,7 +60,6 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -71,8 +69,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -107,11 +103,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         return new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3));
-    }
-
-    @Override
-    protected List<String> requestTypesTracked() {
-        return List.of("GET", "LIST", "POST", "PUT");
     }
 
     @Override
@@ -200,16 +191,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
-    public void testBucketDoesNotExist() {
-        RepositoryException ex = expectThrows(RepositoryException.class, () ->
-                client().admin().cluster().preparePutRepository("invalid")
-                        .setType(repositoryType())
-                        .setVerify(true)
-                        .setSettings(Settings.builder().put(repositorySettings()).put("bucket", "missing")).get());
-        assertThat(ex.getCause(), instanceOf(BlobStoreException.class));
-        assertThat(ex.getCause().getMessage(), is("Bucket [missing] does not exist"));
-    }
-
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
 
         public TestGoogleCloudStoragePlugin(Settings settings) {
@@ -244,9 +225,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry registry,
-                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
+                                                               ClusterService clusterService, BigArrays bigArrays,
+                                                               RecoverySettings recoverySettings) {
             return Collections.singletonMap(GoogleCloudStorageRepository.TYPE,
-                metadata -> new GoogleCloudStorageRepository(metadata, registry, this.storageService, clusterService, recoverySettings) {
+                metadata -> new GoogleCloudStorageRepository(metadata, registry, this.storageService, clusterService,
+                        bigArrays, recoverySettings) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
@@ -324,15 +307,18 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /storage/v1/b/*/o/*", request)) {
-                trackRequest("GET");
+                trackRequest("GetObject");
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
-                trackRequest("LIST");
+                trackRequest("ListObjects");
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
-                trackRequest("GET");
-            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*", request) && isLastPart(requestHeaders)) {
-                trackRequest("PUT");
+                trackRequest("GetObject");
+            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request) && isLastPart(requestHeaders)) {
+                // Resumable uploads are billed as a single operation, that's the reason we're tracking
+                // the request only when it's the last part.
+                // See https://cloud.google.com/storage/docs/resumable-uploads#introduction
+                trackRequest("InsertObject");
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
-                trackRequest("POST");
+                trackRequest("InsertObject");
             }
         }
 

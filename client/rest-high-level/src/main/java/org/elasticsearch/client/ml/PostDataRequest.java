@@ -47,7 +47,7 @@ public class PostDataRequest implements Validatable, ToXContentObject {
 
     public static final ConstructingObjectParser<PostDataRequest, Void> PARSER =
         new ConstructingObjectParser<>("post_data_request",
-            (a) -> new PostDataRequest((String)a[0], XContentType.fromMediaTypeOrFormat((String)a[1]), new byte[0]));
+            (a) -> new PostDataRequest((String)a[0], XContentType.fromMediaType((String)a[1]), new byte[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);

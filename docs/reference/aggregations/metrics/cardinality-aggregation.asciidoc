@@ -71,7 +71,7 @@ values as the required memory usage and the need to communicate those
 per-shard sets between nodes would utilize too many resources of the cluster.
 
 This `cardinality` aggregation is based on the
-http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf[HyperLogLog++]
+https://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf[HyperLogLog++]
 algorithm, which counts based on the hashes of the values with some interesting
 properties:
 

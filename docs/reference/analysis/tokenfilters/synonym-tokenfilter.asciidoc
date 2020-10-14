@@ -136,7 +136,7 @@ However, it is recommended to define large synonyms set in a file using
 [discrete]
 ==== WordNet synonyms
 
-Synonyms based on http://wordnet.princeton.edu/[WordNet] format can be
+Synonyms based on https://wordnet.princeton.edu/[WordNet] format can be
 declared using `format`:
 
 [source,console]

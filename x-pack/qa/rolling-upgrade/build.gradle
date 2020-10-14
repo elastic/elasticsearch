@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -25,7 +25,7 @@ forbiddenPatterns {
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
 
-task copyTestNodeKeyMaterial(type: Copy) {
+tasks.register("copyTestNodeKeyMaterial", Copy) {
   from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
     'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')
   into outputDir
@@ -42,7 +42,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      setting 'http.content_type.required', 'true'
       setting 'xpack.license.self_generated.type', 'trial'
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -88,10 +87,10 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
   }
 
-  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${baseName}"
     mustRunAfter(precommit)
-    dependsOn copyTestNodeKeyMaterial
+    dependsOn "copyTestNodeKeyMaterial"
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
@@ -99,7 +98,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   }
 
   String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
-  tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
     useCluster testClusters."${baseName}"
     doFirst {
@@ -124,7 +123,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     ].join(',')
   }
 
-  tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
     useCluster testClusters."${baseName}"
     doFirst {
@@ -137,7 +136,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.upgrade_from_version', oldVersion
   }
 
-  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     useCluster testClusters."${baseName}"
     doFirst {

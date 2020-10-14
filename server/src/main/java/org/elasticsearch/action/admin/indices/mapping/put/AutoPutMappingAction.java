@@ -28,7 +28,7 @@ public class AutoPutMappingAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/mapping/auto_put";
 
     private AutoPutMappingAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

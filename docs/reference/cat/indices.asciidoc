@@ -98,18 +98,18 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 [[examples]]
 [source,console]
 --------------------------------------------------
-GET /_cat/indices/twi*?v&s=index
+GET /_cat/indices/my-index-*?v&s=index
 --------------------------------------------------
-// TEST[setup:huge_twitter]
-// TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
+// TEST[setup:my_index_huge]
+// TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]
 
 The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
-yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
-green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0       260b           260b
+health status index            uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   my-index-000001  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
+green  open   my-index-000002  nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0       260b           260b
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ non_json]

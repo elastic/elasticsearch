@@ -87,7 +87,7 @@ public class LdapMetadataResolver {
                                     }
                                     return values.length == 1 ? values[0] : List.of(values);
                                  })
-                        );
+                        )
+        );
     }
-
 }

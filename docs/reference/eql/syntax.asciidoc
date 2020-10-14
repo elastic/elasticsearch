@@ -114,7 +114,7 @@ EQL operators are case-sensitive by default.
 
 [source,eql]
 ----
-<   <=   ==   !=   >=   >
+<   <=   ==   :   !=   >=   >
 ----
 
 `<` (less than)::
@@ -125,14 +125,19 @@ to the right. Otherwise returns `false`.
 Returns `true` if the value to the left of the operator is less than or equal to
 the value to the right. Otherwise returns `false`.
 
-`==` (equal)::
+`==` (equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are equal.
-Otherwise returns `false`.
-+
+Otherwise returns `false`. For strings, matching is case-sensitive.
+
+`:` (equal, case-insensitive)::
+Returns `true` if strings to the left and right of the operator are equal.
+Otherwise returns `false`. Matching is case-insensitive and can only be used to
+compare strings.
+
 [IMPORTANT]
 ====
-Avoid using the `==` operator to perform exact matching on <<text,`text`>> field
-values.
+Avoid using the `==` or `:` operators to perform exact matching on
+<<text,`text`>> field values.
 
 By default, {es} changes the values of `text` fields as part of <<analysis,
 analysis>>. This can make finding exact matches for `text` field values
@@ -142,19 +147,21 @@ To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
 DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
 ====
 
-`!=` (not equal)::
+`!=` (not equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are not
-equal. Otherwise returns `false`.
+equal. Otherwise returns `false`. For strings, matching is case-sensitive.
 
 `>=` (greater than or equal) ::
 Returns `true` if the value to the left of the operator is greater than or equal
-to the value to the right. Otherwise returns `false`.
+to the value to the right. Otherwise returns `false`. When comparing strings,
+the operator uses a case-sensitive lexicographic order.
 
 `>` (greater than)::
 Returns `true` if the value to the left of the operator is greater than the
-value to the right. Otherwise returns `false`.
+value to the right. Otherwise returns `false`. When comparing strings,
+the operator uses a case-sensitive lexicographic order.
 
-NOTE: `=` is not supported as an equality operator. Use `==` instead. 
+NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
 You cannot chain comparison operators. Instead, use a
 <<eql-syntax-logical-operators,logical operator>> between comparisons. For
@@ -341,7 +348,7 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 
 IMPORTANT: The single quote (`'`) character is reserved for future use. You
 cannot use an escaped single quote (`\'`) for literal strings. Use an escaped
-double quote (`\"`) instead. 
+double quote (`\"`) instead.
 
 [discrete]
 [[eql-syntax-raw-strings]]
@@ -361,19 +368,6 @@ use a regular string with the `\"` escape sequence.
 [source,eql]
 ----
 "String containing \"\"\" three double quotes"
-----
-
-[discrete]
-[[eql-syntax-wildcards]]
-===== Wildcards
-
-When comparing strings using the `==` or `!=` operators, you can use the `*`
-operator within the string to match specific patterns:
-
-[source,eql]
-----
-field == "example*wildcard"
-field != "example*wildcard"
 ----
 
 [discrete]

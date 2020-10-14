@@ -56,7 +56,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -161,8 +160,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random,
-                       RerouteService rerouteService, ElectionStrategy electionStrategy, NodeHealthService nodeHealthService,
-                       BigArrays bigArrays) {
+                       RerouteService rerouteService, ElectionStrategy electionStrategy, NodeHealthService nodeHealthService) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
@@ -188,7 +186,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry,
-            this::handlePublishRequest, this::handleApplyCommit, bigArrays);
+            this::handlePublishRequest, this::handleApplyCommit);
         this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure, nodeHealthService);
         this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode,
             nodeHealthService);
@@ -1071,24 +1069,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final PublicationTransportHandler.PublicationContext publicationContext =
                     publicationHandler.newPublicationContext(clusterChangedEvent);
-                boolean publicationStarted = false;
-                try {
-                    final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
-                    final CoordinatorPublication publication = new CoordinatorPublication(publishRequest, publicationContext,
-                        new ListenableFuture<>(), ackListener, publishListener);
-                    currentPublication = Optional.of(publication);
 
-                    final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
-                    leaderChecker.setCurrentNodes(publishNodes);
-                    followersChecker.setCurrentNodes(publishNodes);
-                    lagDetector.setTrackedNodes(publishNodes);
-                    publication.start(followersChecker.getFaultyNodes());
-                    publicationStarted = true;
-                } finally {
-                    if (publicationStarted == false) {
-                        publicationContext.releaseSerializedStates();
-                    }
-                }
+                final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
+                final CoordinatorPublication publication = new CoordinatorPublication(publishRequest, publicationContext,
+                    new ListenableFuture<>(), ackListener, publishListener);
+                currentPublication = Optional.of(publication);
+
+                final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
+                leaderChecker.setCurrentNodes(publishNodes);
+                followersChecker.setCurrentNodes(publishNodes);
+                lagDetector.setTrackedNodes(publishNodes);
+                publication.start(followersChecker.getFaultyNodes());
             }
         } catch (Exception e) {
             logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterChangedEvent.source()), e);
@@ -1359,8 +1350,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void onCompletion(boolean committed) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-
-            publicationContext.releaseSerializedStates();
 
             localNodeAckEvent.addListener(new ActionListener<Void>() {
                 @Override

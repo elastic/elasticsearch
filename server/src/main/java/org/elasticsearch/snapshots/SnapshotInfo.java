@@ -241,7 +241,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     private final List<String> dataStreams;
 
-    private final List<SnapshotPluginInfo> featureStates;
+    private final List<SnapshotFeatureInfo> featureStates;
 
     private final long startTime;
 
@@ -262,12 +262,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     private final List<SnapshotShardFailure> shardFailures;
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotPluginInfo> featureStates,
+    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotFeatureInfo> featureStates,
                         SnapshotState state) {
         this(snapshotId, indices, dataStreams, featureStates, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null, null, state);
     }
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotPluginInfo> featureStates,
+    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotFeatureInfo> featureStates,
                         Version version, SnapshotState state) {
         this(snapshotId, indices, dataStreams, featureStates, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null, null, state);
     }
@@ -280,7 +280,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         ); // TODO: Add featureStates to SnapshotInProgress.Entry
     }
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotPluginInfo> featureStates,
+    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotFeatureInfo> featureStates,
                         String reason, long endTime, int totalShards, List<SnapshotShardFailure> shardFailures, Boolean includeGlobalState,
                         Map<String, Object> userMetadata, long startTime) {
         this(snapshotId, indices, dataStreams, featureStates, reason, Version.CURRENT, startTime, endTime, totalShards,
@@ -288,7 +288,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         );
     }
 
-    SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotPluginInfo> featureStates,
+    SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotFeatureInfo> featureStates,
                  String reason, Version version, long startTime, long endTime, int totalShards, int successfulShards,
                  List<SnapshotShardFailure> shardFailures, Boolean includeGlobalState, Map<String, Object> userMetadata,
                  SnapshotState state) {
@@ -328,7 +328,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (in.getVersion().before(CreateSnapshotRequest.FEATURE_STATES_VERSION)) {
             featureStates = null;
         } else {
-            featureStates = in.readList(SnapshotPluginInfo::new);
+            featureStates = in.readList(SnapshotFeatureInfo::new);
         }
     }
 
@@ -573,8 +573,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
         if (verbose || featureStates != null) {
             builder.startArray(FEATURE_STATES);
-            for (SnapshotPluginInfo snapshotPluginInfo : featureStates) {
-                builder.value(snapshotPluginInfo);
+            for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
+                builder.value(snapshotFeatureInfo);
             }
             builder.endArray();
         }
@@ -616,8 +616,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
         builder.endArray();
         builder.startArray(FEATURE_STATES);
-        for (SnapshotPluginInfo snapshotPluginInfo : featureStates) {
-            builder.value(snapshotPluginInfo);
+        for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
+            builder.value(snapshotFeatureInfo);
         }
         builder.endArray();
 
@@ -645,7 +645,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         Boolean includeGlobalState = null;
         Map<String, Object> userMetadata = null;
         List<SnapshotShardFailure> shardFailures = Collections.emptyList();
-        List<SnapshotPluginInfo> featureStates = null;
+        List<SnapshotFeatureInfo> featureStates = null;
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }
@@ -701,11 +701,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                             }
                             shardFailures = Collections.unmodifiableList(shardFailureArrayList);
                         } else if (FEATURE_STATES.equals(currentFieldName)) {
-                            ArrayList<SnapshotPluginInfo> snapshotPluginInfoArrayList = new ArrayList<>();
+                            ArrayList<SnapshotFeatureInfo> snapshotFeatureInfoArrayList = new ArrayList<>();
                             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                snapshotPluginInfoArrayList.add(SnapshotPluginInfo.fromXContent(parser));
+                                snapshotFeatureInfoArrayList.add(SnapshotFeatureInfo.fromXContent(parser));
                             }
-                            featureStates = Collections.unmodifiableList(snapshotPluginInfoArrayList);
+                            featureStates = Collections.unmodifiableList(snapshotFeatureInfoArrayList);
                         } else {
                             // It was probably created by newer version - ignoring
                             parser.skipChildren();
@@ -812,15 +812,15 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             featureStates);
     }
 
-    private static class SnapshotPluginInfo implements Writeable, ToXContentObject {
+    private static class SnapshotFeatureInfo implements Writeable, ToXContentObject {
         final String pluginName;
         final List<String> indices;
 
-        static final ConstructingObjectParser<SnapshotPluginInfo, Void> SNAPSHOT_PLUGIN_INFO_PARSER =
+        static final ConstructingObjectParser<SnapshotFeatureInfo, Void> SNAPSHOT_PLUGIN_INFO_PARSER =
             new ConstructingObjectParser<>("plugin_info", true, (a, name) -> {
                 String pluginName = (String) a[0];
                 List<String> indices = (List<String>) a[1];
-                return new SnapshotPluginInfo(pluginName, indices);
+                return new SnapshotFeatureInfo(pluginName, indices);
             });
 
         static {
@@ -828,12 +828,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             SNAPSHOT_PLUGIN_INFO_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), new ParseField("indices"));
         }
 
-        private SnapshotPluginInfo(String pluginName, List<String> indices) {
+        private SnapshotFeatureInfo(String pluginName, List<String> indices) {
             this.pluginName = pluginName;
             this.indices = indices;
         }
 
-        SnapshotPluginInfo(final StreamInput in) throws IOException {
+        SnapshotFeatureInfo(final StreamInput in) throws IOException {
             this.pluginName = in.readString();
             this.indices = in.readStringList();
         }
@@ -844,7 +844,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             out.writeStringCollection(indices);
         }
 
-        public static SnapshotPluginInfo fromXContent(XContentParser parser) throws IOException {
+        public static SnapshotFeatureInfo fromXContent(XContentParser parser) throws IOException {
             return SNAPSHOT_PLUGIN_INFO_PARSER.parse(parser, null);
         }
 

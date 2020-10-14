@@ -68,8 +68,10 @@ public class QuotaAwareFileSystemProviderTests extends LuceneTestCase {
         FileSystemProvider systemProvider = FileSystems.getDefault().provider();
         System.clearProperty(QUOTA_PATH_KEY);
 
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new QuotaAwareFileSystemProvider(systemProvider));
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new QuotaAwareFileSystemProvider(systemProvider)
+        );
 
         assertThat(exception.getMessage(), startsWith("Property " + QUOTA_PATH_KEY + " must be set to a URI"));
     }

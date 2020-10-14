@@ -168,7 +168,7 @@ tasks.register("copyKeystore", Sync) {
 tasks.register("checkSecurityAuditLayoutPatternIdentical") {
   // the two log4j2.properties files containing security audit configuration for archive and docker builds respectively
   def originalLog4j = project(":x-pack:plugin:core").file('src/main/config/log4j2.properties')
-  def dockerLog4j = project.projectDir.toPath().resolve("src/docker/config/log4j2.properties").toFile()
+  def dockerLog4j = project.file("src/docker/config/log4j2.properties")
   inputs.files(originalLog4j, dockerLog4j)
   def patternPropertyKey = "appender.audit_rolling.layout.pattern"
   doLast {
@@ -200,7 +200,10 @@ tasks.register("checkSecurityAuditLayoutPatternIdentical") {
     }
   }
 }
-precommit.dependsOn 'checkSecurityAuditLayoutPatternIdentical'
+
+tasks.named("precommit").configure {
+  dependsOn 'checkSecurityAuditLayoutPatternIdentical'
+}
 
 elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->

@@ -64,7 +64,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         implements IndicesRequest.Replaceable, ToXContentObject {
 
     public static final Version SETTINGS_IN_REQUEST_VERSION = Version.V_8_0_0;
-    public static final Version PLUGIN_STATES_VERSION = Version.V_8_0_0;
+    public static final Version FEATURE_STATES_VERSION = Version.V_8_0_0;
 
     public static int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
 
@@ -76,7 +76,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
 
-    private String[] pluginStates = EMPTY_ARRAY;
+    private String[] featureStates = EMPTY_ARRAY;
 
     private boolean partial = false;
 
@@ -109,8 +109,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (in.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
             readSettingsFromStream(in);
         }
-        if (in.getVersion().onOrAfter(PLUGIN_STATES_VERSION)) {
-            pluginStates = in.readStringArray();
+        if (in.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
+            featureStates = in.readStringArray();
         }
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
@@ -128,8 +128,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (out.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
             writeSettingsToStream(Settings.EMPTY, out);
         }
-        if (out.getVersion().onOrAfter(PLUGIN_STATES_VERSION)) {
-            out.writeStringArray(pluginStates);
+        if (out.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
+            out.writeStringArray(featureStates);
         }
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);
@@ -159,8 +159,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is null", validationException);
         }
-        if (pluginStates == null) {
-            validationException = addValidationError("pluginStates is null", validationException);
+        if (featureStates == null) {
+            validationException = addValidationError("featureStates is null", validationException);
         }
         final int metadataSize = metadataSize(userMetadata);
         if (metadataSize > MAXIMUM_METADATA_BYTES) {
@@ -363,23 +363,23 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     /**
      * @return Which plugin states should be included in the snapshot
      */
-    public String[] pluginStates() {
-        return pluginStates;
+    public String[] featureStates() {
+        return featureStates;
     }
 
     /**
-     * @param pluginStates The plugin states to be included in the snapshot
+     * @param featureStates The plugin states to be included in the snapshot
      */
-    public CreateSnapshotRequest pluginStates(String[] pluginStates) {
-        this.pluginStates = pluginStates;
+    public CreateSnapshotRequest featureStates(String[] featureStates) {
+        this.featureStates = featureStates;
         return this;
     }
 
     /**
-     * @param pluginStates The plugin states to be included in the snapshot
+     * @param featureStates The plugin states to be included in the snapshot
      */
-    public CreateSnapshotRequest pluginStates(List<String> pluginStates) {
-        return pluginStates(pluginStates.toArray(new String[pluginStates.size()]));
+    public CreateSnapshotRequest featureStates(List<String> featureStates) {
+        return featureStates(featureStates.toArray(new String[featureStates.size()]));
     }
 
     /**
@@ -400,11 +400,11 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 } else {
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("plugin_states")) {
+            } else if (name.equals("feature_states")) {
                 if (entry.getValue() instanceof List) {
-                    pluginStates((List<String>) entry.getValue());
+                    featureStates((List<String>) entry.getValue());
                 } else {
-                    throw new IllegalArgumentException("malformed plugin_states section, should be an array of strings");
+                    throw new IllegalArgumentException("malformed feature_states section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue(), "partial"));
@@ -431,9 +431,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             builder.value(index);
         }
         builder.endArray();
-        if (pluginStates != null && pluginStates.length != 0) {
-            builder.startArray("plugin_states");
-            for (String plugin : pluginStates) {
+        if (featureStates != null && featureStates.length != 0) {
+            builder.startArray("feature_states");
+            for (String plugin : featureStates) {
                 builder.value(plugin);
             }
             builder.endArray();
@@ -465,7 +465,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             Objects.equals(repository, that.repository) &&
             Arrays.equals(indices, that.indices) &&
             Objects.equals(indicesOptions, that.indicesOptions) &&
-            Arrays.equals(pluginStates, that.pluginStates) &&
+            Arrays.equals(featureStates, that.featureStates) &&
             Objects.equals(masterNodeTimeout, that.masterNodeTimeout) &&
             Objects.equals(userMetadata, that.userMetadata);
     }
@@ -475,7 +475,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState,
             waitForCompletion, userMetadata);
         result = 31 * result + Arrays.hashCode(indices);
-        result = 31 * result + Arrays.hashCode(pluginStates);
+        result = 31 * result + Arrays.hashCode(featureStates);
         return result;
     }
 
@@ -486,7 +486,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             ", repository='" + repository + '\'' +
             ", indices=" + (indices == null ? null : Arrays.asList(indices)) +
             ", indicesOptions=" + indicesOptions +
-            ", pluginStates=" + Arrays.asList(pluginStates) +
+            ", featureStates=" + Arrays.asList(featureStates) +
             ", partial=" + partial +
             ", includeGlobalState=" + includeGlobalState +
             ", waitForCompletion=" + waitForCompletion +

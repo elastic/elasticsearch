@@ -61,7 +61,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
                 plugins.add(randomAlphaOfLength(randomInt(3) + 2));
             }
 
-            instance.pluginStates(plugins);
+            instance.featureStates(plugins);
         }
 
         if (randomBoolean()) {

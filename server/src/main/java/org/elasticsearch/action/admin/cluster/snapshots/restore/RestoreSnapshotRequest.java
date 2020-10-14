@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest.PLUGIN_STATES_VERSION;
+import static org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest.FEATURE_STATES_VERSION;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -54,7 +54,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private String[] pluginStates = Strings.EMPTY_ARRAY;
+    private String[] featureStates = Strings.EMPTY_ARRAY;
     private String renamePattern;
     private String renameReplacement;
     private boolean waitForCompletion;
@@ -87,8 +87,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         repository = in.readString();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(PLUGIN_STATES_VERSION)) {
-            pluginStates = in.readStringArray();
+        if (in.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
+            featureStates = in.readStringArray();
         }
         renamePattern = in.readOptionalString();
         renameReplacement = in.readOptionalString();
@@ -108,8 +108,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeString(repository);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(PLUGIN_STATES_VERSION)) {
-            out.writeStringArray(pluginStates);
+        if (out.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
+            out.writeStringArray(featureStates);
         }
         out.writeOptionalString(renamePattern);
         out.writeOptionalString(renameReplacement);
@@ -134,8 +134,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (indices == null) {
             validationException = addValidationError("indices are missing", validationException);
         }
-        if (pluginStates == null) {
-            validationException = addValidationError("pluginStates are missing", validationException);
+        if (featureStates == null) {
+            validationException = addValidationError("featureStates are missing", validationException);
         }
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is missing", validationException);
@@ -462,23 +462,23 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     /**
      * @return Which plugin states should be included in the snapshot
      */
-    public String[] pluginStates() {
-        return pluginStates;
+    public String[] featureStates() {
+        return featureStates;
     }
 
     /**
-     * @param pluginStates The plugin states to be included in the snapshot
+     * @param featureStates The plugin states to be included in the snapshot
      */
-    public RestoreSnapshotRequest pluginStates(String[] pluginStates) {
-        this.pluginStates = pluginStates;
+    public RestoreSnapshotRequest featureStates(String[] featureStates) {
+        this.featureStates = featureStates;
         return this;
     }
 
     /**
-     * @param pluginStates The plugin states to be included in the snapshot
+     * @param featureStates The plugin states to be included in the snapshot
      */
-    public RestoreSnapshotRequest pluginStates(List<String> pluginStates) {
-        return pluginStates(pluginStates.toArray(new String[pluginStates.size()]));
+    public RestoreSnapshotRequest featureStates(List<String> featureStates) {
+        return featureStates(featureStates.toArray(new String[featureStates.size()]));
     }
 
     /**
@@ -499,11 +499,11 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 } else {
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("plugin_states")) {
+            } else if (name.equals("feature_states")) {
                 if (entry.getValue() instanceof List) {
-                    pluginStates((List<String>) entry.getValue());
+                    featureStates((List<String>) entry.getValue());
                 } else {
-                    throw new IllegalArgumentException("malformed plugin_states section, should be an array of strings");
+                    throw new IllegalArgumentException("malformed feature_states section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue(), "partial"));
@@ -563,9 +563,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (renameReplacement != null) {
             builder.field("rename_replacement", renameReplacement);
         }
-        if (pluginStates != null && pluginStates.length != 0) {
-            builder.startArray("plugin_states");
-            for (String plugin : pluginStates) {
+        if (featureStates != null && featureStates.length != 0) {
+            builder.startArray("feature_states");
+            for (String plugin : featureStates) {
                 builder.value(plugin);
             }
             builder.endArray();
@@ -607,7 +607,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             Objects.equals(repository, that.repository) &&
             Arrays.equals(indices, that.indices) &&
             Objects.equals(indicesOptions, that.indicesOptions) &&
-            Arrays.equals(pluginStates, that.pluginStates) &&
+            Arrays.equals(featureStates, that.featureStates) &&
             Objects.equals(renamePattern, that.renamePattern) &&
             Objects.equals(renameReplacement, that.renameReplacement) &&
             Objects.equals(indexSettings, that.indexSettings) &&
@@ -621,7 +621,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
-        result = 31 * result + Arrays.hashCode(pluginStates);
+        result = 31 * result + Arrays.hashCode(featureStates);
         return result;
     }
 

@@ -256,9 +256,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             ft.defaultPrefixTreeStrategy.setPointsOnly(ft.pointsOnly());
         }
 
-        private GeoShapeFieldType buildFieldType(BuilderContext context) {
+        private GeoShapeFieldType buildFieldType(LegacyGeoShapeParser parser, BuilderContext context) {
             GeoShapeFieldType ft =
-                new GeoShapeFieldType(buildFullName(context), indexed, fieldType.stored(), false, new LegacyGeoShapeParser(), meta);
+                new GeoShapeFieldType(buildFullName(context), indexed, fieldType.stored(), false, parser, meta);
             setupFieldTypeDeprecatedParameters(ft);
             setupPrefixTrees(ft);
             ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
@@ -279,11 +279,12 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 // Check for an empty name early so we can throw a consistent error message
                 throw new IllegalArgumentException("name cannot be empty string");
             }
-            GeoShapeFieldType ft = buildFieldType(context);
+            LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
+            GeoShapeFieldType ft = buildFieldType(parser, context);
             return new LegacyGeoShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context),
                 coerce(context), orientation(), ignoreZValue(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo,
-                new LegacyGeoShapeIndexer(ft), new LegacyGeoShapeParser());
+                new LegacyGeoShapeIndexer(ft), parser);
         }
     }
 

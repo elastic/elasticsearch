@@ -68,13 +68,12 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder> {
+    static class Builder extends FieldMapper.Builder {
         private final String parent;
         private final Set<String> children;
 
         Builder(String name, String parent, Set<String> children) {
             super(name, Defaults.FIELD_TYPE);
-            builder = this;
             this.parent = parent;
             this.children = children;
         }
@@ -85,7 +84,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
         public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            return builder;
+            return this;
         }
 
         @Override
@@ -111,6 +110,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 
         @Override
@@ -180,11 +184,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
         Field field = new Field(fieldType().name(), binaryValue, fieldType);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
     }
 
     @Override

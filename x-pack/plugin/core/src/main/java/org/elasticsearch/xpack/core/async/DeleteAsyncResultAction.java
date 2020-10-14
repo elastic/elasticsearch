@@ -7,19 +7,12 @@ package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class DeleteAsyncResultAction extends ActionType<AcknowledgedResponse> {
     public static final DeleteAsyncResultAction INSTANCE = new DeleteAsyncResultAction();
     public static final String NAME = "indices:data/read/async_search/delete";
 
     private DeleteAsyncResultAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
-    }
-
 }

@@ -118,6 +118,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
+        index: [".ml-anomalies*", ".ml-state*"]
         expand_wildcards: all
 
   - do:
@@ -478,6 +479,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
+        index: ["foo", ".ml-anomalies*"]
         expand_wildcards: all
 
   - do:
@@ -528,6 +530,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
+        index: ".ml-state*"
         expand_wildcards: all
 
   - do:
@@ -621,6 +624,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
+        index: [".ml-state*", ".ml-anomalies*"]
         expand_wildcards: all
 
   - do:
@@ -706,6 +710,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
+        index: ".ml-state*"
         expand_wildcards: all
 
   - do:

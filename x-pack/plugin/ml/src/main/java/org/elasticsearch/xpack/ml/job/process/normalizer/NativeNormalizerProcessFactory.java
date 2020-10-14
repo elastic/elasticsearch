@@ -54,12 +54,11 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
         // The job ID passed to the process pipes is only used to make the file names unique.  Since normalize can get run many times
         // in quick succession for the same job the job ID alone is not sufficient to guarantee that the normalizer process pipe names
         // are unique.  Therefore an increasing counter value is appended to the job ID to ensure uniqueness between calls.
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, NormalizerBuilder.NORMALIZE,
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, NormalizerBuilder.NORMALIZE,
             jobId + "_" + counter.incrementAndGet(), false, true, true, false, false);
         createNativeProcess(jobId, quantilesState, processPipes, bucketSpan);
 
-        NativeNormalizerProcess normalizerProcess = new NativeNormalizerProcess(jobId, nativeController, processPipes,
-            processConnectTimeout);
+        NativeNormalizerProcess normalizerProcess = new NativeNormalizerProcess(jobId, nativeController, processPipes);
 
         try {
             normalizerProcess.start(executorService);

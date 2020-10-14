@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -299,20 +300,17 @@ public class HyperLogLogPlusPlusFieldMapperTests extends FieldMapperTestCase2<Hy
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        final int field = randomInt(2);
-        switch (field) {
+    protected Object getSampleValueForDocument() {
+        switch (randomInt(2)) {
             case 0:
-                builder.startObject().field(HLL, RUNLENS1024).endObject();
-                break;
+                return Map.of(HLL, RUNLENS1024);
             case 1:
-                builder.startObject().field(LC, LC_HASHES).endObject();
-                break;
-            case 2:
-                builder.startObject().field(MURMUR3, MURMUR3_HASHES).endObject();
-                break;
+                return Map.of(LC, LC_HASHES);
+            default:
+                return Map.of(MURMUR3, MURMUR3_HASHES);
         }
     }
+
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -96,11 +97,22 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         }
         request.setRoleDescriptors(descriptorList);
 
+        boolean testV710Bwc = randomBoolean();
+
         try (BytesStreamOutput out = new BytesStreamOutput()) {
+            if (testV710Bwc) {
+                out.setVersion(Version.V_7_9_0); // a version before 7.10
+            }
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
+                if (testV710Bwc) {
+                    in.setVersion(Version.V_7_9_0);
+                }
                 final CreateApiKeyRequest serialized = new CreateApiKeyRequest(in);
                 assertEquals(name, serialized.getName());
+                if (false == testV710Bwc) {
+                    assertEquals(request.getId(), serialized.getId()); // API key id is only preserved after v 7.10
+                }
                 assertEquals(expiration, serialized.getExpiration());
                 assertEquals(refreshPolicy, serialized.getRefreshPolicy());
                 if (nullOrEmptyRoleDescriptors) {

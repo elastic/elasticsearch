@@ -23,9 +23,9 @@ public class VerifierTests extends ESTestCase {
 
     private static final String INDEX_NAME = "test";
 
-    private EqlParser parser = new EqlParser();
+    private final EqlParser parser = new EqlParser();
 
-    private IndexResolution index = loadIndexResolution("mapping-default.json");
+    private final IndexResolution index = loadIndexResolution("mapping-default.json");
 
     private static Map<String, EsField> loadEqlMapping(String name) {
         return TypesTests.loadMapping(name);
@@ -37,7 +37,7 @@ public class VerifierTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -73,7 +73,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testQueryStartsWithNumber() {
         assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
-        assertEquals("1:1: no viable alternative at input '\"42\"'", errorParsing("\"42\" where true"));
     }
 
     public void testMissingColumn() {
@@ -332,4 +331,11 @@ public class VerifierTests extends ESTestCase {
                 "define one or use MATCH/QUERY instead",
             error(idxr, "process where string(multi_field.english) == \"foo\""));
     }
+
+    public void testIncorrectUsageOfStringEquals() {
+        final IndexResolution idxr = loadIndexResolution("mapping-default.json");
+        assertEquals("1:11: first argument of [:] must be [string], found value [pid] type [long]; consider using [==] instead",
+            error(idxr, "foo where pid : 123"));
+    }
+
 }

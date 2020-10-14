@@ -1,0 +1,29 @@
+[[queries]]
+name = "basic"
+query = '''
+  sequence by transID
+    [ REQUEST where true ]
+    [ ERROR where true ]
+    [ STAT where true ]
+'''
+expected_event_ids  = [1,2,3,1,2,3]
+
+[[queries]]
+name = "basicWithFilter"
+query = '''
+  sequence by transID
+    [ REQUEST where transID == 1234 ]
+    [ ERROR where true ]
+    [ STAT where true ]
+'''
+expected_event_ids  = [1,2,3]
+
+[[queries]]
+name = "basicWithFilters"
+query = '''
+  sequence by transID
+    [ REQUEST where transID == 1234 ]
+    [ ERROR where transID == 1234 ]
+    [ STAT where transID == 1234 ]
+'''
+expected_event_ids  = [1,2,3]

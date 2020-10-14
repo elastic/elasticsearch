@@ -96,4 +96,30 @@ public class StatsHolderTests extends ESTestCase {
         assertThat(phaseProgresses.get(3).getProgressPercent(), equalTo(0));
         assertThat(phaseProgresses.get(4).getProgressPercent(), equalTo(0));
     }
+
+    public void testResetProgressTracker() {
+        List<PhaseProgress> phases = Collections.unmodifiableList(
+            Arrays.asList(
+                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("reindexing", 100),
+                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("loading_data", 20),
+                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("a", 30),
+                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("b", 40),
+                new PhaseProgress("writing_results", 50)
+            )
+        );
+        StatsHolder statsHolder = new StatsHolder(phases);
+
+        statsHolder.resetProgressTracker(Arrays.asList("a", "b"), false);
+
+        List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
+
+        assertThat(phaseProgresses.size(), equalTo(5));
+        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results"));
+        assertThat(phaseProgresses.get(0).getProgressPercent(), equalTo(1));
+        assertThat(phaseProgresses.get(1).getProgressPercent(), equalTo(0));
+        assertThat(phaseProgresses.get(2).getProgressPercent(), equalTo(0));
+        assertThat(phaseProgresses.get(3).getProgressPercent(), equalTo(0));
+        assertThat(phaseProgresses.get(4).getProgressPercent(), equalTo(0));
+    }
 }

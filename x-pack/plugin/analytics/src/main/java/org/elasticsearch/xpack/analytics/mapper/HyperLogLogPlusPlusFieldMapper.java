@@ -21,7 +21,6 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -94,18 +93,17 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
     public static final ParseField LC_FIELD = new ParseField("lc");
     public static final ParseField MURMUR3_FIELD = new ParseField("murmur3");
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
         protected Boolean ignoreMalformed;
         protected Integer precision;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         public Builder ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
-            return builder;
+            return this;
         }
 
         public Builder precision(int precision) {
@@ -116,7 +114,7 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("precision must be <= " + AbstractHyperLogLogPlusPlus.MAX_PRECISION);
             }
             this.precision = precision;
-            return builder;
+            return this;
         }
 
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
@@ -149,7 +147,7 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HyperLogLogPlusPlusFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -212,19 +210,6 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
-    }
-
     public static class HyperLogLogPlusPlusFieldType extends MappedFieldType {
 
         private final int precision;
@@ -253,7 +238,7 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return (cache, breakerService, mapperService) ->
+            return (cache, breakerService) ->
                 new IndexHyperLogLogPlusPlusFieldData(name(), AnalyticsValuesSourceType.HYPERLOGLOGPLUSPLUS) {
 
                 @Override
@@ -333,6 +318,19 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), mapperService, null) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
@@ -344,9 +342,8 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "[" + CONTENT_TYPE + "] field do not support searching, " +
-                "use dedicated aggregations instead: ["
-                + name() + "]");
+            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] field do not support searching, " +
+                "use dedicated aggregations instead: [" + name() + "]");
         }
 
         @Override

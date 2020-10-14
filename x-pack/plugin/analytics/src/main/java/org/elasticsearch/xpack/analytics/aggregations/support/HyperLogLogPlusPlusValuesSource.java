@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.analytics.aggregations.support;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.Prepared;
@@ -27,7 +26,7 @@ public class HyperLogLogPlusPlusValuesSource {
         public abstract HyperLogLogPlusPlusValues getHyperLogLogPlusPlusValues(LeafReaderContext context) throws IOException;
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) {
+        public Function<Rounding, Prepared> roundingPreparer() {
             throw new AggregationExecutionException("can't round a [" + HyperLogLogPlusPlusFieldMapper.CONTENT_TYPE + "]");
         }
 

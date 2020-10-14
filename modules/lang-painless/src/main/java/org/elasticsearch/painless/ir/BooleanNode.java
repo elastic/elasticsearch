@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
@@ -56,17 +56,22 @@ public class BooleanNode extends BinaryNode {
 
     /* ---- end visitor ---- */
 
+    public BooleanNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeDebugInfo(getLocation());
 
         if (operation == Operation.AND) {
             Label fals = new Label();
             Label end = new Label();
 
-            getLeftNode().write(classWriter, methodWriter, writeScope);
+            getLeftNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            getRightNode().write(classWriter, methodWriter, writeScope);
+            getRightNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.push(true);
@@ -79,9 +84,9 @@ public class BooleanNode extends BinaryNode {
             Label fals = new Label();
             Label end = new Label();
 
-            getLeftNode().write(classWriter, methodWriter, writeScope);
+            getLeftNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            getRightNode().write(classWriter, methodWriter, writeScope);
+            getRightNode().write(writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.mark(tru);

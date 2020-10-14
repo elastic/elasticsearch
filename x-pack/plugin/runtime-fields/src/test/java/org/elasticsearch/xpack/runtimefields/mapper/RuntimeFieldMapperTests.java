@@ -60,8 +60,13 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) {
+    protected Object getSampleValueForDocument() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return "text";
     }
 
     @Override
@@ -323,12 +328,7 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> config.buildIndexSort(
-                field -> new KeywordScriptMappedFieldType(
-                    field,
-                    new Script(""),
-                    mock(StringFieldScript.Factory.class),
-                    Collections.emptyMap()
-                ),
+                field -> new KeywordScriptFieldType(field, new Script(""), mock(StringFieldScript.Factory.class), Collections.emptyMap()),
                 (fieldType, searchLookupSupplier) -> indexFieldDataService.getForField(fieldType, "index", searchLookupSupplier)
             )
         );

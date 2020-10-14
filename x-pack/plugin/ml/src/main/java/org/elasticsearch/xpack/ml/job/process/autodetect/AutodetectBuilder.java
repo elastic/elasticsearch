@@ -169,7 +169,7 @@ public class AutodetectBuilder {
     /**
      * Requests that the controller daemon start an autodetect process.
      */
-    public void build() throws IOException {
+    public void build() throws IOException, InterruptedException {
 
         List<String> command = buildAutodetectCommand();
 

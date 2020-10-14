@@ -365,13 +365,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Returns the document mapper for this MapperService.  If no mapper exists,
      * creates one and returns that.
      */
-    public DocumentMapperForType documentMapperWithAutoCreate() {
+    public DocumentMapper documentMapperWithAutoCreate() {
         DocumentMapper mapper = documentMapper();
         if (mapper != null) {
-            return new DocumentMapperForType(mapper, null);
+            return mapper;
         }
         mapper = parse(SINGLE_MAPPING_NAME, null);
-        return new DocumentMapperForType(mapper, mapper.mapping());
+        return mapper;
     }
 
     /**

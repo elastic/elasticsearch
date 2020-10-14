@@ -8,9 +8,6 @@
 
 beta::[]
 
-IMPORTANT: {es} supports a subset of {eql-ref}/index.html[EQL syntax]. See
-<<eql-syntax-limitations>>.
-
 [discrete]
 [[eql-basic-syntax]]
 === Basic syntax
@@ -35,7 +32,7 @@ process where process.name == "svchost.exe"
 [[eql-syntax-event-categories]]
 ==== Event categories
 
-In {es}, an event category is a valid, indexed value of the
+An event category is a valid, indexed value of the
 <<eql-required-fields,event category field>>. You can set the event category
 field using the `event_category_field` parameter of the EQL search API.
 
@@ -251,10 +248,8 @@ Divides the value to the left of the operator by the value to the right.
 [WARNING]
 ====
 If both the dividend and divisor are integers, the divide (`\`) operation
-_rounds down_ any returned floating point numbers to the nearest integer.
-
-EQL queries in {es} should account for this rounding. To avoid rounding, convert
-either the dividend or divisor to a float.
+_rounds down_ any returned floating point numbers to the nearest integer. To
+avoid rounding, convert either the dividend or divisor to a float.
 
 *Example* +
 The `process.args_count` field is a <<number,`long`>> integer field containing a
@@ -599,9 +594,8 @@ until [ process where event.type == "stop" ]
 [[eql-functions]]
 === Functions
 
-{es} supports several of EQL's built-in functions. You can use these functions
-to convert data types, perform math, manipulate strings, and more. Most
-functions are case-sensitive by default.
+You can use EQL functions to convert data types, perform math, manipulate
+strings, and more. Most functions are case-sensitive by default.
 
 For a list of supported functions, see <<eql-function-ref>>.
 
@@ -682,13 +676,13 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 [[eql-syntax-limitations]]
 === Limitations
 
-{es} EQL does not support the following features and syntax.
+EQL does not support the following features and syntax.
 
 [discrete]
 [[eql-compare-fields]]
 ==== Comparing fields
 
-In {es} EQL, you cannot use comparison operators to compare a field to
+You cannot use EQL comparison operators to compare a field to
 another field. This applies even if the fields are changed using a
 <<eql-functions,function>>.
 
@@ -696,7 +690,7 @@ another field. This applies even if the fields are changed using a
 [[eql-array-fields]]
 ==== Array field values are not supported
 
-{es} EQL does not support <<array,array>> field values, also known as
+EQL does not support <<array,array>> field values, also known as
 _multi-value fields_. EQL searches on array field values may return inconsistent
 results.
 
@@ -709,38 +703,45 @@ sub-fields of a `nested` field. However, data streams and indices containing
 `nested` field mappings are otherwise supported.
 
 [discrete]
-[[single-quote-strings]]
-==== Single quote strings
+[[eql-unsupported-syntax]]
+==== Differences from Endgame EQL syntax
 
-In {es} EQL, the single quote (`'`) character is reserved for future use. 
-Strings enclosed in single quotes are not supported. Enclose strings in
+{es} EQL differs from the {eql-ref}/index.html[Elastic Endgame EQL syntax] as
+follows:
+
+* Most operators and functions in {es} EQL are case-sensitive. For
+case-insensitive equality comparisons, use the `:` operator.
+
+* Comparisons using the `==` and `!=` operators do not expand wildcard
+characters. For example, `process_name == "cmd*.exe"` interprets `*` as a
+literal asterisk, not a wildcard. For case-sensitive wildcard matching, use the
+<<eql-fn-wildcard,`wildcard`>> function.
+
+* `=` cannot be substituted for the `==` operator.
+
+* Strings enclosed in single quotes (`'`) are not supported. Enclose strings in
 double quotes (`"`) instead.
 
-You cannot use an escaped single quote (`\'`) for literal strings. Use an
-escaped double quote (`\"`) instead. 
+* `?"` and `?'` do not indicate raw strings. Enclose raw strings in
+three double quotes (`"""`) instead.
 
-[discrete]
-[[eql-unsupported-syntax]]
-==== Unsupported syntax
+* {es} EQL does not support:
 
-{es} supports a subset of {eql-ref}/index.html[EQL syntax]. {es} cannot run EQL
-queries that contain:
+** Array functions:
+*** {eql-ref}/functions.html#arrayContains[`arrayContains`]
+*** {eql-ref}/functions.html#arrayCount[`arrayCount`]
+*** {eql-ref}/functions.html#arraySearch[`arraySearch`]
 
-* Array functions:
-** {eql-ref}/functions.html#arrayContains[`arrayContains`]
-** {eql-ref}/functions.html#arrayCount[`arrayCount`]
-** {eql-ref}/functions.html#arraySearch[`arraySearch`]
+** {eql-ref}/joins.html[Joins]
 
-* {eql-ref}/joins.html[Joins]
+** {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
+*** `child of`
+*** `descendant of`
+*** `event of`
 
-* {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
-** `child of`
-** `descendant of`
-** `event of`
-
-* The following {eql-ref}/pipes.html[pipes]:
-** {eql-ref}/pipes.html#count[`count`]
-** {eql-ref}/pipes.html#filter[`filter`]
-** {eql-ref}/pipes.html#sort[`sort`]
-** {eql-ref}/pipes.html#unique[`unique`]
-** {eql-ref}/pipes.html#unique-count[`unique_count`]
+** The following {eql-ref}/pipes.html[pipes]:
+*** {eql-ref}/pipes.html#count[`count`]
+*** {eql-ref}/pipes.html#filter[`filter`]
+*** {eql-ref}/pipes.html#sort[`sort`]
+*** {eql-ref}/pipes.html#unique[`unique`]
+*** {eql-ref}/pipes.html#unique-count[`unique_count`]

@@ -203,7 +203,8 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
         if (fieldType.collapseType() == CollapseType.NONE) {
-            throw new IllegalArgumentException("collapse is not supported on this field type");
+            throw new IllegalArgumentException("collapse is not supported for the field [" + fieldType.name() +
+                "] of the type [" + fieldType.typeName() + "]");
         }
         if (fieldType.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");

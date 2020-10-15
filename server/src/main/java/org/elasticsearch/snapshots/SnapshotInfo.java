@@ -570,11 +570,15 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.endObject();
         }
         if (verbose || featureStates != null) {
-            builder.startArray(FEATURE_STATES);
-            for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
-                builder.value(snapshotFeatureInfo);
+            if (featureStates != null) {
+                builder.startArray(FEATURE_STATES);
+                for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
+                    builder.value(snapshotFeatureInfo);
+                }
+                builder.endArray();
+            } else {
+                builder.field(FEATURE_STATES, (Object) null);
             }
-            builder.endArray();
         }
         builder.endObject();
         return builder;

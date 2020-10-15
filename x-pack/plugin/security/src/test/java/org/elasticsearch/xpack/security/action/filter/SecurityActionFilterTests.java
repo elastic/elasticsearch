@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.ActionFilterChain;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -207,7 +206,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             verifyNoMoreInteractions(authzService, chain);
         } else {
             verify(authzService).authorize(eq(authentication), eq(action), eq(request), any(ActionListener.class));
-            verify(chain).proceed(eq(task), eq(action), eq(request), isA(ContextPreservingActionListener.class));
+            verify(chain).proceed(eq(task), eq(action), eq(request), any(ActionListener.class));
         }
     }
 

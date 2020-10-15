@@ -818,6 +818,44 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[formatDateTime]
 include-tagged::{sql-specs}/docs/docs.csv-spec[formatTime]
 --------------------------------------------------
 
+
+[[sql-functions-datetime-to_char]]
+==== `TO_CHAR`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TO_CHAR(
+    date_exp/datetime_exp/time_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime/time expression
+<2> format pattern
+
+*Output*: string
+
+*Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
+pattern used is one from
+https://www.postgresql.org/docs/9.1/functions-formatting.html#FUNCTIONS-FORMATTING-DATETIME-TABLE[PostgreSQL Template Patterns for Date/Time Formatting]
+or, if the pattern is not found, from Java
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[Pattern Letters and Symbols].
+If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
+
+[NOTE]
+If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
+(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
+
+*Special Cases*
+
+- Postgres formats `IDDD` and `WW` are not covered.
+- Format Specifier `y` will return year-of-era instead of one/two low-order digits.
+eg.: For year `2009`, `y` will be returning `2009` instead of `9`. For year `43`, `y` format specifier will return `43`.
+- Special characters like `"` , `\` and `%` will be returned as it is without any change. eg.: formatting date `17-sep-2020` with `%M` will return `%9`
+
+
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH/DOM/DAY`
 

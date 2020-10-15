@@ -9,15 +9,15 @@ showFunctions
 SHOW FUNCTIONS;
 
     name:s       |    type:s
-AVG              |AGGREGATE      
+AVG              |AGGREGATE
 COUNT            |AGGREGATE
 FIRST            |AGGREGATE
 FIRST_VALUE      |AGGREGATE
 LAST             |AGGREGATE
 LAST_VALUE       |AGGREGATE
 MAX              |AGGREGATE
-MIN              |AGGREGATE      
-SUM              |AGGREGATE      
+MIN              |AGGREGATE
+SUM              |AGGREGATE
 KURTOSIS         |AGGREGATE
 MAD              |AGGREGATE
 PERCENTILE       |AGGREGATE
@@ -64,11 +64,12 @@ DAY_OF_MONTH     |SCALAR
 DAY_OF_WEEK      |SCALAR
 DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
-DOW              |SCALAR         
+DOW              |SCALAR
 DOY              |SCALAR
 FORMAT           |SCALAR
+TO_CHAR          |SCALAR
 HOUR             |SCALAR
-HOUR_OF_DAY      |SCALAR         
+HOUR_OF_DAY      |SCALAR
 IDOW             |SCALAR
 ISODAYOFWEEK     |SCALAR
 ISODOW           |SCALAR
@@ -78,16 +79,16 @@ ISO_DAY_OF_WEEK  |SCALAR
 ISO_WEEK_OF_YEAR |SCALAR
 IW               |SCALAR
 IWOY             |SCALAR
-MINUTE           |SCALAR         
-MINUTE_OF_DAY    |SCALAR         
-MINUTE_OF_HOUR   |SCALAR         
-MONTH            |SCALAR         
-MONTHNAME        |SCALAR         
-MONTH_NAME       |SCALAR         
-MONTH_OF_YEAR    |SCALAR         
+MINUTE           |SCALAR
+MINUTE_OF_DAY    |SCALAR
+MINUTE_OF_HOUR   |SCALAR
+MONTH            |SCALAR
+MONTHNAME        |SCALAR
+MONTH_NAME       |SCALAR
+MONTH_OF_YEAR    |SCALAR
 NOW              |SCALAR
-QUARTER          |SCALAR         
-SECOND           |SCALAR         
+QUARTER          |SCALAR
+SECOND           |SCALAR
 SECOND_OF_MINUTE |SCALAR
 TIMESTAMPADD     |SCALAR
 TIMESTAMPDIFF    |SCALAR
@@ -96,60 +97,60 @@ TIMESTAMP_DIFF   |SCALAR
 TIME_PARSE       |SCALAR
 TODAY            |SCALAR
 WEEK             |SCALAR
-WEEK_OF_YEAR     |SCALAR         
-YEAR             |SCALAR         
-ABS              |SCALAR         
-ACOS             |SCALAR         
-ASIN             |SCALAR         
-ATAN             |SCALAR         
-ATAN2            |SCALAR         
-CBRT             |SCALAR         
-CEIL             |SCALAR         
-CEILING          |SCALAR         
-COS              |SCALAR         
-COSH             |SCALAR         
-COT              |SCALAR         
-DEGREES          |SCALAR         
-E                |SCALAR         
-EXP              |SCALAR         
-EXPM1            |SCALAR         
-FLOOR            |SCALAR         
-LOG              |SCALAR         
-LOG10            |SCALAR         
-MOD              |SCALAR         
-PI               |SCALAR         
-POWER            |SCALAR         
-RADIANS          |SCALAR         
-RAND             |SCALAR         
-RANDOM           |SCALAR         
-ROUND            |SCALAR         
-SIGN             |SCALAR         
-SIGNUM           |SCALAR         
-SIN              |SCALAR         
-SINH             |SCALAR         
-SQRT             |SCALAR         
-TAN              |SCALAR         
+WEEK_OF_YEAR     |SCALAR
+YEAR             |SCALAR
+ABS              |SCALAR
+ACOS             |SCALAR
+ASIN             |SCALAR
+ATAN             |SCALAR
+ATAN2            |SCALAR
+CBRT             |SCALAR
+CEIL             |SCALAR
+CEILING          |SCALAR
+COS              |SCALAR
+COSH             |SCALAR
+COT              |SCALAR
+DEGREES          |SCALAR
+E                |SCALAR
+EXP              |SCALAR
+EXPM1            |SCALAR
+FLOOR            |SCALAR
+LOG              |SCALAR
+LOG10            |SCALAR
+MOD              |SCALAR
+PI               |SCALAR
+POWER            |SCALAR
+RADIANS          |SCALAR
+RAND             |SCALAR
+RANDOM           |SCALAR
+ROUND            |SCALAR
+SIGN             |SCALAR
+SIGNUM           |SCALAR
+SIN              |SCALAR
+SINH             |SCALAR
+SQRT             |SCALAR
+TAN              |SCALAR
 TRUNC            |SCALAR
 TRUNCATE         |SCALAR
 ASCII            |SCALAR
-BIT_LENGTH       |SCALAR         
-CHAR             |SCALAR         
-CHARACTER_LENGTH |SCALAR         
-CHAR_LENGTH      |SCALAR         
-CONCAT           |SCALAR         
-INSERT           |SCALAR         
-LCASE            |SCALAR         
-LEFT             |SCALAR         
-LENGTH           |SCALAR         
-LOCATE           |SCALAR         
-LTRIM            |SCALAR         
-OCTET_LENGTH     |SCALAR         
-POSITION         |SCALAR         
-REPEAT           |SCALAR         
-REPLACE          |SCALAR         
-RIGHT            |SCALAR         
-RTRIM            |SCALAR         
-SPACE            |SCALAR         
+BIT_LENGTH       |SCALAR
+CHAR             |SCALAR
+CHARACTER_LENGTH |SCALAR
+CHAR_LENGTH      |SCALAR
+CONCAT           |SCALAR
+INSERT           |SCALAR
+LCASE            |SCALAR
+LEFT             |SCALAR
+LENGTH           |SCALAR
+LOCATE           |SCALAR
+LTRIM            |SCALAR
+OCTET_LENGTH     |SCALAR
+POSITION         |SCALAR
+REPEAT           |SCALAR
+REPLACE          |SCALAR
+RIGHT            |SCALAR
+RTRIM            |SCALAR
+SPACE            |SCALAR
 STARTS_WITH      |SCALAR
 SUBSTRING        |SCALAR
 TRIM             |SCALAR
@@ -212,22 +213,22 @@ DAY_NAME       |SCALAR
 DAY_OF_MONTH   |SCALAR
 DAY_OF_WEEK    |SCALAR
 DAY_OF_YEAR    |SCALAR
-HOUR_OF_DAY    |SCALAR         
+HOUR_OF_DAY    |SCALAR
 ISODAYOFWEEK   |SCALAR
 ISO_DAY_OF_WEEK|SCALAR
-MINUTE_OF_DAY  |SCALAR         
+MINUTE_OF_DAY  |SCALAR
 TODAY          |SCALAR
 ;
 
 showTables
 SHOW TABLES;
 
-       name    |  type |  kind   
+       name    |  type |  kind
 logs           |TABLE  |INDEX
 test_alias     |VIEW   |ALIAS
-test_alias_emp |VIEW   |ALIAS 
-test_emp       |TABLE  |INDEX  
-test_emp_copy  |TABLE  |INDEX  
+test_alias_emp |VIEW   |ALIAS
+test_emp       |TABLE  |INDEX
+test_emp_copy  |TABLE  |INDEX
 ;
 
 showTablesSimpleLike
@@ -241,8 +242,8 @@ showTablesMultiLike
 SHOW TABLES LIKE 'test_emp%';
 
  name:s        |type:s |kind:s
-test_emp       |TABLE  |INDEX     
-test_emp_copy  |TABLE  |INDEX     
+test_emp       |TABLE  |INDEX
+test_emp_copy  |TABLE  |INDEX
 ;
 
 showTablesIdentifier
@@ -263,8 +264,8 @@ showTablesIdentifierPatternOnAliases
 SHOW TABLES "test*,-test_emp*";
 
  name:s        | type:s | kind:s
-test_alias     |VIEW    |ALIAS          
-test_alias_emp |VIEW    |ALIAS          
+test_alias     |VIEW    |ALIAS
+test_alias_emp |VIEW    |ALIAS
 ;
 
 // DESCRIBE
@@ -272,7 +273,7 @@ test_alias_emp |VIEW    |ALIAS
 describeSimpleLike
 DESCRIBE LIKE 'test_emp';
 
-       column       |     type      |    mapping    
+       column       |     type      |    mapping
 --------------------+---------------+---------------
 birth_date          |TIMESTAMP      |datetime
 dep                 |STRUCT         |nested
@@ -302,7 +303,7 @@ wildcard_name       |VARCHAR        |keyword
 describeMultiLike
 DESCRIBE LIKE 'test_emp%';
 
-       column       |     type      |    mapping    
+       column       |     type      |    mapping
 --------------------+---------------+---------------
 birth_date          |TIMESTAMP      |datetime
 dep                 |STRUCT         |nested
@@ -332,7 +333,7 @@ wildcard_name       |VARCHAR        |keyword
 describeSimpleIdentifier
 DESCRIBE "test_emp";
 
-       column       |     type      |    mapping    
+       column       |     type      |    mapping
 --------------------+---------------+---------------
 birth_date          |TIMESTAMP      |datetime
 dep                 |STRUCT         |nested
@@ -358,7 +359,7 @@ salary              |INTEGER        |integer
 describeIncludeExcludeIdentifier-Ignore
 DESCRIBE "test_*,-test_alias*";
 
-       column       |     type      |    mapping    
+       column       |     type      |    mapping
 --------------------+---------------+---------------
 birth_date          |TIMESTAMP      |datetime
 dep                 |STRUCT         |nested

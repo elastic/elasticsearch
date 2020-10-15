@@ -27,19 +27,27 @@ or simply run:
 ./gradlew -p x-pack/plugin/eql check
 ```
 
-*If the `eql_test_credentials_file` environmental variable is not set the correctness tests will not be executed*
+**If the `eql_test_credentials_file` environmental variable is not set the correctness tests will not be executed.**
+
+*For every query you will get an `INFO` line logged that shows the response time for the query, e.g.:*
+```
+org.elasticsearch.xpack.eql.EsEQLCorrectnessIT > test {2} STANDARD_OUT
+    [2020-10-15T11:55:02,870][INFO ][o.e.x.e.EsEQLCorrectnessIT] [test] [2] before test
+    [2020-10-15T11:55:03,070][INFO ][o.e.x.e.EsEQLCorrectnessIT] [test] QueryNo: 2, took: 169ms
+    [2020-10-15T11:55:03,083][INFO ][o.e.x.e.EsEQLCorrectnessIT] [test] [2] after test
+```
 
 *At the end of a successful run an `INFO` line is logged by the tests that shows the total response time for all the
-queries executed, e.g.:
+queries executed, e.g.:*
 ```
-[2020-10-14T12:48:46,964][DEBUG][o.e.x.e.EsEQLCorrectnessIT] [test] Total time: 15849 ms
+[2020-10-15T06:39:55,826][INFO ][o.e.x.e.EsEQLCorrectnessIT] [suite] Total time: 24563 ms
 ```
 
 
 #### Run a specific query
 
-If one wants to run just one query from the set, needs to do with following command by replacing `<queryNo>` with the
-desired number of the query:
+If one wants to run just one query from the set, needs to do it with following command by replacing `<queryNo>` (which 
+can be found in queries.toml file) with the desired number of the query:
 
 ```shell script
 ./gradlew ':x-pack:plugin:eql:qa:correctness:javaRestTest' --tests "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT.test {<queryNo>}"
@@ -48,7 +56,7 @@ desired number of the query:
 #### Debug queries
 
 If one wants to check that the filtering subqueries of a sequence query yields the same results (to pinpoint that the
-possible failure is in the sequence algortihm), needs to set enable this debug mode with the use of a parameter:
+possible failure is in the sequence algortihm), needs to enable this debug mode with the use of a parameter:
 
 ```shell script
 ./gradlew -p x-pack/plugin/eql/qa/correctness check -Dtests.eql_correctness_debug=true

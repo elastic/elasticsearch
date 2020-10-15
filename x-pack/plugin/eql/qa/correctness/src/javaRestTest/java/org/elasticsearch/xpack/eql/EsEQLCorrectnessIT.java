@@ -41,7 +41,8 @@ import java.util.Properties;
 
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
-@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+@TestLogging(value = "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT:INFO", reason = "Log query execution time")
 public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -51,8 +52,9 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     private static Properties CFG;
     private static RestHighLevelClient highLevelClient;
     private static RequestOptions COMMON_REQUEST_OPTIONS;
+    private static long totalTime = 0;
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger LOGGER = LogManager.getLogger(EsEQLCorrectnessIT.class);
 
     @BeforeClass
     public static void init() throws IOException {
@@ -96,6 +98,11 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     @After
     public void checkSearchContent() throws Exception {
         assertNoSearchContexts(client());
+    }
+
+    @AfterClass
+    public static void logTotalExecutionTime() {
+        LOGGER.info("Total time: {} ms", totalTime);
     }
 
     @AfterClass
@@ -159,10 +166,8 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     }
 
     // To enable test of subqueries (filtering) results: -Dtests.eql_correctness_debug=true
-    @TestLogging(value = "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT:INFO", reason = "Log total time")
     public void test() throws Exception {
         boolean debugMode = Boolean.parseBoolean(System.getProperty("tests.eql_correctness_debug", "false"));
-        long totalTime = 0;
         int queryNo = spec.queryNo();
 
         if (debugMode) {
@@ -186,7 +191,9 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         eqlSearchRequest.size(Integer.parseInt(CFG.getProperty("size")));
         eqlSearchRequest.fetchSize(Integer.parseInt(CFG.getProperty("fetch_size")));
         EqlSearchResponse response = highLevelClient().eql().search(eqlSearchRequest, RequestOptions.DEFAULT);
-        totalTime += response.took();
+        long responseTime = response.took();
+        LOGGER.info("QueryNo: {}, took: {}ms", queryNo, responseTime);
+        totalTime += responseTime;
         assertEquals(
             "Failed to match sequence count for query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
             spec.seqCount(),
@@ -202,7 +209,5 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
                 );
             }
         }
-
-        logger.info("Total time: {} ms", totalTime);
     }
 }

@@ -363,26 +363,26 @@ sequence by hostname, destination_address with maxspan=2s
 time = 8.480346441268921
 type = "sequence"
 
-#[[queries]]
-#queryNo = 22
-#case_insensitive = true
-#count = 1
-#expected_event_ids = [3299718, 3364047]
-#filter_counts = [24, 3, 37]
-#filters = [
-#  'process where process_name == "powershell.exe" and opcode == 1',
-#  'powershell where message == "*Get-NetShare*"',
-#  'process where process_name == "powershell.exe" and opcode == 2'
-#]
-#query = '''
-#sequence by hostname, unique_pid
-#   [process where process_name == "powershell.exe" and opcode == 1]
-#   [powershell where message == "*Get-NetShare*"]
-#until
-#   [process where process_name == "powershell.exe" and opcode == 2]
-#'''
-#time = 2.519618511199951
-#type = "sequence"
+[[queries]]
+queryNo = 22
+case_insensitive = true
+count = 1
+expected_event_ids = [3299718, 3364047]
+filter_counts = [24, 3, 37]
+filters = [
+  'process where process_name == "powershell.exe" and opcode == 1',
+  'powershell where wildcard(message, "*Get-NetShare*") == true',
+  'process where process_name == "powershell.exe" and opcode == 2'
+]
+query = '''
+sequence by hostname, unique_pid
+   [process where process_name == "powershell.exe" and opcode == 1]
+   [powershell where wildcard(message, "*Get-NetShare*") == true]
+until
+   [process where process_name == "powershell.exe" and opcode == 2]
+'''
+time = 2.519618511199951
+type = "sequence"
 
 [[queries]]
 queryNo = 23

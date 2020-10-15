@@ -31,4 +31,8 @@ testClusters.all {
 
 tasks.named('javaRestTest').configure {
   onlyIf { serviceAccountFile }
+
+  testLogging {
+    showStandardStreams = true
+  }
 }

@@ -27,8 +27,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -48,10 +46,10 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
     @ParametersFactory
     public static Iterable<Object[]> data() {
         return Arrays.asList(
-            new Object[]{".kibana"},
-            new Object[]{".kibana-1"},
-            new Object[]{".reporting"},
-            new Object[]{".apm-agent-configuration"}
+            new Object[] { ".kibana" },
+            new Object[] { ".kibana-1" },
+            new Object[] { ".reporting" },
+            new Object[] { ".apm-agent-configuration" }
         );
     }
 
@@ -121,8 +119,12 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
     public void testMultiGetFromKibanaIndex() throws IOException {
         Request request = new Request("POST", "/_kibana/_bulk");
         request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
+            "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
+                + "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
         );
         request.addParameter("refresh", "true");
 
@@ -131,8 +133,12 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
         Request getRequest = new Request("GET", "/_kibana/_mget");
         getRequest.setJsonEntity(
-            "{ \"docs\" : [ { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" }, "
-                + "{ \"_index\" : \"" + indexName + "\", \"_id\" : \"2\" } ] }\n"
+            "{ \"docs\" : [ { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"1\" }, "
+                + "{ \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"2\" } ] }\n"
         );
         Response getResponse = client().performRequest(getRequest);
         assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
@@ -146,8 +152,12 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
     public void testSearchFromKibanaIndex() throws IOException {
         Request request = new Request("POST", "/_kibana/_bulk");
         request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
+            "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
+                + "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
         );
         request.addParameter("refresh", "true");
 
@@ -168,8 +178,12 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
     public void testDeleteFromKibanaIndex() throws IOException {
         Request request = new Request("POST", "/_kibana/_bulk");
         request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
+            "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
+                + "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
         );
         request.addParameter("refresh", "true");
 
@@ -184,8 +198,12 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
     public void testDeleteByQueryFromKibanaIndex() throws IOException {
         Request request = new Request("POST", "/_kibana/_bulk");
         request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
+            "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
+                + "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
         );
         request.addParameter("refresh", "true");
 
@@ -249,9 +267,15 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
     public void testScrollingDocs() throws IOException {
         Request request = new Request("POST", "/_kibana/_bulk");
         request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
-                + "{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"3\" } }\n{ \"baz\" : \"tag\" }\n"
+            "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
+                + "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
+                + "{ \"index\" : { \"_index\" : \""
+                + indexName
+                + "\", \"_id\" : \"3\" } }\n{ \"baz\" : \"tag\" }\n"
         );
         request.addParameter("refresh", "true");
         Response response = client().performRequest(request);

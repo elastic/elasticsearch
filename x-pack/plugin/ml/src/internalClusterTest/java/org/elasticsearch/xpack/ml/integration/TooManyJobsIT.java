@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.TransportService;
@@ -33,7 +32,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         startMlCluster(1, 1);
 
         // create and open first job, which succeeds:
-        Job.Builder job = createJob("close-failed-job-1", new ByteSizeValue(2, ByteSizeUnit.MB));
+        Job.Builder job = createJob("close-failed-job-1", ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
@@ -44,7 +43,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         });
 
         // create and try to open second job, which fails:
-        job = createJob("close-failed-job-2", new ByteSizeValue(2, ByteSizeUnit.MB));
+        job = createJob("close-failed-job-2", ByteSizeValue.ofMb(2));
         putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         expectThrows(ElasticsearchStatusException.class,
@@ -86,7 +85,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
             .get()
             .isAcknowledged());
         // create and open first job, which succeeds:
-        Job.Builder job = createJob("lazy-node-validation-job-1", new ByteSizeValue(2, ByteSizeUnit.MB));
+        Job.Builder job = createJob("lazy-node-validation-job-1", ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
@@ -98,7 +97,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         });
 
         // create and try to open second job, which succeeds due to lazy node number:
-        job = createJob("lazy-node-validation-job-2", new ByteSizeValue(2, ByteSizeUnit.MB));
+        job = createJob("lazy-node-validation-job-2", ByteSizeValue.ofMb(2));
         putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get(); // Should return while job is opening
@@ -136,7 +135,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
     private void verifyMaxNumberOfJobsLimit(int numNodes, int maxNumberOfJobsPerNode, boolean testDynamicChange) throws Exception {
         startMlCluster(numNodes, testDynamicChange ? 1 : maxNumberOfJobsPerNode);
         long maxMlMemoryPerNode = calculateMaxMlMemory();
-        ByteSizeValue jobModelMemoryLimit = new ByteSizeValue(2, ByteSizeUnit.MB);
+        ByteSizeValue jobModelMemoryLimit = ByteSizeValue.ofMb(2);
         long memoryFootprintPerJob = jobModelMemoryLimit.getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
         long maxJobsPerNodeDueToMemoryLimit = maxMlMemoryPerNode / memoryFootprintPerJob;
         int clusterWideMaxNumberOfJobs = numNodes * maxNumberOfJobsPerNode;

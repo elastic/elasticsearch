@@ -675,7 +675,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(),
             containsString("[job_id1000] not waiting for node assignment as estimated job size " +
-                "[31458280] is greater than largest possible job size [10]"));
+                "[31458280] is greater than largest possible job size [3]"));
     }
 
 

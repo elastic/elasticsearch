@@ -141,7 +141,9 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
     private Map<String, Object> limits() {
         Map<String, Object> limits = new HashMap<>();
-        ByteSizeValue effectiveMaxModelMemoryLimit = calculateEffectiveMaxModelMemoryLimit(clusterService.getClusterSettings(), clusterService.state().getNodes());
+        ByteSizeValue effectiveMaxModelMemoryLimit = calculateEffectiveMaxModelMemoryLimit(
+            clusterService.getClusterSettings(),
+            clusterService.state().getNodes());
         ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearningField.MAX_MODEL_MEMORY_LIMIT);
         if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0) {
             limits.put("max_model_memory_limit", maxModelMemoryLimit.getStringRep());

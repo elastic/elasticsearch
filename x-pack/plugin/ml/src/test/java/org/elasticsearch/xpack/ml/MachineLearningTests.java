@@ -50,8 +50,7 @@ public class MachineLearningTests extends ESTestCase {
         settings.put(MachineLearning.MAX_MACHINE_MEMORY_PERCENT.getKey(), invalidMaxMachineMemoryPercent);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings.build()));
-        assertThat(e.getMessage(), startsWith("Failed to parse value [" + invalidMaxMachineMemoryPercent
-            + "] for setting [xpack.ml.max_machine_memory_percent] must be"));
+        assertThat(e.getMessage(), startsWith("Setting \"xpack.ml.max_machine_memory_percent\" must be between 5 and 200 or set to -1."));
     }
 
     public void testNoAttributes_givenNoClash() {

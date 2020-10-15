@@ -18,7 +18,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecision;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -90,7 +89,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             Collections.emptyList(),
             Collections.emptyList(),
             null,
-            AutoscalingCapacity.ZERO,
+            NativeMemoryCapacity.ZERO,
             MlScalingReason.builder()),
             equalTo(Optional.empty()));
     }
@@ -99,6 +98,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         List<String> jobTasks = Arrays.asList("waiting_job", "waiting_job_2");
         List<String> analytics = Arrays.asList("analytics_waiting");
         MlAutoscalingDeciderService service = buildService();
+        service.setMaxMachineMemoryPercent(25);
         { // No time in queue
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
             Optional<AutoscalingDecision> decision = service.checkForScaleUp(
@@ -106,11 +106,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 jobTasks,
                 analytics,
                 null,
-                new AutoscalingCapacity(AutoscalingCapacity.AutoscalingResources.ZERO, AutoscalingCapacity.AutoscalingResources.ZERO),
+                NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE));
-            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(3 * DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
+            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(12 * DEFAULT_JOB_SIZE));
         }
         { // we allow one job in the analytics queue
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
@@ -119,11 +119,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 jobTasks,
                 analytics,
                 null,
-                new AutoscalingCapacity(AutoscalingCapacity.AutoscalingResources.ZERO, AutoscalingCapacity.AutoscalingResources.ZERO),
+                NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE));
-            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(2 * DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(8 * DEFAULT_JOB_SIZE));
         }
         { // we allow one job in the anomaly queue and analytics queue
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
@@ -132,11 +132,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 jobTasks,
                 analytics,
                 null,
-                new AutoscalingCapacity(AutoscalingCapacity.AutoscalingResources.ZERO, AutoscalingCapacity.AutoscalingResources.ZERO),
+                NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE));
-            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
         }
     }
 
@@ -144,6 +144,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         List<String> jobTasks = Arrays.asList("waiting_job", "waiting_job_2");
         List<String> analytics = Arrays.asList("analytics_waiting");
         MlAutoscalingDeciderService service = buildService();
+        service.setMaxMachineMemoryPercent(25);
         { // with null future capacity and current capacity has a small node
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
             Optional<AutoscalingDecision> decision = service.checkForScaleUp(
@@ -151,11 +152,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 jobTasks,
                 analytics,
                 null,
-                new AutoscalingCapacity(AutoscalingCapacity.AutoscalingResources.ZERO, AutoscalingCapacity.AutoscalingResources.ZERO),
+                NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE));
-            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
+            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
         }
         {
             MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
@@ -163,10 +164,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 new MlAutoscalingDeciderConfiguration(2, 1, TimeValue.ZERO),
                 jobTasks,
                 analytics,
-                new MlAutoscalingDeciderService.MemoryCapacity(new ByteSizeValue(3, ByteSizeUnit.GB).getBytes(),
-                    new ByteSizeValue(1, ByteSizeUnit.GB).getBytes()),
-                new AutoscalingCapacity(new AutoscalingCapacity.AutoscalingResources(null, new ByteSizeValue(2, ByteSizeUnit.GB)),
-                    new AutoscalingCapacity.AutoscalingResources(null, new ByteSizeValue(2, ByteSizeUnit.GB))),
+                new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
+                new NativeMemoryCapacity(ByteSizeValue.ofGb(2).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
                 reasonBuilder);
             assertTrue(decision.isEmpty());
         }
@@ -176,14 +175,12 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 new MlAutoscalingDeciderConfiguration(2, 1, TimeValue.ZERO),
                 jobTasks,
                 analytics,
-                new MlAutoscalingDeciderService.MemoryCapacity(new ByteSizeValue(1, ByteSizeUnit.MB).getBytes(),
-                    new ByteSizeValue(1, ByteSizeUnit.MB).getBytes()),
-                new AutoscalingCapacity(new AutoscalingCapacity.AutoscalingResources(null, new ByteSizeValue(2, ByteSizeUnit.GB)),
-                    new AutoscalingCapacity.AutoscalingResources(null, new ByteSizeValue(2, ByteSizeUnit.GB))),
+                new NativeMemoryCapacity(ByteSizeValue.ofMb(1).getBytes(), ByteSizeValue.ofMb(1).getBytes()),
+                new NativeMemoryCapacity(ByteSizeValue.ofGb(2).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory(), equalTo(new ByteSizeValue(2, ByteSizeUnit.GB)));
-            assertThat(decision.get().requiredCapacity().tier().memory(), equalTo(new ByteSizeValue(3, ByteSizeUnit.GB)));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(ByteSizeValue.ofGb(8).getBytes()));
+            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(ByteSizeValue.ofGb(12).getBytes()));
         }
     }
 

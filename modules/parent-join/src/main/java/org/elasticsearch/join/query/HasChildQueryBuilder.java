@@ -323,7 +323,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         Query parentFilter = joiner.parentFilter(type);
         Query childFilter = joiner.filter(type);
-        Query filteredQuery = Queries.filtered(doToQuery(context), childFilter);
+        Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);
         MappedFieldType ft = context.getFieldType(parentJoinField);
         final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft);
         return new LateParsingQuery(parentFilter, filteredQuery, minChildren, maxChildren,

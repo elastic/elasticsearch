@@ -120,7 +120,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
         // Doc child missing parent
-        MapperException exc = expectThrows(
+        MapperParsingException exc = expectThrows(
             MapperParsingException.class,
             () -> docMapper.parse(source("2", b -> b.field("join_field", "child"), "1"))
         );

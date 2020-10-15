@@ -46,7 +46,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -76,21 +76,6 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         if (path.pathAsText(name).contains(".")) {
             throw new IllegalArgumentException("join field [" + path.pathAsText(name) + "] " +
                 "cannot be added inside an object or in a multi-field");
-        }
-    }
-
-    private static void checkParentFields(String name, List<ParentIdFieldMapper> mappers) {
-        Set<String> children = new HashSet<>();
-        List<String> conflicts = new ArrayList<>();
-        for (ParentIdFieldMapper mapper : mappers) {
-            for (String child : mapper.getChildren()) {
-                if (children.add(child) == false) {
-                    conflicts.add("[" + child + "] cannot have multiple parents");
-                }
-            }
-        }
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("invalid definition for join field [" + name + "]:\n" + conflicts.toString());
         }
     }
 
@@ -125,22 +110,14 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         @Override
         public ParentJoinFieldMapper build(BuilderContext context) {
             checkObjectOrNested(context.path(), name);
-            final List<ParentIdFieldMapper> parentIdFields = new ArrayList<>();
+            final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get().stream()
-                .map(relation -> new ParentIdFieldMapper.Builder(name + "#" + relation.parent,
-                    relation.parent, relation.children))
-                .map((parentBuilder) -> {
-                    if (eagerGlobalOrdinals.get()) {
-                        parentBuilder.eagerGlobalOrdinals(true);
-                    }
-                    return parentBuilder.build(context);
-                })
-                .forEach(parentIdFields::add);
-            checkParentFields(name(), parentIdFields);
-            MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder(name).build(context);
+                .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent, eagerGlobalOrdinals.get()))
+                .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
+            MetaJoinFieldMapper unique = new MetaJoinFieldMapper(name());
             Joiner joiner = new Joiner(name(), relations.get());
             return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(context), joiner, meta.get()),
-                unique, Collections.unmodifiableList(parentIdFields),
+                unique, Collections.unmodifiableMap(parentIdFields),
                 eagerGlobalOrdinals.getValue(), relations.get());
         }
     }
@@ -191,14 +168,14 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
 
     // The meta field that ensures that there is no other parent-join in the mapping
     private final MetaJoinFieldMapper uniqueFieldMapper;
-    private final List<ParentIdFieldMapper> parentIdFields;
+    private final Map<String, ParentIdFieldMapper> parentIdFields;
     private final boolean eagerGlobalOrdinals;
     private final List<Relations> relations;
 
     protected ParentJoinFieldMapper(String simpleName,
                                     MappedFieldType mappedFieldType,
                                     MetaJoinFieldMapper uniqueFieldMapper,
-                                    List<ParentIdFieldMapper> parentIdFields,
+                                    Map<String, ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals, List<Relations> relations) {
         super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
@@ -224,38 +201,9 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        List<Mapper> mappers = new ArrayList<> (parentIdFields);
+        List<Mapper> mappers = new ArrayList<>(parentIdFields.values());
         mappers.add(uniqueFieldMapper);
         return mappers.iterator();
-    }
-
-    /**
-     * Returns true if <code>name</code> is a parent name in the field.
-     */
-    public boolean hasParent(String name) {
-        return parentIdFields.stream().anyMatch((mapper) -> name.equals(mapper.getParentName()));
-    }
-
-    /**
-     * Returns true if <code>name</code> is a child name in the field.
-     */
-    public boolean hasChild(String name) {
-        return parentIdFields.stream().anyMatch((mapper) -> mapper.getChildren().contains(name));
-    }
-
-    /**
-     * Returns the parent Id field mapper associated with a parent <code>name</code>
-     * if <code>isParent</code> is true and a child <code>name</code> otherwise.
-     */
-    public ParentIdFieldMapper getParentIdFieldMapper(String name, boolean isParent) {
-        for (ParentIdFieldMapper mapper : parentIdFields) {
-            if (isParent && name.equals(mapper.getParentName())) {
-                return mapper;
-            } else if (isParent == false && mapper.getChildren().contains(name)) {
-                return mapper;
-            }
-        }
-        return null;
     }
 
     private static boolean checkRelationsConflicts(List<Relations> previous, List<Relations> current, Conflicts conflicts) {
@@ -265,7 +213,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context) {
         throw new UnsupportedOperationException("parsing is implemented in parse(), this method should NEVER be called");
     }
 
@@ -300,15 +248,17 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
             name = context.parser().text();
             parent = null;
         } else {
-            throw new IllegalStateException("[" + name  + "] expected START_OBJECT or VALUE_STRING but was: " + token);
+            throw new IllegalStateException("[" + name()  + "] expected START_OBJECT or VALUE_STRING but was: " + token);
         }
 
-        ParentIdFieldMapper parentIdField = getParentIdFieldMapper(name, true);
-        ParentIdFieldMapper childParentIdField = getParentIdFieldMapper(name, false);
-        if (parentIdField == null && childParentIdField == null) {
+        if (name == null) {
+            throw new IllegalArgumentException("null join name in field [" + name() + "]");
+        }
+
+        if (fieldType().joiner.knownRelation(name) == false) {
             throw new IllegalArgumentException("unknown join name [" + name + "] for field [" + name() + "]");
         }
-        if (childParentIdField != null) {
+        if (fieldType().joiner.childTypeExists(name)) {
             // Index the document as a child
             if (parent == null) {
                 throw new IllegalArgumentException("[parent] is missing for join field [" + name() + "]");
@@ -316,15 +266,15 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
             if (context.sourceToParse().routing() == null) {
                 throw new IllegalArgumentException("[routing] is missing for join field [" + name() + "]");
             }
-            assert childParentIdField.getChildren().contains(name);
             ParseContext externalContext = context.createExternalValueContext(parent);
-            childParentIdField.parse(externalContext);
+            String fieldName = fieldType().joiner.parentJoinField(name);
+            parentIdFields.get(fieldName).parse(externalContext);
         }
-        if (parentIdField != null) {
+        if (fieldType().joiner.parentTypeExists(name)) {
             // Index the document as a parent
-            assert parentIdField.getParentName().equals(name);
             ParseContext externalContext = context.createExternalValueContext(context.sourceToParse().id());
-            parentIdField.parse(externalContext);
+            String fieldName = fieldType().joiner.childJoinField(name);
+            parentIdFields.get(fieldName).parse(externalContext);
         }
 
         BytesRef binaryValue = new BytesRef(name);
@@ -339,11 +289,11 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         builder.field("type", contentType());
         builder.field("eager_global_ordinals", eagerGlobalOrdinals);
         builder.startObject("relations");
-        for (ParentIdFieldMapper field : parentIdFields) {
-            if (field.getChildren().size() == 1) {
-                builder.field(field.getParentName(), field.getChildren().iterator().next());
+        for (Relations relations : relations) {
+            if (relations.children.size() == 1) {
+                builder.field(relations.parent, relations.children.iterator().next());
             } else {
-                builder.field(field.getParentName(), field.getChildren());
+                builder.field(relations.parent, relations.children);
             }
         }
         builder.endObject();

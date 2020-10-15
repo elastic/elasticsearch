@@ -370,7 +370,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         if (hasOverlap(ranges)) {
-            return new OverlapRangeAggregator(
+            return new RangeAggregator.Overlap(
                 name,
                 factories,
                 valuesSource,
@@ -384,7 +384,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 metadata
             );
         }
-        return new NoOverlapAggregator(
+        return new RangeAggregator.NoOverlap(
             name,
             factories,
             valuesSource,
@@ -502,8 +502,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
     protected abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound)
         throws IOException;
 
-    private static class NoOverlapAggregator extends RangeAggregator {
-        NoOverlapAggregator(
+    private static class NoOverlap extends RangeAggregator {
+        NoOverlap(
             String name,
             AggregatorFactories factories,
             Numeric valuesSource,
@@ -530,15 +530,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
                     lo = mid + 1;
                 } else {
                     collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, mid));
-                    return mid;
+                    // The next value must fall in the next bucket to be collected.
+                    return mid + 1;
                 }
             }
             return lo;
         }
     }
 
-    private static class OverlapRangeAggregator extends RangeAggregator {
-        OverlapRangeAggregator(
+    private static class Overlap extends RangeAggregator {
+        Overlap(
             String name,
             AggregatorFactories factories,
             Numeric valuesSource,
@@ -608,6 +609,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 }
             }
 
+            // The next value must fall in the next bucket to be collected.
             return endHi + 1;
         }
     }

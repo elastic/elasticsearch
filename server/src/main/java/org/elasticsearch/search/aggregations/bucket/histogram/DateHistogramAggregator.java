@@ -373,6 +373,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             this.rounding = rounding;
             this.preparedRounding = preparedRounding;
             this.order = order;
+            order.validate(this);
             this.minDocCount = minDocCount;
             this.extendedBounds = extendedBounds;
             this.keyed = keyed;

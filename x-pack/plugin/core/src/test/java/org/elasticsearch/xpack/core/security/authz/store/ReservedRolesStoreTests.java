@@ -806,8 +806,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     .test(mockIndexAbstraction(index)), is(false));
             assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME)
                     .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
             assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME)
                     .test(mockIndexAbstraction(index)), is(false));
             assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(DeleteAction.NAME)

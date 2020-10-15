@@ -68,10 +68,10 @@ targets only missing or closed indices returns an error. For example, if `foo`
 is an index but `bar` is not, a request targeting `foo*,bar*` returns an
 error.
 +
-If `true`, only requests that target only missing or closed indices return an error.
-For example, if `foo` is an index but `bar` is not, a request targeting
-`foo*,bar*` does not return an error. However, a request that targets only
-`bar*` still returns an error.
+If `true`, only requests that exclusively target missing or closed indices
+return an error. For example, if `foo` is an index but `bar` is not, a request
+targeting `foo*,bar*` does not return an error. However, a request that targets
+only `bar*` still returns an error.
 +
 Defaults to `true`.
 

@@ -679,7 +679,7 @@ final class DocumentParser {
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);
             if (builder == null) {
                 builder = new TextFieldMapper.Builder(currentFieldName,
-                    () -> context.mapperService().getIndexAnalyzers().getDefaultIndexAnalyzer())
+                    () -> context.indexAnalyzers().getDefaultIndexAnalyzer())
                         .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
             }
             return builder;

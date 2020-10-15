@@ -93,7 +93,9 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         builder.field(ACCESS_TOKEN_FIELD.getPreferredName(), accessToken);
         builder.field(TYPE_FIELD.getPreferredName(), "Bearer");
         builder.field(EXPIRES_IN_FIELD.getPreferredName(), expiresIn.getSeconds());
-        builder.field(AUTHENTICATION.getPreferredName(), authentication);
+        if (authentication != null) {
+            builder.field(AUTHENTICATION.getPreferredName(), authentication);
+        }
         return builder.endObject();
     }
 }

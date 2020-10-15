@@ -105,7 +105,9 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         if (kerberosAuthenticationResponseToken != null) {
             builder.field("kerberos_authentication_response_token", kerberosAuthenticationResponseToken);
         }
-        builder.field("authentication", authentication);
+        if (authentication != null) {
+            builder.field("authentication", authentication);
+        }
         return builder.endObject();
     }
 

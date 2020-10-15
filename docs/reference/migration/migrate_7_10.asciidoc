@@ -188,12 +188,12 @@ If you use `inner_hits` or the `top_hits` aggregation, ensure
 ====
 *Details* +
 The repository stats API was introduced as an experimental API in 7.8.0. The
-<<repositories-metering-apis,repositories metering APIs>> now replace the
+{ref}/repositories-metering-apis.html[repositories metering APIs] now replace the
 repository stats API. The repository stats API has been deprecated and will be
 removed in 8.0.0.
 
 *Impact* +
-Use the <<repositories-metering-apis,repositories metering APIs>>. Discontinue
-use of the repository stats API.
+Use the {ref}/repositories-metering-apis.html[repositories metering APIs].
+Discontinue use of the repository stats API.
 ====
 //end::notable-breaking-changes[]

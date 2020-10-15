@@ -59,6 +59,7 @@
 ** <<sql-functions-datetime-datetimeformat>>
 ** <<sql-functions-datetime-datetimeparse>>
 ** <<sql-functions-datetime-format>>
+** <<sql-functions-datetime-to_char>>
 ** <<sql-functions-datetime-timeparse>>
 ** <<sql-functions-datetime-part>>
 ** <<sql-functions-datetime-trunc>>

@@ -142,4 +142,12 @@ NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you
 --------------------------------------------------
 curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==" http://localhost:9200/_cluster/health
 --------------------------------------------------
+
+Most operating systems with a shell include the `base64` utility that can perform the encoding for you.
+Make sure a trailing newline is not included when encoding the base64 value:
+
+[source,shell]
+--------------------------------------------------
+echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64
+--------------------------------------------------
 // NOTCONSOLE

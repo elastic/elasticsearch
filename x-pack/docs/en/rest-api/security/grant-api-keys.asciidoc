@@ -5,8 +5,7 @@
 <titleabbrev>Grant API keys</titleabbrev>
 ++++
 
-Creates an API key on behalf of another user for access without requiring basic
-authentication.
+Creates an API key on behalf of another user.
 
 [[security-api-grant-api-key-request]]
 ==== {api-request-title}

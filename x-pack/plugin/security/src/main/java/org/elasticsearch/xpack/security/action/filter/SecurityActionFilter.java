@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.filter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -89,7 +90,15 @@ public class SecurityActionFilter implements ActionFilter {
             final ActionListener<Response> postActionExecutionListener = ActionListener.delegateFailure(contextPreservingListener,
                     (ignore, response) -> {
                         String requestId = AuditUtil.extractRequestId(threadContext);
+                        if (requestId == null) {
+                            contextPreservingListener.onFailure(new ElasticsearchSecurityException("requestId is missing unexpectedly"));
+                            return;
+                        }
                         Authentication authentication = securityContext.getAuthentication();
+                        if (authentication == null) {
+                            contextPreservingListener.onFailure(new ElasticsearchSecurityException("authn is missing unexpectedly"));
+                            return;
+                        }
                         auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
                         contextPreservingListener.onResponse(response);
                     });

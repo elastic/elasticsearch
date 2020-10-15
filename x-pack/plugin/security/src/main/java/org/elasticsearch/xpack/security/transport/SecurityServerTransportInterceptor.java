@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -257,7 +258,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         @Override
                         public void sendResponse(TransportResponse response) throws IOException {
                             String requestId = AuditUtil.extractRequestId(threadContext);
+                            if (requestId == null) {
+                                channel.sendResponse(new ElasticsearchSecurityException("requestId is missing unexpectedly"));
+                                return;
+                            }
                             Authentication authentication = securityContext.getAuthentication();
+                            if (authentication == null) {
+                                channel.sendResponse(new ElasticsearchSecurityException("authn is missing unexpectedly"));
+                                return;
+                            }
                             auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
                             channel.sendResponse(response);
                         }

@@ -180,6 +180,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         @SuppressWarnings("unused")
         ILMHistoryTemplateRegistry ilmTemplateRegistry =
             new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+        ilmTemplateRegistry.initialize();
         ilmHistoryStore.set(new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
             clusterService, threadPool));
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
@@ -190,6 +191,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         @SuppressWarnings("unused")
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
             client, xContentRegistry);
+        templateRegistry.initialize();
         snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
             clusterService));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,

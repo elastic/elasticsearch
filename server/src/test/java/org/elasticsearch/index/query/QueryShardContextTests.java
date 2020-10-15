@@ -315,7 +315,8 @@ public class QueryShardContextTests extends ESTestCase {
         DocumentMapperParser documentMapperParser = mock(DocumentMapperParser.class);
         Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(Collections.emptyList());
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
-            Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), mapperService::isIdFieldDataEnabled);
+            Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            mapperService::isIdFieldDataEnabled);
         when(documentMapperParser.parserContext()).thenReturn(parserContext);
         when(mapperService.documentMapperParser()).thenReturn(documentMapperParser);
         if (runtimeDocValues != null) {

@@ -18,12 +18,12 @@ to connect to other nodes running on the same server. This provides an
 auto-clustering experience without having to do any configuration.
 
 When you want to form a cluster with nodes on other hosts, you should use the
-`discovery.seed_hosts` setting to provide a list of other nodes in the cluster
+<<static-cluster-setting, static>> `discovery.seed_hosts` setting to provide a list of other nodes in the cluster
 that are master-eligible and likely to be live and contactable in order to seed
 the <<modules-discovery-hosts-providers,discovery process>>. This setting
 should be a list of the addresses of all the master-eligible nodes in the
 cluster. Each address can be either an IP address or a hostname which resolves
-to one or more IP addresses via DNS.
+to one or more IP addresses via DNS. Only YAML collections are supported.
 
 If your master-eligible nodes do not have fixed names or addresses, use an
 <<built-in-hosts-providers,alternative hosts provider>> to find their addresses

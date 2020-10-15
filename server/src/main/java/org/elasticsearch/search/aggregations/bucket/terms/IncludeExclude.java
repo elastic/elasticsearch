@@ -207,15 +207,15 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
          */
         @Override
         public boolean accept(BytesRef value) {
-            if (valids != null && !valids.contains(value)) {
+            if (valids != null && valids.contains(value) == false) {
                 return false;
             }
 
-            if (runAutomaton != null && !runAutomaton.run(value.bytes, value.offset, value.length)) {
+            if (runAutomaton != null && runAutomaton.run(value.bytes, value.offset, value.length) == false) {
                 return false;
             }
 
-            return invalids == null || !invalids.contains(value);
+            return invalids == null || invalids.contains(value) == false;
         }
     }
 
@@ -338,13 +338,13 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     public IncludeExclude(String include, String exclude, String[] includeValues, String[] excludeValues) {
-            this(
-                include == null ? null : new RegExp(include),
-                exclude == null ? null : new RegExp(exclude),
-                convertToBytesRefSet(includeValues),
-                convertToBytesRefSet(excludeValues)
-            );
-        }
+        this(
+            include == null ? null : new RegExp(include),
+            exclude == null ? null : new RegExp(exclude),
+            convertToBytesRefSet(includeValues),
+            convertToBytesRefSet(excludeValues)
+        );
+    }
 
     public IncludeExclude(String include, String exclude) {
         this(include == null ? null : new RegExp(include), exclude == null ? null : new RegExp(exclude));

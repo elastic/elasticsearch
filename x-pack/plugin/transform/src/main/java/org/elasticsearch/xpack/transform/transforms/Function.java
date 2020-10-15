@@ -66,9 +66,9 @@ public interface Function {
          * TODO: replace the boolean with a more descriptive enum.
          *
          * @param searchResponse the response after querying for changes
-         * @return true if the collector is done and there are no more changes to look for
+         * @return the position of the change collector, null in case the collector is exhausted
          */
-        boolean processSearchResponse(SearchResponse searchResponse);
+        Map<String, Object> processSearchResponse(SearchResponse searchResponse);
 
         /**
          * Build the filter query to narrow the result set given the previously collected changes.
@@ -85,13 +85,6 @@ public interface Function {
          * Clear the internal state to free up memory.
          */
         void clear();
-
-        /**
-         * Get the bucket position of the changes collector.
-         *
-         * @return the position, null in case the collector is exhausted
-         */
-        Map<String, Object> getBucketPosition();
 
         /**
          * Whether the collector optimizes change detection by narrowing the required query.

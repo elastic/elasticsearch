@@ -51,12 +51,14 @@ import java.util.Set;
 public class CompositeBucketsChangeCollector implements ChangeCollector {
 
     // a magic for the case that we do not need a composite aggregation to collect changes
-    private static final Map<String, Object> AFTER_KEY_MAGIC = Collections.singletonMap("_transform", "no_composite_after_key");
+    private static final Map<String, Object> AFTER_KEY_MAGIC_FOR_NON_COMPOSITE_COLLECTORS = Collections.singletonMap(
+        "_transform",
+        "no_composite_after_key"
+    );
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_transform_change_collector";
     private final Map<String, FieldCollector> fieldCollectors;
     private final CompositeAggregationBuilder compositeAggregation;
-    private Map<String, Object> afterKey = null;
 
     /**
      * Collector for collecting changes from 1 group_by field.
@@ -670,43 +672,47 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
-    public boolean processSearchResponse(final SearchResponse searchResponse) {
+    public Map<String, Object> processSearchResponse(final SearchResponse searchResponse) {
         final Aggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {
-            return true;
+            return null;
         }
 
+        // every collector reports if the collection of changes is done after processing, if all are done, the indexer
+        // will not run a query for change collection again
         boolean isDone = true;
-
-        // collect changes from composite buckets
-        final CompositeAggregation compositeAggResults = aggregations.get(COMPOSITE_AGGREGATION_NAME);
-        if (compositeAggResults != null) {
-            Collection<? extends Bucket> buckets = compositeAggResults.getBuckets();
-            afterKey = compositeAggResults.afterKey();
-            for (FieldCollector fieldCollector : fieldCollectors.values()) {
-                isDone &= fieldCollector.collectChangesFromCompositeBuckets(buckets);
-            }
-        } else {
-            assert compositeAggregation == null;
-            afterKey = AFTER_KEY_MAGIC;
-        }
 
         // collect changes from aggregations added by field collectors
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
             isDone &= fieldCollector.collectChangesFromAggregations(aggregations);
         }
 
-        return isDone;
+        // collect changes from composite buckets
+        final CompositeAggregation compositeAggResults = aggregations.get(COMPOSITE_AGGREGATION_NAME);
+
+        // xor: either both must exist or not exist
+        assert (compositeAggregation == null ^ compositeAggResults == null) == false;
+
+        if (compositeAggResults != null) {
+            Collection<? extends Bucket> buckets = compositeAggResults.getBuckets();
+            for (FieldCollector fieldCollector : fieldCollectors.values()) {
+                isDone &= fieldCollector.collectChangesFromCompositeBuckets(buckets);
+            }
+
+            if (isDone == false) {
+                return compositeAggResults.afterKey();
+            }
+        } else if (isDone == false) {
+            // if we don't have a composite aggregation, we need a magic key, because the indexer handles the state
+            return AFTER_KEY_MAGIC_FOR_NON_COMPOSITE_COLLECTORS;
+        }
+
+        return null;
     }
 
     @Override
     public void clear() {
         fieldCollectors.forEach((k, c) -> c.clear());
-    }
-
-    @Override
-    public Map<String, Object> getBucketPosition() {
-        return afterKey;
     }
 
     @Override

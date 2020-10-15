@@ -102,6 +102,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     // collects changes for continuous mode
     private ChangeCollector changeCollector;
+    // position of the change collector, in flux (not yet persisted as we haven't processed changes yet)
+    private Map<String, Object> nextChangeCollectorBucketPosition = null;
 
     private volatile Integer initialConfiguredPageSize;
     private volatile int pageSize = 0;
@@ -752,7 +754,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // advance the cursor for changed bucket detection
             return new IterationResult<>(
                 Collections.emptyList(),
-                new TransformIndexerPosition(null, changeCollector.getBucketPosition()),
+                new TransformIndexerPosition(null, nextChangeCollectorBucketPosition),
                 false
             );
         }
@@ -777,7 +779,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private IterationResult<TransformIndexerPosition> processChangedBuckets(final SearchResponse searchResponse) {
-        if (changeCollector.processSearchResponse(searchResponse)) {
+        nextChangeCollectorBucketPosition = changeCollector.processSearchResponse(searchResponse);
+
+        if (nextChangeCollectorBucketPosition == null) {
             changeCollector.clear();
             return new IterationResult<>(Collections.emptyList(), null, true);
         }

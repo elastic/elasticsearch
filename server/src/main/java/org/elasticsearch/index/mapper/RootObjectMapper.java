@@ -278,7 +278,7 @@ public class RootObjectMapper extends ObjectMapper {
             return null;
         }
         String dynamicType = matchType.defaultMappingType();
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(dateFormat);
+        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormat);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {

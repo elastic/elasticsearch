@@ -208,16 +208,16 @@ public class MockRepository extends FsRepository {
         this.notifyAll();
     }
 
-    public void blockOnDataFiles(boolean blocked) {
-        blockOnDataFiles = blocked;
+    public void blockOnDataFiles() {
+        blockOnDataFiles = true;
     }
 
-    public void setBlockOnAnyFiles(boolean blocked) {
-        blockOnAnyFiles = blocked;
+    public void setBlockOnAnyFiles() {
+        blockOnAnyFiles = true;
     }
 
-    public void setBlockAndFailOnWriteSnapFiles(boolean blocked) {
-        blockAndFailOnWriteSnapFile = blocked;
+    public void setBlockAndFailOnWriteSnapFiles() {
+        blockAndFailOnWriteSnapFile = true;
     }
 
     public void setBlockAndFailOnWriteIndexFile() {

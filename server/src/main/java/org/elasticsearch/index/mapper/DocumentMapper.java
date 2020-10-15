@@ -99,42 +99,40 @@ public class DocumentMapper implements ToXContentFragment {
             return this;
         }
 
-        public DocumentMapper build(MapperService mapperService) {
+        public DocumentMapper build(IndexSettings indexSettings, DocumentMapperParser documentMapperParser, IndexAnalyzers indexAnalyzers) {
             Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             Mapping mapping = new Mapping(
-                    mapperService.getIndexSettings().getIndexVersionCreated(),
+                    indexSettings.getIndexVersionCreated(),
                     rootObjectMapper,
                     metadataMappers.values().toArray(new MetadataFieldMapper[0]),
                     meta);
-            return new DocumentMapper(mapperService, mapping);
+            return new DocumentMapper(indexSettings, documentMapperParser, indexAnalyzers, mapping);
         }
     }
 
-    private final MapperService mapperService;
-
     private final String type;
     private final Text typeText;
-
     private final CompressedXContent mappingSource;
-
     private final Mapping mapping;
-
     private final DocumentParser documentParser;
-
     private final MappingLookup fieldMappers;
-
+    private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
+    private final DocumentMapperParser documentMapperParser;
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
-    public DocumentMapper(MapperService mapperService, Mapping mapping) {
-        this.mapperService = mapperService;
+    private DocumentMapper(IndexSettings indexSettings,
+                           DocumentMapperParser documentMapperParser,
+                           IndexAnalyzers indexAnalyzers,
+                           Mapping mapping) {
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
-        final IndexSettings indexSettings = mapperService.getIndexSettings();
         this.mapping = mapping;
-        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
-
-        final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
+        this.documentMapperParser = documentMapperParser;
+        this.indexSettings = indexSettings;
+        this.indexAnalyzers = indexAnalyzers;
+        this.documentParser = new DocumentParser();
         this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
 
         try {
@@ -151,6 +149,18 @@ public class DocumentMapper implements ToXContentFragment {
             VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
         this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> noopTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
+    }
+
+    IndexSettings indexSettings() {
+        return indexSettings;
+    }
+
+    DocumentMapperParser documentMapperParser() {
+        return documentMapperParser;
+    }
+
+    IndexAnalyzers indexAnalyzers() {
+        return indexAnalyzers;
     }
 
     public Mapping mapping() {
@@ -214,18 +224,18 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, mapping.metadataMappers);
+        return documentParser.parseDocument(source, mapping.metadataMappers, this);
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
         final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
+        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers, this).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
         final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
+        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers, this).toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);
         parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
@@ -269,7 +279,7 @@ public class DocumentMapper implements ToXContentFragment {
 
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
         Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(mapperService, merged);
+        return new DocumentMapper(this.indexSettings, this.documentMapperParser, this.indexAnalyzers, merged);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

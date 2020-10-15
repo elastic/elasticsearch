@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -431,6 +432,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
         List<Thread> threads = new ArrayList<>();
         CountDownLatch latch = new CountDownLatch(1);
+        List<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
         for (int i = 0; i < 2; i++) {
             Runnable runnable = () -> {
                 for (int j = 0; j < 10; j++) {
@@ -438,7 +440,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                         latch.await();
                         getAsyncSearch(response.getId(), TimeValue.timeValueMinutes(10));
                     } catch (Exception exc) {
-                        throw new AssertionError(exc);
+                        exceptions.add(exc);
                     }
                 }
             };
@@ -450,5 +452,6 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
+        assertTrue(exceptions.toString(), exceptions.isEmpty());
     }
 }

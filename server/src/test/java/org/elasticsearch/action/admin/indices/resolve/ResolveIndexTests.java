@@ -169,6 +169,34 @@ public class ResolveIndexTests extends ESTestCase {
         validateDataStreams(dataStreams, "logs-mysql-test");
     }
 
+    public void testResolvePreservesBackingIndexOrdering() {
+        Metadata.Builder builder = Metadata.builder();
+        String dataStreamName = "my-data-stream";
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        backingIndices.add(createIndexMetadata("not-in-order-2", true));
+        backingIndices.add(createIndexMetadata("not-in-order-1", true));
+        backingIndices.add(createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, 3), true));
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
+
+        DataStream ds = new DataStream(dataStreamName, createTimestampField("@timestamp"),
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+        builder.put(ds);
+
+        IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
+        List<ResolvedIndex> indices = new ArrayList<>();
+        List<ResolvedAlias> aliases = new ArrayList<>();
+        List<ResolvedDataStream> dataStreams = new ArrayList<>();
+        TransportAction.resolveIndices(new String[]{"*"}, indicesOptions, builder.build(), resolver, indices, aliases, dataStreams, true);
+
+        assertThat(dataStreams.size(), equalTo(1));
+        assertThat(dataStreams.get(0).getBackingIndices().length, equalTo(3));
+        assertThat(dataStreams.get(0).getBackingIndices()[0], equalTo(backingIndices.get(0).getIndex().getName()));
+        assertThat(dataStreams.get(0).getBackingIndices()[1], equalTo(backingIndices.get(1).getIndex().getName()));
+        assertThat(dataStreams.get(0).getBackingIndices()[2], equalTo(backingIndices.get(2).getIndex().getName()));
+    }
+
     private void validateIndices(List<ResolvedIndex> resolvedIndices, String... expectedIndices) {
         assertThat(resolvedIndices.size(), equalTo(expectedIndices.length));
         for (int k = 0; k < resolvedIndices.size(); k++) {

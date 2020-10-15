@@ -56,9 +56,13 @@ To search all data streams and indices in a cluster, use
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
-+
-Defaults to `false`.
+`allow_no_indices`::
+(Optional, boolean)
+If `false`, the request returns a `mapping_exception` error when a wildcard
+expression, <<indices-aliases,index alias>>, or `_all` value targets only
+missing or closed indices. If `true`, the request returns a
+`verification_exception` error when targeting only missing or closed indices.
+Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +

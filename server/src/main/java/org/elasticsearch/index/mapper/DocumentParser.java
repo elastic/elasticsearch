@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 
 import java.io.IOException;
@@ -46,25 +45,17 @@ import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTIN
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
 
-    private final IndexSettings indexSettings;
-    private final DocumentMapperParser docMapperParser;
-    private final DocumentMapper docMapper;
-
-    DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
-        this.indexSettings = indexSettings;
-        this.docMapperParser = docMapperParser;
-        this.docMapper = docMapper;
-    }
-
-    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
+    ParsedDocument parseDocument(SourceToParse source,
+                                 MetadataFieldMapper[] metadataFieldsMappers,
+                                 DocumentMapper docMapper) throws MapperParsingException {
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
 
-        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(),
+        try (XContentParser parser = XContentHelper.createParser(docMapper.documentMapperParser().getXContentRegistry(),
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);
+            context = new ParseContext.InternalParseContext(docMapper, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, metadataFieldsMappers, context, parser);
             validateEnd(parser);

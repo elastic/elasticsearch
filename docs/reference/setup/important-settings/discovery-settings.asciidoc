@@ -20,11 +20,10 @@ auto-clustering experience without having to do any configuration.
 When you want to form a cluster with nodes on other hosts, you should use the
 <<static-cluster-setting, static>> `discovery.seed_hosts` setting to provide a list of other nodes in the cluster
 that are master-eligible and likely to be live and contactable in order to seed
-the <<modules-discovery-hosts-providers,discovery process>>. This setting
-should be a list of the addresses of all the master-eligible nodes in the
-cluster. Each address can be either an IP address or a hostname which resolves
-to one or more IP addresses via DNS. Only YAML sequences or arrays are
-supported.
+the <<modules-discovery-hosts-providers,discovery process>>. This setting value
+should be a YAML sequence or array of the addresses of all the master-eligible
+nodes in the cluster. Each address can be either an IP address or a hostname
+which resolves to one or more IP addresses via DNS.
 
 [source,yaml]
 ----

@@ -613,11 +613,13 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             shardFailure.toXContent(builder, params);
         }
         builder.endArray();
-        builder.startArray(FEATURE_STATES);
-        for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
-            builder.value(snapshotFeatureInfo);
+        if (featureStates != null) {
+            builder.startArray(FEATURE_STATES);
+            for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
+                builder.value(snapshotFeatureInfo);
+            }
+            builder.endArray();
         }
-        builder.endArray();
 
         builder.endObject();
         return builder;

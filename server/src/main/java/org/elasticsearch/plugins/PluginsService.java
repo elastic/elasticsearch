@@ -352,7 +352,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (final Path plugin : findPluginDirs(directory)) {
             final Bundle bundle = readPluginBundle(plugin, type);
             if (bundle.plugin.getType() == PluginType.BOOTSTRAP) {
-                logger.trace("--- skipping bootstrap only [{}] [{}]", type, plugin.toAbsolutePath());
+                logger.trace("--- skipping bootstrap plugin [{}] [{}]", type, plugin.toAbsolutePath());
             } else {
                 if (bundles.add(bundle) == false) {
                     throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
@@ -364,7 +364,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         logger.trace(
-            "findBundles(" + type + ") returning: " + bundles.stream().map(b -> b.plugin.getName()).sorted().collect(Collectors.toList())
+            () -> "findBundles("
+                + type
+                + ") returning: "
+                + bundles.stream().map(b -> b.plugin.getName()).sorted().collect(Collectors.toList())
         );
 
         return bundles;

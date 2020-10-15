@@ -19,12 +19,14 @@
 
 package org.elasticsearch.plugins;
 
+import java.util.Locale;
+
 public enum PluginType {
     ISOLATED,
     BOOTSTRAP;
 
     @Override
     public String toString() {
-        return this.name().toLowerCase();
+        return this.name().toLowerCase(Locale.ROOT);
     }
 }

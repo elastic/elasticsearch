@@ -21,12 +21,14 @@ package org.elasticsearch.gradle.plugin;
 
 /* Mirrors org.elasticsearch.plugins.PluginType */
 
+import java.util.Locale;
+
 public enum PluginType {
     ISOLATED,
     BOOTSTRAP;
 
     @Override
     public String toString() {
-        return this.name().toLowerCase();
+        return this.name().toLowerCase(Locale.ROOT);
     }
 }

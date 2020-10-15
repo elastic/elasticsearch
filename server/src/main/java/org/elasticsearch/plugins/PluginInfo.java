@@ -185,14 +185,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         final boolean hasNativeController = parseBooleanValue("has.native.controller", propsMap.remove("has.native.controller"));
 
-        final String typeString = propsMap.remove("type");
-        if (Strings.isNullOrEmpty(typeString)) {
-            throw new IllegalArgumentException("property [type] is missing for plugin [" + name + "]");
-        }
-
-        final PluginType type = PluginType.valueOf(typeString.toUpperCase());
+        final PluginType type = getPluginType(name, propsMap.remove("type"));
 
         final String javaOpts = propsMap.remove("java.opts");
+
+        if (type != PluginType.BOOTSTRAP && Strings.isNullOrEmpty(javaOpts) == false) {
+            throw new IllegalArgumentException(
+                "[java.opts] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
+            );
+        }
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
@@ -200,6 +201,20 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         return new PluginInfo(name, description, version, esVersion, javaVersionString,
                               classname, extendedPlugins, hasNativeController, type, javaOpts);
+    }
+
+    private static PluginType getPluginType(String name, String rawType) {
+        if (Strings.isNullOrEmpty(rawType)) {
+            return PluginType.ISOLATED;
+        }
+
+        try {
+            return PluginType.valueOf(rawType.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                "[type] must be unspecified or one of [isolated, bootstrap] but found [" + rawType + "] for plugin [" + name + "]"
+            );
+        }
     }
 
     private static boolean parseBooleanValue(String name, String rawValue) {

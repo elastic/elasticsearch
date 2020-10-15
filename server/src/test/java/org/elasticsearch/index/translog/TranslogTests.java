@@ -1369,12 +1369,13 @@ public class TranslogTests extends ESTestCase {
             writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
             writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
             writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 3);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 4);
             assertThat(persistedSeqNos, empty());
             assertEquals(initialWriteCalls, writeCalls.get());
 
             if (randomBoolean()) {
-                // This will fill the buffer and force a flush
-                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 4);
+                // Since the buffer is full, this will flush before performing the add.
+                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 5);
                 assertThat(persistedSeqNos, empty());
                 assertThat(writeCalls.get(), greaterThan(initialWriteCalls));
             } else {
@@ -1384,13 +1385,13 @@ public class TranslogTests extends ESTestCase {
                 assertThat(writeCalls.get(), greaterThan(initialWriteCalls));
 
                 // Add after we the read flushed the buffer
-                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 4);
+                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 5);
             }
 
             writer.sync();
 
             // Sequence numbers are marked as persisted after sync
-            assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L));
+            assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L, 5L));
         }
     }
 
@@ -2276,7 +2277,6 @@ public class TranslogTests extends ESTestCase {
         assertTrue(translog.getTragicException() instanceof UnknownException);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63299")
     public void testFatalIOExceptionsWhileWritingConcurrently() throws IOException, InterruptedException {
         Path tempDir = createTempDir();
         final FailSwitch fail = new FailSwitch();

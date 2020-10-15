@@ -29,13 +29,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 /**
  * Transport action for verifying repository operation
@@ -51,18 +48,8 @@ public class TransportVerifyRepositoryAction extends
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              VerifyRepositoryRequest::new, indexNameExpressionResolver);
+              VerifyRepositoryRequest::new, indexNameExpressionResolver, VerifyRepositoryResponse::new, ThreadPool.Names.SAME);
         this.repositoriesService = repositoriesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected VerifyRepositoryResponse read(StreamInput in) throws IOException {
-        return new VerifyRepositoryResponse(in);
     }
 
     @Override

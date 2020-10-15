@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ql.expression;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;

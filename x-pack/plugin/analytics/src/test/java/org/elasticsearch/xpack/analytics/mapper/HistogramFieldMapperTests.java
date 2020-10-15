@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -26,8 +27,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class HistogramFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field("values", new double[] { 2, 3 }).field("counts", new int[] { 0, 4 }).endObject();
+    protected Object getSampleValueForDocument() {
+        return Map.of("values", new double[] { 2, 3 }, "counts", new int[] { 0, 4 });
     }
 
     @Override

@@ -46,7 +46,7 @@ public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin {
                         () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
                     )
                 );
-            forbiddenPatternsTask.setRootDir(project.getRootDir());
+            forbiddenPatternsTask.getRootDir().set(project.getRootDir());
         });
     }
 }

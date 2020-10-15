@@ -21,13 +21,16 @@ package org.elasticsearch.gradle.precommit;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
@@ -38,6 +41,7 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.AbstractMap;
@@ -77,7 +81,6 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
      */
     private final Map<String, String> patterns = new HashMap<>();
     private final ProjectLayout projectLayout;
-    private File rootDir;
 
     @Inject
     public ForbiddenPatternsTask(ProjectLayout projectLayout) {
@@ -118,7 +121,8 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
                 .boxed()
                 .collect(Collectors.toList());
 
-            String path = getRoot().toURI().relativize(f.toURI()).toString();
+            URI baseUri = getRootDir().orElse(projectLayout.getProjectDirectory()).get().getAsFile().toURI();
+            String path = baseUri.relativize(f.toURI()).toString();
             failures.addAll(
                 invalidLines.stream()
                     .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
@@ -138,10 +142,6 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
         File outputMarker = getOutputMarker();
         outputMarker.getParentFile().mkdirs();
         Files.write(outputMarker.toPath(), "done".getBytes(StandardCharsets.UTF_8));
-    }
-
-    private File getRoot() {
-        return rootDir != null ? rootDir : projectLayout.getProjectDirectory().getAsFile();
     }
 
     @OutputFile
@@ -177,7 +177,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     @Internal
     abstract ListProperty<FileTree> getSourceFolders();
 
-    void setRootDir(File rootDir) {
-        this.rootDir = rootDir;
-    }
+    @InputDirectory
+    @Optional
+    abstract DirectoryProperty getRootDir();
 }

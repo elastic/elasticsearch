@@ -102,7 +102,7 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
                             .collect(Collectors.toList())
                     )
                 );
-            forbiddenPatternsTask.setRootDir(project.getRootDir());
+            forbiddenPatternsTask.getRootDir().set(project.getRootDir());
         });
     }
 

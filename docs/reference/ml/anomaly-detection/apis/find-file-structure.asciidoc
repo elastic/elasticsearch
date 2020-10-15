@@ -1869,7 +1869,7 @@ this:
           "count" : 1
         },
         {
-          "value" : "adding template [.watch-history-9] for index patterns [.watcher-history-9*]",
+          "value" : "adding template [.watch-history-9] for index patterns [watcher-history-9*]",
           "count" : 1
         },
         {

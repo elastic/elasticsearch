@@ -113,7 +113,7 @@ the watch history:
 
 [source,console]
 --------------------------------------------------
-GET .watcher-history*/_search
+GET watcher-history*/_search
 {
   "sort" : [
     { "result.execution_time" : "desc" }
@@ -167,7 +167,7 @@ To check to see if the condition was met, you can run the following query.
 
 [source,console]
 ------------------------------------------------------
-GET .watcher-history*/_search?pretty
+GET watcher-history*/_search?pretty
 {
   "query" : {
     "match" : { "result.condition.met" : true }
@@ -257,7 +257,7 @@ performed.
 
 [source,console]
 -------------------------------------------------------
-GET .watcher-history*/_search?pretty
+GET watcher-history*/_search?pretty
 {
   "query" : {
     "match" : { "result.condition.met" : true }

@@ -234,7 +234,7 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
         final AtomicReference<ObjectPath> objectPathReference = new AtomicReference<>();
         try {
             assertBusy(() -> {
-                client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
+                client().performRequest(new Request("POST", "/watcher-history-*/_refresh"));
 
                 try (XContentBuilder builder = jsonBuilder()) {
                     builder.startObject();
@@ -250,7 +250,7 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
                         .endObject().endArray();
                     builder.endObject();
 
-                    Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                    Request searchRequest = new Request("POST", "/watcher-history-*/_search");
                     searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
                     searchRequest.setJsonEntity(Strings.toString(builder));
                     Response response = client().performRequest(searchRequest);
@@ -289,7 +289,7 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
                 }
             }
             {
-                Request request = new Request("GET", "/.watcher-history-*/_search");
+                Request request = new Request("GET", "/watcher-history-*/_search");
                 request.addParameter("size", "100");
                 request.addParameter("sort", "trigger_event.triggered_time:desc");
                 request.addParameter("pretty", "true");

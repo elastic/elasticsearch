@@ -69,8 +69,8 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     public void testHandleSpaces() { // see #21449
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(),
-            randomFrom(".marvel-, .security, .watches, .triggered_watches, .watcher-history-",
-                ".marvel-,.security,.watches,.triggered_watches,.watcher-history-")).build();
+            randomFrom(".marvel-, .security, .watches, .triggered_watches, watcher-history-",
+                ".marvel-,.security,.watches,.triggered_watches,watcher-history-")).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         List<Tuple<String, Boolean>> expressions = autoCreateIndex.getAutoCreate().getExpressions();
         Map<String, Boolean> map = new HashMap<>();
@@ -81,7 +81,7 @@ public class AutoCreateIndexTests extends ESTestCase {
         assertTrue(map.get(".security"));
         assertTrue(map.get(".watches"));
         assertTrue(map.get(".triggered_watches"));
-        assertTrue(map.get(".watcher-history-"));
+        assertTrue(map.get("watcher-history-"));
         assertEquals(5, map.size());
     }
 

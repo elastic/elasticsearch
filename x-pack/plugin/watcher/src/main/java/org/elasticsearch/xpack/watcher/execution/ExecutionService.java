@@ -12,6 +12,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -329,6 +330,7 @@ public class ExecutionService {
             record = createWatchRecord(record, ctx, e);
             logWatchRecord(ctx, e);
         } finally {
+            logger.info("watcher execute " + ctx.knownWatch());
             if (ctx.knownWatch()) {
                 if (record != null && ctx.recordExecution()) {
                     try {
@@ -450,12 +452,11 @@ public class ExecutionService {
      * Any existing watchRecord will be overwritten.
      */
     private void forcePutHistory(WatchRecord watchRecord) {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         try {
             try (XContentBuilder builder = XContentFactory.jsonBuilder();
                  ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
-                IndexRequest request = new IndexRequest(index)
+                IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM_NAME)
                     .id(watchRecord.id().value())
                     .source(builder)
                     .opType(IndexRequest.OpType.CREATE);
@@ -466,8 +467,9 @@ public class ExecutionService {
                     "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
                      ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
-                    IndexRequest request = new IndexRequest(index)
+                    IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM_NAME)
                         .id(watchRecord.id().value())
+                        .opType(DocWriteRequest.OpType.CREATE)
                         .source(xContentBuilder.value(watchRecord));
                     client.index(request).get(30, TimeUnit.SECONDS);
                 }
@@ -545,6 +547,7 @@ public class ExecutionService {
     public void executeTriggeredWatches(Collection<TriggeredWatch> triggeredWatches) {
         assert triggeredWatches != null;
         int counter = 0;
+        logger.info("triggered execute " + triggeredWatches);
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
             GetResponse response = getWatch(triggeredWatch.id().watchId());
             if (response.isExists() == false) {

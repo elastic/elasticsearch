@@ -1,6 +1,7 @@
 {
-  "index_patterns": [ ".watcher-history-${xpack.watcher.template.version}*" ],
+  "index_patterns": [ "watcher-history-${xpack.watcher.template.version}*" ],
   "priority": 2147483647,
+  "data_stream": {},
   "template": {
     "settings": {
       "index.number_of_shards": 1,

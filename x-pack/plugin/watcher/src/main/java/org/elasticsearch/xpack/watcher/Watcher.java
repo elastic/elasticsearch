@@ -206,11 +206,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
     @Deprecated
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
-            new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
+        new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
-            Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
+        Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
-            Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
+        Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
     public static final Setting<Boolean> USE_ILM_INDEX_MANAGEMENT =
         Setting.boolSetting("xpack.watcher.use_ilm_index_management", true, NodeScope);
     private static final Setting<Integer> SETTING_BULK_ACTIONS =
@@ -246,9 +246,17 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     }
 
     // overridable by tests
-    protected SSLService getSslService() { return XPackPlugin.getSharedSslService(); }
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
-    protected Clock getClock() { return Clock.systemUTC(); }
+    protected SSLService getSslService() {
+        return XPackPlugin.getSharedSslService();
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
+
+    protected Clock getClock() {
+        return Clock.systemUTC();
+    }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
@@ -300,16 +308,16 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         // conditions
 
         final ConditionRegistry conditionRegistry = new ConditionRegistry(
-                Map.of(
-                        InternalAlwaysCondition.TYPE, (c, id, p) -> InternalAlwaysCondition.parse(id, p),
-                        NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p),
-                        ArrayCompareCondition.TYPE, ArrayCompareCondition::parse,
-                        CompareCondition.TYPE, CompareCondition::parse,
-                        ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p)),
-                getClock());
+            Map.of(
+                InternalAlwaysCondition.TYPE, (c, id, p) -> InternalAlwaysCondition.parse(id, p),
+                NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p),
+                ArrayCompareCondition.TYPE, ArrayCompareCondition::parse,
+                CompareCondition.TYPE, CompareCondition::parse,
+                ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p)),
+            getClock());
         final TransformRegistry transformRegistry = new TransformRegistry(Map.of(
-                ScriptTransform.TYPE, new ScriptTransformFactory(scriptService),
-                SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService)));
+            ScriptTransform.TYPE, new ScriptTransformFactory(scriptService),
+            SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService)));
 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
@@ -336,11 +344,19 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         bulkProcessor = BulkProcessor.builder(new OriginSettingClient(client, WATCHER_ORIGIN)::bulk, new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
+                logger.info("before watcher bulk " + request.getIndices());
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                logger.info("AFTER WATCHER BULK msg: " + response.buildFailureMessage());
                 if (response.hasFailures()) {
+                    logger.info("FAILURES: " + response.hasFailures());
+                    for (BulkItemResponse bulkItemResponse : response) {
+                        if(bulkItemResponse.isFailed()){
+                            logger.error("FAILURE: " + bulkItemResponse.getFailureMessage(), bulkItemResponse.getFailure().getCause());
+                        }
+                    }
                     Map<String, String> triggeredFailures = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
                         .filter(r -> r.getIndex().startsWith(TriggeredWatchStoreField.INDEX_NAME))
@@ -409,29 +425,29 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser, bulkProcessor);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
-                new WatcherSearchTemplateService(scriptService, xContentRegistry);
+            new WatcherSearchTemplateService(scriptService, xContentRegistry);
         final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
         final WatchParser watchParser = new WatchParser(triggerService, registry, inputRegistry, cryptoService, getClock());
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                getClock(), watchParser, clusterService, client, threadPool.generic());
+            getClock(), watchParser, clusterService, client, threadPool.generic());
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
 
         WatcherService watcherService = new WatcherService(settings, triggerService, triggeredWatchStore, executionService,
-                watchParser, client);
+            watchParser, client);
 
         final WatcherLifeCycleService watcherLifeCycleService =
-                new WatcherLifeCycleService(clusterService, watcherService);
+            new WatcherLifeCycleService(clusterService, watcherService);
 
         listener = new WatcherIndexingListener(watchParser, getClock(), triggerService, watcherLifeCycleService.getState());
         clusterService.addListener(listener);
 
         // note: clock is needed here until actions can be constructed directly instead of by guice
         return Arrays.asList(new ClockHolder(getClock()), registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
-                watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService);
+            watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
+            configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -495,13 +511,13 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         if (enabled) {
             final FixedExecutorBuilder builder =
-                    new FixedExecutorBuilder(
-                            settings,
-                            InternalWatchExecutor.THREAD_POOL_NAME,
-                            getWatcherThreadPoolSize(settings),
-                            1000,
-                            "xpack.watcher.thread_pool",
-                            false);
+                new FixedExecutorBuilder(
+                    settings,
+                    InternalWatchExecutor.THREAD_POOL_NAME,
+                    getWatcherThreadPoolSize(settings),
+                    1000,
+                    "xpack.watcher.thread_pool",
+                    false);
             return Collections.singletonList(builder);
         }
         return Collections.emptyList();
@@ -515,11 +531,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
      * of threads which is more than the number of CPUs, but you also need
      * to ensure that this number does not go crazy high if you have really
      * beefy machines. This can still be configured manually.
-     *
+     * <p>
      * Calculation is as follows:
      * Use five times the number of processors up until 50, then stick with the
      * number of processors.
-     *
+     * <p>
      * If the node is not a data node, we will never need so much threads, so we
      * just return 1 here, which still allows to execute a watch locally, but
      * there is no need of managing any more threads here
@@ -548,35 +564,36 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(new ActionHandler<>(PutWatchAction.INSTANCE, TransportPutWatchAction.class),
-                new ActionHandler<>(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class),
-                new ActionHandler<>(GetWatchAction.INSTANCE, TransportGetWatchAction.class),
-                new ActionHandler<>(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class),
-                new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
-                new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
-                new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
-                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
-                usageAction,
-                infoAction);
+            new ActionHandler<>(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class),
+            new ActionHandler<>(GetWatchAction.INSTANCE, TransportGetWatchAction.class),
+            new ActionHandler<>(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class),
+            new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
+            new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
+            new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
+            new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
+            usageAction,
+            infoAction);
     }
 
     @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster) {
+                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
+                                             IndexNameExpressionResolver indexNameExpressionResolver,
+                                             Supplier<DiscoveryNodes> nodesInCluster) {
         if (false == enabled) {
             return emptyList();
         }
         return Arrays.asList(
-                new RestPutWatchAction(),
-                new RestDeleteWatchAction(),
-                new RestWatcherStatsAction(),
-                new RestGetWatchAction(),
-                new RestWatchServiceAction(),
-                new RestWatchServiceAction.StopRestHandler(),
-                new RestAckWatchAction(),
-                new RestActivateWatchAction(),
-                new DeactivateRestHandler(),
-                new RestExecuteWatchAction());
+            new RestPutWatchAction(),
+            new RestDeleteWatchAction(),
+            new RestWatcherStatsAction(),
+            new RestGetWatchAction(),
+            new RestWatchServiceAction(),
+            new RestWatchServiceAction.StopRestHandler(),
+            new RestAckWatchAction(),
+            new RestActivateWatchAction(),
+            new DeactivateRestHandler(),
+            new RestExecuteWatchAction());
     }
 
     @Override
@@ -598,8 +615,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         }
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
-                " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{},{},{}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
+            " restrictive. disable [action.auto_create_index] or set it to " +
+            "[{},{},{}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
         if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -613,14 +630,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         indices.add(".watches");
         indices.add(".triggered_watches");
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6)));
+        indices.add(HistoryStoreField.DATA_STREAM_NAME);
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {
@@ -646,9 +656,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             }
         }
         logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
-                " for the next 6 months daily history indices are allowed to be created, but please make sure" +
-                " that any future history indices after 6 months with the pattern " +
-                "[.watcher-history-yyyy.MM.dd] are allowed to be created", value);
+            " for the next 6 months daily history indices are allowed to be created, but please make sure" +
+            " that any future history indices after 6 months with the pattern " +
+            "[watcher-history-yyyy.MM.dd] are allowed to be created", value);
     }
 
     // These are all old templates from pre 6.0 era, that need to be deleted

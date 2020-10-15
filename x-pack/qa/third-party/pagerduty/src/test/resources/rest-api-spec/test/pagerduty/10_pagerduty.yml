@@ -42,7 +42,7 @@
               }
             }
           }
-  
+
   - do:
       watcher.execute_watch:
         id: "pagerduty_watch"
@@ -68,7 +68,7 @@
   # Waits for the watcher history index to be available
   - do:
       cluster.health:
-          index: ".watcher-history-*"
+          index: "watcher-history-*"
           wait_for_no_relocating_shards: true
           timeout: 60s
 
@@ -78,7 +78,7 @@
   - do:
       search:
         rest_total_hits_as_int: true
-        index: ".watcher-history-*"
+        index: "watcher-history-*"
         body: >
           {
             "query" : {

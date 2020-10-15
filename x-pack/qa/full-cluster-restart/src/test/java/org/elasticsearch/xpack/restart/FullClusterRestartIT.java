@@ -150,7 +150,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             logger.info("Waiting for watch results index to fill up...");
             try {
-                waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+                waitForYellow(".watches,bwc_watch_index,watcher-history*");
             } catch (ResponseException e) {
                 {
                     String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
@@ -165,12 +165,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 throw e;
             }
             waitForHits("bwc_watch_index", 2);
-            waitForHits(".watcher-history*", 2);
+            waitForHits("watcher-history*", 2);
             logger.info("Done creating watcher-related indices");
         } else {
             logger.info("testing against {}", getOldClusterVersion());
             try {
-                waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+                waitForYellow(".watches,bwc_watch_index,watcher-history*");
             } catch (ResponseException e) {
                 String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
                 logger.info("cluster_state_response=\n{}", rsp);
@@ -245,7 +245,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             logger.info("testing against {}", getOldClusterVersion());
             try {
-                waitForYellow(".watches,.watcher-history*");
+                waitForYellow(".watches,watcher-history*");
             } catch (ResponseException e) {
                 String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
                 logger.info("cluster_state_response=\n{}", rsp);
@@ -441,7 +441,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(basic, hasEntry("username", "Aladdin"));
         // password doesn't come back because it is hidden
         assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
-        Request searchRequest = new Request("GET", ".watcher-history*/_search");
+        Request searchRequest = new Request("GET", "watcher-history*/_search");
         if (isRunningAgainstOldCluster() == false) {
             searchRequest.addParameter(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, "true");
         }

@@ -51,7 +51,7 @@ deprecated:[7.0.0,Watcher history indices are now managed by the `watch-history-
 +
 Set to `true` (default) to enable the cleaner service. The cleaner service
 removes previous versions of {watcher} indices (for example,
-`.watcher-history*`) when it determines that they are old. The duration of
+`watcher-history*`) when it determines that they are old. The duration of
 {watcher} indices is determined by the `xpack.monitoring.history.duration`
 setting, which defaults to 7 days. For more information about that setting,
 see <<monitoring-settings>>.

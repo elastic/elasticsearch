@@ -114,7 +114,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
         }));
         ESRestTestCase.adminClient().performRequest(deleteWatchesIndexRequest);
 
-        Request deleteWatchHistoryRequest = new Request("DELETE", ".watcher-history-*");
+        Request deleteWatchHistoryRequest = new Request("DELETE", "watcher-history-*");
         deleteWatchHistoryRequest.addParameter("ignore_unavailable", "true");
         ESRestTestCase.adminClient().performRequest(deleteWatchHistoryRequest);
     }

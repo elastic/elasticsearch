@@ -72,7 +72,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
 
         assertBusy(() -> {
             GetFieldMappingsResponse response = client().admin().indices()
-                                                                .prepareGetFieldMappings(".watcher-history*")
+                                                                .prepareGetFieldMappings("watcher-history*")
                                                                 .setFields("result.actions.transform.payload")
                                                                 .includeDefaults(true)
                                                                 .get();

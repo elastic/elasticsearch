@@ -39,25 +39,25 @@ public class WatcherPluginTests extends ESTestCase {
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,watcher-history-*]"));
 
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
-                ".watches,.triggered_watches,.watcher-history*").build(), logger);
+                ".watches,.triggered_watches,watcher-history*").build(), logger);
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build(), logger);
-        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build(), logger);
+        Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "w*,.w*,.t*").build(), logger);
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,watcher-history-*]"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,watcher-history-*]"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history-*").build(),
+                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "watcher-history-*").build(),
                         logger));
-        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,watcher-history-*]"));
     }
 
     public void testWatcherDisabledTests() throws Exception {

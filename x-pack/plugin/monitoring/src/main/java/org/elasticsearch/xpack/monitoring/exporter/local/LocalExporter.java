@@ -517,7 +517,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
                 // list of index patterns that we clean up; watcher history can be included
                 final String[] indexPatterns =
-                        cleanUpWatcherHistory ? new String[] { ".monitoring-*", ".watcher-history*" } : new String[] { ".monitoring-*" };
+                        cleanUpWatcherHistory ? new String[] { ".monitoring-*", "watcher-history*" } : new String[] { ".monitoring-*" };
 
                 // Get the names of the current monitoring indices
                 final Set<String> currents = MonitoredSystem.allSystems()

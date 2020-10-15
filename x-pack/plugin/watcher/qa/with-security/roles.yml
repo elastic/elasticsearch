@@ -27,7 +27,7 @@ watcher_monitor:
   cluster:
     - monitor
   indices:
-    - names: '.watcher-history-*'
+    - names: 'watcher-history-*'
       privileges:
         - read
 

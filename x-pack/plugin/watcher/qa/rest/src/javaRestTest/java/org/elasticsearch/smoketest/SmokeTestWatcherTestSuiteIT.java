@@ -46,7 +46,6 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52453")
     public void testMonitorClusterHealth() throws Exception {
         final String watchId = "cluster_health_watch";
 
@@ -129,7 +128,7 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
         assertBusy(() -> {
             logger.info("Refreshing watcher history");
             try {
-                client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
+                client().performRequest(new Request("POST", "/watcher-history-*/_refresh"));
             } catch (ResponseException e) {
                 final String err = "Failed to perform refresh of watcher history";
                 logger.error(err, e);
@@ -179,7 +178,7 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
                 builder.endObject();
 
                 logger.info("Searching watcher history");
-                Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                Request searchRequest = new Request("POST", "/watcher-history-*/_search");
                 searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
                 searchRequest.setJsonEntity(Strings.toString(builder));
                 Response response = client().performRequest(searchRequest);

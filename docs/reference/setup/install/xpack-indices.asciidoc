@@ -7,7 +7,7 @@ the commercial features to create the following indices:
 
 [source,yaml]
 -----------------------------------------------------------
-action.auto_create_index: .monitoring*,.watches,.triggered_watches,.watcher-history*,.ml*
+action.auto_create_index: .monitoring*,.watches,.triggered_watches,watcher-history*,.ml*
 -----------------------------------------------------------
 
 [IMPORTANT]

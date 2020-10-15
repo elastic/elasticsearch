@@ -63,7 +63,7 @@
   # Waits for the watcher history index to be available
   - do:
       cluster.health:
-          index: ".watcher-history-*"
+          index: "watcher-history-*"
           wait_for_no_relocating_shards: true
           timeout: 60s
 
@@ -73,7 +73,7 @@
   - do:
       search:
         rest_total_hits_as_int: true
-        index: ".watcher-history-*"
+        index: "watcher-history-*"
   - match: { hits.total: 1 }
 
   - match: { hits.hits.0._type: "doc" }
@@ -98,7 +98,7 @@
   - do:
       search:
         rest_total_hits_as_int: true
-        index: ".watcher-history-*"
+        index: "watcher-history-*"
         body:
           query:
             match:
@@ -110,7 +110,7 @@
   - do:
       search:
         rest_total_hits_as_int: true
-        index: ".watcher-history-*"
+        index: "watcher-history-*"
         body:
           query:
             match:
@@ -181,7 +181,7 @@
   # Waits for the watcher history index to be available
   - do:
       cluster.health:
-          index: ".watcher-history-*"
+          index: "watcher-history-*"
           wait_for_no_relocating_shards: true
           timeout: 60s
 
@@ -191,7 +191,7 @@
   - do:
       search:
         rest_total_hits_as_int: true
-        index: ".watcher-history-*"
+        index: "watcher-history-*"
         body:
           query:
             match:
@@ -334,12 +334,12 @@
 
   - do:
       indices.refresh:
-        index: ".watcher-history-*"
+        index: "watcher-history-*"
 
   - do:
       search:
         rest_total_hits_as_int: true
-        index: ".watcher-history-*"
+        index: "watcher-history-*"
         body:
           query:
             match:

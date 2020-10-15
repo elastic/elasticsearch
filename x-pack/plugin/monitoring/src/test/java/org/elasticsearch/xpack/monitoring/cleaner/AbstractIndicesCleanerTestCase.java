@@ -197,7 +197,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
      * Creates a watcher history index from the specified version.
      */
     protected void createWatcherHistoryIndex(final ZonedDateTime creationDate, final String version) {
-        final String index = ".watcher-history-" + version + "-" + DATE_FORMATTER.format(creationDate);
+        final String index = "watcher-history-" + version + "-" + DATE_FORMATTER.format(creationDate);
 
         createIndex(index, creationDate);
     }

@@ -876,7 +876,7 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(client).index(watchHistoryCaptor.capture());
 
         assertThat(watchHistoryCaptor.getValue().source().utf8ToString(), containsString(ExecutionState.THREADPOOL_REJECTION.toString()));
-        assertThat(watchHistoryCaptor.getValue().index(), containsString(".watcher-history"));
+        assertThat(watchHistoryCaptor.getValue().index(), containsString("watcher-history"));
     }
 
     public void testForcePutHistoryOnExecutionRejection() throws Exception {

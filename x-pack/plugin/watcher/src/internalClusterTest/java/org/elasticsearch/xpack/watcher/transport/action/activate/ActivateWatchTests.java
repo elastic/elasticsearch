@@ -85,7 +85,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         });
 
         refresh();
-        long count1 = docCount(".watcher-history*", matchAllQuery());
+        long count1 = docCount("watcher-history*", matchAllQuery());
 
         // lets activate it again
         logger.info("Activating watch again");
@@ -100,7 +100,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
         refresh();
         assertBusy(() -> {
-            long count2 = docCount(".watcher-history*", matchAllQuery());
+            long count2 = docCount("watcher-history*", matchAllQuery());
             assertThat(count2, greaterThan(count1));
         });
     }

@@ -66,8 +66,8 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        flushAndRefresh(".watcher-history-*");
-        SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
+        flushAndRefresh("watcher-history-*");
+        SearchResponse searchResponse = client().prepareSearch("watcher-history-*").get();
         assertHitCount(searchResponse, 1);
     }
 
@@ -97,12 +97,12 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        refresh(".watcher-history*");
-        SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
+        refresh("watcher-history*");
+        SearchResponse searchResponse = client().prepareSearch("watcher-history*").setSize(0).get();
         assertHitCount(searchResponse, 1);
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("watcher-history*").get();
         XContentSource source = new XContentSource(
                 response.getMappings().values().iterator().next().value.source().uncompressed(), XContentType.JSON);
         // lets make sure the body fields are disabled
@@ -138,12 +138,12 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        refresh(".watcher-history*");
-        SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
+        refresh("watcher-history*");
+        SearchResponse searchResponse = client().prepareSearch("watcher-history*").setSize(0).get();
         assertHitCount(searchResponse, 1);
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("watcher-history*").get();
         XContentSource source = new XContentSource(
                 response.getMappings().values().iterator().next().value.source().uncompressed(), XContentType.JSON);
 
@@ -170,8 +170,8 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         WatchStatus status = new GetWatchRequestBuilder(client()).setId("test_watch").get().getStatus();
 
-        refresh(".watcher-history*");
-        SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(1).get();
+        refresh("watcher-history*");
+        SearchResponse searchResponse = client().prepareSearch("watcher-history*").setSize(1).get();
         assertHitCount(searchResponse, 1);
         SearchHit hit = searchResponse.getHits().getAt(0);
 
@@ -200,7 +200,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(lastExecutionSuccesful, is(actionStatus.lastExecution().successful()));
 
         // also ensure that the status field is disabled in the watch history
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("watcher-history*").get();
         XContentSource mappingSource =
                 new XContentSource(response.getMappings().values().iterator().next().value.source().uncompressed(), XContentType.JSON);
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.enabled"), is(false));

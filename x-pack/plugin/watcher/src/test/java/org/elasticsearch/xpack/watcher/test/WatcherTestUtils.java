@@ -194,7 +194,7 @@ public final class WatcherTestUtils {
 
     public static Matcher<String> isSameDate(ZonedDateTime zonedDateTime) {
         /*
-        When comparing timestamps returned from _search/.watcher-history* the same format of date has to be used
+        When comparing timestamps returned from _search/watcher-history* the same format of date has to be used
         during serialisation to json on index time.
         The toString of ZonedDateTime is omitting the millisecond part when is 0. This was not the case in joda.
          */

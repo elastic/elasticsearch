@@ -21,9 +21,8 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.io.IOException;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 
+import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 
 public class HistoryStore {
@@ -41,13 +40,13 @@ public class HistoryStore {
      * If the specified watchRecord already was stored this call will fail with a version conflict.
      */
     public void put(WatchRecord watchRecord) throws Exception {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
+        logger.info("putting watch record" + watchRecord);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
-
-            IndexRequest request = new IndexRequest(index).id(watchRecord.id().value()).source(builder);
-            request.opType(IndexRequest.OpType.CREATE);
+            IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM_NAME).id(watchRecord.id().value()).source(builder);
+            request.opType(CREATE);
             bulkProcessor.add(request);
+            logger.info("added request " + request);
         } catch (IOException ioe) {
             throw ioException("failed to persist watch record [{}]", ioe, watchRecord);
         }
@@ -58,12 +57,15 @@ public class HistoryStore {
      * Any existing watchRecord will be overwritten.
      */
     public void forcePut(WatchRecord watchRecord) {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
+        logger.info("putting force watch record" + watchRecord);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-                IndexRequest request = new IndexRequest(index).id(watchRecord.id().value()).source(builder);
-                bulkProcessor.add(request);
+            IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM_NAME)
+                .id(watchRecord.id().value())
+                .source(builder)
+                .opType(CREATE);
+            bulkProcessor.add(request);
         } catch (IOException ioe) {
             final WatchRecord wr = watchRecord;
             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
@@ -78,8 +80,7 @@ public class HistoryStore {
      * @return true, if history store is ready to be started
      */
     public static boolean validate(ClusterState state) {
-        String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC));
-        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(currentIndex, state.metadata());
+        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(HistoryStoreField.DATA_STREAM_NAME, state.metadata());
         return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
             state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
     }

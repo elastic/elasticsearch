@@ -241,7 +241,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     private static ParentJoinFieldMapper createJoinFieldMapper() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         return new ParentJoinFieldMapper.Builder("join_field")
-                .setRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
+                .addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
                 .build(new Mapper.BuilderContext(settings, new ContentPath(0)));
     }
 

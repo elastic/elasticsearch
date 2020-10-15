@@ -67,6 +67,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.join.query.HasChildQueryBuilder.*;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -344,7 +345,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         failingQueryBuilder.ignoreUnmapped(false);
         assertFalse(failingQueryBuilder.innerHit().isIgnoreUnmapped());
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("[" + HasChildQueryBuilder.NAME +
+        assertThat(e.getMessage(), containsString("[" + NAME +
             "] join field [join_field] doesn't hold [unmapped] as a child"));
     }
 

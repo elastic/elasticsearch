@@ -187,7 +187,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         Query childFilter = joiner.getChildrenFilter(parentType);
         MappedFieldType fieldType = context.getFieldType(joiner.childJoinField(parentType));
         final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
-        return new LateParsingQuery(childFilter, innerQuery,
+        return new HasChildQueryBuilder.LateParsingQuery(childFilter, innerQuery,
             HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
             fieldType.name(), score ? ScoreMode.Max : ScoreMode.None, fieldData, context.getSearchSimilarity());
     }

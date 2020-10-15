@@ -18,9 +18,15 @@
  */
 package org.elasticsearch.join.query;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -29,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -328,6 +335,112 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft);
         return new LateParsingQuery(parentFilter, filteredQuery, minChildren, maxChildren,
             parentJoinField, scoreMode, fieldData, context.getSearchSimilarity());
+    }
+
+    /**
+     * A query that rewrites into another query using
+     * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, OrdinalMap, int, int)}
+     * that executes the actual join.
+     * <p>
+     * This query is exclusively used by the {@link HasChildQueryBuilder} and {@link HasParentQueryBuilder} to get access
+     * to the {@link DirectoryReader} used by the current search in order to retrieve the {@link OrdinalMap}.
+     * The {@link OrdinalMap} is required by {@link JoinUtil} to execute the join.
+     */
+    // TODO: Find a way to remove this query and let doToQuery(...) just return the query from JoinUtil.createJoinQuery(...)
+    public static final class LateParsingQuery extends Query {
+
+        private final Query toQuery;
+        private final Query innerQuery;
+        private final int minChildren;
+        private final int maxChildren;
+        private final String joinField;
+        private final ScoreMode scoreMode;
+        private final SortedSetOrdinalsIndexFieldData fieldDataJoin;
+        private final Similarity similarity;
+
+        LateParsingQuery(Query toQuery, Query innerQuery, int minChildren, int maxChildren,
+                         String joinField, ScoreMode scoreMode,
+                         SortedSetOrdinalsIndexFieldData fieldData, Similarity similarity) {
+            this.toQuery = toQuery;
+            this.innerQuery = innerQuery;
+            this.minChildren = minChildren;
+            this.maxChildren = maxChildren;
+            this.joinField = joinField;
+            this.scoreMode = scoreMode;
+            this.fieldDataJoin = fieldData;
+            this.similarity = similarity;
+        }
+
+        @Override
+        public Query rewrite(IndexReader reader) throws IOException {
+            Query rewritten = super.rewrite(reader);
+            if (rewritten != this) {
+                return rewritten;
+            }
+            if (reader instanceof DirectoryReader) {
+                IndexSearcher indexSearcher = new IndexSearcher(reader);
+                indexSearcher.setQueryCache(null);
+                indexSearcher.setSimilarity(similarity);
+                IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal((DirectoryReader) reader);
+                OrdinalMap ordinalMap = indexParentChildFieldData.getOrdinalMap();
+                return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode,
+                    ordinalMap, minChildren, maxChildren);
+            } else {
+                if (reader.leaves().isEmpty() && reader.numDocs() == 0) {
+                    // asserting reader passes down a MultiReader during rewrite which makes this
+                    // blow up since for this query to work we have to have a DirectoryReader otherwise
+                    // we can't load global ordinals - for this to work we simply check if the reader has no leaves
+                    // and rewrite to match nothing
+                    return new MatchNoDocsQuery();
+                }
+                throw new IllegalStateException("can't load global ordinals for reader of type: " +
+                    reader.getClass() + " must be a DirectoryReader");
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (sameClassAs(o) == false) return false;
+
+            LateParsingQuery that = (LateParsingQuery) o;
+
+            if (minChildren != that.minChildren) return false;
+            if (maxChildren != that.maxChildren) return false;
+            if (!toQuery.equals(that.toQuery)) return false;
+            if (!innerQuery.equals(that.innerQuery)) return false;
+            if (!joinField.equals(that.joinField)) return false;
+            return scoreMode == that.scoreMode;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), toQuery, innerQuery, minChildren, maxChildren, joinField, scoreMode);
+        }
+
+        @Override
+        public String toString(String s) {
+            return "LateParsingQuery {joinField=" + joinField + "}";
+        }
+
+        public int getMinChildren() {
+            return minChildren;
+        }
+
+        public int getMaxChildren() {
+            return maxChildren;
+        }
+
+        public ScoreMode getScoreMode() {
+            return scoreMode;
+        }
+
+        public Query getInnerQuery() {
+            return innerQuery;
+        }
+
+        public Similarity getSimilarity() {
+            return similarity;
+        }
     }
 
     @Override

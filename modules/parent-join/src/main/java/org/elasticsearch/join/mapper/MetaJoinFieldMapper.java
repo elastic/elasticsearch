@@ -19,19 +19,25 @@
 
 package org.elasticsearch.join.mapper;
 
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -41,9 +47,34 @@ import java.util.function.Supplier;
  * This class is also used to quickly retrieve the parent-join field defined in a mapping without
  * specifying the name of the field.
  */
-public class MetaJoinFieldMapper extends MetadataFieldMapper {
+public class MetaJoinFieldMapper extends FieldMapper {
     static final String NAME = "_parent_join";
     static final String CONTENT_TYPE = "parent_join";
+
+    static class Defaults {
+        public static final FieldType FIELD_TYPE = new FieldType();
+
+        static {
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE.freeze();
+        }
+    }
+
+    static class Builder extends FieldMapper.Builder {
+
+        final String joinField;
+
+        Builder(String joinField) {
+            super(NAME, Defaults.FIELD_TYPE);
+            this.joinField = joinField;
+        }
+
+        @Override
+        public MetaJoinFieldMapper build(BuilderContext context) {
+            return new MetaJoinFieldMapper(name, joinField);
+        }
+    }
 
     public static class MetaJoinFieldType extends StringFieldType {
 
@@ -61,17 +92,22 @@ public class MetaJoinFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            throw new UnsupportedOperationException("Cannot load field data for metadata field [" + NAME + "]");
+            failIfNoDocValues();
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + NAME + "].");
+            throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + typeName() + "].");
         }
 
         @Override
         public Object valueForDisplay(Object value) {
-            throw new UnsupportedOperationException();
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
         }
 
         public String getJoinField() {
@@ -84,8 +120,8 @@ public class MetaJoinFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    MetaJoinFieldMapper(String joinField) {
-        super(new MetaJoinFieldType(joinField));
+    MetaJoinFieldMapper(String name, String joinField) {
+        super(name, Defaults.FIELD_TYPE, new MetaJoinFieldType(joinField), MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -96,6 +132,10 @@ public class MetaJoinFieldMapper extends MetadataFieldMapper {
     @Override
     protected MetaJoinFieldMapper clone() {
         return (MetaJoinFieldMapper) super.clone();
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
     }
 
     @Override

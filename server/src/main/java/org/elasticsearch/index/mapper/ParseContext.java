@@ -292,17 +292,13 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final DocumentMapper docMapper;
 
-        private final DocumentMapperParser docMapperParser;
-
         private final ContentPath path;
 
         private final XContentParser parser;
 
-        private Document document;
+        private final Document document;
 
         private final List<Document> documents;
-
-        private final IndexSettings indexSettings;
 
         private final SourceToParse sourceToParse;
 
@@ -320,11 +316,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final Set<String> ignoredFields = new HashSet<>();
 
-        public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                                    SourceToParse source, XContentParser parser) {
-            this.indexSettings = indexSettings;
+        public InternalParseContext(DocumentMapper docMapper, SourceToParse source, XContentParser parser) {
             this.docMapper = docMapper;
-            this.docMapperParser = docMapperParser;
             this.path = new ContentPath(0);
             this.parser = parser;
             this.document = new Document();
@@ -333,18 +326,18 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             this.version = null;
             this.sourceToParse = source;
             this.dynamicMappers = new ArrayList<>();
-            this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
+            this.maxAllowedNumNestedDocs = docMapper.indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 
         @Override
         public DocumentMapperParser docMapperParser() {
-            return this.docMapperParser;
+            return this.docMapper.documentMapperParser();
         }
 
         @Override
         public IndexSettings indexSettings() {
-            return this.indexSettings;
+            return this.docMapper.indexSettings();
         }
 
         @Override
@@ -400,7 +393,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         @Override
         public MapperService mapperService() {
-            return docMapperParser.mapperService;
+            return docMapper.documentMapperParser().mapperService;
         }
 
         @Override
@@ -444,7 +437,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         void postParse() {
             if (documents.size() > 1) {
                 docsReversed = true;
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
+                if (indexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
                     /**
                      * For indices created on or after {@link Version#V_6_5_0} we preserve the order
                      * of the children while ensuring that parents appear after them.

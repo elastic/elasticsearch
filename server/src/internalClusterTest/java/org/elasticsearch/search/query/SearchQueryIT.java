@@ -45,7 +45,6 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -1625,33 +1624,6 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .lte("Fr, 08 Dez 2000 00:00:00 -0800"))
             .get();
         assertHitCount(searchResponse, 2L);
-    }
-
-    public void testDistanceFeatureQuery() {
-        assertAcked(prepareCreate("test").setMapping("date", "type=date"));
-        client().prepareIndex("test").setId("1").setSource("date", "2020-12-03T00:00:00Z").get();
-        client().prepareIndex("test").setId("2").setSource("date", "2020-12-02T00:00:00Z").get();
-        client().prepareIndex("test").setId("3").setSource("date", "2020-12-01T00:00:00Z").get();
-        refresh();
-
-        DistanceFeatureQueryBuilder dqb = QueryBuilders.distanceFeatureQuery(
-            "date", new DistanceFeatureQueryBuilder.Origin("2020-12-01T00:00:00Z"), "1d");
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(dqb).get();
-        assertHitCount(searchResponse, 3L);
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        assertEquals(1.0f, hits[0].getScore(), 0.1f);
-        assertEquals(0.5f, hits[1].getScore(), 0.1f);
-        assertEquals(0.33f, hits[2].getScore(), 0.1f);
-
-        DistanceFeatureQueryBuilder dqb2 = QueryBuilders.distanceFeatureQuery(
-            "date", new DistanceFeatureQueryBuilder.Origin("2020-12-01T00:00:00Z"), "1d");
-        dqb2.boost(2.0f);
-        SearchResponse searchResponse2 = client().prepareSearch("test").setQuery(dqb2).get();
-        assertHitCount(searchResponse2, 3L);
-        SearchHit[] hits2 = searchResponse2.getHits().getHits();
-        assertEquals(2.0f, hits2[0].getScore(), 0.1f);
-        assertEquals(1.0f, hits2[1].getScore(), 0.1f);
-        assertEquals(0.66f, hits2[2].getScore(),0.1f);
     }
 
     public void testSearchEmptyDoc() {

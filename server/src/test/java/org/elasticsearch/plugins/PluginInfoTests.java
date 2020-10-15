@@ -229,4 +229,65 @@ public class PluginInfoTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown properties in plugin descriptor"));
     }
 
+    public void testMissingType() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(pluginDir,
+            "description", "fake desc",
+            "classname", "Foo",
+            "name", "my_plugin",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"));
+
+        final PluginInfo pluginInfo = PluginInfo.readFromProperties(pluginDir);
+        assertThat(pluginInfo.getType(), equalTo(PluginType.ISOLATED));
+    }
+
+    public void testInvalidType() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(pluginDir,
+            "description", "fake desc",
+            "classname", "Foo",
+            "name", "my_plugin",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "type", "invalid");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("[type] must be unspecified or one of [isolated, bootstrap] but found [invalid]"));
+    }
+
+    public void testJavaOptsAreAcceptedWithBootstrapPlugin() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(pluginDir,
+            "description", "fake desc",
+            "classname", "Foo",
+            "name", "my_plugin",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "type", "bootstrap",
+            "java.opts", "-Dfoo=bar");
+
+        final PluginInfo pluginInfo = PluginInfo.readFromProperties(pluginDir);
+        assertThat(pluginInfo.getType(), equalTo(PluginType.BOOTSTRAP));
+        assertThat(pluginInfo.getJavaOpts(), equalTo("-Dfoo=bar"));
+    }
+
+    public void testJavaOptsAreRejectedWithNonBootstrapPlugin() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(pluginDir,
+            "description", "fake desc",
+            "classname", "Foo",
+            "name", "my_plugin",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "type", "isolated",
+            "java.opts", "-Dfoo=bar");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("[java.opts] can only have a value when [type] is set to [bootstrap]"));
+    }
 }

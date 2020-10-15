@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -37,6 +38,7 @@ import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
     private final DateFormatter dateTimeFormatter;
+    private final DateMathParser dateMathParser;
 
     DateScriptFieldType(
         String name,
@@ -47,6 +49,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     ) {
         super(name, script, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), meta);
         this.dateTimeFormatter = dateTimeFormatter;
+        this.dateMathParser = dateTimeFormatter.toDateMathParser();
     }
 
     @Override
@@ -88,7 +91,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                 origin,
                 true,
                 null,
-                dateTimeFormatter.toDateMathParser(),
+                dateMathParser,
                 now,
                 DateFieldMapper.Resolution.MILLISECONDS
             );
@@ -120,7 +123,6 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         @Nullable DateMathParser parser,
         QueryShardContext context
     ) {
-        parser = parser == null ? dateTimeFormatter.toDateMathParser() : parser;
         checkAllowExpensiveQueries(context);
         return DateFieldType.dateRangeQuery(
             lowerTerm,
@@ -129,6 +131,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             includeUpper,
             timeZone,
             parser,
+            dateMathParser,
             context,
             DateFieldMapper.Resolution.MILLISECONDS,
             (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
@@ -142,7 +145,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                 value,
                 false,
                 null,
-                dateTimeFormatter.toDateMathParser(),
+                dateMathParser,
                 now,
                 DateFieldMapper.Resolution.MILLISECONDS
             );
@@ -164,7 +167,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                         value,
                         false,
                         null,
-                        dateTimeFormatter.toDateMathParser(),
+                        dateMathParser,
                         now,
                         DateFieldMapper.Resolution.MILLISECONDS
                     )

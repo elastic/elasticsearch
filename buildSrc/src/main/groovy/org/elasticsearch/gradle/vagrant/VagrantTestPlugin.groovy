@@ -28,7 +28,6 @@ class VagrantTestPlugin implements Plugin<Project> {
             'fedora-27',
             'oel-6',
             'oel-7',
-            'opensuse-42',
             'sles-12',
             'ubuntu-1404',
             'ubuntu-1604',
@@ -529,7 +528,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 if (project.extensions.esvagrant.boxes.contains(box)) {
                     // these tests are temporarily disabled for suse boxes while we debug an issue
                     // https://github.com/elastic/elasticsearch/issues/30295
-                    if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
+                    if (box.equals("sles-12") == false) {
                         packagingTest.dependsOn(batsPackagingTest)
                     }
                 }
@@ -572,7 +571,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             if (project.extensions.esvagrant.boxes.contains(box)) {
                 // these tests are temporarily disabled for suse boxes while we debug an issue
                 // https://github.com/elastic/elasticsearch/issues/30295
-                if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
+                if (box.equals("sles-12") == false) {
                     packagingTest.dependsOn(javaPackagingTest)
                 }
             }

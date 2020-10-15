@@ -121,12 +121,6 @@ Vagrant.configure(2) do |config|
       dnf_common config, box
     end
   end
-  'opensuse-42'.tap do |box|
-    config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/opensuse-42-x86_64'
-      suse_common config, box
-    end
-  end
   'sles-12'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/sles-12-x86_64'

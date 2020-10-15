@@ -27,9 +27,11 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -59,7 +61,7 @@ public class Joiner {
         return jft.getJoiner();
     }
 
-    private final Map<String, String> parentsToChildren = new HashMap<>();
+    private final Set<String> parents = new HashSet<>();
     private final Map<String, String> childrenToParents = new HashMap<>();
 
     private final String joinField;
@@ -68,7 +70,7 @@ public class Joiner {
         this.joinField = joinField;
         for (Relations r : relations) {
             for (String child : r.children) {
-                parentsToChildren.put(r.parent, child);
+                parents.add(r.parent);
                 childrenToParents.put(child, r.parent);
             }
         }
@@ -86,16 +88,12 @@ public class Joiner {
         return new TermQuery(new Term(joinField, childrenToParents.get(childType)));
     }
 
-    public Query childFilter(String parentType) {
-        return new TermQuery(new Term(joinField, parentsToChildren.get(parentType)));
-    }
-
     public boolean childTypeExists(String type) {
         return childrenToParents.containsKey(type);
     }
 
     public boolean parentTypeExists(String type) {
-        return parentsToChildren.containsKey(type);
+        return parents.contains(type);
     }
 
     public String parentJoinField(String childType) {
@@ -104,8 +102,8 @@ public class Joiner {
 
     boolean canMerge(Joiner other, Consumer<String> conflicts) {
         boolean conflicted = false;
-        for (String parent : parentsToChildren.keySet()) {
-            if (other.parentsToChildren.containsKey(parent) == false) {
+        for (String parent : parents) {
+            if (other.parents.contains(parent) == false) {
                 conflicts.accept("Cannot remove parent [" + parent + "]");
                 conflicted = true;
             }
@@ -116,19 +114,25 @@ public class Joiner {
                 conflicted = true;
             }
         }
-        for (String newParent : other.parentsToChildren.keySet()) {
-            if (childrenToParents.containsKey(newParent) && parentsToChildren.containsKey(newParent) == false) {
+        for (String newParent : other.parents) {
+            if (childrenToParents.containsKey(newParent) && parents.contains(newParent) == false) {
                 conflicts.accept("Cannot create parent [" + newParent + "] from an existing child");
                 conflicted = true;
             }
         }
         for (String newChild : other.childrenToParents.keySet()) {
-            if (Objects.equals(other.childrenToParents.get(newChild), this.childrenToParents.get(newChild)) == false) {
+            if (this.childrenToParents.containsKey(newChild)
+                && Objects.equals(other.childrenToParents.get(newChild), this.childrenToParents.get(newChild)) == false) {
                 conflicts.accept("Cannot change parent of [" + newChild + "]");
                 conflicted = true;
             }
+            if (this.parents.contains(newChild)
+                && Objects.equals(this.childrenToParents.get(newChild), other.childrenToParents.get(newChild)) == false) {
+                conflicts.accept("Cannot create child [" + newChild + "] from an existing root");
+                conflicted = true;
+            }
         }
-        return conflicted;
+        return conflicted == false;
     }
 
 }

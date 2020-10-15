@@ -112,6 +112,11 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
             super(name);
         }
 
+        public Builder setRelation(String parent, Set<String> children) {
+            relations.setValue(Collections.singletonList(new Relations(parent, children)));
+            return this;
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
             return Arrays.asList(eagerGlobalOrdinals, relations, meta);

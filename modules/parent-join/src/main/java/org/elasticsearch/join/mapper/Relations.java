@@ -70,4 +70,8 @@ class Relations {
         return r;
     }
 
+    @Override
+    public String toString() {
+        return parent + "->" + children;
+    }
 }

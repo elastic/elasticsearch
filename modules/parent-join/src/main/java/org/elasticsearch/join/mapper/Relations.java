@@ -35,7 +35,7 @@ class Relations {
     final String parent;
     final Set<String> children;
 
-    public Relations(String parent, Set<String> children) {
+    Relations(String parent, Set<String> children) {
         this.parent = parent;
         this.children = children;
     }

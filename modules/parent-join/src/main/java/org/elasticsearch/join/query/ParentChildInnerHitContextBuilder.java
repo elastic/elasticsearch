@@ -116,7 +116,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                     .add(new TermQuery(new Term(joiner.getJoinField(), typeName)), BooleanClause.Occur.FILTER)
                     .build();
             } else {
-                String parentId = getSortedDocValue(joiner.parentJoinField(typeName), context, hit.docId());
+                String parentId = getSortedDocValue(joiner.childJoinField(typeName), context, hit.docId());
                 if (parentId == null) {
                     return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                 }

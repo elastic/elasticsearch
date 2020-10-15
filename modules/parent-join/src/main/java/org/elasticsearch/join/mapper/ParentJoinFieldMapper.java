@@ -20,7 +20,9 @@
 package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -65,6 +67,17 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     public static final String NAME = "join";
     public static final String CONTENT_TYPE = "join";
 
+    static class Defaults {
+        static final FieldType FIELD_TYPE = new FieldType();
+
+        static {
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.freeze();
+        }
+    }
+
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             throw new IllegalStateException("cannot create join field [" + name + "] " +
@@ -86,7 +99,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true,
-            m -> m.fieldType().eagerGlobalOrdinals(), true);
+            m -> toType(m).eagerGlobalOrdinals, true);
         final Parameter<List<Relations>> relations = new Parameter<List<Relations>>("relations", true,
             Collections::emptyList, (n, c, o) -> Relations.parse(o), m -> toType(m).relations)
             .setMergeValidator(ParentJoinFieldMapper::checkRelationsConflicts);
@@ -278,7 +291,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         }
 
         BytesRef binaryValue = new BytesRef(name);
-        Field field = new Field(fieldType().name(), binaryValue, fieldType);
+        Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();

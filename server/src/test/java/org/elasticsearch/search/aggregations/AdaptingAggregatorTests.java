@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -36,6 +37,18 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
             AggregatorFactory factory = new DummyAdaptingAggregatorFactory("test", context, null, sub, null);
             Aggregator adapting = factory.create(searchContext, null, CardinalityUpperBound.ONE);
             assertThat(adapting.subAggregators()[0].parent(), sameInstance(adapting));
+        });
+    }
+
+    public void testBuildCallsAdapt() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        withAggregationContext(mapperService, List.of(), context -> {
+            SearchContext searchContext = mock(SearchContext.class);
+            when(searchContext.bigArrays()).thenReturn(context.bigArrays());
+            AggregatorFactory factory = new DummyAdaptingAggregatorFactory("test", context, null, AggregatorFactories.builder(), null);
+            Aggregator adapting = factory.create(searchContext, null, CardinalityUpperBound.ONE);
+            assertThat(adapting.buildEmptyAggregation().getMetadata(), equalTo(Map.of("dog", "woof")));
+            assertThat(adapting.buildTopLevel().getMetadata(), equalTo(Map.of("dog", "woof")));
         });
     }
 
@@ -76,7 +89,9 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
 
         @Override
         protected InternalAggregation adapt(InternalAggregation delegateResult) {
-            return null;
+            InternalAggregation result = mock(InternalAggregation.class);
+            when(result.getMetadata()).thenReturn(Map.of("dog", "woof"));
+            return result;
         }
     }
 
@@ -100,8 +115,7 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
 
         @Override
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            // TODO Auto-generated method stub
-            return null;
+            return new InternalAggregation[] {null};
         }
 
         @Override

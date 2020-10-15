@@ -159,8 +159,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     }
 
     // To enable test of subqueries (filtering) results: -Dtests.eql_correctness_debug=true
-    // FIXME: -Dtests.heap.size=8g check is currently required to be able to restore the index
-    @TestLogging(value = "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT:DEBUG", reason = "Test subqueries and log total time")
+    @TestLogging(value = "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT:INFO", reason = "Log total time")
     public void test() throws Exception {
         boolean debugMode = Boolean.parseBoolean(System.getProperty("tests.eql_correctness_debug", "false"));
         long totalTime = 0;
@@ -204,8 +203,6 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
             }
         }
 
-        if (debugMode) {
-            logger.error("Total time: {} ms", totalTime);
-        }
+        logger.info("Total time: {} ms", totalTime);
     }
 }

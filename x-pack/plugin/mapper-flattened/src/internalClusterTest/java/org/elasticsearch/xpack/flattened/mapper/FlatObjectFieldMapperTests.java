@@ -9,85 +9,71 @@ package org.elasticsearch.xpack.flattened.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Set;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFieldMapper.Builder> {
-    private IndexService indexService;
-    private DocumentMapperParser parser;
+public class FlatObjectFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected FlatObjectFieldMapper.Builder newBuilder() {
-        return new FlatObjectFieldMapper.Builder("flat-object");
-    }
-
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
-        addBooleanModifier("split_queries_on_whitespace", true, FlatObjectFieldMapper.Builder::splitQueriesOnWhitespace);
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "flattened");
     }
 
     @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("store", "analyzer", "similarity");
+    protected Object getSampleValueForDocument() {
+        return Map.of("key", "value");
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FlattenedMapperPlugin.class, LocalStateCompositeXPackPlugin.class);
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "freqs"));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
+        checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
+
+        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
+        checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((FlatObjectFieldMapper)m).ignoreAbove()));
+        checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
+            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> b.field("depth_limit", 10),
+            m -> assertEquals(10, ((FlatObjectFieldMapper)m).depthLimit()));
+    }
+
+    @Override
+    protected Collection<Plugin> getPlugins() {
+        return Collections.singleton(new FlattenedMapperPlugin());
     }
 
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startObject("field")
-                .field("key", "value")
-            .endObject()
-        .endObject());
-
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
         // Check the root fields.
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
@@ -123,27 +109,12 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
     }
 
     public void testDisableIndex() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                        .field("index", false)
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startObject("field")
-                .field("key", "value")
-            .endObject()
-        .endObject());
-
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.field("index", false);
+        }));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -155,27 +126,12 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
     }
 
     public void testDisableDocValues() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                        .field("doc_values", false)
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startObject("field")
-            .field("key", "value")
-            .endObject()
-            .endObject());
-
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.field("doc_values", false);
+        }));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -190,97 +146,35 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         assertEquals("field", fieldNamesFields[0].stringValue());
     }
 
-    public void testEnableStore() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                        .field("store", true)
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
-
-        expectThrows(UnsupportedOperationException.class, () ->
-            parser.parse("type", new CompressedXContent(mapping)));
-    }
-
     public void testIndexOptions() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                        .field("index_options", "freqs")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
+        createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.field("index_options", "freqs");
+        }));
 
         for (String indexOptions : Arrays.asList("positions", "offsets")) {
-            String invalidMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "flattened")
-                            .field("index_options", indexOptions)
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject());
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> parser.parse("type", new CompressedXContent(invalidMapping)));
-            assertEquals("The [flattened] field does not support positions, got [index_options]=" + indexOptions, e.getMessage());
+            Exception e = expectThrows(MapperParsingException.class,
+                () -> createDocumentMapper(fieldMapping(b -> {
+                        b.field("type", "flattened");
+                        b.field("index_options", indexOptions);
+                    })));
+            assertThat(e.getMessage(), containsString("Unknown value [" + indexOptions
+                + "] for field [index_options] - accepted values are [docs, freqs]"));
         }
     }
 
     public void testNullField() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .nullField("field")
-        .endObject());
-
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.nullField("field")));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
     }
 
     public void testMalformedJson() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc1 = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .field("field", "not a JSON object")
-        .endObject());
-
-        expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test", "1", doc1, XContentType.JSON)));
+        expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "not a JSON object"))));
 
         BytesReference doc2 = new BytesArray("{ \"field\": { \"key\": \"value\" ");
         expectThrows(MapperParsingException.class, () -> mapper.parse(
@@ -288,32 +182,22 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
     }
 
     public void testFieldMultiplicity() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startArray("field")
-                .startObject()
-                    .field("key1", "value")
-                .endObject()
-                .startObject()
-                    .field("key2", true)
-                    .field("key3", false)
-                .endObject()
-            .endArray()
-        .endObject());
-
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("key1", "value").endObject();
+                b.startObject();
+                {
+                    b.field("key2", true);
+                    b.field("key3", false);
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
 
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(6, fields.length);
@@ -330,139 +214,101 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
 
     public void testDepthLimit() throws IOException {
         // First verify the default behavior when depth_limit is not set.
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startObject("field")
-                .startObject("key1")
-                    .startObject("key2")
-                        .field("key3", "value")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
-
-        mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        mapperService.documentMapper().parse(source(b -> {
+            b.startObject("field");
+            {
+                b.startObject("key1");
+                {
+                    b.startObject("key2").field("key3", "value").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
 
         // Set a lower value for depth_limit and check that the field is rejected.
-        String newMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                        .field("depth_limit", 2)
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
-        DocumentMapper newMapper = mapper.merge(
-            parser.parse("type", new CompressedXContent(newMapping)).mapping(), MergeReason.MAPPING_UPDATE);
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.field("depth_limit", 2);
+        }));
 
         expectThrows(MapperParsingException.class, () ->
-            newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON)));
+            mapperService.documentMapper().parse(source(b -> {
+                b.startObject("field");
+                {
+                    b.startObject("key1");
+                    {
+                        b.startObject("key2").field("key3", "value").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            })));
     }
 
     public void testEagerGlobalOrdinals() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                        .field("eager_global_ordinals", true)
-                    .endObject().endObject()
-                .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
+        DocumentMapper defMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        FieldMapper fieldMapper = (FieldMapper) defMapper.mappers().getMapper("field");
+        assertFalse(fieldMapper.fieldType().eagerGlobalOrdinals());
 
-        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.field("eager_global_ordinals", true);
+        }));
+
+        fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
         assertTrue(fieldMapper.fieldType().eagerGlobalOrdinals());
     }
 
     public void testIgnoreAbove() throws IOException {
         // First verify the default behavior when ignore_above is not set.
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startArray("field")
-                .startObject()
-                    .field("key", "a longer than usual value")
-                .endObject()
-            .endArray()
-        .endObject());
-
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("key", "a longer then usual value").endObject();
+            }
+            b.endArray();
+        }));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
 
         // Set a lower value for ignore_above and check that the field is skipped.
-        String newMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                        .field("ignore_above", "10")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
-        DocumentMapper newMapper = mapper.merge(
-            parser.parse("type", new CompressedXContent(newMapping)).mapping(), MergeReason.MAPPING_UPDATE);
+        DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.field("ignore_above", 10);
+        }));
 
-        ParsedDocument newParsedDoc = newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        ParsedDocument newParsedDoc = newMapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("key", "a longer then usual value").endObject();
+            }
+            b.endArray();
+        }));
         IndexableField[] newFields = newParsedDoc.rootDoc().getFields("field");
         assertEquals(0, newFields.length);
     }
 
     public void testNullValues() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                    .endObject()
-                    .startObject("other_field")
-                        .field("type", "flattened")
-                        .field("null_value", "placeholder")
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject());
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("field").field("type", "flattened").endObject();
+            b.startObject("other_field");
+            {
+                b.field("type", "flattened");
+                b.field("null_value", "placeholder");
+            }
+            b.endObject();
+        }));
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .startObject("field")
-                .nullField("key")
-            .endObject()
-            .startObject("other_field")
-                .nullField("key")
-            .endObject()
-        .endObject());
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> {
+            b.startObject("field").nullField("key").endObject();
+            b.startObject("other_field").nullField("key").endObject();
+        }));
 
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
@@ -479,17 +325,10 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
     }
 
     public void testSplitQueriesOnWhitespace() throws IOException {
-        MapperService mapperService = indexService.mapperService();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "flattened")
-                        .field("split_queries_on_whitespace", true)
-                    .endObject()
-                .endObject()
-            .endObject().endObject());
-        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.field("split_queries_on_whitespace", true);
+        }));
 
         RootFlatObjectFieldType rootFieldType = (RootFlatObjectFieldType) mapperService.fieldType("field");
         assertThat(rootFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));

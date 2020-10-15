@@ -131,13 +131,11 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
         Supplier<NamedAnalyzer> a = () -> Lucene.STANDARD_ANALYZER;
-        MapperService mapperService = indexService.mapperService();
         DocumentMapper builderDocMapper = new DocumentMapper.Builder(new RootObjectMapper.Builder("person").add(
                 new TextFieldMapper.Builder("name", a).store(true)
                         .addMultiField(new TextFieldMapper.Builder("indexed", a).index(true))
                         .addMultiField(new TextFieldMapper.Builder("not_indexed", a).index(false).store(true))
-        ), indexService.mapperService()).build(mapperService.getIndexSettings(), mapperService.documentMapperParser(),
-            mapperService.getIndexAnalyzers());
+        ), indexService.mapperService()).build();
 
         String builtMapping = builderDocMapper.mappingSource().string();
         // reparse it

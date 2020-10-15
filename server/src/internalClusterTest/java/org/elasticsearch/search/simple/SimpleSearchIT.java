@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.simple;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -196,6 +198,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
     }
 
+    @Repeat(iterations = 100)
     public void testSimpleDateRange() throws Exception {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field", "2010-01-05T02:00").get();

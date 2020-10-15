@@ -58,11 +58,23 @@ To search all data streams and indices in a cluster, use
 
 `allow_no_indices`::
 (Optional, boolean)
-If `false`, the request returns a `mapping_exception` error when a wildcard
-expression, <<indices-aliases,index alias>>, or `_all` value targets only
-missing or closed indices. If `true`, the request returns a
-`verification_exception` error when targeting only missing or closed indices.
++
+NOTE: Unlike the <<search-search,search API>>, the EQL search API returns an
+error for requests that target only missing or closed indices regardless of
+this argument.
++
+If `false`, any wildcard expression or <<indices-aliases,index alias>> that
+targets only missing or closed indices returns an error. For example, if `foo`
+is an index but `bar` is not, a request targeting `foo*,bar*` returns an
+error.
++
+If `true`, only requests that target only missing or closed indices return an error.
+For example, if `foo` is an index but `bar` is not, a request targeting
+`foo*,bar*` does not return an error. However, a request that targets only
+`bar*` still returns an error.
++
 Defaults to `true`.
+
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +

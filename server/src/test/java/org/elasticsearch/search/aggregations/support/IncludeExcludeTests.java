@@ -332,4 +332,12 @@ public class IncludeExcludeTests extends ESTestCase {
         }
     }
 
+    public void testInvalidIncludeExcludeCombination() {
+        String[] values = {"foo"};
+        String regex = "foo";
+
+        expectThrows(IllegalArgumentException.class, () -> new IncludeExclude((String) null, null, null, null));
+        expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(regex, null, values, null));
+        expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(null, regex, null, values));
+    }
 }

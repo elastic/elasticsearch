@@ -107,7 +107,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
         private int depthLimit = Defaults.DEPTH_LIMIT;
         private int ignoreAbove = Defaults.IGNORE_ABOVE;
         private String nullValue = null;
@@ -116,11 +116,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
+        public FieldMapper.Builder indexOptions(IndexOptions indexOptions) {
             if (indexOptions.compareTo(IndexOptions.DOCS_AND_FREQS) > 0) {
                 throw new IllegalArgumentException("The [" + CONTENT_TYPE
                     + "] field does not support positions, got [index_options]="
@@ -139,7 +138,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            return builder;
+            return this;
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -157,11 +156,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public Builder splitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
-            return builder;
+            return this;
         }
 
         @Override
-        public Builder addMultiField(Mapper.Builder<?> mapperBuilder) {
+        public Builder addMultiField(Mapper.Builder mapperBuilder) {
             throw new UnsupportedOperationException("[fields] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -188,7 +187,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

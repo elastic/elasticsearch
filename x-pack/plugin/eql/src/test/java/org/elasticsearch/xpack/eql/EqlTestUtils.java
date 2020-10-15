@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -32,7 +33,7 @@ public final class EqlTestUtils {
     }
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, 
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), null, 
             123, "", new TaskId("test", 123), null);
 
     public static EqlConfiguration randomConfiguration() {
@@ -42,7 +43,7 @@ public final class EqlTestUtils {
             randomAlphaOfLength(16),
             null,
             new TimeValue(randomNonNegativeLong()),
-            randomBoolean(),
+            randomIndicesOptions(),
             randomIntBetween(1, 1000),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
@@ -60,6 +61,11 @@ public final class EqlTestUtils {
 
     public static InsensitiveNotEquals sneq(Expression left, Expression right) {
         return new InsensitiveNotEquals(EMPTY, left, right, randomZone());
+    }
+
+    public static IndicesOptions randomIndicesOptions() {
+        return IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
     }
 
 }

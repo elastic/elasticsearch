@@ -109,7 +109,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                     throw new IllegalArgumentException("Value of [n] cannot be greater than 50");
                 }
             })
-            .setMergeValidator((o, n) -> n >= o);
+            .setMergeValidator((o, n, c) -> n >= o);
         final Parameter<NamedAnalyzer> analyzer
             = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> Lucene.KEYWORD_ANALYZER);
         final Parameter<NamedAnalyzer> searchAnalyzer
@@ -146,7 +146,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.parse(name, parserContext, node);
             return builder;

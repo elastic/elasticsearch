@@ -38,8 +38,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -166,33 +165,31 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
-        if (joinFieldMapper == null) {
+        Joiner joiner = Joiner.getJoiner(context);
+        if (joiner == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] no join field has been configured");
             }
         }
-
-        ParentIdFieldMapper parentIdFieldMapper = joinFieldMapper.getParentIdFieldMapper(type, true);
-        if (parentIdFieldMapper != null) {
-            Query parentFilter = parentIdFieldMapper.getParentFilter();
-            Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
-            Query childFilter = parentIdFieldMapper.getChildrenFilter();
-            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
-            return new HasChildQueryBuilder.LateParsingQuery(childFilter, innerQuery,
-                HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
-                fieldType.name(), score ? ScoreMode.Max : ScoreMode.None, fieldData, context.getSearchSimilarity());
-        } else {
+        if (joiner.parentTypeExists(type) == false) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "[" + NAME + "] join field [" + joinFieldMapper.name() +
+                throw new QueryShardException(context, "[" + NAME + "] join field [" + joiner.getJoinField() +
                     "] doesn't hold [" + type + "] as a parent");
             }
         }
+
+        Query parentFilter = joiner.filter(type);
+        Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
+        Query childFilter = joiner.childFilter(type);
+        MappedFieldType fieldType = context.getFieldType(joiner.parentJoinField(type));
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
+        return new LateParsingQuery(childFilter, innerQuery,
+            HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
+            fieldType.name(), score ? ScoreMode.Max : ScoreMode.None, fieldData, context.getSearchSimilarity());
     }
 
     @Override

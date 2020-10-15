@@ -247,10 +247,8 @@ Returns the quotient of a provided dividend and divisor.
 [WARNING]
 ====
 If both the dividend and divisor are integers, the `divide` function _rounds
-down_ any returned floating point numbers to the nearest integer.
-
-EQL queries in {es} should account for this rounding. To avoid rounding, convert
-either the dividend or divisor to a float.
+down_ any returned floating point numbers to the nearest integer. To avoid
+rounding, convert either the dividend or divisor to a float.
 
 [%collapsible]
 .**Example**

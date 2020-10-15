@@ -55,6 +55,7 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.process.ExecOperations;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -125,6 +126,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final ReaperService reaper;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
+    private final ExecOperations execOperations;
 
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
@@ -173,6 +175,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         ReaperService reaper,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
+        ExecOperations execOperations,
         File workingDirBase
     ) {
         this.path = path;
@@ -181,6 +184,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.reaper = reaper;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
+        this.execOperations = execOperations;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
@@ -685,7 +689,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             );
         }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
-            LoggedExec.exec(project, spec -> {
+            LoggedExec.exec(execOperations, spec -> {
                 spec.setEnvironment(getESEnvironment());
                 spec.workingDir(getDistroDir());
                 spec.executable(OS.conditionalString().onUnix(() -> "./bin/" + tool).onWindows(() -> "cmd").supply());

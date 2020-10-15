@@ -22,9 +22,7 @@ package org.elasticsearch.join.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -32,7 +30,6 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -61,13 +58,12 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder> {
+    static class Builder extends FieldMapper.Builder {
 
         final String joinField;
 
         Builder(String joinField) {
             super(NAME, Defaults.FIELD_TYPE);
-            builder = this;
             this.joinField = joinField;
         }
 
@@ -93,22 +89,17 @@ public class MetaJoinFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            throw new UnsupportedOperationException("Cannot load field data for metadata field [" + NAME + "]");
         }
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + typeName() + "].");
+            throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + NAME + "].");
         }
 
         @Override
         public Object valueForDisplay(Object value) {
-            if (value == null) {
-                return null;
-            }
-            BytesRef binaryValue = (BytesRef) value;
-            return binaryValue.utf8ToString();
+            throw new UnsupportedOperationException();
         }
 
         public String getJoinField() {

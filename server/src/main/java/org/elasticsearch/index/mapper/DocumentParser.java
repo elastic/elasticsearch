@@ -620,15 +620,15 @@ final class DocumentParser {
         }
     }
 
-    private static Mapper.Builder<?> newLongBuilder(String name, Settings settings) {
+    private static Mapper.Builder newLongBuilder(String name, Settings settings) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, settings);
     }
 
-    private static Mapper.Builder<?> newFloatBuilder(String name, Settings settings) {
+    private static Mapper.Builder newFloatBuilder(String name, Settings settings) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT, settings);
     }
 
-    private static Mapper.Builder<?> createBuilderFromDynamicValue(final ParseContext context,
+    private static Mapper.Builder createBuilderFromDynamicValue(final ParseContext context,
                                                                      XContentParser.Token token,
                                                                      String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
@@ -747,7 +747,7 @@ final class DocumentParser {
             return;
         }
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-        final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName);
+        final Mapper.Builder builder = createBuilderFromDynamicValue(context, token, currentFieldName);
         Mapper mapper = builder.build(builderContext);
         context.addDynamicMapper(mapper);
 

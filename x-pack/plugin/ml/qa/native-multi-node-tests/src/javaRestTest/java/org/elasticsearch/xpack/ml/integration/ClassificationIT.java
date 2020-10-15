@@ -367,7 +367,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String predictedClassField = dependentVariable + "_prediction";
         indexData(sourceIndex, 300, 0, dependentVariable);
 
-        int numTopClasses = 2;
+        int numTopClasses = randomBoolean() ? 2 : -1;  // Occasionally it's worth testing the special value -1.
+        int expectedNumTopClasses = 2;
         DataFrameAnalyticsConfig config =
             buildAnalytics(
                 jobId,
@@ -391,7 +392,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(dependentVariableValues)));
-            assertTopClasses(resultsObject, numTopClasses, dependentVariable, dependentVariableValues);
+            assertTopClasses(resultsObject, expectedNumTopClasses, dependentVariable, dependentVariableValues);
 
             // Let's just assert there's both training and non-training results
             //

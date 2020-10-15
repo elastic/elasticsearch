@@ -60,8 +60,13 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) {
+    protected Object getSampleValueForDocument() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return "text";
     }
 
     @Override

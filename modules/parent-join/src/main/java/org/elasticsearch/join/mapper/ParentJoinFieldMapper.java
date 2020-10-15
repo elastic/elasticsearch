@@ -20,24 +20,19 @@
 package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -55,7 +50,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -70,26 +64,6 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
 
     public static final String NAME = "join";
     public static final String CONTENT_TYPE = "join";
-
-    /**
-     * Returns the {@link ParentJoinFieldMapper} associated with the <code>service</code> or null
-     * if there is no parent-join field in this mapping.
-     */
-    public static ParentJoinFieldMapper getMapper(MapperService service) {
-        MetaJoinFieldMapper.MetaJoinFieldType fieldType =
-            (MetaJoinFieldMapper.MetaJoinFieldType) service.fieldType(MetaJoinFieldMapper.NAME);
-        if (fieldType == null) {
-            return null;
-        }
-        DocumentMapper mapper = service.documentMapper();
-        String joinField = fieldType.getJoinField();
-        MappingLookup fieldMappers = mapper.mappers();
-        return (ParentJoinFieldMapper) fieldMappers.getMapper(joinField);
-    }
-
-    private static String getParentIdFieldName(String joinFieldName, String parentName) {
-        return joinFieldName + "#" + parentName;
-    }
 
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
@@ -120,46 +94,6 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class Relations {
-        final String parent;
-        final Set<String> children;
-
-        public Relations(String parent, Set<String> children) {
-            this.parent = parent;
-            this.children = children;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Relations relation = (Relations) o;
-            return Objects.equals(parent, relation.parent) &&
-                Objects.equals(children, relation.children);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(parent, children);
-        }
-
-        static List<Relations> parse(Object node) {
-            List<Relations> r = new ArrayList<>();
-            Map<String, Object> relations = XContentMapValues.nodeMapValue(node, "relations");
-            for (Map.Entry<String, Object> relation : relations.entrySet()) {
-                final String parent = relation.getKey();
-                Set<String> children;
-                if (XContentMapValues.isArray(relation.getValue())) {
-                    children = new HashSet<>(Arrays.asList(XContentMapValues.nodeStringArrayValue(relation.getValue())));
-                } else {
-                    children = Collections.singleton(relation.getValue().toString());
-                }
-                r.add(new Relations(parent, children));
-            }
-            return r;
-        }
-    }
-
     private static ParentJoinFieldMapper toType(FieldMapper in) {
         return (ParentJoinFieldMapper) in;
     }
@@ -168,8 +102,9 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
 
         final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true,
             m -> m.fieldType().eagerGlobalOrdinals(), true);
-        final Parameter<List<Relations>> relations = new Parameter<>("relations", true,
-            Collections::emptyList, (n, c, o) -> Relations.parse(o), m -> toType(m).relations);
+        final Parameter<List<Relations>> relations = new Parameter<List<Relations>>("relations", true,
+            Collections::emptyList, (n, c, o) -> Relations.parse(o), m -> toType(m).relations)
+            .setMergeValidator(ParentJoinFieldMapper::checkRelationsConflicts);
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -187,7 +122,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
             checkObjectOrNested(context.path(), name);
             final List<ParentIdFieldMapper> parentIdFields = new ArrayList<>();
             relations.get().stream()
-                .map(relation -> new ParentIdFieldMapper.Builder(getParentIdFieldName(name, relation.parent),
+                .map(relation -> new ParentIdFieldMapper.Builder(name + "#" + relation.parent,
                     relation.parent, relation.children))
                 .map((parentBuilder) -> {
                     if (eagerGlobalOrdinals.get()) {
@@ -198,7 +133,8 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
                 .forEach(parentIdFields::add);
             checkParentFields(name(), parentIdFields);
             MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder(name).build(context);
-            return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(context), meta.get()),
+            Joiner joiner = new Joiner(name(), relations.get());
+            return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(context), joiner, meta.get()),
                 unique, Collections.unmodifiableList(parentIdFields),
                 eagerGlobalOrdinals.getValue(), relations.get());
         }
@@ -210,9 +146,17 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     });
 
     public static final class JoinFieldType extends StringFieldType {
-        private JoinFieldType(String name, Map<String, String> meta) {
+
+        private final Joiner joiner;
+
+        private JoinFieldType(String name, Joiner joiner, Map<String, String> meta) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.joiner = joiner;
+        }
+
+        Joiner getJoiner() {
+            return joiner;
         }
 
         @Override
@@ -222,7 +166,6 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
@@ -310,42 +253,10 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         return null;
     }
 
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) other;
-        final List<ParentIdFieldMapper> newParentIdFields = new ArrayList<>();
-        for (ParentIdFieldMapper mapper : parentIdFields) {
-            if (joinMergeWith.getParentIdFieldMapper(mapper.getParentName(), true) == null) {
-                conflicts.add("cannot remove parent [" + mapper.getParentName() + "] in join field [" + name() + "]");
-            }
-        }
-        for (ParentIdFieldMapper mergeWithMapper : joinMergeWith.parentIdFields) {
-            ParentIdFieldMapper self = getParentIdFieldMapper(mergeWithMapper.getParentName(), true);
-            if (self == null) {
-                if (getParentIdFieldMapper(mergeWithMapper.getParentName(), false) != null) {
-                    // it is forbidden to add a parent to an existing child
-                    conflicts.add("cannot create parent [" + mergeWithMapper.getParentName()  + "] from an existing child");
-                }
-                for (String child : mergeWithMapper.getChildren()) {
-                    if (getParentIdFieldMapper(child, true) != null) {
-                        // it is forbidden to add a parent to an existing child
-                        conflicts.add("cannot create child [" + child  + "] from an existing parent");
-                    }
-                }
-                newParentIdFields.add(mergeWithMapper);
-            } else {
-                for (String child : self.getChildren()) {
-                    if (mergeWithMapper.getChildren().contains(child) == false) {
-                        conflicts.add("cannot remove child [" + child + "] in join field [" + name() + "]");
-                    }
-                }
-                ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper);
-                newParentIdFields.add(merged);
-            }
-        }
-        this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;
-        this.parentIdFields = Collections.unmodifiableList(newParentIdFields);
-        this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper);
+    private static boolean checkRelationsConflicts(List<Relations> previous, List<Relations> current, Conflicts conflicts) {
+        Joiner pj = new Joiner("f", previous);
+        Joiner cj = new Joiner("f", current);
+        return pj.canMerge(cj, s -> conflicts.addConflict("relations", s));
     }
 
     @Override
@@ -433,4 +344,8 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         builder.endObject();
     }
 
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
+    }
 }

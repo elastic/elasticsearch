@@ -140,7 +140,8 @@ reported. It must be non-negative or -1. If it is -1 or greater than the total
 number of categories, all category probabilities are reported and your
 destination index increases in size accordingly. If it is 0, no probabilities
 are reported and you cannot use the
-<<ml-dfanalytics-class-aucroc,AUC ROC evaluation method>>. Defaults to 2.
+{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[AUC ROC evaluation method].
+Defaults to 2.
 
 `num_top_feature_importance_values`::::
 (Optional, integer)

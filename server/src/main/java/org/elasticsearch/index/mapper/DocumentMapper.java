@@ -159,6 +159,10 @@ public class DocumentMapper implements ToXContentFragment {
         return documentMapperParser;
     }
 
+    IndexAnalyzers indexAnalyzers() {
+        return indexAnalyzers;
+    }
+
     public Mapping mapping() {
         return mapping;
     }

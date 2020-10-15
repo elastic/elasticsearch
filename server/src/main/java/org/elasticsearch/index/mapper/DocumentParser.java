@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 
 import java.io.IOException;
@@ -46,25 +45,17 @@ import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTIN
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
 
-    private final IndexSettings indexSettings;
-    private final DocumentMapperParser docMapperParser;
-    private final DocumentMapper docMapper;
-
-    DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
-        this.indexSettings = indexSettings;
-        this.docMapperParser = docMapperParser;
-        this.docMapper = docMapper;
-    }
-
-    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
+    ParsedDocument parseDocument(SourceToParse source,
+                                 MetadataFieldMapper[] metadataFieldsMappers,
+                                 DocumentMapper docMapper) throws MapperParsingException {
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
 
-        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(),
+        try (XContentParser parser = XContentHelper.createParser(docMapper.documentMapperParser().getXContentRegistry(),
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);
+            context = new ParseContext.InternalParseContext(docMapper, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, metadataFieldsMappers, context, parser);
             validateEnd(parser);
@@ -620,15 +611,15 @@ final class DocumentParser {
         }
     }
 
-    private static Mapper.Builder<?> newLongBuilder(String name, Settings settings) {
+    private static Mapper.Builder newLongBuilder(String name, Settings settings) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, settings);
     }
 
-    private static Mapper.Builder<?> newFloatBuilder(String name, Settings settings) {
+    private static Mapper.Builder newFloatBuilder(String name, Settings settings) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT, settings);
     }
 
-    private static Mapper.Builder<?> createBuilderFromDynamicValue(final ParseContext context,
+    private static Mapper.Builder createBuilderFromDynamicValue(final ParseContext context,
                                                                      XContentParser.Token token,
                                                                      String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
@@ -747,7 +738,7 @@ final class DocumentParser {
             return;
         }
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-        final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName);
+        final Mapper.Builder builder = createBuilderFromDynamicValue(context, token, currentFieldName);
         Mapper mapper = builder.build(builderContext);
         context.addDynamicMapper(mapper);
 

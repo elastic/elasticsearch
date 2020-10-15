@@ -10,6 +10,7 @@ import com.unboundid.ldap.sdk.ResultCode;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
@@ -20,11 +21,13 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
@@ -33,14 +36,18 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryTestCase {
 
@@ -48,6 +55,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("active_directory", REALM_NAME);
     private final SecureString SECURED_PASSWORD = new SecureString(PASSWORD);
     private ThreadPool threadPool;
+    private static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
 
     @Before
     public void init() throws Exception {
@@ -363,6 +371,35 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                     assertNotNull("ldap session was null for user " + user, ldap);
                     assertThat("group avenger test for user " + user, groups(ldap), hasItem(containsString("Avengers")));
                 }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testResolveTokenGroupsSID() throws Exception {
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(RealmSettings.getFullSettingKey(REALM_ID, RealmSettings.ORDER_SETTING), 0)
+            .put(buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
+                LdapSearchScope.SUB_TREE, false))
+            .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_BASEDN_SETTING, "DC=ad,DC=test,DC=elasticsearch,DC=com")
+            .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_SCOPE_SETTING, LdapSearchScope.SUB_TREE)
+            .put(getFullSettingKey(REALM_ID, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "tokenGroups")
+            .build();
+        RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
+        try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
+            String userName = "hulk";
+            try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
+                resolver.resolve(ldap.getConnection(), BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, null, future);
+                Map<String, Object> metadataGroupSIDs = future.get();
+                assertThat(metadataGroupSIDs.size(), equalTo(1));
+                assertNotNull(metadataGroupSIDs.get("tokenGroups"));
+                List<String> SIDs = ((List<String>) metadataGroupSIDs.get("tokenGroups"));
+                assertThat(SIDs.size(), equalTo(7));
+                assertThat(SIDs, everyItem(matchesPattern("S-1-5-(?:21|32)-\\d+(?:-\\d+\\-\\d+\\-\\d+)?")));
             }
         }
     }

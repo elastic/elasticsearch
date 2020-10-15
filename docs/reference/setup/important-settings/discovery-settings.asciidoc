@@ -23,7 +23,7 @@ that are master-eligible and likely to be live and contactable in order to seed
 the <<modules-discovery-hosts-providers,discovery process>>. This setting
 should be a list of the addresses of all the master-eligible nodes in the
 cluster. Each address can be either an IP address or a hostname which resolves
-to one or more IP addresses via DNS. Only YAML sequences and arrays are
+to one or more IP addresses via DNS. Only YAML sequences or arrays are
 supported.
 
 [source,yaml]

@@ -743,9 +743,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public boolean shouldIncrementalSync() {
+    public boolean shouldIncrementalFlush() {
         try (ReleasableLock lock = readLock.acquire()) {
-            return current.shouldIncrementalSync();
+            return current.shouldIncrementalFlush();
         }
     }
 

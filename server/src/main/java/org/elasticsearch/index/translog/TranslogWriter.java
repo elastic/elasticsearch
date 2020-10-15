@@ -87,6 +87,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
     private final long inMemoryBufferSize;
+    private final long flushThreshold;
     private volatile long bufferedBytes = 0;
     private ReleasableBytesStreamOutput buffer;
 
@@ -111,6 +112,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             "initial checkpoint offset [" + initialCheckpoint.offset + "] is different than current channel position ["
                 + channel.position() + "]";
         this.inMemoryBufferSize = Math.toIntExact(bufferSize.getBytes());
+        this.flushThreshold = Math.toIntExact(bufferSize.getBytes()) / 2;
         this.shardId = shardId;
         this.checkpointChannel = checkpointChannel;
         this.checkpointPath = checkpointPath;
@@ -292,11 +294,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * Returns <code>true</code> if there the un-synced bytes have passed the threshold for a sync (4 * the
+     * Returns <code>true</code> if there the un-flush bytes have passed the threshold for a flush (half the
      * in-memory buffer size)
      */
-    public boolean shouldIncrementalSync() {
-        return (totalOffset - lastSyncedCheckpoint.offset) >= (inMemoryBufferSize * 4);
+    public boolean shouldIncrementalFlush() {
+        return flushThreshold >= inMemoryBufferSize;
     }
 
     /**

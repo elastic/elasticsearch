@@ -23,6 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,12 +34,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class SyncLoop {
 
     private static final Logger logger = LogManager.getLogger(SyncLoop.class);
+    private static final long ONE_MILLIS = TimeUnit.MILLISECONDS.toNanos(1);
 
     private final ThreadPool threadPool;
     private final Translog translog;
@@ -46,6 +50,7 @@ public class SyncLoop {
     private final PriorityQueue<Tuple<Translog.Location, Consumer<Exception>>> listeners;
     private volatile int listenerCount = 0;
     private volatile Translog.Location lastSyncedLocation;
+    private volatile long lastSyncedNanos;
 
     public SyncLoop(ThreadPool threadPool, Translog translog, CheckedRunnable<IOException> postSyncCallback) {
         this.threadPool = threadPool;
@@ -53,13 +58,13 @@ public class SyncLoop {
         this.postSyncCallback = postSyncCallback;
         this.lastSyncedLocation = new Translog.Location(0, 0, Integer.MAX_VALUE);
         this.listeners = new PriorityQueue<>(1024, Comparator.comparing(Tuple::v1));
+        this.lastSyncedNanos = System.nanoTime();
     }
 
-    public void maybeScheduleIncrementalSync() {
-        if (translog.shouldIncrementalSync()) {
-            final boolean promised = promiseSemaphore.tryAcquire();
-            if (promised) {
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(this::runSyncLoop);
+    public void maybeScheduleIncrementalFlush() {
+        if (translog.shouldIncrementalFlush()) {
+            if (promiseSemaphore.tryAcquire()) {
+                submitSyncTask(false);
             }
         }
     }
@@ -73,22 +78,55 @@ public class SyncLoop {
             ++listenerCount;
             listeners.add(new Tuple<>(location, preserveContext(listener)));
         }
-        final boolean promised = promiseSemaphore.tryAcquire();
-        if (promised) {
-            try {
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(this::runSyncLoop);
-            } catch (Exception e) {
-                promiseSemaphore.release();
-                throw e;
+        if (promiseSemaphore.tryAcquire()) {
+            long delay = Math.max(ONE_MILLIS - (System.nanoTime() - lastSyncedNanos), 0);
+            if (delay == 0) {
+                submitSyncTask(true);
+            } else {
+                threadPool.schedule(syncTask(true), TimeValue.timeValueNanos(delay), ThreadPool.Names.FLUSH);
             }
         }
     }
 
-    private void runSyncLoop() {
+    private void submitSyncTask(boolean startWithSync) {
+        threadPool.executor(ThreadPool.Names.FLUSH).execute(syncTask(startWithSync));
+    }
+
+    private AbstractRunnable syncTask(boolean startWithSync) {
+        return new AbstractRunnable() {
+            @Override
+            public void onAfter() {
+                promiseSemaphore.release();
+                if (isListenersEmpty() == false && promiseSemaphore.tryAcquire()) {
+                    submitSyncTask(true);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Uncaught exception on the sync loop", e);
+            }
+
+            @Override
+            protected void doRun() {
+                runSyncLoop(startWithSync);
+            }
+        };
+    }
+
+    private void runSyncLoop(boolean startWithSync) {
         assert promiseSemaphore.availablePermits() == 0;
         lastSyncedLocation = translog.getLastSyncedLocation();
-        doSyncAndNotify();
-        while ((isListenersEmpty() == false || translog.shouldIncrementalSync()) && promiseSemaphore.tryAcquire()) {
+        if (startWithSync) {
+            doSyncAndNotify();
+        } else {
+            try {
+                translog.flush();
+            } catch (Exception e) {
+                logger.debug("Exception when incrementally flushing translog", e);
+            }
+        }
+        while (isListenersEmpty() == false) {
             doSyncAndNotify();
         }
     }
@@ -109,8 +147,6 @@ public class SyncLoop {
         } catch (Exception e) {
             drainListeners(syncedListeners, null);
             exception = e;
-        } finally {
-            promiseSemaphore.release();
         }
         completeListeners(syncedListeners, exception);
     }
@@ -118,6 +154,7 @@ public class SyncLoop {
     private void doSync() throws Exception {
         translog.sync();
         lastSyncedLocation = translog.getLastSyncedLocation();
+        lastSyncedNanos = System.nanoTime();
         postSyncCallback.run();
     }
 

@@ -20,7 +20,6 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Nullable;
@@ -48,6 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest.FEATURE_STATES_VERSION;
 
 /**
  * Information about a snapshot
@@ -323,7 +324,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         includeGlobalState = in.readOptionalBoolean();
         userMetadata = in.readMap();
         dataStreams = in.readStringList();
-        if (in.getVersion().before(CreateSnapshotRequest.FEATURE_STATES_VERSION)) {
+        if (in.getVersion().before(FEATURE_STATES_VERSION)) {
             featureStates = null;
         } else {
             featureStates = in.readList(SnapshotFeatureInfo::new);
@@ -771,7 +772,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         out.writeOptionalBoolean(includeGlobalState);
         out.writeMap(userMetadata);
         out.writeStringCollection(dataStreams);
-        if (featureStates != null) {
+        if (out.getVersion().before(FEATURE_STATES_VERSION)) {
             out.writeList(featureStates);
         }
     }

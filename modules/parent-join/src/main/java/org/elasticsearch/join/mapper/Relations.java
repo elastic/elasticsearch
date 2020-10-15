@@ -30,6 +30,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Defines a relationship between a parent type and a set of child types
+ */
 class Relations {
 
     final String parent;

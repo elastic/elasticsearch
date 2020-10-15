@@ -548,66 +548,6 @@ field data types:
 *Returns:* integer or `null`
 
 [discrete]
-[[eql-fn-match]]
-=== `match`
-
-Returns `true` if a source string matches one or more provided regular
-expressions. Matching is case-sensitive.
-
-*Example*
-[source,eql]
-----
-match("explorer.exe", "[a-z]*?.exe")           // returns true
-match("explorer.exe", "[a-z]*?.exe", "[1-9]")  // returns true
-match("explorer.exe", "[1-9]")                 // returns false
-match("explorer.exe", "")                      // returns false
-
-// process.name = "explorer.exe"
-match(process.name, "[a-z]*?.exe")             // returns true
-match(process.name, "[a-z]*?.exe", "[1-9]")    // returns true
-match(process.name, "[1-9]")                   // returns false
-match(process.name, "")                        // returns false
-
-// null handling
-match(null, "[a-z]*?.exe")                     // returns null
-----
-
-*Syntax*
-[source,txt]
-----
-match(<source>, <reg_exp>[, ...])
-----
-
-*Parameters*
-
-`<source>`::
-+
---
-(Required, string or `null`)
-Source string. If `null`, the function returns `null`.
-
-If using a field as the argument, this parameter supports only the following
-field data types:
-
-* A type in the <<keyword,`keyword`>> family
-* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
---
-
-`<reg_exp>`::
-+
---
-(Required{multi-arg-ref}, string)
-Regular expression used to match the source string. For supported syntax, see
-<<regexp-syntax>>.
-https://docs.oracle.com/javase/tutorial/essential/regex/pre_char_classes.html[Predefined
-character classes] are not supported.
-
-Fields are not supported as arguments.
---
-
-*Returns:* boolean or `null`
-
-[discrete]
 [[eql-fn-modulo]]
 === `modulo`
 Returns the remainder of the division of a provided dividend and divisor.

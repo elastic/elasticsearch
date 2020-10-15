@@ -64,7 +64,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`ignore_unavailable`::
+(Optional, boolean) If `true`, missing or closed indices are not included in the
+response. Defaults to `true`.
 
 `keep_alive`::
 +

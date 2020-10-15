@@ -59,7 +59,8 @@ GET /_search
 }
 --------------------------------------------------
 
-<1> The `subject` field is three times as important as the `message` field.
+<1> The query multiplies the `subject` field's score by three but leaves the
+`message` field's score unchanged.
 
 If no `fields` are provided, the `multi_match` query defaults to the `index.query.default_field`
 index settings, which in turn defaults to `*`. `*` extracts all fields in the mapping that

@@ -196,7 +196,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
         snapshotLifecycleService.get().init();
         snapshotRetentionService.set(new SnapshotRetentionService(settings,
-            () -> new SnapshotRetentionTask(client, clusterService, System::nanoTime, snapshotHistoryStore.get(), threadPool),
+            () -> new SnapshotRetentionTask(client, clusterService, System::nanoTime, snapshotHistoryStore.get()),
             getClock()));
         snapshotRetentionService.get().init(clusterService);
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));

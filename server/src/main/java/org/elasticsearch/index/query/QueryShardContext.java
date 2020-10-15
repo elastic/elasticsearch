@@ -258,7 +258,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
-        final Mapper.Builder<?> builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
+        final Mapper.Builder builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1));
         Mapper mapper = builder.build(builderContext);
         if (mapper instanceof FieldMapper) {

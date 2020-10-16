@@ -65,12 +65,13 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
                     @Override
                     public RestResponse buildResponse(OpenIdConnectAuthenticateResponse response, XContentBuilder builder)
                         throws Exception {
-                        builder.startObject()
-                            .field("username", response.getPrincipal())
-                            .field("access_token", response.getAccessTokenString())
-                            .field("refresh_token", response.getRefreshTokenString())
-                            .field("expires_in", response.getExpiresIn().seconds())
-                            .endObject();
+                        builder.startObject();
+                        builder.field("username", response.getPrincipal());
+                        builder.field("access_token", response.getAccessTokenString());
+                        builder.field("refresh_token", response.getRefreshTokenString());
+                        builder.field("expires_in", response.getExpiresIn().seconds());
+                        builder.field("authentication", response.getAuthentication());
+                        builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });

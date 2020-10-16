@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,6 +40,10 @@ public class CreateTokenResponseTests extends ESTestCase {
         final String scope = randomBoolean() ? null : randomAlphaOfLength(4);
         final String type = randomAlphaOfLength(6);
         final String kerberosAuthenticationResponseToken = randomBoolean() ? null : randomAlphaOfLength(7);
+        final AuthenticateResponse authenticateResponse = new AuthenticateResponse(new User(randomAlphaOfLength(7),
+            Arrays.asList( randomAlphaOfLength(9) )),
+            true, new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7) ),
+            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5) ), "realm");
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
@@ -54,6 +60,7 @@ public class CreateTokenResponseTests extends ESTestCase {
         if (kerberosAuthenticationResponseToken != null) {
             builder.field("kerberos_authentication_response_token", kerberosAuthenticationResponseToken);
         }
+        builder.field("authentication", authenticateResponse);
         builder.endObject();
         BytesReference xContent = BytesReference.bytes(builder);
 
@@ -64,5 +71,6 @@ public class CreateTokenResponseTests extends ESTestCase {
         assertThat(response.getType(), equalTo(type));
         assertThat(response.getExpiresIn(), equalTo(expiresIn));
         assertThat(response.getKerberosAuthenticationResponseToken(), equalTo(kerberosAuthenticationResponseToken));
+        assertThat(response.getAuthenticationResponse(), equalTo(authenticateResponse));
     }
 }

@@ -59,8 +59,8 @@ To search all data streams and indices in a cluster, use
 `allow_no_indices`::
 (Optional, boolean)
 +
-NOTE: The behavior of this parameter differs from the standard
-`allow_no_indices` parameter.
+NOTE: This parameter's behavior differs from the `allow_no_indices` parameter
+used in other <<multi-index,multi-target APIs>>.
 +
 If `false`, any wildcard expression, <<indices-aliases,index alias>>, or `_all`
 value that targets only missing or closed indices returns an error. This applies

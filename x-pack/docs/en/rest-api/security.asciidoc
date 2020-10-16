@@ -61,10 +61,11 @@ without requiring basic authentication:
 You can use the following APIs to create, retrieve and invalidate API keys for access
 without requiring basic authentication:
 
-* <<security-api-create-api-key,Create API Key>>
-* <<security-api-get-api-key,Get API Key>>
-* <<security-api-invalidate-api-key,Invalidate API Key>>
+* <<security-api-create-api-key,Create API key>>
+* <<security-api-get-api-key,Get API key>>
+* <<security-api-invalidate-api-key,Invalidate API key>>
 * <<security-api-clear-api-key-cache,Clear API key cache>>
+* <<security-api-gran-aapi-key,Grant API key
 
 [discrete]
 [[security-user-apis]]
@@ -129,6 +130,7 @@ include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/get-tokens.asciidoc[]
 include::security/get-users.asciidoc[]
+include::security/grant-api-keys.asciidoc[]
 include::security/has-privileges.asciidoc[]
 include::security/invalidate-api-keys.asciidoc[]
 include::security/invalidate-tokens.asciidoc[]

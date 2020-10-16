@@ -25,7 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,14 +34,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
-public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<UpgradeSettingsRequest, AcknowledgedResponse> {
+public class TransportUpgradeSettingsAction extends AcknowledgedTransportMasterNodeAction<UpgradeSettingsRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpgradeSettingsAction.class);
 
@@ -52,24 +49,13 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
                                           ThreadPool threadPool, MetadataUpdateSettingsService updateSettingsService,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ActionFilters actionFilters) {
         super(UpgradeSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            UpgradeSettingsRequest::new, indexNameExpressionResolver);
+            UpgradeSettingsRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.updateSettingsService = updateSettingsService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away....
-        return ThreadPool.Names.SAME;
     }
 
     @Override
     protected ClusterBlockException checkBlock(UpgradeSettingsRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -83,7 +69,7 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
         updateSettingsService.upgradeIndexSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
+                listener.onResponse(AcknowledgedResponse.of(response.isAcknowledged()));
             }
 
             @Override

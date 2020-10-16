@@ -61,13 +61,12 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder> {
+    static class Builder extends FieldMapper.Builder {
 
         final String joinField;
 
         Builder(String joinField) {
             super(NAME, Defaults.FIELD_TYPE);
-            builder = this;
             this.joinField = joinField;
         }
 

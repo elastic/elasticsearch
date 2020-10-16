@@ -18,12 +18,26 @@ to connect to other nodes running on the same server. This provides an
 auto-clustering experience without having to do any configuration.
 
 When you want to form a cluster with nodes on other hosts, you should use the
-`discovery.seed_hosts` setting to provide a list of other nodes in the cluster
+<<static-cluster-setting, static>> `discovery.seed_hosts` setting to provide a list of other nodes in the cluster
 that are master-eligible and likely to be live and contactable in order to seed
-the <<modules-discovery-hosts-providers,discovery process>>. This setting
-should be a list of the addresses of all the master-eligible nodes in the
-cluster. Each address can be either an IP address or a hostname which resolves
-to one or more IP addresses via DNS.
+the <<modules-discovery-hosts-providers,discovery process>>. This setting value
+should be a YAML sequence or array of the addresses of all the master-eligible
+nodes in the cluster. Each address can be either an IP address or a hostname
+which resolves to one or more IP addresses via DNS.
+
+[source,yaml]
+----
+discovery.seed_hosts:
+   - 192.168.1.10:9300
+   - 192.168.1.11 <1>
+   - seeds.mydomain.com <2>
+   - [0:0:0:0:0:ffff:c0a8:10c]:9301 <3>
+----
+<1> The port is optional and usually defaults to `9300`, but this default can
+    be <<built-in-hosts-providers,overridden>> by certain settings.
+<2> If a hostname resolves to multiple IP addresses then the node will attempt to
+    discover other nodes at all resolved addresses.
+<3> IPv6 addresses must be enclosed in square brackets.
 
 If your master-eligible nodes do not have fixed names or addresses, use an
 <<built-in-hosts-providers,alternative hosts provider>> to find their addresses
@@ -52,20 +66,15 @@ restarting a cluster or adding a new node to an existing cluster.
 --------------------------------------------------
 discovery.seed_hosts:
    - 192.168.1.10:9300
-   - 192.168.1.11 <1>
-   - seeds.mydomain.com <2>
-   - [0:0:0:0:0:ffff:c0a8:10c]:9301 <3>
-cluster.initial_master_nodes: <4>
+   - 192.168.1.11
+   - seeds.mydomain.com
+   - [0:0:0:0:0:ffff:c0a8:10c]:9301
+cluster.initial_master_nodes: <1>
    - master-node-a
    - master-node-b
    - master-node-c
 --------------------------------------------------
-<1> The port is optional and usually defaults to `9300`, but this default can
-    be <<built-in-hosts-providers,overridden>> by certain settings.
-<2> If a hostname resolves to multiple IP addresses then the node will attempt to
-    discover other nodes at all resolved addresses.
-<3> IPv6 addresses must be enclosed in square brackets.
-<4> The initial master nodes should be identified by their
+<1> The initial master nodes should be identified by their
     <<node.name,`node.name`>>, which defaults to their hostname. Make sure that
     the value in `cluster.initial_master_nodes` matches the `node.name`
     exactly. If you use a fully-qualified domain name such as

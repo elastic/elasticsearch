@@ -496,7 +496,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     /**
      * A Builder for a ParametrizedFieldMapper
      */
-    public abstract static class Builder extends Mapper.Builder<Builder> {
+    public abstract static class Builder extends Mapper.Builder {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();

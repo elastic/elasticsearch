@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -43,11 +44,8 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -324,24 +322,20 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
      */
     private Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot(Path repositoryLocation, String snapshotId) throws IOException {
         final Map<String, BlobStoreIndexShardSnapshot> blobsPerShard = new HashMap<>();
-        Files.walkFileTree(repositoryLocation.resolve("indices"), new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                final String fileName = file.getFileName().toString();
-                if (fileName.equals("snap-" + snapshotId + ".dat")) {
-                    blobsPerShard.put(
-                        String.join(
-                            "/",
-                            snapshotId,
-                            file.getParent().getParent().getFileName().toString(),
-                            file.getParent().getFileName().toString()
-                        ),
-                        INDEX_SHARD_SNAPSHOT_FORMAT.deserialize(fileName, xContentRegistry(), Streams.readFully(Files.newInputStream(file)))
-                    );
-                }
-                return FileVisitResult.CONTINUE;
+        forEachFileRecursively(repositoryLocation.resolve("indices"), ((file, basicFileAttributes) -> {
+            final String fileName = file.getFileName().toString();
+            if (fileName.equals(BlobStoreRepository.SNAPSHOT_FORMAT.blobName(snapshotId))) {
+                blobsPerShard.put(
+                    String.join(
+                        "/",
+                        snapshotId,
+                        file.getParent().getParent().getFileName().toString(),
+                        file.getParent().getFileName().toString()
+                    ),
+                    INDEX_SHARD_SNAPSHOT_FORMAT.deserialize(fileName, xContentRegistry(), Streams.readFully(Files.newInputStream(file)))
+                );
             }
-        });
+        }));
         return Map.copyOf(blobsPerShard);
     }
 

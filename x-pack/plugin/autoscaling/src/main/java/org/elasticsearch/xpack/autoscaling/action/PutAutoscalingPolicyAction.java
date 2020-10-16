@@ -26,7 +26,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/autoscaling/put_autoscaling_policy";
 
     private PutAutoscalingPolicyAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

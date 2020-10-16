@@ -197,7 +197,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     }
 
     private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
-        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "emit(parse(value));"),
+        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "emit(Boolean.parseBoolean(value.toString()));"),
         Map.entry(DateFieldMapper.CONTENT_TYPE, "emit(parse(value.toString()));"),
         Map.entry(
             NumberType.DOUBLE.typeName(),

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -38,10 +38,10 @@ import static org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregati
 class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     WeightedAvgAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
-                                 DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
+                                 DocValueFormat format, AggregationContext context, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder,
                                  Map<String, Object> metadata) throws IOException {
-        super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, configs, format, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -58,8 +58,7 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             CardinalityUpperBound cardinality,
                                             Map<String, Object> metadata) throws IOException {
-        MultiValuesSource.NumericMultiValuesSource numericMultiVS
-            = new MultiValuesSource.NumericMultiValuesSource(configs, queryShardContext);
+        MultiValuesSource.NumericMultiValuesSource numericMultiVS = new MultiValuesSource.NumericMultiValuesSource(configs);
         if (numericMultiVS.areValuesSourcesEmpty()) {
             return createUnmapped(searchContext, parent, metadata);
         }

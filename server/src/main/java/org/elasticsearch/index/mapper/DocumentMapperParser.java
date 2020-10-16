@@ -48,18 +48,19 @@ public class DocumentMapperParser {
     private final NamedXContentRegistry xContentRegistry;
     private final SimilarityService similarityService;
     private final Supplier<QueryShardContext> queryShardContextSupplier;
-
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
-
     private final Version indexVersionCreated;
-
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
     private final ScriptService scriptService;
 
-    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
-            SimilarityService similarityService, MapperRegistry mapperRegistry,
-            Supplier<QueryShardContext> queryShardContextSupplier, ScriptService scriptService) {
+    public DocumentMapperParser(IndexSettings indexSettings,
+                                MapperService mapperService,
+                                NamedXContentRegistry xContentRegistry,
+                                SimilarityService similarityService,
+                                MapperRegistry mapperRegistry,
+                                Supplier<QueryShardContext> queryShardContextSupplier,
+                                ScriptService scriptService) {
         this.mapperService = mapperService;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
@@ -211,9 +212,5 @@ public class DocumentMapperParser {
             mapping = new Tuple<>(type, root);
         }
         return mapping;
-    }
-
-    NamedXContentRegistry getXContentRegistry() {
-        return xContentRegistry;
     }
 }

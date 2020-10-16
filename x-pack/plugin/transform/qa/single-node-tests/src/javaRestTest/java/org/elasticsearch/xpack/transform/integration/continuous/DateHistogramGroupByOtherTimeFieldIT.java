@@ -224,7 +224,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         assertFalse(destIterator.hasNext());
     }
 
-    private Map<String, Object> flattenedResult(long second, String event, long count) {
+    private static Map<String, Object> flattenedResult(long second, String event, long count) {
         Map<String, Object> doc = new HashMap<>();
         doc.put("second", second);
         doc.put("event", event);

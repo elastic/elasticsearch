@@ -104,6 +104,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
         tokenService.decodeToken(response.getAccessToken(), userTokenFuture);
         assertNotNull(userTokenFuture.actionGet());
+        assertNotNull(response.getAuthenticationResponse());
     }
 
 
@@ -133,6 +134,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertNotNull(userTokenFuture.actionGet());
             assertNotEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
+        assertNotNull(response.getAuthenticationResponse());
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
@@ -365,6 +367,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         // Assert that we can authenticate with the refreshed access token
         assertAuthenticateWithToken(refreshResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
+        assertNotNull(refreshResponse.getAuthenticationResponse());
     }
 
     public void testRefreshingInvalidatedToken() throws IOException {

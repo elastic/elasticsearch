@@ -10,7 +10,7 @@ Creates a bearer token for access without requiring basic authentication.
 [[security-api-get-token-request]]
 ==== {api-request-title}
 
-`POST /_security/oauth2/token` 
+`POST /_security/oauth2/token`
 
 [[security-api-get-token-prereqs]]
 ==== {api-prereq-title}
@@ -22,9 +22,9 @@ Creates a bearer token for access without requiring basic authentication.
 
 The tokens are created by the {es} Token Service, which is automatically enabled
 when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
-you can explicitly enable the `xpack.security.authc.token.enabled` setting. When 
-you are running in production mode, a bootstrap check prevents you from enabling 
-the token service unless you also enable TLS on the HTTP interface. 
+you can explicitly enable the `xpack.security.authc.token.enabled` setting. When
+you are running in production mode, a bootstrap check prevents you from enabling
+the token service unless you also enable TLS on the HTTP interface.
 
 The get token API takes the same parameters as a typical OAuth 2.0 token API
 except for the use of a JSON request body.
@@ -38,7 +38,7 @@ they are valid and after that time period, they can no longer be used. That time
 period is defined by the `xpack.security.authc.token.timeout` setting. For more
 information, see <<token-service-settings>>.
 
-If you want to invalidate a token immediately, you can do so by using the 
+If you want to invalidate a token immediately, you can do so by using the
 <<security-api-invalidate-token,invalidate token API>>.
 
 [[security-api-get-token-request-body]]
@@ -58,9 +58,9 @@ for machine to machine communication and is not suitable or designed for the
 self-service user creation of tokens. It generates only access tokens that
 cannot be refreshed. The premise is that the entity that uses
 `client_credentials` has constant access to a set of (client, not end-user)
-credentials and can authenticate itself at will. 
+credentials and can authenticate itself at will.
 
-`_kerberos`::: 
+`_kerberos`:::
 This grant type is supported internally and implements SPNEGO based Kerberos
 support. The `_kerberos` grant type may change from version to version.
 
@@ -87,7 +87,7 @@ grant type.
 with any other supported grant type.
 
 `refresh_token`::
-(Optional^*^, string) The string that was returned when you created the token, 
+(Optional^*^, string) The string that was returned when you created the token,
 which enables you to extend its life. If you specify the `refresh_token` grant
 type, this parameter is required. This parameter is not valid with any other
 supported grant type.
@@ -97,7 +97,7 @@ supported grant type.
 `FULL` regardless of the value sent with the request.
 
 `username`::
-(Optional^*^, string) The username that identifies the user. If you specify the `password` 
+(Optional^*^, string) The username that identifies the user. If you specify the `password`
 grant type, this parameter is required. This parameter is not valid with any
 other supported grant type.
 
@@ -123,7 +123,26 @@ seconds) that the token expires in, and the type:
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
   "type" : "Bearer",
-  "expires_in" : 1200
+  "expires_in" : 1200,
+  "authentication" : {
+   "username" : "test_admin",
+   "roles" : [
+    "superuser"
+   ],
+  "full_name" : null,
+  "email" : null,
+  "metadata" : { },
+  "enabled" : true,
+  "authentication_realm" : {
+   "name" : "file",
+   "type" : "file"
+  },
+  "lookup_realm" : {
+   "name" : "file",
+   "type" : "file"
+  },
+  "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
@@ -161,7 +180,26 @@ seconds) that the token expires in, the type, and the refresh token:
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
   "type" : "Bearer",
   "expires_in" : 1200,
-  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS",
+  "authentication" : {
+   "username" : "test_admin",
+   "roles" : [
+    "superuser"
+    ],
+   "full_name" : null,
+   "email" : null,
+   "metadata" : { },
+   "enabled" : true,
+   "authentication_realm" : {
+    "name" : "file",
+    "type" : "file"
+    },
+   "lookup_realm" : {
+    "name" : "file",
+    "type" : "file"
+   },
+   "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
@@ -183,7 +221,7 @@ POST /_security/oauth2/token
 // TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 // TEST[continued]
 
-The API will return a new token and refresh token. Each refresh token may only 
+The API will return a new token and refresh token. Each refresh token may only
 be used one time.
 
 [source,console-result]
@@ -192,7 +230,26 @@ be used one time.
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
   "type" : "Bearer",
   "expires_in" : 1200,
-  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS",
+  "authentication" : {
+   "username" : "test_admin",
+   "roles" : [
+    "superuser"
+    ],
+   "full_name" : null,
+   "email" : null,
+   "metadata" : { },
+   "enabled" : true,
+   "authentication_realm" : {
+    "name" : "file",
+    "type" : "file"
+    },
+   "lookup_realm" : {
+    "name" : "file",
+    "type" : "file"
+    },
+   "authentication_type" : "token"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
@@ -223,7 +280,26 @@ Each refresh token may only be used one time. When the mutual authentication is 
   "type" : "Bearer",
   "expires_in" : 1200,
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
-  "kerberos_authentication_response_token": "YIIB6wYJKoZIhvcSAQICAQBuggHaMIIB1qADAg"
+  "kerberos_authentication_response_token": "YIIB6wYJKoZIhvcSAQICAQBuggHaMIIB1qADAg",
+  "authentication" : {
+   "username" : "test_admin",
+   "roles" : [
+    "superuser"
+    ],
+   "full_name" : null,
+   "email" : null,
+   "metadata" : { },
+   "enabled" : true,
+   "authentication_realm" : {
+    "name" : "file",
+    "type" : "file"
+    },
+   "lookup_realm" : {
+    "name" : "file",
+    "type" : "file"
+   },
+   "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

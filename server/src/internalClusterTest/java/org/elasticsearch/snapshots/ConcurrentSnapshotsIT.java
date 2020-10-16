@@ -45,7 +45,6 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -56,7 +55,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -126,19 +124,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
 
         final int numSnapshots = randomIntBetween(1, 4);
-        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
-        final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, numSnapshots);
-        final Collection<String> snapshotNames = new HashSet<>();
-        for (int i = 0; i < numSnapshots; i++) {
-            final String snapshot = "snap-" + i;
-            snapshotNames.add(snapshot);
-            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true)
-                    .execute(snapshotsListener);
-        }
-        final Collection<CreateSnapshotResponse> snapshotResponses = allSnapshotsDone.get();
-        for (CreateSnapshotResponse snapshotResponse : snapshotResponses) {
-            assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
-        }
+        final Collection<String> snapshotNames = createNSnapshots(repoName, numSnapshots);
 
         createIndexWithContent("index-slow");
 
@@ -516,7 +502,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String secondSnapshot = "snapshot-two";
         final ActionFuture<CreateSnapshotResponse> secondSnapshotResponse = startFullSnapshotFromMasterClient(repoName, secondSnapshot);
 
-        internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+        internalCluster().restartNode(dataNode);
 
         assertThat(firstSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
         assertThat(secondSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
@@ -1132,10 +1118,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent("index-test");
 
         final int limitToTest = randomIntBetween(1, 3);
+        final List<String> snapshotNames = createNSnapshots(repoName, limitToTest + 1);
+
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(
             SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.getKey(), limitToTest).build()).get());
 
-        final List<String> snapshotNames = createNSnapshots(repoName, limitToTest + 1);
         blockNodeOnAnyFiles(repoName, masterName);
         int blockedSnapshots = 0;
         boolean blockedDelete = false;
@@ -1285,13 +1272,18 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotStatuses, hasSize(count));
     }
 
-    private List<String> createNSnapshots(String repoName, int count) {
+    private List<String> createNSnapshots(String repoName, int count) throws Exception {
+        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
+        final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
         for (int i = 0; i < count; i++) {
-            final String name = prefix + i;
-            createFullSnapshot(repoName, name);
-            snapshotNames.add(name);
+            final String snapshot = prefix + i;
+            snapshotNames.add(snapshot);
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute(snapshotsListener);
+        }
+        for (CreateSnapshotResponse snapshotResponse : allSnapshotsDone.get()) {
+            assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
         }
         logger.info("--> created {} in [{}]", snapshotNames, repoName);
         return snapshotNames;

@@ -13,8 +13,8 @@ mechanisms have different, but complementary, performance characteristics:
 * Snapshot repositories are much more reliable than local storage on individual
   nodes.
 
-* The monetary cost per GB in a snapshot repository is usually lower than on a
-  node.
+* The monetary cost per GB stored in a snapshot repository is usually lower
+  than on a node.
 
 * The monetary cost per read or write operation on a snapshot repository is
   usually much higher.
@@ -53,12 +53,14 @@ to search, you can also use the <<searchable-snapshots-api-mount-snapshot>> to
 manually mount them as searchable snapshots.
 
 You must not delete a snapshot while any of its indices are mounted as a
-searchable snapshot. However, most snapshots contain a large number of indices,
-most of which will not be mounted as searchable snapshots. Therefore we
-recommend that you use the <<clone-snapshot-api>> to cheaply create a clone of
-a snapshot that contains just the index you want to mount first. This will
-allow you to delete older multiple-index snapshots, reducing the size of your
-snapshot repository, without losing access to any mounted indices.
+searchable snapshot. However, most snapshots are taken as a backup and contain
+a large number of indices, most of which will not be mounted as searchable
+snapshots. If you mount just one of these indices then you may not delete that
+snapshot. Therefore we recommend that you use the <<clone-snapshot-api>> to
+cheaply create a clone of a snapshot where the clone contains just the index
+you want to mount. This will mean you can delete the multiple-index snapshot,
+reducing the size of your snapshot repository, without losing access to any
+mounted indices.
 
 We recommend that you <<indices-forcemerge,force-merge>> indices to a single
 segment per shard before mounting them as searchable snapshots. Each read from
@@ -68,6 +70,11 @@ are the fewer reads are needed to restore the snapshot.
 By default a searchable snapshot has `number_of_replicas` set to `0`. You can
 increase the number of replicas if desired, for instance if you want to perform
 more concurrent searches of these shards.
+
+If a node fails while holding some zero-replica searchable snapshot then there
+will be a brief window of time before {es} allocates these shards elsewhere.
+During this window of time the cluster health will be `red` and searches that
+hit these shards will fail or return partial results.
 
 === How searchable snapshots work
 

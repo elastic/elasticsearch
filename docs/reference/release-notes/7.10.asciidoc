@@ -181,6 +181,7 @@ Search::
 * Add case insensitive flag for "term" family of queries {es-pull}61596[#61596] (issue: {es-issue}61546[#61546])
 * Add case insensitive support for regex queries {es-pull}59441[#59441]
 * Tweak toXContent implementation of ParametrizedFieldMapper {es-pull}59968[#59968]
+* Implement fields value fetching for the `text`, `search_as_you_type` and `token_count` field types {es-pull}63515[#63515]
 
 Snapshot/Restore::
 * Add repositories metering API {es-pull}60371[#60371]
@@ -274,3 +275,6 @@ Snapshot/Restore::
 * Fix Test Failure in testCorrectCountsForDoneShards {es-pull}60254[#60254] (issue: {es-issue}60247[#60247])
 * Minimize cache file locking during prewarming {es-pull}61837[#61837] (issue: {es-issue}58658[#58658])
 * Prevent snapshots to be mounted as system indices {es-pull}61517[#61517] (issue: {es-issue}60522[#60522])
+
+SQL::
+* Allow unescaped wildcard (*) in LIKE pattern {es-pull}63428[#63428] (issue: {es-issue}55108[#55108])

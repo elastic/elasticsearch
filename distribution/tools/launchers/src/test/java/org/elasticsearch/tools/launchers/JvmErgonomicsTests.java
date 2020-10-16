@@ -20,8 +20,6 @@
 package org.elasticsearch.tools.launchers;
 
 import org.elasticsearch.tools.java_version_checker.JavaVersion;
-import org.junit.Ignore;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;

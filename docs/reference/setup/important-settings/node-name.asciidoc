@@ -1,4 +1,4 @@
-[[node.name]]
+[[node-name]]
 [discrete]
 === Node name setting
 

@@ -75,7 +75,7 @@ cluster.initial_master_nodes: <1>
    - master-node-b
    - master-node-c
 --------------------------------------------------
-<1> Identify the initial master nodes by their <<node.name,`node.name`>>, which
+<1> Identify the initial master nodes by their <<node-name,`node.name`>>, which
 defaults to their hostname. Ensure that the value in
 `cluster.initial_master_nodes` matches the `node.name` exactly. If you use a
 fully-qualified domain name (FQDN) such as `master-node-a.example.com` for your

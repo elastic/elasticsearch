@@ -7,8 +7,8 @@ settings which need to be considered before going into production.
 The following settings *must* be considered before going to production:
 
 * <<path-settings,Path settings>>
-* <<cluster.name,Cluster name setting>>
-* <<node.name,Node name setting>>
+* <<cluster-name,Cluster name setting>>
+* <<node-name,Node name setting>>
 * <<network.host,Network host settings>>
 * <<discovery-settings,Discovery settings>>
 * <<heap-size,Heap size settings>>

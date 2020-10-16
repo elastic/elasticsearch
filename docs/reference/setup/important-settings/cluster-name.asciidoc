@@ -1,4 +1,4 @@
-[[cluster.name]]
+[[cluster-name]]
 [discrete]
 === Cluster name setting
 

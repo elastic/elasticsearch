@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.allShardsActiveAllocationInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
@@ -94,7 +93,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED));
 
         logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
-            mapToString(includes), mapToString(excludes), mapToString(requires));
+            includes, excludes, requires);
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(true, null));
@@ -222,7 +221,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", true, ShardRoutingState.STARTED));
 
         logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
-            mapToString(includes), mapToString(excludes), mapToString(requires));
+            includes, excludes, requires);
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
@@ -261,15 +260,9 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
         logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
-            mapToString(includes), mapToString(excludes), mapToString(requires));
+            includes, excludes, requires);
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
-    }
-
-    private static String mapToString(Map<String, String> map) {
-        return map.keySet().stream()
-            .map(key -> key + "=" + map.get(key))
-            .collect(Collectors.joining(", ", "{", "}"));
     }
 
     public void testExecuteAllocateUnassigned() throws Exception {
@@ -302,7 +295,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                         new UnassignedInfo(randomFrom(Reason.values()), "the shard is intentionally unassigned")));
 
         logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
-            mapToString(includes), mapToString(excludes), mapToString(requires));
+            includes, excludes, requires);
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(false, waitingForActiveShardsAllocationInfo(0)));

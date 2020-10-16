@@ -22,11 +22,8 @@ package org.elasticsearch.tools.launchers;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -46,40 +43,59 @@ public class BootstrapJvmOptions {
             throw new IllegalArgumentException("Plugins path " + plugins + " must be a directory");
         }
 
-        final List<Path> descriptors = new ArrayList<>();
+        final List<PluginInfo> pluginInfo = getPluginInfo(plugins);
 
-        Files.walkFileTree(plugins, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                if (Objects.requireNonNull(file).getFileName().toString().equals("plugin-descriptor.properties")) {
-                    descriptors.add(file);
+        return generateOptions(pluginInfo);
+    }
+
+    // Find all plugins and return their jars and descriptors.
+    private static List<PluginInfo> getPluginInfo(Path plugins) throws IOException {
+        final File[] pluginDirectories = plugins.toFile().listFiles(File::isDirectory);
+
+        Objects.requireNonNull(pluginDirectories);
+
+        final List<PluginInfo> pluginInfo = new ArrayList<>();
+
+        for (File pluginDir : pluginDirectories) {
+            List<String> jarFiles = new ArrayList<>();
+            Properties props = null;
+
+            for (File pluginFile : Objects.requireNonNull(pluginDir.listFiles())) {
+                final String lowerCaseName = pluginFile.getName().toLowerCase(Locale.ROOT);
+
+                if (lowerCaseName.endsWith(".jar")) {
+                    jarFiles.add(pluginFile.getAbsolutePath());
+                } else if (lowerCaseName.equals("plugin-descriptor.properties")) {
+                    props = new Properties();
+                    try (InputStream stream = Files.newInputStream(pluginFile.toPath())) {
+                        props.load(stream);
+                    }
                 }
-                return FileVisitResult.CONTINUE;
             }
-        });
 
+            if (props != null) {
+                pluginInfo.add(new PluginInfo(jarFiles, props));
+            }
+        }
+
+        return pluginInfo;
+    }
+
+    // package-private for testing
+    static List<String> generateOptions(List<PluginInfo> pluginInfo) {
         final List<String> bootstrapJars = new ArrayList<>();
         final List<String> bootstrapOptions = new ArrayList<>();
 
-        for (Path descriptor : descriptors) {
-            final Properties props = new Properties();
-            try (InputStream stream = Files.newInputStream(descriptor)) {
-                props.load(stream);
-            }
-            final String type = props.getProperty("type", "isolated");
+        for (PluginInfo info : pluginInfo) {
+            final String type = info.properties.getProperty("type", "isolated").toLowerCase(Locale.ROOT);
 
             if (type.equals("bootstrap")) {
-                // Put all jars into the JVM boot classpath
-                final File[] jarFiles = descriptor.getParent()
-                    .toFile()
-                    .listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".jar"));
+                bootstrapJars.addAll(info.jarFiles);
 
-                for (File file : Objects.requireNonNull(jarFiles)) {
-                    bootstrapJars.add(file.getAbsolutePath());
-                }
-
-                // Add any additional Java CLI options
-                final String javaOpts = props.getProperty("java.opts", "");
+                // Add any additional Java CLI options. This could contain any number of options,
+                // but we don't attempt to split them up as all JVM options are concatenated together
+                // anyway
+                final String javaOpts = info.properties.getProperty("java.opts", "");
                 if (javaOpts.isBlank() == false) {
                     bootstrapOptions.add(javaOpts);
                 }
@@ -93,5 +109,16 @@ public class BootstrapJvmOptions {
         bootstrapOptions.add("-Xbootclasspath/a:" + String.join(":", bootstrapJars));
 
         return bootstrapOptions;
+    }
+
+    // package-private for testing
+    static class PluginInfo {
+        public final List<String> jarFiles;
+        public final Properties properties;
+
+        PluginInfo(List<String> jarFiles, Properties properties) {
+            this.jarFiles = jarFiles;
+            this.properties = properties;
+        }
     }
 }

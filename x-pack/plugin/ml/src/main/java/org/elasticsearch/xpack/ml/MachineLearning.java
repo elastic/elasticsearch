@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -413,7 +412,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
      * ML job to run on a given node will do this, and then subsequent ML jobs on the same node will reuse the
      * same already-loaded code.
      */
-    public static final ByteSizeValue NATIVE_EXECUTABLE_CODE_OVERHEAD = new ByteSizeValue(30, ByteSizeUnit.MB);
+    public static final ByteSizeValue NATIVE_EXECUTABLE_CODE_OVERHEAD = ByteSizeValue.ofMb(30);
     // Values higher than 100% are allowed to accommodate use cases where swapping has been determined to be acceptable.
     // Anomaly detector jobs only use their full model memory during background persistence, and this is deliberately
     // staggered, so with large numbers of jobs few will generally be persisting state at the same time.
@@ -442,7 +441,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
-        Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Setting.Property.NodeScope);
+        Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", ByteSizeValue.ofGb(5), Setting.Property.NodeScope);
 
     // Requests per second throttling for the nightly maintenance task
     public static final Setting<Float> NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND =

@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -41,13 +40,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public static final String TYPE = "data_frame_analytics_config";
 
-    public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.GB);
-    public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.KB);
+    public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = ByteSizeValue.ofGb(1);
+    public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = ByteSizeValue.ofKb(1);
     /**
      * This includes the overhead of thread stacks and data structures that the program might use that
      * are not instrumented.  But it does NOT include the memory used by loading the executable code.
      */
-    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(5, ByteSizeUnit.MB);
+    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = ByteSizeValue.ofMb(5);
 
     public static final ParseField ID = new ParseField("id");
     public static final ParseField DESCRIPTION = new ParseField("description");

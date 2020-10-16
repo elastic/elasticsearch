@@ -131,6 +131,15 @@ public abstract class MappedFieldType {
         this.indexAnalyzer = analyzer;
     }
 
+    /**
+     * Returns the collapse type of the field
+     * CollapseType.NONE means the field can'be used for collapsing.
+     * @return collapse type of the field
+     */
+    public CollapseType collapseType() {
+        return CollapseType.NONE;
+    }
+
     /** Given a value that comes from the stored fields API, convert it to the
      *  expected type. For instance a date field would store dates as longs and
      *  format it back to a string in this method. */
@@ -403,5 +412,11 @@ public abstract class MappedFieldType {
      */
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;
+    }
+
+    public enum CollapseType {
+        NONE, // this field is not collapsable
+        KEYWORD,
+        NUMERIC
     }
 }

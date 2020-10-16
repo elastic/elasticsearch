@@ -16,9 +16,9 @@ Invalidates one or more access tokens or refresh tokens.
 ==== {api-description-title}
 
 The access tokens returned by the <<security-api-get-token,get token API>> have a
-finite period of time for which they are valid and after that time period, they 
-can no longer be used. That time period is defined by the 
-`xpack.security.authc.token.timeout` setting. For more information, see 
+finite period of time for which they are valid and after that time period, they
+can no longer be used. That time period is defined by the
+`xpack.security.authc.token.timeout` setting. For more information, see
 <<token-service-settings>>.
 
 The refresh tokens returned by the <<security-api-get-token,get token API>> are
@@ -83,7 +83,26 @@ The get token API returns the following information about the access token:
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
   "type" : "Bearer",
-  "expires_in" : 1200
+  "expires_in" : 1200,
+  "authentication" : {
+    "username" : "test_admin",
+    "roles" : [
+      "superuser"
+      ],
+    "full_name" : null,
+    "email" : null,
+    "metadata" : { },
+    "enabled" : true,
+    "authentication_realm" : {
+      "name" : "file",
+      "type" : "file"
+      },
+    "lookup_realm" : {
+      "name" : "file",
+      "type" : "file"
+      },
+    "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
@@ -122,13 +141,32 @@ The get token API returns the following information:
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
   "type" : "Bearer",
   "expires_in" : 1200,
-  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS",
+  "authentication" : {
+    "username" : "test_admin",
+    "roles" : [
+      "superuser"
+      ],
+    "full_name" : null,
+    "email" : null,
+    "metadata" : { },
+    "enabled" : true,
+    "authentication_realm" : {
+      "name" : "file",
+      "type" : "file"
+      },
+    "lookup_realm" : {
+      "name" : "file",
+      "type" : "file"
+      },
+    "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
-The refresh token can now also be immediately invalidated as shown 
+The refresh token can now also be immediately invalidated as shown
 in the following example:
 
 [source,console]

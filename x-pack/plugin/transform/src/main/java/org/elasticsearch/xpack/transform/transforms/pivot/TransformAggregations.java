@@ -66,7 +66,6 @@ public final class TransformAggregations {
         "ip_range",
         "matrix_stats",
         "median_absolute_deviation",
-        "missing",
         "nested",
         "percentile_ranks",
         "range",
@@ -110,7 +109,8 @@ public final class TransformAggregations {
         PERCENTILES("percentiles", DOUBLE),
         FILTER("filter", LONG),
         TERMS("terms", FLATTENED),
-        RARE_TERMS("rare_terms", FLATTENED);
+        RARE_TERMS("rare_terms", FLATTENED),
+        MISSING("missing", LONG);
 
         private final String aggregationType;
         private final String targetMapping;

@@ -40,6 +40,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 
@@ -229,13 +230,13 @@ public class UnsignedLongTests extends ESIntegTestCase {
         {
             SearchResponse response = client().prepareSearch("idx")
                 .setSize(0)
-                .addAggregation(histogram("ul_histo").field("ul_field").interval(9.223372036854776E18).minDocCount(0))
+                .addAggregation(histogram("ul_histo").field("ul_field").interval(9E18).minDocCount(0))
                 .get();
             assertSearchResponse(response);
             Histogram histo = response.getAggregations().get("ul_histo");
 
             long[] expectedBucketDocCounts = { 3, 3, 4 };
-            double[] expectedBucketKeys = { 0, 9.223372036854776E18, 1.8446744073709552E19 };
+            double[] expectedBucketKeys = { 0, 9.0E18, 1.8E19 };
             int i = 0;
             for (Histogram.Bucket bucket : histo.getBuckets()) {
                 assertEquals(expectedBucketDocCounts[i], bucket.getDocCount());
@@ -249,20 +250,14 @@ public class UnsignedLongTests extends ESIntegTestCase {
             SearchResponse response = client().prepareSearch("idx")
                 .setSize(0)
                 .addAggregation(
-                    range("ul_range").field("ul_field")
-                        .addUnboundedTo(9.223372036854776E18)
-                        .addRange(9.223372036854776E18, 1.8446744073709552E19)
-                        .addUnboundedFrom(1.8446744073709552E19)
+                    range("ul_range").field("ul_field").addUnboundedTo(9.0E18).addRange(9.0E18, 1.8E19).addUnboundedFrom(1.8E19)
                 )
                 .get();
             assertSearchResponse(response);
             Range range = response.getAggregations().get("ul_range");
 
             long[] expectedBucketDocCounts = { 3, 3, 4 };
-            String[] expectedBucketKeys = {
-                "*-9.223372036854776E18",
-                "9.223372036854776E18-1.8446744073709552E19",
-                "1.8446744073709552E19-*" };
+            String[] expectedBucketKeys = { "*-9.0E18", "9.0E18-1.8E19", "1.8E19-*" };
             int i = 0;
             for (Range.Bucket bucket : range.getBuckets()) {
                 assertEquals(expectedBucketDocCounts[i], bucket.getDocCount());
@@ -309,5 +304,20 @@ public class UnsignedLongTests extends ESIntegTestCase {
             exception.getCause().getMessage(),
             "Can't do sort across indices, as a field has [unsigned_long] type in one index, and different type in another index!"
         );
+    }
+
+    public void testRangeQuery() {
+        SearchResponse response = client().prepareSearch("idx")
+            .setSize(0)
+            .setQuery(new RangeQueryBuilder("ul_field").to("9.0E18").includeUpper(false))
+            .get();
+        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+        response = client().prepareSearch("idx")
+            .setSize(0)
+            .setQuery(new RangeQueryBuilder("ul_field").from("9.0E18").to("1.8E19").includeUpper(false))
+            .get();
+        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+        response = client().prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").from("1.8E19")).get();
+        assertThat(response.getHits().getTotalHits().value, equalTo(4L));
     }
 }

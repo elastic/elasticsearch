@@ -53,7 +53,7 @@ Search::
 
 Transform::
 * Fix possible NPE if transform task has no node assigned {es-pull}62946[#62946] (issue: {es-issue}62847[#62847])
-* [ML][Transform] Filter null objects from field caps request {es-pull}62945[#62945]
+* Filter null objects from field caps request {es-pull}62945[#62945]
 
 
 

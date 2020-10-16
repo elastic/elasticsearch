@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
@@ -98,7 +97,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     }
 
     private ByteSizeValue defaultModelMemoryLimit() {
-        ByteSizeValue defaultLimit = new ByteSizeValue(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB, ByteSizeUnit.MB);
+        ByteSizeValue defaultLimit = ByteSizeValue.ofMb(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
         ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearningField.MAX_MODEL_MEMORY_LIMIT);
         if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0
                 && maxModelMemoryLimit.getBytes() < defaultLimit.getBytes()) {
@@ -141,7 +140,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
         maxMlMemory -= Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
         maxMlMemory -= MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
-        return new ByteSizeValue(Math.max(0L, maxMlMemory) / 1024 / 1024, ByteSizeUnit.MB);
+        return ByteSizeValue.ofMb(Math.max(0L, maxMlMemory) / 1024 / 1024);
     }
 
     private Map<String, Object> limits() {

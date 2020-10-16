@@ -101,6 +101,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     @Override
     public void onMaster() {
         isMaster = true;
+        try {
+            asyncRefresh();
+        } catch (Exception ex) {
+            logger.warn("unexpected failure while attempting asynchronous refresh on new master assignment", ex);
+        }
         logger.trace("ML memory tracker on master");
     }
 

@@ -75,7 +75,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             this.nullValue = nullValueParam(
                 m -> builder(m).nullValue.get(),
                 (n, c, o) -> parseNullValue(o, ignoreZValue.get().value(), ignoreMalformed.get().value()),
-                null).acceptsNull();
+                () -> null).acceptsNull();
         }
 
         @Override

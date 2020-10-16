@@ -634,7 +634,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> listener) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> listener) {
+            SearchRequest request = buildSearchRequest();
             assertNotNull(request.source());
 
             // extract query

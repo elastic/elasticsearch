@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
@@ -43,19 +43,20 @@ public class IfNode extends ConditionNode {
 
     /* ---- end visitor ---- */
 
+    public IfNode(Location location) {
+        super(location);
+    }
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeStatementOffset(getLocation());
 
         Label fals = new Label();
 
-        getConditionNode().write(classWriter, methodWriter, writeScope);
+        getConditionNode().write(writeScope);
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-        getBlockNode().continueLabel = continueLabel;
-        getBlockNode().breakLabel = breakLabel;
-        getBlockNode().write(classWriter, methodWriter, writeScope.newScope());
-
+        getBlockNode().write(writeScope.newBlockScope());
         methodWriter.mark(fals);
     }
 }

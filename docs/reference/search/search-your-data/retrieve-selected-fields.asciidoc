@@ -154,7 +154,7 @@ Only leaf fields are returned -- `fields` does not allow for fetching entire
 objects.
 
 The `fields` parameter handles field types like <<alias, field aliases>> and
-<<constant-keyword, `constant_keyword`>> whose values aren't always present in
+<<constant-keyword-field-type, `constant_keyword`>> whose values aren't always present in
 the `_source`. Other mapping options are also respected, including
 <<ignore-above, `ignore_above`>>, <<ignore-malformed, `ignore_malformed`>> and
 <<null-value, `null_value`>>.

@@ -24,13 +24,14 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
@@ -44,16 +45,15 @@ import org.elasticsearch.transport.Transport;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.search.SearchProgressListener.NOOP;
-
 public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testShortcutQueryAndFetchOptimization() {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
-            NOOP, mockSearchPhaseContext.getRequest(), 1, exc  -> {});
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(), 1, exc  -> {});
         boolean hasHits = randomBoolean();
         final int numHits;
         if (hasHits) {
@@ -96,8 +96,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
-            NOOP, mockSearchPhaseContext.getRequest(), 2, exc  -> {});
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
         ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
         QuerySearchResult queryResult = new QuerySearchResult(ctx1, new SearchShardTarget("node1", new ShardId("test", "na", 0),
@@ -117,7 +118,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult, () -> {});
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -157,8 +158,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
-            NOOP, mockSearchPhaseContext.getRequest(), 2, exc  -> {});
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
         final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
         QuerySearchResult queryResult = new QuerySearchResult(ctx,
@@ -177,7 +179,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult, () -> {});
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -221,7 +223,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
-        ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(), NOOP,
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), numHits, exc  -> {});
         for (int i = 0; i < numHits; i++) {
             QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", i),
@@ -232,7 +235,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             queryResult.setShardIndex(i);
             results.consumeResult(queryResult, () -> {});
         }
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -278,9 +281,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        ArraySearchPhaseResults<SearchPhaseResult> results =
+        QueryPhaseResultConsumer results =
             controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
-                NOOP, mockSearchPhaseContext.getRequest(), 2, exc  -> {});
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", 123),
             new SearchShardTarget("node1", new ShardId("test", "na", 0),
@@ -299,7 +303,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult,  () -> {});
         AtomicInteger numFetches = new AtomicInteger(0);
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -337,8 +341,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
-            NOOP, mockSearchPhaseContext.getRequest(), 2, exc  -> {});
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = 1;
         final ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
         QuerySearchResult queryResult = new QuerySearchResult(ctx1,
@@ -358,7 +363,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult, () -> {});
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {

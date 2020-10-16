@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -69,7 +70,8 @@ public class ResolveIndexTests extends ESTestCase {
     };
 
     private Metadata metadata = buildMetadata(dataStreams, indices);
-    private IndexAbstractionResolver resolver = new IndexAbstractionResolver(new IndexNameExpressionResolver());
+    private IndexAbstractionResolver resolver = new IndexAbstractionResolver(
+        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
     public void testResolveStarWithDefaultOptions() {
         String[] names = new String[] {"*"};

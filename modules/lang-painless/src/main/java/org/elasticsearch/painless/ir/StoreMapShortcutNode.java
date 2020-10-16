@@ -19,13 +19,13 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
-public class StoreMapShortcutNode extends StoreAccessNode {
+public class StoreMapShortcutNode extends StoreNode {
 
     /* ---- begin node data ---- */
 
@@ -48,17 +48,22 @@ public class StoreMapShortcutNode extends StoreAccessNode {
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        getAccessNode().visit(irTreeVisitor, scope);
+        // do nothing; terminal node
     }
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getAccessNode().write(classWriter, methodWriter, writeScope);
-        getChildNode().write(classWriter, methodWriter, writeScope);
+    public StoreMapShortcutNode(Location location) {
+        super(location);
+    }
 
-        methodWriter.writeDebugInfo(location);
+    @Override
+    protected void write(WriteScope writeScope) {
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+
+        getChildNode().write(writeScope);
+
+        methodWriter.writeDebugInfo(getLocation());
         methodWriter.invokeMethodCall(setter);
         methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }

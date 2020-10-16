@@ -41,6 +41,10 @@ provided `<field>`.
 (Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
+`case_insensitive`::
+(Optional, boolean) allows ASCII case insensitive matching of the
+value with the indexed field values when set to true. Setting to false is disallowed.
+
 [[prefix-query-notes]]
 ==== Notes
 

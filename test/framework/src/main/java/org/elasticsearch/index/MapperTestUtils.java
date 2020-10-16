@@ -73,13 +73,13 @@ public class MapperTestUtils {
             xContentRegistry,
             similarityService,
             mapperRegistry,
-            () -> null, () -> false);
+            () -> null, () -> false, null);
     }
 
     public static void assertConflicts(String mapping1,
                                        String mapping2,
-                                       DocumentMapperParser
-                                           parser, String... conflicts) throws IOException {
+                                       DocumentMapperParser parser,
+                                       String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
         if (conflicts.length == 0) {
             docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);

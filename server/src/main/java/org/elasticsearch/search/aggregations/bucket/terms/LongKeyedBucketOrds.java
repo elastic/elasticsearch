@@ -33,8 +33,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * Build a {@link LongKeyedBucketOrds}.
      */
     public static LongKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
-        // TODO nothing NONE?
-        return cardinality != CardinalityUpperBound.MANY ? new FromSingle(bigArrays) : new FromMany(bigArrays);
+        return cardinality.map(estimate -> estimate < 2 ? new FromSingle(bigArrays) : new FromMany(bigArrays));
     }
 
     private LongKeyedBucketOrds() {}

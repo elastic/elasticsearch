@@ -1,5 +1,5 @@
 [[ip]]
-=== IP data type
+=== IP field type
 ++++
 <titleabbrev>IP</titleabbrev>
 ++++

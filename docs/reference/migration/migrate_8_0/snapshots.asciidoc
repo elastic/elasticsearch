@@ -130,3 +130,16 @@ restore snapshot API now rejects requests that include a `settings` value.
 Discontinue use of the `settings` parameter in restore
 snapshot request. Requests that include these parameters will return an error.
 ====
+
+.Repository Stats API is deprecated
+[%collapsible]
+====
+*Details* +
+The Repository Stats API has been introduced in 7.8.0 as an experimental API
+and was never released. This API is superseded by the <<repositories-metering-apis,Repositories Metering APIs>>
+added in 7.10.0 which should be used instead. The Repository Stats API is
+deprecated starting 7.10.0 and will be removed in 8.0.0.
+
+*Impact* +
+Use the <<repositories-metering-apis,Repositories Metering APIs>>.
+====

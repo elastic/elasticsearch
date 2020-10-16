@@ -39,7 +39,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         """
 
         when:
-        def result = gradleRunner("createExtractedTestDistro").buildAndFail()
+        def result = gradleRunner("tasks").buildAndFail()
 
         then:
         assertOutputContains(result.output, "Plugin 'elasticsearch.internal-distribution-download' is not supported. " +
@@ -62,25 +62,25 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                   architecture = Architecture.current();
               }
             }
-            tasks.register("createExtractedTestDistro") {
-                dependsOn elasticsearch_distributions.test_distro.extracted
+            tasks.register("setupDistro", Sync) {
+                from(elasticsearch_distributions.test_distro.extracted)
+                into("build/distro")
             }
         """
 
         when:
-        def result = gradleRunner("createExtractedTestDistro").build()
+        def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
-        result.task(":distribution:archives:linux-tar:buildTar").outcome == TaskOutcome.SUCCESS
-        result.task(":extractElasticsearchLinux$distroVersion").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated(distroVersion, 'current-marker.txt')
+        result.task(":distribution:archives:linux-tar:buildExpanded").outcome == TaskOutcome.SUCCESS
+        result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
+        assertExtractedDistroIsCreated("build/distro", 'current-marker.txt')
     }
 
-    def "resolves bwc versions from source"() {
+    def "resolves expanded bwc versions from source"() {
         given:
         internalBuild()
         bwcMinorProjectSetup()
-        def distroVersion = "8.1.0"
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-download'
 
@@ -92,16 +92,19 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                   architecture = Architecture.current();
               }
             }
-            tasks.register("createExtractedTestDistro") {
-                dependsOn elasticsearch_distributions.test_distro.extracted
+            tasks.register("setupDistro", Sync) {
+                from(elasticsearch_distributions.test_distro.extracted)
+                into("build/distro")
             }
         """
         when:
-        def result = gradleRunner("createExtractedTestDistro").build()
+
+        def result = gradleRunner("setupDistro").build()
         then:
-        result.task(":distribution:bwc:minor:buildBwcTask").outcome == TaskOutcome.SUCCESS
-        result.task(":extractElasticsearchLinux8.1.0").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated(distroVersion,'bwc-marker.txt')
+        result.task(":distribution:bwc:minor:buildBwcExpandedTask").outcome == TaskOutcome.SUCCESS
+        result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
+        assertExtractedDistroIsCreated("distribution/bwc/minor/build/install/elastic-distro",
+                'bwc-marker.txt')
     }
 
     def "fails on resolving bwc versions with no bundled jdk"() {
@@ -131,28 +134,6 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 "without a bundled JDK is not supported.")
     }
 
-    private File internalBuild() {
-        buildFile << """plugins {
-          id 'elasticsearch.global-build-info'
-        }
-        import org.elasticsearch.gradle.Architecture
-        import org.elasticsearch.gradle.info.BuildParams
-
-        BuildParams.init { it.setIsInternal(true) }
-
-        import org.elasticsearch.gradle.BwcVersions
-        import org.elasticsearch.gradle.Version
-
-        Version currentVersion = Version.fromString("9.0.0")
-        BwcVersions versions = new BwcVersions(new TreeSet<>(
-        Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
-            currentVersion)
-
-        BuildParams.init { it.setBwcVersions(versions) }
-        """
-    }
-
-
     private void bwcMinorProjectSetup() {
         settingsFile << """
         include ':distribution:bwc:minor'
@@ -161,6 +142,8 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         new File(bwcSubProjectFolder, 'bwc-marker.txt') << "bwc=minor"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             apply plugin:'base'
+            
+            // packed distro
             configurations.create("linux-tar")
             tasks.register("buildBwcTask", Tar) {
                 from('bwc-marker.txt')
@@ -169,6 +152,19 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
             }
             artifacts {
                 it.add("linux-tar", buildBwcTask)
+            }
+            
+            // expanded distro
+            configurations.create("expanded-linux-tar")
+            def expandedTask = tasks.register("buildBwcExpandedTask", Copy) {
+                from('bwc-marker.txt')
+                into('build/install/elastic-distro')
+            }
+            artifacts {
+                it.add("expanded-linux-tar", file('build/install')) {
+                    builtBy expandedTask
+                    type = 'directory'
+                }
             }
         """
     }
@@ -180,23 +176,37 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", "linux-tar")
         new File(bwcSubProjectFolder, 'current-marker.txt') << "current"
         new File(bwcSubProjectFolder, 'build.gradle') << """
+            import org.gradle.api.internal.artifacts.ArtifactAttributes;
+
             apply plugin:'distribution'
-            tasks.register("buildTar", Tar) {
+
+            def buildTar = tasks.register("buildTar", Tar) {
                 from('current-marker.txt')
                 archiveExtension = "tar.gz"
                 compression = Compression.GZIP
             }
+            def buildExpanded = tasks.register("buildExpanded", Copy) {
+                from('current-marker.txt')
+                into("build/local")
+            }
+            configurations {
+                extracted {
+                    attributes {
+                          attribute(ArtifactAttributes.ARTIFACT_FORMAT, "directory")
+                    }
+                }
+            }
             artifacts {
                 it.add("default", buildTar)
+                it.add("extracted", buildExpanded)
             }
         """
         buildFile << """
         """
-
     }
 
-    boolean assertExtractedDistroIsCreated(String version, String markerFileName) {
-        File extractedFolder = new File(testProjectDir.root, "build/elasticsearch-distros/extracted_elasticsearch_${version}_archive_linux_default")
+    boolean assertExtractedDistroIsCreated(String relativeDistroPath, String markerFileName) {
+        File extractedFolder = new File(testProjectDir.root, relativeDistroPath)
         assert extractedFolder.exists()
         assert new File(extractedFolder, markerFileName).exists()
         true

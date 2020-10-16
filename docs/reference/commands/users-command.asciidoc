@@ -41,6 +41,7 @@ command as root or some other user updates the permissions for the `users` and
 `users_roles` files and prevents {es} from accessing them.
 
 [discrete]
+[[users-command-parameters]]
 === Parameters
 
 `-a <roles>`:: If used with the `roles` parameter, adds a comma-separated list

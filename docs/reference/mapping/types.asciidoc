@@ -23,12 +23,11 @@ type: `boolean`.
 
 <<binary,`binary`>>::   Binary value encoded as a Base64 string.
 <<boolean,`boolean`>>:: `true` and `false` values.
-Keyword::               The keyword family, including <<keyword, `keyword`>>,
-                        <<constant-keyword,`constant_keyword`>>, and
-                        <<wildcard, `wildcard`>>.
+<<keyword, Keywords>>:: The keyword family, including `keyword`, `constant_keyword`,
+                        and `wildcard`.
 <<number,Numbers>>::    Numeric types, such as `long` and `double`, used to
                         express amounts.
-Dates::                 Date types, including <<date,`date`>> and 
+Dates::                 Date types, including <<date,`date`>> and
                         <<date_nanos,`date_nanos`>>.
 <<alias,`alias`>>::     Defines an alias for an existing field.
 
@@ -52,6 +51,8 @@ Dates::                 Date types, including <<date,`date`>> and
 <<range,Range>>::   Range types, such as `long_range`, `double_range`,
                     `date_range`, and `ip_range`.
 <<ip,`ip`>>::       IPv4 and IPv6 addresses.
+<<version,Version>>::  Software versions. Supports https://semver.org/[Semantic Versioning]
+precedence rules.
 {plugins}/mapper-murmur3.html[`murmur3`]:: Compute and stores hashes of
 values.
 
@@ -149,6 +150,8 @@ include::types/geo-shape.asciidoc[]
 
 include::types/ip.asciidoc[]
 
+include::types/version.asciidoc[]
+
 include::types/parent-join.asciidoc[]
 
 include::types/keyword.asciidoc[]
@@ -176,7 +179,3 @@ include::types/text.asciidoc[]
 include::types/token-count.asciidoc[]
 
 include::types/shape.asciidoc[]
-
-include::types/constant-keyword.asciidoc[]
-
-include::types/wildcard.asciidoc[]

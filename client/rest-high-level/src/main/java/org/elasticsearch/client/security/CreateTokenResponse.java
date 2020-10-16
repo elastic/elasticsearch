@@ -42,15 +42,17 @@ public final class CreateTokenResponse {
     private final String scope;
     private final String refreshToken;
     private final String kerberosAuthenticationResponseToken;
+    private final AuthenticateResponse authenticationResponse;
 
     public CreateTokenResponse(String accessToken, String type, TimeValue expiresIn, String scope, String refreshToken,
-                               String kerberosAuthenticationResponseToken) {
+                               String kerberosAuthenticationResponseToken, AuthenticateResponse authenticationResponse) {
         this.accessToken = accessToken;
         this.type = type;
         this.expiresIn = expiresIn;
         this.scope = scope;
         this.refreshToken = refreshToken;
         this.kerberosAuthenticationResponseToken = kerberosAuthenticationResponseToken;
+        this.authenticationResponse = authenticationResponse;
     }
 
     public String getAccessToken() {
@@ -77,6 +79,8 @@ public final class CreateTokenResponse {
         return kerberosAuthenticationResponseToken;
     }
 
+    public AuthenticateResponse getAuthenticationResponse() { return authenticationResponse; }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -91,17 +95,19 @@ public final class CreateTokenResponse {
             Objects.equals(expiresIn, that.expiresIn) &&
             Objects.equals(scope, that.scope) &&
             Objects.equals(refreshToken, that.refreshToken) &&
-            Objects.equals(kerberosAuthenticationResponseToken, that.kerberosAuthenticationResponseToken);
+            Objects.equals(kerberosAuthenticationResponseToken, that.kerberosAuthenticationResponseToken)&&
+            Objects.equals(authenticationResponse, that.authenticationResponse);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(accessToken, type, expiresIn, scope, refreshToken, kerberosAuthenticationResponseToken);
+        return Objects.hash(accessToken, type, expiresIn, scope, refreshToken, kerberosAuthenticationResponseToken, authenticationResponse);
     }
 
     private static final ConstructingObjectParser<CreateTokenResponse, Void> PARSER = new ConstructingObjectParser<>(
             "create_token_response", true, args -> new CreateTokenResponse((String) args[0], (String) args[1],
-                    TimeValue.timeValueSeconds((Long) args[2]), (String) args[3], (String) args[4], (String) args[5]));
+                    TimeValue.timeValueSeconds((Long) args[2]), (String) args[3], (String) args[4], (String) args[5],
+                    (AuthenticateResponse) args[6]));
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("access_token"));
@@ -110,6 +116,7 @@ public final class CreateTokenResponse {
         PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("scope"));
         PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("refresh_token"));
         PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("kerberos_authentication_response_token"));
+        PARSER.declareObject(constructorArg(), (p, c) -> AuthenticateResponse.fromXContent(p), new ParseField("authentication"));
     }
 
     public static CreateTokenResponse fromXContent(XContentParser parser) throws IOException {

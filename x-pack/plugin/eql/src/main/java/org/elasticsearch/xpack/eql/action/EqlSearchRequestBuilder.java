@@ -54,9 +54,4 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         request.query(query);
         return this;
     }
-
-    public EqlSearchRequestBuilder isCaseSensitive(boolean isCaseSensitive) {
-        request.isCaseSensitive(isCaseSensitive);
-        return this;
-    }
 }

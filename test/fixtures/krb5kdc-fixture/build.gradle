@@ -18,12 +18,6 @@
  */
 apply plugin: 'elasticsearch.test.fixtures'
 
-// installKDC uses tabs in it for the Kerberos ACL file.
-// Ignore it for pattern checking.
-forbiddenPatterns {
-  exclude "**/installkdc.sh"
-}
-
 List<String> services = ["peppa", "hdfs"]
 
 preProcessFixture.doLast {
@@ -49,5 +43,3 @@ postProcessFixture {
 
 project.ext.krb5Conf = { service -> file("$testFixturesDir/shared/${service}/krb5.conf") }
 project.ext.krb5Keytabs = { service, fileName -> file("$testFixturesDir/shared/${service}/keytabs/${fileName}") }
-
-test.enabled = false

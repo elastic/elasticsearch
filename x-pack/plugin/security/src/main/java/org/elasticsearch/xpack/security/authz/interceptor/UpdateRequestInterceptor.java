@@ -34,6 +34,17 @@ public class UpdateRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     }
 
     @Override
+    String[] requestIndices(IndicesRequest indicesRequest) {
+        if (indicesRequest instanceof UpdateRequest) {
+            UpdateRequest updateRequest = (UpdateRequest) indicesRequest;
+            if (updateRequest.getShardId() != null) {
+                return new String[]{updateRequest.getShardId().getIndexName()};
+            }
+        }
+        return new String[0];
+    }
+
+    @Override
     public boolean supports(IndicesRequest request) {
         return request instanceof UpdateRequest;
     }

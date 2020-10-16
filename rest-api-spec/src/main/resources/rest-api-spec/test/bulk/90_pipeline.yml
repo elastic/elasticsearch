@@ -1,8 +1,8 @@
 ---
 "One request has pipeline and another not":
   - skip:
-      version: " - 7.99.99"
-      reason: "change after backporting"
+      version: " - 7.9.0"
+      reason: "fixed in 7.9.1"
   - do:
       bulk:
         refresh: true

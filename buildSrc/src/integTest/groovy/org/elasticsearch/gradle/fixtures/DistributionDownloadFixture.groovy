@@ -29,7 +29,13 @@ class DistributionDownloadFixture {
     public static final String INIT_SCRIPT = "repositories-init.gradle"
 
     static BuildResult withMockedDistributionDownload(GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
-        String urlPath = urlPath();
+        return withMockedDistributionDownload(VersionProperties.getElasticsearch(), ElasticsearchDistribution.CURRENT_PLATFORM,
+                gradleRunner, buildRunClosure)
+    }
+
+    static BuildResult withMockedDistributionDownload(String version, ElasticsearchDistribution.Platform platform,
+                                                      GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
+        String urlPath = urlPath(version, platform);
         return WiremockFixture.withWireMock(urlPath, filebytes(urlPath)) { server ->
             File initFile = new File(gradleRunner.getProjectDir(), INIT_SCRIPT)
             initFile.text = """allprojects { p ->
@@ -40,15 +46,14 @@ class DistributionDownloadFixture {
             }"""
             List<String> givenArguments = gradleRunner.getArguments()
             GradleRunner effectiveRunner = gradleRunner.withArguments(givenArguments + ['-I', initFile.getAbsolutePath()])
+            buildRunClosure.delegate = effectiveRunner
             return buildRunClosure.call(effectiveRunner)
         }
     }
 
-    private static String urlPath() {
-        String version = VersionProperties.getElasticsearch()
-        ElasticsearchDistribution.Platform platform = ElasticsearchDistribution.CURRENT_PLATFORM
-        String fileType = ((ElasticsearchDistribution.CURRENT_PLATFORM == ElasticsearchDistribution.Platform.LINUX ||
-                ElasticsearchDistribution.CURRENT_PLATFORM == ElasticsearchDistribution.Platform.DARWIN)) ? "tar.gz" : "zip"
+    private static String urlPath(String version,ElasticsearchDistribution.Platform platform) {
+        String fileType = ((platform == ElasticsearchDistribution.Platform.LINUX ||
+                platform == ElasticsearchDistribution.Platform.DARWIN)) ? "tar.gz" : "zip"
         "/downloads/elasticsearch/elasticsearch-${version}-${platform}-x86_64.$fileType"
     }
 

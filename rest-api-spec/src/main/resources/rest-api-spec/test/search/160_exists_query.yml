@@ -1,6 +1,6 @@
 setup:
   - skip:
-      features: ["headers"]
+      features: ["headers", "allowed_warnings"]
 
   - do:
       indices.create:
@@ -184,7 +184,6 @@ setup:
                       doc_values: false
                 text:
                   type: text
-                  doc_values: false
 
   - do:
       headers:
@@ -567,6 +566,8 @@ setup:
 "Test exists query on _type field":
 
   - do:
+      allowed_warnings:
+        - "[types removal] Using the _type field in queries and aggregations is deprecated, prefer to use a field instead."
       search:
           rest_total_hits_as_int: true
           index: test

@@ -4,16 +4,16 @@
 [[cluster-read-only]]
 ===== Metadata
 
-An entire cluster may be set to read-only with the following _dynamic_ setting:
+An entire cluster may be set to read-only with the following setting:
 
 `cluster.blocks.read_only`::
-
+      (<<dynamic-cluster-setting,Dynamic>>)
       Make the whole cluster read only (indices do not accept write
       operations), metadata is not allowed to be modified (create or delete
       indices).
 
 `cluster.blocks.read_only_allow_delete`::
-
+      (<<dynamic-cluster-setting,Dynamic>>)
       Identical to `cluster.blocks.read_only` but allows to delete indices
       to free up resources.
 
@@ -51,10 +51,10 @@ including unassigned shards.
 For example, an open index with 5 primary shards and 2 replicas counts as 15 shards. 
 Closed indices do not contribute to the shard count. 
 
-You can dynamically adjust the cluster shard limit with the following property:
+You can dynamically adjust the cluster shard limit with the following setting:
 
 `cluster.max_shards_per_node`::
-
+     (<<dynamic-cluster-setting,Dynamic>>)
      Controls the number of shards allowed in the cluster per data node.
 
 With the default setting, a 3-node cluster allows 3,000 shards total, across all open indexes. 
@@ -95,10 +95,10 @@ metadata will be viewable by anyone with access to the
 
 The cluster state maintains index tombstones to explicitly denote indices that
 have been deleted.  The number of tombstones maintained in the cluster state is
-controlled by the following property, which cannot be updated dynamically:
+controlled by the following setting:
 
 `cluster.indices.tombstones.size`::
-
+(<<static-cluster-setting,Static>>)
 Index tombstones prevent nodes that are not part of the cluster when a delete
 occurs from joining the cluster and reimporting the index as though the delete
 was never issued. To keep the cluster state from growing huge we only keep the
@@ -114,7 +114,7 @@ this situation.
 [[cluster-logger]]
 ===== Logger
 
-The settings which control logging can be updated dynamically with the
+The settings which control logging can be updated <<dynamic-cluster-setting,dynamically>> with the
 `logger.` prefix.  For instance, to increase the logging level of the
 `indices.recovery` module to `DEBUG`, issue this request:
 
@@ -139,12 +139,12 @@ tasks to be revived after a full cluster restart.
 Every time a persistent task is created, the master node takes care of
 assigning the task to a node of the cluster, and the assigned node will then
 pick up the task and execute it locally. The process of assigning persistent
-tasks to nodes is controlled by the following properties, which can be updated
-dynamically:
+tasks to nodes is controlled by the following settings:
 
 `cluster.persistent_tasks.allocation.enable`::
 +
 --
+(<<dynamic-cluster-setting,Dynamic>>)
 Enable or disable allocation for persistent tasks:
 
 * `all` -             (default) Allows persistent tasks to be assigned to nodes
@@ -156,7 +156,7 @@ left the cluster, for example), are impacted by this setting.
 --
 
 `cluster.persistent_tasks.allocation.recheck_interval`::
-
+     (<<dynamic-cluster-setting,Dynamic>>)
      The master node will automatically check whether persistent tasks need to
      be assigned when the cluster state changes significantly. However, there
      may be other factors, such as memory usage, that affect whether persistent

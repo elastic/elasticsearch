@@ -271,7 +271,7 @@ public final class GrokPatternCreator {
         GrokPatternCandidate(String grokPatternName, String fieldName, String preBreak, String postBreak) {
             this.grokPatternName = grokPatternName;
             this.fieldName = fieldName;
-            this.grok = new Grok(Grok.getBuiltinPatterns(), "%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" +
+            this.grok = new Grok(Grok.BUILTIN_PATTERNS, "%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" +
                     postBreak + "%{GREEDYDATA:" + EPILOGUE + "}", logger::warn);
         }
     }

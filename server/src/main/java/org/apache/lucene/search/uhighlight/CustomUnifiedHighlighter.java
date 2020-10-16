@@ -20,8 +20,8 @@
 package org.apache.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -31,16 +31,16 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -57,25 +57,36 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private static final Snippet[] EMPTY_SNIPPET = new Snippet[0];
 
     private final OffsetSource offsetSource;
-    private final String fieldValue;
     private final PassageFormatter passageFormatter;
     private final BreakIterator breakIterator;
+    private final String index;
+    private final String field;
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
+    private final FieldHighlighter fieldHighlighter;
+    private final int keywordIgnoreAbove;
+    private final int maxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
      *
      * @param analyzer the analyzer used for the field at index time, used for multi term queries internally.
+     * @param offsetSource the {@link OffsetSource} to used for offsets retrieval.
      * @param passageFormatter our own {@link CustomPassageFormatter}
      *                    which generates snippets in forms of {@link Snippet} objects.
-     * @param offsetSource the {@link OffsetSource} to used for offsets retrieval.
      * @param breakIteratorLocale the {@link Locale} to use for dividing text into passages.
      *                    If null {@link Locale#ROOT} is used.
      * @param breakIterator the {@link BreakIterator} to use for dividing text into passages.
      *                    If null {@link BreakIterator#getSentenceInstance(Locale)} is used.
-     * @param fieldValue the original field values delimited by MULTIVAL_SEP_CHAR.
+     * @param index the index we're highlighting, mostly used for error messages
+     * @param field the name of the field we're highlighting
+     * @param query the query we're highlighting
      * @param noMatchSize The size of the text that should be returned when no highlighting can be performed.
+     * @param maxPassages the maximum number of passes to highlight
+     * @param fieldMatcher decides which terms should be highlighted
+     * @param keywordIgnoreAbove if the field's value is longer than this we'll skip it
+     * @param maxAnalyzedOffset if the field is more than this long we'll refuse to use the ANALYZED
+     *                          offset source for it because it'd be super slow
      */
     public CustomUnifiedHighlighter(IndexSearcher searcher,
                                     Analyzer analyzer,
@@ -83,45 +94,71 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                                     PassageFormatter passageFormatter,
                                     @Nullable Locale breakIteratorLocale,
                                     @Nullable BreakIterator breakIterator,
-                                    String fieldValue,
-                                    int noMatchSize) {
+                                    String index, String field, Query query,
+                                    int noMatchSize,
+                                    int maxPassages,
+                                    Predicate<String> fieldMatcher,
+                                    int keywordIgnoreAbove,
+                                    int maxAnalyzedOffset) throws IOException {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
         this.breakIteratorLocale = breakIteratorLocale == null ? Locale.ROOT : breakIteratorLocale;
         this.passageFormatter = passageFormatter;
-        this.fieldValue = fieldValue;
+        this.index = index;
+        this.field = field;
         this.noMatchSize = noMatchSize;
+        this.setFieldMatcher(fieldMatcher);
+        this.keywordIgnoreAbove = keywordIgnoreAbove;
+        this.maxAnalyzedOffset = maxAnalyzedOffset;
+        fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
     }
 
     /**
-     * Highlights terms extracted from the provided query within the content of the provided field name
+     * Highlights the field value.
      */
-    public Snippet[] highlightField(String field, Query query, int docId, int maxPassages) throws IOException {
-        Map<String, Object[]> fieldsAsObjects = super.highlightFieldsAsObjects(new String[]{field}, query,
-            new int[]{docId}, new int[]{maxPassages});
-        Object[] snippetObjects = fieldsAsObjects.get(field);
-        if (snippetObjects != null) {
-            //one single document at a time
-            assert snippetObjects.length == 1;
-            Object snippetObject = snippetObjects[0];
-            if (snippetObject != null && snippetObject instanceof Snippet[]) {
-                return (Snippet[]) snippetObject;
-            }
+    public Snippet[] highlightField(LeafReader reader, int docId, CheckedSupplier<String, IOException> loadFieldValue) throws IOException {
+        if (fieldHighlighter.fieldOffsetStrategy == NoOpOffsetStrategy.INSTANCE && noMatchSize == 0) {
+            // If the query is such that there can't possibly be any matches then skip doing *everything*
+            return EMPTY_SNIPPET;
         }
-        return EMPTY_SNIPPET;
-    }
-
-    @Override
-    protected List<CharSequence[]> loadFieldValues(String[] fields, DocIdSetIterator docIter,
-                                                   int cacheCharsThreshold) throws IOException {
-        // we only highlight one field, one document at a time
-        return Collections.singletonList(new String[]{fieldValue});
+        String fieldValue = loadFieldValue.get();
+        if (fieldValue == null) {
+            return null;
+        }
+        int fieldValueLength = fieldValue.length();
+        if (fieldValueLength > keywordIgnoreAbove) {
+            return null; // skip highlighting keyword terms that were ignored during indexing
+        }
+        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
+            throw new IllegalArgumentException(
+                "The length of ["
+                    + field
+                    + "] field of ["
+                    + docId
+                    + "] doc of ["
+                    + index
+                    + "] index "
+                    + "has exceeded ["
+                    + maxAnalyzedOffset
+                    + "] - maximum allowed to be analyzed for highlighting. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
+                    + "] index level setting. "
+                    + "For large texts, indexing with offsets or term vectors is recommended!"
+            );
+        }
+        Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);
+        return result == null ? EMPTY_SNIPPET : result;
     }
 
     @Override
     protected BreakIterator getBreakIterator(String field) {
         return breakIterator;
+    }
+
+    public PassageFormatter getFormatter() {
+        return passageFormatter;
     }
 
     @Override
@@ -142,7 +179,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             UnifiedHighlighter.MULTIVAL_SEP_CHAR);
         FieldOffsetStrategy strategy = getOffsetStrategy(offsetSource, components);
         return new CustomFieldHighlighter(field, strategy, breakIteratorLocale, breakIterator,
-            getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize, fieldValue);
+            getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize);
     }
 
     @Override

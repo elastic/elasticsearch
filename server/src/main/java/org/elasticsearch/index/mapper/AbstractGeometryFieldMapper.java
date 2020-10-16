@@ -21,15 +21,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,9 +32,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -90,7 +84,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
          * Parse the given xContent value to an object of type {@link Parsed}. The value can be
          * in any supported format.
          */
-        public abstract Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
+        public abstract Parsed parse(XContentParser parser) throws IOException, ParseException;
 
         /**
          * Given a parsed value and a format string, formats the value into a plain Java object.
@@ -107,14 +101,14 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
          * it with {@link Parser#format}. However some {@link Parser} implementations override this
          * as they can avoid parsing the value if it is already in the right format.
          */
-        public Object parseAndFormatObject(Object value, AbstractGeometryFieldMapper mapper, String format) {
+        public Object parseAndFormatObject(Object value, String format) {
             Parsed geometry;
             try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
                 Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
                 parser.nextToken(); // start object
                 parser.nextToken(); // field name
                 parser.nextToken(); // field value
-                geometry = parse(parser, mapper);
+                geometry = parse(parser);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } catch (ParseException e) {
@@ -124,8 +118,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractGeometryFieldType>
-            extends FieldMapper.Builder<T> {
+    public abstract static class Builder extends FieldMapper.Builder {
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
         protected boolean indexed = true;
@@ -183,22 +176,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, String format) {
-        String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
-
-        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
-        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-        Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, this, geoFormat);
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return valueParser.apply(value);
-            }
-        };
-    }
-
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
         protected abstract T newBuilder(String name, Map<String, Object> params);
 
@@ -237,83 +214,67 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
-        protected Indexer<Parsed, Processed> geometryIndexer;
-        protected Parser<Parsed> geometryParser;
-        protected QueryProcessor geometryQueryBuilder;
+    public abstract static class AbstractGeometryFieldType extends MappedFieldType {
 
-        protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-        }
+        protected final Parser<?> geometryParser;
+        protected final boolean parsesArrayValue;
 
-        public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
-            this.geometryQueryBuilder = geometryQueryBuilder;
-        }
-
-        public void setGeometryIndexer(Indexer<Parsed, Processed> geometryIndexer) {
-            this.geometryIndexer = geometryIndexer;
-        }
-
-        protected Indexer<Parsed, Processed> geometryIndexer() {
-            return geometryIndexer;
-        }
-
-        public void setGeometryParser(Parser<Parsed> geometryParser)  {
+        protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                            boolean parsesArrayValue, Parser<?> geometryParser, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
+            this.parsesArrayValue = parsesArrayValue;
             this.geometryParser = geometryParser;
         }
 
-        protected Parser<Parsed> geometryParser() {
-            return geometryParser;
-        }
-
-        public QueryProcessor geometryQueryBuilder() {
-            return geometryQueryBuilder;
-        }
-
-        /**
-         * interface representing a query builder that generates a query from the given geometry
-         */
-        public interface QueryProcessor {
-            Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
-
-            @Deprecated
-            default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
-                                  QueryShardContext context) {
-                return process(shape, fieldName, relation, context);
-            }
+        @Override
+        public final Query termQuery(Object value, QueryShardContext context) {
+            throw new IllegalArgumentException("Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
+                    + name() + "]");
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
+        public final ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
+
+            Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
+            if (parsesArrayValue) {
+                return new ArraySourceValueFetcher(name(), mapperService) {
+                    @Override
+                    protected Object parseSourceValue(Object value) {
+                        return valueParser.apply(value);
+                    }
+                };
             } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+                return new SourceValueFetcher(name(), mapperService) {
+                    @Override
+                    protected Object parseSourceValue(Object value) {
+                        return valueParser.apply(value);
+                    }
+                };
             }
-        }
-
-        @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context,
-                "Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
-                + name() + "]");
         }
     }
 
     protected Explicit<Boolean> ignoreMalformed;
     protected Explicit<Boolean> ignoreZValue;
+    private final Indexer<Parsed, Processed> indexer;
+    private final Parser<Parsed> parser;
 
     protected AbstractGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                          Explicit<Boolean> ignoreMalformed,
-                                          Explicit<Boolean> ignoreZValue, MultiFields multiFields, CopyTo copyTo) {
+                                          Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
+                                          MultiFields multiFields, CopyTo copyTo,
+                                          Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
         super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
+        this.indexer = indexer;
+        this.parser = parser;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        AbstractGeometryFieldMapper gsfm = (AbstractGeometryFieldMapper)other;
+        AbstractGeometryFieldMapper<Parsed, Processed> gsfm = (AbstractGeometryFieldMapper<Parsed, Processed>)other;
 
         if (gsfm.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gsfm.ignoreMalformed;
@@ -324,9 +285,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public AbstractGeometryFieldType<Parsed, Processed> fieldType() {
-        return (AbstractGeometryFieldType<Parsed, Processed>) mappedFieldType;
+    public AbstractGeometryFieldType fieldType() {
+        return (AbstractGeometryFieldType) mappedFieldType;
     }
 
     @Override
@@ -341,23 +301,21 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     /** parsing logic for geometry indexing */
     @Override
     public void parse(ParseContext context) throws IOException {
-        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
+        MappedFieldType mappedFieldType = fieldType();
 
-        Indexer<Parsed, Processed> geometryIndexer = mappedFieldType.geometryIndexer();
-        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
         try {
-            Processed shape = context.parseExternalValue(geometryIndexer.processedClass());
+            Processed shape = context.parseExternalValue(indexer.processedClass());
             if (shape == null) {
-                Parsed geometry = geometryParser.parse(context.parser(), this);
+                Parsed geometry = parser.parse(context.parser());
                 if (geometry == null) {
                     return;
                 }
-                shape = geometryIndexer.prepareForIndexing(geometry);
+                shape = indexer.prepareForIndexing(geometry);
             }
 
             List<IndexableField> fields = new ArrayList<>();
             if (mappedFieldType.isSearchable() || mappedFieldType.hasDocValues()) {
-                fields.addAll(geometryIndexer.indexShape(context, shape));
+                fields.addAll(indexer.indexShape(context, shape));
             }
 
             // indexed:

@@ -31,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -52,6 +53,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -66,6 +68,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -141,7 +144,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
 
             ReaderContext readerWithoutScroll = new ReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
+                newContextId(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
             DefaultSearchContext contextWithoutScroll = new DefaultSearchContext(readerWithoutScroll, shardSearchRequest, target, null,
                 bigArrays, null, timeout, null, false);
             contextWithoutScroll.from(300);
@@ -157,7 +160,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             // resultWindow greater than maxResultWindow and scrollContext isn't null
             when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMillis(randomInt(1000))));
             ReaderContext readerContext = new LegacyReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), shardSearchRequest, randomNonNegativeLong());
+                newContextId(), indexService, indexShard, searcherSupplier.get(), shardSearchRequest, randomNonNegativeLong());
             DefaultSearchContext context1 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
                 bigArrays, null, timeout, null, false);
             context1.from(300);
@@ -190,7 +193,7 @@ public class DefaultSearchContextTests extends ESTestCase {
 
             readerContext.close();
             readerContext = new ReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
+                newContextId(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target,
                 null, bigArrays, null, timeout, null, false);
@@ -216,11 +219,11 @@ public class DefaultSearchContextTests extends ESTestCase {
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
             when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
-            when(queryShardContext.fieldMapper(anyString())).thenReturn(mock(MappedFieldType.class));
+            when(queryShardContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
             when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
 
             readerContext.close();
-            readerContext = new ReaderContext(randomNonNegativeLong(), indexService, indexShard,
+            readerContext = new ReaderContext(newContextId(), indexService, indexShard,
                 searcherSupplier.get(), randomNonNegativeLong(), false);
             DefaultSearchContext context4 =
                 new DefaultSearchContext(readerContext, shardSearchRequest, target, null, bigArrays, null, timeout, null, false);
@@ -233,5 +236,65 @@ public class DefaultSearchContextTests extends ESTestCase {
             readerContext.close();
             threadPool.shutdown();
         }
+    }
+
+    public void testClearQueryCancellationsOnClose() throws IOException {
+        TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
+        ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
+        ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
+        when(shardSearchRequest.shardId()).thenReturn(shardId);
+
+        ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
+        IndexShard indexShard = mock(IndexShard.class);
+        QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
+        when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
+        when(indexShard.getThreadPool()).thenReturn(threadPool);
+
+        IndexService indexService = mock(IndexService.class);
+
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+
+
+            final Engine.SearcherSupplier searcherSupplier = new Engine.SearcherSupplier(Function.identity()) {
+                @Override
+                protected void doClose() {
+                }
+
+                @Override
+                protected Engine.Searcher acquireSearcherInternal(String source) {
+                    try {
+                        IndexReader reader = w.getReader();
+                        return new Engine.Searcher("test", reader, IndexSearcher.getDefaultSimilarity(),
+                            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), reader);
+                    } catch (IOException exc) {
+                        throw new AssertionError(exc);
+                    }
+                }
+            };
+            SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
+            ReaderContext readerContext = new ReaderContext(
+                newContextId(), indexService, indexShard, searcherSupplier, randomNonNegativeLong(), false);
+            DefaultSearchContext context = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
+                bigArrays, null, timeout, null, false);
+
+            assertThat(context.searcher().hasCancellations(), is(false));
+            context.searcher().addQueryCancellation(() -> {});
+            assertThat(context.searcher().hasCancellations(), is(true));
+
+            context.close();
+            assertThat(context.searcher().hasCancellations(), is(false));
+
+            readerContext.close();
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    private ShardSearchContextId newContextId() {
+        return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
     }
 }

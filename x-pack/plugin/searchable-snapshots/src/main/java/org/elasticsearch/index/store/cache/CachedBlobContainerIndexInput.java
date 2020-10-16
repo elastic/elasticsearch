@@ -453,54 +453,54 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
         try {
             final CacheFile cacheFile = getCacheFileSafe();
-            try (Releasable ignored = cacheFile.fileLock()) {
 
-                final Tuple<Long, Long> range = cacheFile.getAbsentRangeWithin(partRange.v1(), partRange.v2());
-                if (range == null) {
-                    logger.trace(
-                        "prefetchPart: part [{}] bytes [{}-{}] is already fully available for cache file [{}]",
-                        part,
-                        partRange.v1(),
-                        partRange.v2(),
-                        cacheFileReference
-                    );
-                    return;
-                }
-
-                final long rangeStart = range.v1();
-                final long rangeEnd = range.v2();
-                final long rangeLength = rangeEnd - rangeStart;
-
+            final Tuple<Long, Long> range = cacheFile.getAbsentRangeWithin(partRange.v1(), partRange.v2());
+            if (range == null) {
                 logger.trace(
-                    "prefetchPart: prewarming part [{}] bytes [{}-{}] by fetching bytes [{}-{}] for cache file [{}]",
+                    "prefetchPart: part [{}] bytes [{}-{}] is already fully available for cache file [{}]",
                     part,
                     partRange.v1(),
                     partRange.v2(),
-                    rangeStart,
-                    rangeEnd,
                     cacheFileReference
                 );
+                return;
+            }
 
-                final FileChannel fc = cacheFile.getChannel();
-                assert assertFileChannelOpen(fc);
-                final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, rangeLength))];
+            final long rangeStart = range.v1();
+            final long rangeEnd = range.v2();
+            final long rangeLength = rangeEnd - rangeStart;
 
-                long totalBytesRead = 0L;
-                final AtomicLong totalBytesWritten = new AtomicLong();
-                long remainingBytes = rangeEnd - rangeStart;
-                final long startTimeNanos = stats.currentTimeNanos();
-                try (InputStream input = openInputStreamFromBlobStore(rangeStart, rangeLength)) {
-                    while (remainingBytes > 0L) {
-                        assert totalBytesRead + remainingBytes == rangeLength;
-                        final int bytesRead = readSafe(input, copyBuffer, rangeStart, rangeEnd, remainingBytes, cacheFileReference);
+            logger.trace(
+                "prefetchPart: prewarming part [{}] bytes [{}-{}] by fetching bytes [{}-{}] for cache file [{}]",
+                part,
+                partRange.v1(),
+                partRange.v2(),
+                rangeStart,
+                rangeEnd,
+                cacheFileReference
+            );
 
-                        // The range to prewarm in cache
-                        final long readStart = rangeStart + totalBytesRead;
-                        final Tuple<Long, Long> rangeToWrite = Tuple.tuple(readStart, readStart + bytesRead);
+            final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, rangeLength))];
 
-                        // We do not actually read anything, but we want to wait for the write to complete before proceeding.
-                        // noinspection UnnecessaryLocalVariable
-                        final Tuple<Long, Long> rangeToRead = rangeToWrite;
+            long totalBytesRead = 0L;
+            final AtomicLong totalBytesWritten = new AtomicLong();
+            long remainingBytes = rangeEnd - rangeStart;
+            final long startTimeNanos = stats.currentTimeNanos();
+            try (InputStream input = openInputStreamFromBlobStore(rangeStart, rangeLength)) {
+                while (remainingBytes > 0L) {
+                    assert totalBytesRead + remainingBytes == rangeLength;
+                    final int bytesRead = readSafe(input, copyBuffer, rangeStart, rangeEnd, remainingBytes, cacheFileReference);
+
+                    // The range to prewarm in cache
+                    final long readStart = rangeStart + totalBytesRead;
+                    final Tuple<Long, Long> rangeToWrite = Tuple.tuple(readStart, readStart + bytesRead);
+
+                    // We do not actually read anything, but we want to wait for the write to complete before proceeding.
+                    // noinspection UnnecessaryLocalVariable
+                    final Tuple<Long, Long> rangeToRead = rangeToWrite;
+
+                    try (Releasable ignored = cacheFile.fileLock()) {
+                        assert assertFileChannelOpen(cacheFile.getChannel());
 
                         cacheFile.populateAndRead(
                             rangeToWrite,
@@ -525,15 +525,14 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                             },
                             directory.cacheFetchAsyncExecutor()
                         ).get();
-                        totalBytesRead += bytesRead;
-                        remainingBytes -= bytesRead;
                     }
-                    final long endTimeNanos = stats.currentTimeNanos();
-                    stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
+                    totalBytesRead += bytesRead;
+                    remainingBytes -= bytesRead;
                 }
-
-                assert totalBytesRead == rangeLength;
+                final long endTimeNanos = stats.currentTimeNanos();
+                stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
             }
+            assert totalBytesRead == rangeLength;
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }
@@ -655,12 +654,12 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + fileInfo
                 + "]";
             stats.addBlobStoreBytesRequested(length);
-            return blobContainer.readBlob(fileInfo.partName(0L), position, length);
+            return blobContainer.readBlob(fileInfo.partName(0), position, length);
         } else {
-            final long startPart = getPartNumberForPosition(position);
-            final long endPart = getPartNumberForPosition(position + length - 1);
+            final int startPart = getPartNumberForPosition(position);
+            final int endPart = getPartNumberForPosition(position + length - 1);
 
-            for (long currentPart = startPart; currentPart <= endPart; currentPart++) {
+            for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
                 final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
                 final long endInPart = (currentPart == endPart)
                     ? getRelativePositionInPart(position + length - 1) + 1
@@ -668,10 +667,10 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 stats.addBlobStoreBytesRequested(endInPart - startInPart);
             }
 
-            return new SlicedInputStream(endPart - startPart + 1L) {
+            return new SlicedInputStream(endPart - startPart + 1) {
                 @Override
-                protected InputStream openSlice(long slice) throws IOException {
-                    final long currentPart = startPart + slice;
+                protected InputStream openSlice(int slice) throws IOException {
+                    final int currentPart = startPart + slice;
                     final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
                     final long endInPart = (currentPart == endPart)
                         ? getRelativePositionInPart(position + length - 1) + 1
@@ -685,11 +684,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     /**
      * Compute the part number that contains the byte at the given position in the corresponding Lucene file.
      */
-    private long getPartNumberForPosition(long position) {
+    private int getPartNumberForPosition(long position) {
         ensureValidPosition(position);
-        final long part = position / fileInfo.partSize().getBytes();
+        final int part = Math.toIntExact(position / fileInfo.partSize().getBytes());
         assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
-        assert part >= 0L : "part number [" + part + "] is negative";
+        assert part >= 0 : "part number [" + part + "] is negative";
         return part;
     }
 
@@ -700,13 +699,13 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private long getRelativePositionInPart(long position) {
         ensureValidPosition(position);
         final long pos = position % fileInfo.partSize().getBytes();
-        assert pos < fileInfo.partBytes((int) getPartNumberForPosition(pos)) : "position in part [" + pos + "] exceeds part's length";
+        assert pos < fileInfo.partBytes(getPartNumberForPosition(pos)) : "position in part [" + pos + "] exceeds part's length";
         assert pos >= 0L : "position in part [" + pos + "] is negative";
         return pos;
     }
 
-    private long getLengthOfPart(long part) {
-        return fileInfo.partBytes(toIntBytes(part));
+    private long getLengthOfPart(int part) {
+        return fileInfo.partBytes(part);
     }
 
     private void ensureValidPosition(long position) {

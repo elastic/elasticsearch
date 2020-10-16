@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Base class for testing {@link FieldMapper}s.
  * @param <T> builder for the mapper to test
  */
-public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> extends MapperTestCase {
+public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder> extends MapperTestCase {
     private final class Modifier {
         final String property;
         final boolean updateable;
@@ -75,9 +75,6 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
     private final List<Modifier> modifiers = new ArrayList<>(Arrays.asList(new Modifier("analyzer", false, (a, b) -> {
         a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
         a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
-    }), new Modifier("boost", true, (a, b) -> {
-        a.boost(1.1f);
-        b.boost(1.2f);
     }), new Modifier("doc_values", false, (a, b) -> {
         a.docValues(true);
         b.docValues(false);
@@ -227,5 +224,10 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
     private XContentBuilder mappingsToJson(ToXContent builder, boolean includeDefaults) throws IOException {
         ToXContent.Params params = includeDefaults ? new ToXContent.MapParams(Map.of("include_defaults", "true")) : ToXContent.EMPTY_PARAMS;
         return mapping(b -> builder.toXContent(b, params));
+    }
+
+    @Override
+    public void testMinimalToMaximal() {
+        assumeFalse("`include_defaults` includes unsupported properties in non-parametrized mappers", false);
     }
 }

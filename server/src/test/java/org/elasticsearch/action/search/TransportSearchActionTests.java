@@ -53,6 +53,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -207,7 +208,6 @@ public class TransportSearchActionTests extends ESTestCase {
             null)) {
             RemoteClusterService service = transportService.getRemoteClusterService();
             assertFalse(service.isCrossClusterSearchEnabled());
-            List<SearchShardIterator> iteratorList = new ArrayList<>();
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
             DiscoveryNode[] nodes = new DiscoveryNode[] {
                 new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
@@ -245,9 +245,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 new OriginalIndices(new String[]{"fo*", "ba*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
             remoteIndicesByCluster.put("test_cluster_2",
                 new OriginalIndices(new String[]{"x*"}, SearchRequest.DEFAULT_INDICES_OPTIONS));
-            Map<String, AliasFilter> remoteAliases = new HashMap<>();
-            TransportSearchAction.processRemoteShards(searchShardsResponseMap, remoteIndicesByCluster, iteratorList,
-                remoteAliases);
+            Map<String, AliasFilter> remoteAliases = TransportSearchAction.getRemoteAliasFilters(searchShardsResponseMap);
+            List<SearchShardIterator> iteratorList =
+                TransportSearchAction.getRemoteShardsIterator(searchShardsResponseMap, remoteIndicesByCluster, remoteAliases);
             assertEquals(4, iteratorList.size());
             for (SearchShardIterator iterator : iteratorList) {
                 if (iterator.shardId().getIndexName().endsWith("foo")) {
@@ -256,33 +256,33 @@ public class TransportSearchActionTests extends ESTestCase {
                     assertTrue(iterator.shardId().getId() == 0 || iterator.shardId().getId() == 1);
                     assertEquals("test_cluster_1", iterator.getClusterAlias());
                     assertEquals("foo", iterator.shardId().getIndexName());
-                    ShardRouting shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "foo");
-                    shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "foo");
+                    SearchShardTarget shard = iterator.nextOrNull();
+                    assertNotNull(shard);
+                    assertEquals(shard.getShardId().getIndexName(), "foo");
+                    shard = iterator.nextOrNull();
+                    assertNotNull(shard);
+                    assertEquals(shard.getShardId().getIndexName(), "foo");
                     assertNull(iterator.nextOrNull());
                 } else if (iterator.shardId().getIndexName().endsWith("bar")) {
                     assertArrayEquals(new String[]{"bar"}, iterator.getOriginalIndices().indices());
                     assertEquals(0, iterator.shardId().getId());
                     assertEquals("test_cluster_1", iterator.getClusterAlias());
                     assertEquals("bar", iterator.shardId().getIndexName());
-                    ShardRouting shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "bar");
-                    shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "bar");
+                    SearchShardTarget shard = iterator.nextOrNull();
+                    assertNotNull(shard);
+                    assertEquals(shard.getShardId().getIndexName(), "bar");
+                    shard = iterator.nextOrNull();
+                    assertNotNull(shard);
+                    assertEquals(shard.getShardId().getIndexName(), "bar");
                     assertNull(iterator.nextOrNull());
                 } else if (iterator.shardId().getIndexName().endsWith("xyz")) {
                     assertArrayEquals(new String[]{"some_alias_for_xyz"}, iterator.getOriginalIndices().indices());
                     assertEquals(0, iterator.shardId().getId());
                     assertEquals("xyz", iterator.shardId().getIndexName());
                     assertEquals("test_cluster_2", iterator.getClusterAlias());
-                    ShardRouting shardRouting = iterator.nextOrNull();
-                    assertNotNull(shardRouting);
-                    assertEquals(shardRouting.getIndexName(), "xyz");
+                    SearchShardTarget shard = iterator.nextOrNull();
+                    assertNotNull(shard);
+                    assertEquals(shard.getShardId().getIndexName(), "xyz");
                     assertNull(iterator.nextOrNull());
                 }
             }
@@ -831,6 +831,7 @@ public class TransportSearchActionTests extends ESTestCase {
             searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
+                source.pointInTimeBuilder(null);
                 CollapseBuilder collapse = source.collapse();
                 if (collapse != null) {
                     collapse.setInnerHits(Collections.emptyList());

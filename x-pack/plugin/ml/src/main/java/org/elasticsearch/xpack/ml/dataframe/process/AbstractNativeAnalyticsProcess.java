@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -28,8 +27,8 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     protected AbstractNativeAnalyticsProcess(String name, ConstructingObjectParser<Result, Void> resultParser, String jobId,
                                              NativeController nativeController, ProcessPipes processPipes,
                                              int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash,
-                                             Duration processConnectTimeout, NamedXContentRegistry namedXContentRegistry) {
-        super(jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash, processConnectTimeout);
+                                             NamedXContentRegistry namedXContentRegistry) {
+        super(jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash);
         this.name = Objects.requireNonNull(name);
         this.resultsParser = new ProcessResultsParser<>(Objects.requireNonNull(resultParser), namedXContentRegistry);
     }

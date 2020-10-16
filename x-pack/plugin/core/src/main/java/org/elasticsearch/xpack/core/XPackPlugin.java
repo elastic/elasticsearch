@@ -31,11 +31,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
@@ -62,7 +64,9 @@ import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -280,6 +284,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
         actions.add(new ActionHandler<>(OpenPointInTimeAction.INSTANCE, TransportOpenPointInTimeAction.class));
         actions.add(new ActionHandler<>(ClosePointInTimeAction.INSTANCE, TransportClosePointInTimeAction.class));
+        actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
+        actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
         return actions;
     }
 
@@ -349,7 +355,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
+                                                           ClusterService clusterService, BigArrays bigArrays,
+                                                           RecoverySettings recoverySettings) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }
 
@@ -372,21 +379,27 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
         return settings;
     }
 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
         return new HashSet<>(Arrays.asList(
+            DataTier.DATA_CONTENT_NODE_ROLE,
             DataTier.DATA_HOT_NODE_ROLE,
             DataTier.DATA_WARM_NODE_ROLE,
-            DataTier.DATA_COLD_NODE_ROLE,
-            DataTier.DATA_FROZEN_NODE_ROLE));
+            DataTier.DATA_COLD_NODE_ROLE));
     }
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return Collections.singleton(new DataTierAllocationDecider(clusterSettings));
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
     }
 
     /**

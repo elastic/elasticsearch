@@ -22,6 +22,8 @@
 ---
 "Test old cluster datafeed with aggs":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: allowed_warnings
   - do:
       allowed_warnings:

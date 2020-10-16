@@ -979,7 +979,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         {   // AucRoc
             AucRoc.Result aucRocResult = (AucRoc.Result) evaluateDataFrameResponse.getMetrics().get(1);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRoc.NAME.getPreferredName()));
-            assertThat(aucRocResult.getScore(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+            assertThat(aucRocResult.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             assertThat(aucRocResult.getCurve(), hasSize(greaterThan(0)));
         }
 
@@ -1016,7 +1016,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(recallResult.getMetricName(), equalTo(Recall.NAME.getPreferredName()));
             for (Recall.PerClassResult klass : recallResult.getClasses()) {
                 assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
-                assertThat(klass.getRecall(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                assertThat(klass.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
         }
     }

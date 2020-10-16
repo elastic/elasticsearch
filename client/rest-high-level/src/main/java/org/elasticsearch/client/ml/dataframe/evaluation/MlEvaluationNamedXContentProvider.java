@@ -123,7 +123,8 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             // Evaluation metrics results
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
-                new ParseField(registeredMetricName(OutlierDetection.NAME, AucRocMetric.NAME)),
+                new ParseField(registeredMetricName(
+                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME)),
                 AucRocResult::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,

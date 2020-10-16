@@ -37,7 +37,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class AucRocResult implements EvaluationMetric.Result {
 
-    private static final String METRIC_NAME = "auc_roc";
+    public static final String NAME = "auc_roc";
 
     public static AucRocResult fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -49,7 +49,7 @@ public class AucRocResult implements EvaluationMetric.Result {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AucRocResult, Void> PARSER =
         new ConstructingObjectParser<>(
-            "auc_roc_result", true, args -> new AucRocResult((double) args[0], (List<AucRocPoint>) args[1]));
+            NAME, true, args -> new AucRocResult((double) args[0], (List<AucRocPoint>) args[1]));
 
     static {
         PARSER.declareDouble(constructorArg(), VALUE);
@@ -66,7 +66,7 @@ public class AucRocResult implements EvaluationMetric.Result {
 
     @Override
     public String getMetricName() {
-        return METRIC_NAME;
+        return NAME;
     }
 
     public double getValue() {

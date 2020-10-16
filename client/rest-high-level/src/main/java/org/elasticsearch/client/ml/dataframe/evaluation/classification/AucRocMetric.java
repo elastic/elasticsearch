@@ -19,6 +19,7 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -38,7 +39,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class AucRocMetric implements EvaluationMetric {
 
-    public static final String NAME = "auc_roc";
+    public static final String NAME = AucRocResult.NAME;
 
     public static final ParseField CLASS_NAME = new ParseField("class_name");
     public static final ParseField INCLUDE_CURVE = new ParseField("include_curve");

@@ -260,7 +260,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
         @Override
         public String getMetricName() {
-            return NAME;
+            return AbstractAucRoc.NAME.getPreferredName();
         }
 
         @Override

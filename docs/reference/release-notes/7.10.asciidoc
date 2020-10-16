@@ -1,3 +1,14 @@
+[[release-notes-7.10.1]]
+== {es} version 7.10.1
+
+[[bug-7.10.1]]
+[float]
+=== Bug fixes
+
+Search::
+* Apply boost only once for distance_feature query {es-pull}63767[#63767]
+
+
 [[release-notes-7.10.0]]
 == {es} version 7.10.0
 

@@ -176,7 +176,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         final List<Object> components = new ArrayList<>();
-        // This registers a cluster state listener, so appears unused but is not.
         ILMHistoryTemplateRegistry ilmTemplateRegistry =
             new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
         ilmTemplateRegistry.initialize();

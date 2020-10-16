@@ -26,6 +26,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     protected final ValuesSource valuesSource;
     private final DocValueFormat format;
     private final Rounding.DateTimeUnit rateUnit;
+    protected final RateMode rateMode;
     private final SizedBucketAggregator sizedBucketAggregator;
 
     protected DoubleArray sums;
@@ -35,6 +36,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         String name,
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
+        RateMode rateMode,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata
@@ -45,8 +47,12 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         if (valuesSource != null) {
             sums = context.bigArrays().newDoubleArray(1, true);
             compensations = context.bigArrays().newDoubleArray(1, true);
+            if (rateMode == null) {
+                rateMode = RateMode.SUM;
+            }
         }
         this.rateUnit = rateUnit;
+        this.rateMode = rateMode;
         this.sizedBucketAggregator = findSizedBucketAncestor();
     }
 

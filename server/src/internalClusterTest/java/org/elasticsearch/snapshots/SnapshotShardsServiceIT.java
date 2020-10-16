@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -63,7 +62,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
             .setWaitForCompletion(false)
             .setIndices("test-index")
             .get();
-        waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
+        waitForBlock(blockedNode, "test-repo");
 
         final SnapshotId snapshotId = getSnapshot("test-repo", "test-snap").snapshotId();
 

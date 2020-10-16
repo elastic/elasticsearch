@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 
@@ -17,12 +19,15 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
     private String accessTokenString;
     private String refreshTokenString;
     private TimeValue expiresIn;
+    private Authentication authentication;
 
-    public OpenIdConnectAuthenticateResponse(String principal, String accessTokenString, String refreshTokenString, TimeValue expiresIn) {
-        this.principal = principal;
+    public OpenIdConnectAuthenticateResponse(Authentication authentication, String accessTokenString, String refreshTokenString,
+                                             TimeValue expiresIn) {
+        this.principal = authentication.getUser().principal();;
         this.accessTokenString = accessTokenString;
         this.refreshTokenString = refreshTokenString;
         this.expiresIn = expiresIn;
+        this.authentication = authentication;
     }
 
     public OpenIdConnectAuthenticateResponse(StreamInput in) throws IOException {
@@ -31,6 +36,9 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         accessTokenString = in.readString();
         refreshTokenString = in.readString();
         expiresIn = in.readTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            authentication = new Authentication(in);
+        }
     }
 
     public String getPrincipal() {
@@ -49,11 +57,16 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         return expiresIn;
     }
 
+    public Authentication getAuthentication() { return authentication; }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
         out.writeString(accessTokenString);
         out.writeString(refreshTokenString);
         out.writeTimeValue(expiresIn);
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            authentication.writeTo(out);
+        }
     }
 }

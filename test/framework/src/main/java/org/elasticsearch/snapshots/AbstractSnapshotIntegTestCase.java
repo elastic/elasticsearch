@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -36,6 +35,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -150,7 +150,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected RepositoryData getRepositoryData(String repository) {
-        return getRepositoryData(internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repository));
+        return getRepositoryData((Repository) getRepositoryOnMaster(repository));
     }
 
     protected RepositoryData getRepositoryData(Repository repository) {
@@ -169,103 +169,56 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static void assertFileCount(Path dir, int expectedCount) throws IOException {
         final List<Path> found = new ArrayList<>();
-        Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                found.add(file);
-                return FileVisitResult.CONTINUE;
-            }
-        });
+        forEachFileRecursively(dir, ((path, basicFileAttributes) -> found.add(path)));
         assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
     }
 
     public static int numberOfFiles(Path dir) throws IOException {
         final AtomicInteger count = new AtomicInteger();
-        Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                count.incrementAndGet();
-                return FileVisitResult.CONTINUE;
-            }
-        });
+        forEachFileRecursively(dir, ((path, basicFileAttributes) -> count.incrementAndGet()));
         return count.get();
     }
 
-    public static void stopNode(final String node) throws IOException {
+    protected void stopNode(final String node) throws IOException {
+        logger.info("--> stopping node {}", node);
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
-    public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
+    public void waitForBlock(String node, String repository) throws Exception {
         logger.info("--> waiting for [{}] to be blocked on node [{}]", repository, node);
-        long start = System.currentTimeMillis();
-        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
-        MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
-        while (System.currentTimeMillis() - start < timeout.millis()) {
-            if (mockRepository.blocked()) {
-                return;
-            }
-            Thread.sleep(100);
-        }
-        fail("Timeout waiting for node [" + node + "] to be blocked");
+        MockRepository mockRepository = getRepositoryOnNode(repository, node);
+        assertBusy(() -> assertTrue(mockRepository.blocked()), 30L, TimeUnit.SECONDS);
     }
 
-    public SnapshotInfo waitForCompletion(String repository, String snapshotName, TimeValue timeout) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < timeout.millis()) {
-            final SnapshotInfo snapshotInfo = getSnapshot(repository, snapshotName);
-            if (snapshotInfo.state().completed()) {
-                // Make sure that snapshot clean up operations are finished
-                ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
-                boolean found = false;
-                for (SnapshotsInProgress.Entry entry :
-                    stateResponse.getState().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
-                    final Snapshot curr = entry.snapshot();
-                    if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (found == false) {
-                    return snapshotInfo;
-                }
-            }
-            Thread.sleep(100);
-        }
-        fail("Timeout!!!");
-        return null;
+    public static void blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndFailOnWriteIndexFile();
     }
 
-    public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockAndFailOnWriteIndexFile();
-        return masterName;
-    }
-
-    public static String blockMasterOnWriteIndexFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getMasterNodeInstance(RepositoriesService.class)
-            .repository(repositoryName)).setBlockOnWriteIndexFile();
-        return masterName;
+    public static void blockMasterOnWriteIndexFile(final String repositoryName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockOnWriteIndexFile();
     }
 
     public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockOnDeleteIndexFile();
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockOnDeleteIndexFile();
     }
 
-    public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockAndFailOnWriteSnapFiles(true);
-        return masterName;
+    public static void blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndFailOnWriteSnapFiles();
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
+        return ((T) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repositoryName));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static <T extends Repository> T getRepositoryOnNode(String repositoryName, String nodeName) {
+        return ((T) internalCluster().getInstance(RepositoriesService.class, nodeName).repository(repositoryName));
     }
 
     public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
-        for(String node : internalCluster().nodesInclude(indexName)) {
-            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName))
-                .blockOnDataFiles(true);
+        for (String node : internalCluster().nodesInclude(indexName)) {
+            AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repositoryName, node).blockOnDataFiles();
             return node;
         }
         fail("No nodes for the index " + indexName + " found");
@@ -273,24 +226,22 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void blockNodeOnAnyFiles(String repository, String nodeName) {
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
-                .repository(repository)).setBlockOnAnyFiles(true);
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).setBlockOnAnyFiles();
     }
 
     public static void blockDataNode(String repository, String nodeName) {
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
-                .repository(repository)).blockOnDataFiles(true);
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockOnDataFiles();
     }
 
     public static void blockAllDataNodes(String repository) {
-        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository) repositoriesService.repository(repository)).blockOnDataFiles();
         }
     }
 
     public static void unblockAllDataNodes(String repository) {
-        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            ((MockRepository)repositoriesService.repository(repository)).unblock();
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository) repositoriesService.repository(repository)).unblock();
         }
     }
 
@@ -301,7 +252,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public static void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
+    public static void waitForBlockOnAnyDataNode(String repository) throws InterruptedException {
         final boolean blocked = waitUntil(() -> {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
@@ -310,14 +261,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 }
             }
             return false;
-        }, timeout.millis(), TimeUnit.MILLISECONDS);
+        }, 30L, TimeUnit.SECONDS);
 
         assertTrue("No repository is blocked waiting on a data node", blocked);
     }
 
     public void unblockNode(final String repository, final String node) {
         logger.info("--> unblocking [{}] on node [{}]", repository, node);
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, node).unblock();
     }
 
     protected void createRepository(String repoName, String type, Settings.Builder settings) {
@@ -454,7 +405,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertNotNull(initialRepoMetadata);
         assertThat("We can only manually insert a snapshot into a repository that does not have a generation tracked in the CS",
                 initialRepoMetadata.generation(), is(RepositoryData.UNKNOWN_REPO_GEN));
-        final Repository repo = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final Repository repo = getRepositoryOnMaster(repoName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
@@ -465,6 +416,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
+    }
+
+    protected void awaitNoMoreRunningOperations() throws Exception {
+        awaitNoMoreRunningOperations(internalCluster().getMasterName());
     }
 
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
@@ -504,10 +459,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName,
-                                                                                      String dataNode) throws InterruptedException {
+                                                                                      String dataNode) throws Exception {
         blockDataNode(repoName, dataNode);
         final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, snapshotName);
-        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(dataNode, repoName);
         return fut;
     }
 
@@ -527,7 +482,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
     }
 
-    protected static SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
+    protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
+        logger.info("--> wait for snapshot to finish");
         final SnapshotInfo snapshotInfo = future.get().getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         return snapshotInfo;
@@ -582,13 +538,24 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void awaitMasterFinishRepoOperations() throws Exception {
         logger.info("--> waiting for master to finish all repo operations on its SNAPSHOT pool");
-        final ThreadPool masterThreadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
+        final ThreadPool masterThreadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertBusy(() -> {
             for (ThreadPoolStats.Stats stat : masterThreadPool.stats()) {
                 if (ThreadPool.Names.SNAPSHOT.equals(stat.getName())) {
                     assertEquals(stat.getActive(), 0);
                     break;
                 }
+            }
+        });
+    }
+
+    public static void forEachFileRecursively(Path path,
+                                              CheckedBiConsumer<Path, BasicFileAttributes, IOException> forEach) throws IOException {
+        Files.walkFileTree(path, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                forEach.accept(file, attrs);
+                return FileVisitResult.CONTINUE;
             }
         });
     }

@@ -11,7 +11,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -41,11 +40,11 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         public static final ParseField EXPIRES_IN = new ParseField("expires_in");
         public static final ParseField MAX_MODEL_MEMORY = new ParseField("max_model_memory");
 
-        public static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = new ByteSizeValue(500, ByteSizeUnit.MB);
+        public static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = ByteSizeValue.ofMb(500);
 
         // Max allowed duration: 10 years
         private static final TimeValue MAX_DURATION = TimeValue.parseTimeValue("3650d", "");
-        private static final long MIN_MODEL_MEMORY = new ByteSizeValue(1, ByteSizeUnit.MB).getBytes();
+        private static final long MIN_MODEL_MEMORY = ByteSizeValue.ofMb(1).getBytes();
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -181,7 +180,7 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
                 builder.field(EXPIRES_IN.getPreferredName(), expiresIn.getStringRep());
             }
             if (maxModelMemory != null) {
-                builder.field(MAX_MODEL_MEMORY.getPreferredName(), new ByteSizeValue(maxModelMemory).getStringRep());
+                builder.field(MAX_MODEL_MEMORY.getPreferredName(), ByteSizeValue.ofBytes(maxModelMemory).getStringRep());
             }
             builder.endObject();
             return builder;

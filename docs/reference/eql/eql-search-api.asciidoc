@@ -64,13 +64,15 @@ error for requests that exclusively target missing or closed indices, regardless
 of this argument.
 +
 If `false`, any wildcard expression, <<indices-aliases,index alias>>, or `_all`
-value that targets only missing or closed indices returns an error. For example,
-if an index starts with `foo` but no index starts with `bar`, a request
-targeting `foo*,bar*` returns an error.
+value that targets only missing or closed indices returns an error. This applies
+even if the request targets other open indices. For example, if an index starts
+with `foo` but no index starts with `bar`, a request targeting `foo*,bar*`
+returns an error.
 +
 If `true`, only requests that exclusively target missing or closed indices
-return an error. For example, if an index starts with `foo` but no index starts
-with `bar`, a request targeting `foo*,bar*` does not return an error. However, a
+return an error. If the request targets any open index, it does not return an
+error. For example, if an index starts with `foo` but no index starts with
+`bar`, a request targeting `foo*,bar*` does not return an error. However, a
 request that targets only `bar*` still returns an error.
 +
 Defaults to `true`.

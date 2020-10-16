@@ -40,9 +40,10 @@ tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, boolean)
 If `false`, any wildcard expression, <<indices-aliases,index alias>>, or `_all`
-value that targets only missing or closed indices returns an error. For example,
-if an index starts with `foo` but no index starts with `bar`, a request
-targeting `foo*,bar*` returns an error.
+value that targets only missing or closed indices returns an error. This applies
+even if the request targets other open indices. For example, if an index starts
+with `foo` but no index starts with `bar`, a request targeting `foo*,bar*`
+returns an error.
 end::allow-no-indices[]
 
 tag::allow-no-match-transforms1[]

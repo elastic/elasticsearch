@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -172,10 +173,8 @@ public class ResolveIndexTests extends ESTestCase {
     public void testResolvePreservesBackingIndexOrdering() {
         Metadata.Builder builder = Metadata.builder();
         String dataStreamName = "my-data-stream";
-        List<IndexMetadata> backingIndices = new ArrayList<>();
-        backingIndices.add(createIndexMetadata("not-in-order-2", true));
-        backingIndices.add(createIndexMetadata("not-in-order-1", true));
-        backingIndices.add(createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, 3), true));
+        String[] names = {"not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3)};
+        List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).collect(Collectors.toList());
         for (IndexMetadata index : backingIndices) {
             builder.put(index, false);
         }
@@ -191,10 +190,7 @@ public class ResolveIndexTests extends ESTestCase {
         TransportAction.resolveIndices(new String[]{"*"}, indicesOptions, builder.build(), resolver, indices, aliases, dataStreams, true);
 
         assertThat(dataStreams.size(), equalTo(1));
-        assertThat(dataStreams.get(0).getBackingIndices().length, equalTo(3));
-        assertThat(dataStreams.get(0).getBackingIndices()[0], equalTo(backingIndices.get(0).getIndex().getName()));
-        assertThat(dataStreams.get(0).getBackingIndices()[1], equalTo(backingIndices.get(1).getIndex().getName()));
-        assertThat(dataStreams.get(0).getBackingIndices()[2], equalTo(backingIndices.get(2).getIndex().getName()));
+        assertThat(dataStreams.get(0).getBackingIndices(), arrayContaining(names));
     }
 
     private void validateIndices(List<ResolvedIndex> resolvedIndices, String... expectedIndices) {

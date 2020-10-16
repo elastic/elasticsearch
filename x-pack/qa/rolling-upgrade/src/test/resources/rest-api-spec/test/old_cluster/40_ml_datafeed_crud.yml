@@ -1,5 +1,8 @@
 ---
 "Put job and datafeed without aggs in old cluster":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
 
   - do:
       ml.put_job:
@@ -118,8 +121,8 @@
 ---
 "Put job and datafeed with aggs in old cluster - deprecated interval with warning before 8.0.0":
   - skip:
-      version: "8.0.0 - "
-      reason:  at version 8.0.0, deprecation warnings don't occur on get_stats
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: warnings
 
   - do:
@@ -193,8 +196,8 @@
 ---
 "Put job and datafeed with aggs in old cluster - deprecated interval with warning after 8.0.0":
   - skip:
-      version: " - 7.99.99"
-      reason:  at version 8.0.0, deprecation warnings don't occur on get_stats
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
 
   - do:
       ml.put_job:

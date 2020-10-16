@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -137,6 +139,10 @@ setup:
 
 ---
 "Test delete snapshot missing snapshotId":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: param
       ml.delete_model_snapshot:
@@ -144,6 +150,10 @@ setup:
 
 ---
 "Test delete snapshot missing job_id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: param
       ml.delete_model_snapshot:
@@ -151,6 +161,10 @@ setup:
 
 ---
 "Test valid delete snapshot":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_model_snapshots:
         job_id: "delete-model-snapshot"
@@ -198,6 +212,10 @@ setup:
 
 ---
 "Test delete with in-use model":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: bad_request
@@ -207,6 +225,10 @@ setup:
 
 ---
 "Test with unknown job id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.delete_model_snapshot:

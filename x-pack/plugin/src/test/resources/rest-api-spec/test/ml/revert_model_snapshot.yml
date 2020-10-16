@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -205,6 +207,10 @@ setup:
 
 ---
 "Test revert model with invalid snapshotId":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /resource_not_found_exception/
       ml.revert_model_snapshot:
@@ -213,6 +219,10 @@ setup:
 
 ---
 "Test revert model with valid snapshotId":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.revert_model_snapshot:
         job_id: "revert-model-snapshot"
@@ -235,6 +245,10 @@ setup:
 
 ---
 "Test revert model with delete_intervening_results":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "revert-model-snapshot"
@@ -293,6 +307,10 @@ setup:
 
 ---
 "Test with unknown job id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.revert_model_snapshot:

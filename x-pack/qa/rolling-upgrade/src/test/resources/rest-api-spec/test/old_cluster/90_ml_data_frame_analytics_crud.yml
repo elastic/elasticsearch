@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       index:
@@ -35,6 +39,10 @@ setup:
 
 ---
 "Put outlier_detection job on the old cluster":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -54,6 +62,10 @@ setup:
 
 ---
 "Put regression job on the old cluster":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -77,6 +89,10 @@ setup:
 
 ---
 "Put classification job on the old cluster":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:

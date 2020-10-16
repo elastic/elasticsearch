@@ -1,11 +1,19 @@
 ---
 setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       indices.create:
         index: index-source
 
 ---
 "Test get-all and get-all-stats given no analytics exist":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_data_frame_analytics:
@@ -33,6 +41,10 @@ setup:
 
 ---
 "Test put valid config with default outlier detection, query, and filter":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -86,6 +98,10 @@ setup:
 
 ---
 "Test put config with security headers in the body":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /unknown field \[headers\]/
       ml.put_data_frame_analytics:
@@ -105,6 +121,10 @@ setup:
 
 ---
 "Test put config with create_time in the body":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /unknown field \[create_time\]/
@@ -124,6 +144,10 @@ setup:
 
 ---
 "Test put config with version in the body":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /unknown field \[version\]/
@@ -143,6 +167,10 @@ setup:
 
 ---
 "Test put valid config with default outlier detection":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -173,6 +201,10 @@ setup:
 
 ---
 "Test put valid config with custom outlier detection":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -215,6 +247,10 @@ setup:
 
 ---
 "Test put config with inconsistent body/param ids":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Inconsistent id; 'body_id' specified in the body differs from 'url_id' specified as a URL argument/
@@ -234,6 +270,10 @@ setup:
 
 ---
 "Test put config with invalid id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Invalid id*/
@@ -252,6 +292,10 @@ setup:
 
 ---
 "Test put config with invalid dest index name":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Invalid index name \[<script>Foo\]*/
@@ -270,6 +314,10 @@ setup:
 
 ---
 "Test put config given dest index contains uppercase chars":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /.*Validation Failed.* Destination index \[Foo\] must be lowercase;.*/
@@ -288,6 +336,10 @@ setup:
 
 ---
 "Test put config with pattern dest index name":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Invalid index name \[foo\*\]/
@@ -306,6 +358,10 @@ setup:
 
 ---
 "Test put config with missing concrete source index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /.*Validation Failed.* no such index \[missing\]/
@@ -324,6 +380,10 @@ setup:
 
 ---
 "Test put config with missing wildcard source index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -342,6 +402,10 @@ setup:
 
 ---
 "Test put config with dest index same as source index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /.*Validation Failed.* Destination index \[index-source\] is included in source expression \[index-source\]/
@@ -360,6 +424,10 @@ setup:
 
 ---
 "Test put config with dest index matching multiple indices":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       indices.create:
@@ -396,6 +464,10 @@ setup:
 
 ---
 "Test put config with dest index included in source via alias":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       indices.create:
@@ -423,6 +495,10 @@ setup:
 
 ---
 "Test put config with remote source index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /.*Validation Failed.* remote source indices are not supported/
@@ -441,6 +517,10 @@ setup:
 
 ---
 "Test put config with unknown top level field":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /unknown field \[unknown_field\]/
@@ -460,6 +540,10 @@ setup:
 
 ---
 "Test put config with unknown field in outlier detection analysis":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /unknown field \[unknown_field\]/
@@ -478,6 +562,10 @@ setup:
 
 ---
 "Test put config given missing source":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[source\] must not be null/
@@ -493,6 +581,10 @@ setup:
 
 ---
 "Test put config given source with empty index array":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /source\.index must specify at least one index/
@@ -511,6 +603,10 @@ setup:
 
 ---
 "Test put config given source with empty string in index array":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /source\.index must contain non-null and non-empty strings/
@@ -529,6 +625,10 @@ setup:
 
 ---
 "Test put config given source without index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Required \[index\]/
@@ -546,6 +646,10 @@ setup:
 
 ---
 "Test put config given missing dest":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[dest\] must not be null/
@@ -561,6 +665,10 @@ setup:
 
 ---
 "Test put config given dest with empty index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[index\] must be non-empty/
@@ -579,6 +687,10 @@ setup:
 
 ---
 "Test put config given dest without index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Required \[index\]/
@@ -596,6 +708,10 @@ setup:
 
 ---
 "Test put config given missing analysis":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[analysis\] must not be null/
@@ -613,6 +729,10 @@ setup:
 
 ---
 "Test put config given empty analysis":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /parsing_exception/
@@ -631,6 +751,10 @@ setup:
 
 ---
 "Test get given multiple analytics":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -724,6 +848,10 @@ setup:
 
 ---
 "Test get given missing analytics":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -732,6 +860,10 @@ setup:
 
 ---
 "Test get given missing analytics and allow_no_match is false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -741,6 +873,10 @@ setup:
 
 ---
 "Test get given expression without matches and allow_no_match is false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -750,6 +886,10 @@ setup:
 
 ---
 "Test get given expression without matches and allow_no_match is true":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_data_frame_analytics:
@@ -760,6 +900,10 @@ setup:
 
 ---
 "Test get stats given missing analytics":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -768,6 +912,10 @@ setup:
 
 ---
 "Test get stats given missing analytics and allow_no_match is false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -777,6 +925,10 @@ setup:
 
 ---
 "Test get stats given expression without matches and allow_no_match is false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -786,6 +938,10 @@ setup:
 
 ---
 "Test get stats given expression without matches and allow_no_match is true":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_data_frame_analytics_stats:
@@ -796,6 +952,10 @@ setup:
 
 ---
 "Test get stats given multiple analytics":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -904,6 +1064,10 @@ setup:
 
 ---
 "Test get stats on newly created config":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -949,6 +1113,10 @@ setup:
 
 ---
 "Test delete given stopped config":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -976,6 +1144,10 @@ setup:
 
 ---
 "Test delete given missing config":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -985,6 +1157,8 @@ setup:
 ---
 "Test delete given config, state and stats documents":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       ml.put_data_frame_analytics:
@@ -1116,6 +1290,8 @@ setup:
 ---
 "Test max model memory limit":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -1187,6 +1363,10 @@ setup:
 
 ---
 "Test put outlier_detection given n_neighbors is negative":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[n_neighbors\] must be a positive integer/
@@ -1209,6 +1389,10 @@ setup:
 
 ---
 "Test put outlier_detection given n_neighbors is zero":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[n_neighbors\] must be a positive integer/
@@ -1231,6 +1415,10 @@ setup:
 
 ---
 "Test put outlier_detection given feature_influence_threshold is negative":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[feature_influence_threshold\] must be in \[0, 1\]/
@@ -1253,6 +1441,10 @@ setup:
 
 ---
 "Test put outlier_detection given feature_influence_threshold is greater than one":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[feature_influence_threshold\] must be in \[0, 1\]/
@@ -1275,6 +1467,10 @@ setup:
 
 ---
 "Test put outlier_detection given outlier_fraction is negative":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[outlier_fraction\] must be in \[0, 1\]/
@@ -1297,6 +1493,10 @@ setup:
 
 ---
 "Test put outlier_detection given outlier_fraction is greater than one":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[outlier_fraction\] must be in \[0, 1\]/
@@ -1319,6 +1519,10 @@ setup:
 
 ---
 "Test put regression given dependent_variable is not defined":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /parse_exception/
@@ -1339,6 +1543,10 @@ setup:
 
 ---
 "Test put regression given negative lambda":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[lambda\] must be a non-negative double/
@@ -1362,6 +1570,10 @@ setup:
 
 ---
 "Test put regression given negative gamma":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[gamma\] must be a non-negative double/
@@ -1385,6 +1597,10 @@ setup:
 
 ---
 "Test put regression given eta less than 1e-3":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[eta\] must be a double in \[0.001, 1\]/
@@ -1408,6 +1624,10 @@ setup:
 
 ---
 "Test put regression given eta greater than one":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[eta\] must be a double in \[0.001, 1\]/
@@ -1431,6 +1651,10 @@ setup:
 
 ---
 "Test put regression given max_trees is zero":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[max_trees\] must be an integer in \[1, 2000\]/
@@ -1454,6 +1678,10 @@ setup:
 
 ---
 "Test put regression given max_trees is greater than 2k":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[max_trees\] must be an integer in \[1, 2000\]/
@@ -1477,6 +1705,10 @@ setup:
 
 ---
 "Test put regression given feature_bag_fraction is negative":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
@@ -1500,6 +1732,10 @@ setup:
 
 ---
 "Test put regression given feature_bag_fraction is greater than one":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
@@ -1523,6 +1759,10 @@ setup:
 
 ---
 "Test put regression given training_percent is less than zero":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[training_percent\] must be a positive double in \(0, 100\]/
@@ -1546,6 +1786,10 @@ setup:
 
 ---
 "Test put regression given training_percent is greater than hundred":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[training_percent\] must be a positive double in \(0, 100\]/
@@ -1569,6 +1813,10 @@ setup:
 
 ---
 "Test put regression given loss_function_parameter is zero":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[loss_function_parameter\] must be a positive double/
@@ -1592,6 +1840,10 @@ setup:
 
 ---
 "Test put regression given loss_function_parameter is negative":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[loss_function_parameter\] must be a positive double/
@@ -1615,6 +1867,10 @@ setup:
 
 ---
 "Test put regression given valid":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -1665,6 +1921,10 @@ setup:
 
 ---
 "Test put classification given dependent_variable is not defined":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /parse_exception/
@@ -1685,6 +1945,10 @@ setup:
 
 ---
 "Test put classification given negative lambda":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[lambda\] must be a non-negative double/
@@ -1708,6 +1972,10 @@ setup:
 
 ---
 "Test put classification given negative gamma":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[gamma\] must be a non-negative double/
@@ -1731,6 +1999,10 @@ setup:
 
 ---
 "Test put classification given eta less than 1e-3":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[eta\] must be a double in \[0.001, 1\]/
@@ -1754,6 +2026,10 @@ setup:
 
 ---
 "Test put classification given eta greater than one":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[eta\] must be a double in \[0.001, 1\]/
@@ -1777,6 +2053,10 @@ setup:
 
 ---
 "Test put classification given max_trees is zero":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[max_trees\] must be an integer in \[1, 2000\]/
@@ -1800,6 +2080,10 @@ setup:
 
 ---
 "Test put classification given max_trees is greater than 2k":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[max_trees\] must be an integer in \[1, 2000\]/
@@ -1823,6 +2107,10 @@ setup:
 
 ---
 "Test put classification given feature_bag_fraction is negative":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
@@ -1846,6 +2134,10 @@ setup:
 
 ---
 "Test put classification given feature_bag_fraction is greater than one":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[feature_bag_fraction\] must be a double in \(0, 1\]/
@@ -1869,6 +2161,9 @@ setup:
 
 ---
 "Test put classification given num_top_classes is less than minus one":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
 
   - do:
       catch: /\[num_top_classes\] must be an integer in \[0, 1000\] or a special value -1/
@@ -1892,6 +2187,10 @@ setup:
 
 ---
 "Test put classification given num_top_classes is greater than 1k":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[num_top_classes\] must be an integer in \[0, 1000\] or a special value -1/
@@ -1915,6 +2214,10 @@ setup:
 
 ---
 "Test put classification given training_percent is less than zero":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[training_percent\] must be a positive double in \(0, 100\]/
@@ -1938,6 +2241,10 @@ setup:
 
 ---
 "Test put classification given training_percent is greater than hundred":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /\[training_percent\] must be a positive double in \(0, 100\]/
@@ -1961,6 +2268,10 @@ setup:
 
 ---
 "Test put classification given valid":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -2010,8 +2321,9 @@ setup:
 
 ---
 "Test put classification given deprecated maximum_number_trees":
-
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: allowed_warnings
 
   - do:
@@ -2054,6 +2366,10 @@ setup:
 
 ---
 "Test put with description":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -2092,6 +2408,10 @@ setup:
 
 ---
 "Test put config given analyzed_fields include field excluded by source":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /field \[excluded\] is included in \[analyzed_fields\] but not in \[source._source\]/
@@ -2117,6 +2437,10 @@ setup:
 
 ---
 "Test update given all updatable settings":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -2159,6 +2483,10 @@ setup:
 
 ---
 "Test update given missing analytics":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -2171,6 +2499,10 @@ setup:
 
 ---
 "Test GET config for export":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:

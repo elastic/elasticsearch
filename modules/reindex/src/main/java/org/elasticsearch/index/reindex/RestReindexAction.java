@@ -36,14 +36,17 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -54,7 +57,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Expose reindex over rest.
  */
-public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
+public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> implements RestRequestFilter {
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
 
     static {
@@ -234,5 +237,12 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) query;
         return BytesReference.bytes(builder.map(map));
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Collections.singleton("source.remote.host.password");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

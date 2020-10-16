@@ -52,36 +52,7 @@ fi
 #   - second, JVM options are read from jvm.options and jvm.options.d/*.options
 #   - third, JVM options from ES_JAVA_OPTS are applied
 #   - fourth, ergonomic JVM options are applied
-ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
-
-# Look for plugins whose "type" is "bootstrap". Such plugins will be added to the JVM's
-# boot classpath. The plugins may also define additional JVM options, in order to
-# configure the bootstrap plugins.
-BOOTCLASSPATH=""
-for PLUGIN_DIR in "$ES_HOME"/plugins/*; do
-  # Guard against unexpected items in the plugins directory
-  if [[ -d "$PLUGIN_DIR" && -f "$PLUGIN_DIR/plugin-descriptor.properties" ]]; then
-    if grep '^ *type *= *bootstrap$' "$PLUGIN_DIR/plugin-descriptor.properties"; then
-      for PLUGIN_JAR in "$PLUGIN_DIR/"*.jar; do
-        BOOTCLASSPATH="$BOOTCLASSPATH:$PLUGIN_JAR"
-      done
-
-      # cut -f2- means select fields 2 and all later fields
-      EXTRA_ES_JAVA_OPTS="$(grep "^ *java.opts *=" "$PLUGIN_DIR/plugin-descriptor.properties" | cut -f2- -d=)"
-      if [[ -n "$EXTRA_ES_JAVA_OPTS" ]]; then
-        ES_JAVA_OPTS="$ES_JAVA_OPTS $EXTRA_ES_JAVA_OPTS"
-      fi
-    elif grep "^ *java.opts *=" "$PLUGIN_DIR/plugin-descriptor.properties" 2>&1 >/dev/null; then
-      echo "Plugin [$(basename "$PLUGIN_DIR")] cannot specify a value for [java.opts] because its [type] is not [bootstrap]" 1>&2
-      exit 1
-    fi
-  fi
-done
-
-if [[ -n "$BOOTCLASSPATH" ]]; then
-  # The value here will have a leading ":"
-  ES_JAVA_OPTS="$ES_JAVA_OPTS -Xbootclasspath/a$BOOTCLASSPATH"
-fi
+ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then

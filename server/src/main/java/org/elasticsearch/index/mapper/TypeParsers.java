@@ -101,7 +101,7 @@ public class TypeParsers {
     /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
      */
-    public static void parseField(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode,
+    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
                                   Mapper.TypeParser.ParserContext parserContext) {
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();

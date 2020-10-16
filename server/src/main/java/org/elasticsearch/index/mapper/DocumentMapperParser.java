@@ -71,13 +71,15 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-                typeParsers::get, indexVersionCreated, queryShardContextSupplier, null, scriptService);
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, typeParsers::get, indexVersionCreated,
+            queryShardContextSupplier, null, scriptService, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            mapperService::isIdFieldDataEnabled);
     }
 
     public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-            typeParsers::get, indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService);
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, typeParsers::get, indexVersionCreated,
+            queryShardContextSupplier, dateFormatter, scriptService, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            mapperService::isIdFieldDataEnabled);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
@@ -145,7 +147,7 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        return docBuilder.build(mapperService);
+        return docBuilder.build();
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {

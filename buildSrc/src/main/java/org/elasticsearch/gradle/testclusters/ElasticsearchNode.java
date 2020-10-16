@@ -56,6 +56,7 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.process.ExecOperations;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -127,6 +128,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Jdk bwcJdk;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
+    private final ExecOperations execOperations;
 
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
@@ -173,9 +175,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         String name,
         Project project,
         ReaperService reaper,
+        File workingDirBase,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
-        File workingDirBase,
+        ExecOperations execOperations,
         Jdk bwcJdk
     ) {
         this.path = path;
@@ -184,6 +187,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.reaper = reaper;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
+        this.execOperations = execOperations;
         this.bwcJdk = bwcJdk;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
@@ -705,7 +709,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             );
         }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
-            LoggedExec.exec(project, spec -> {
+            LoggedExec.exec(execOperations, spec -> {
                 spec.setEnvironment(getESEnvironment());
                 spec.workingDir(getDistroDir());
                 spec.executable(OS.conditionalString().onUnix(() -> "./bin/" + tool).onWindows(() -> "cmd").supply());

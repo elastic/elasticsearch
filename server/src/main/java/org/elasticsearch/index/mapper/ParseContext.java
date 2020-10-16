@@ -25,8 +25,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -37,7 +39,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-public abstract class ParseContext implements Iterable<ParseContext.Document>{
+public abstract class ParseContext {
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
     public static class Document implements Iterable<IndexableField> {
@@ -168,8 +170,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public DocumentMapperParser docMapperParser() {
-            return in.docMapperParser();
+        public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
+            return in.parserContext(dateFormatter);
         }
 
         @Override
@@ -208,6 +210,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
+        public List<Document> docs() {
+            return in.docs();
+        }
+
+        @Override
         public Document doc() {
             return in.doc();
         }
@@ -228,8 +235,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public MapperService mapperService() {
-            return in.mapperService();
+        public IndexAnalyzers indexAnalyzers() {
+            return in.indexAnalyzers();
         }
 
         @Override
@@ -273,11 +280,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterator<Document> iterator() {
-            return in.iterator();
-        }
-
-        @Override
         public void addIgnoredField(String field) {
             in.addIgnoredField(field);
         }
@@ -289,42 +291,22 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
     }
 
     public static class InternalParseContext extends ParseContext {
-
         private final DocumentMapper docMapper;
-
-        private final DocumentMapperParser docMapperParser;
-
         private final ContentPath path;
-
         private final XContentParser parser;
-
-        private Document document;
-
+        private final Document document;
         private final List<Document> documents;
-
-        private final IndexSettings indexSettings;
-
         private final SourceToParse sourceToParse;
-
-        private Field version;
-
-        private SeqNoFieldMapper.SequenceIDFields seqID;
-
         private final long maxAllowedNumNestedDocs;
-
-        private long numNestedDocs;
-
         private final List<Mapper> dynamicMappers;
-
+        private final Set<String> ignoredFields = new HashSet<>();
+        private Field version;
+        private SeqNoFieldMapper.SequenceIDFields seqID;
+        private long numNestedDocs;
         private boolean docsReversed = false;
 
-        private final Set<String> ignoredFields = new HashSet<>();
-
-        public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                                    SourceToParse source, XContentParser parser) {
-            this.indexSettings = indexSettings;
+        public InternalParseContext(DocumentMapper docMapper, SourceToParse source, XContentParser parser) {
             this.docMapper = docMapper;
-            this.docMapperParser = docMapperParser;
             this.path = new ContentPath(0);
             this.parser = parser;
             this.document = new Document();
@@ -333,18 +315,18 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             this.version = null;
             this.sourceToParse = source;
             this.dynamicMappers = new ArrayList<>();
-            this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
+            this.maxAllowedNumNestedDocs = docMapper.indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 
         @Override
-        public DocumentMapperParser docMapperParser() {
-            return this.docMapperParser;
+        public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
+            return docMapper.documentMapperParser().parserContext(dateFormatter);
         }
 
         @Override
         public IndexSettings indexSettings() {
-            return this.indexSettings;
+            return this.docMapper.indexSettings();
         }
 
         @Override
@@ -367,7 +349,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             return documents.get(0);
         }
 
-        List<Document> docs() {
+        @Override
+        public List<Document> docs() {
             return this.documents;
         }
 
@@ -399,8 +382,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public MapperService mapperService() {
-            return docMapperParser.mapperService;
+        public IndexAnalyzers indexAnalyzers() {
+            return docMapper.indexAnalyzers();
         }
 
         @Override
@@ -444,7 +427,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         void postParse() {
             if (documents.size() > 1) {
                 docsReversed = true;
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
+                if (indexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
                     /**
                      * For indices created on or after {@link Version#V_6_5_0} we preserve the order
                      * of the children while ensuring that parents appear after them.
@@ -477,12 +460,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterator<Document> iterator() {
-            return documents.iterator();
-        }
-
-
-        @Override
         public void addIgnoredField(String field) {
             ignoredFields.add(field);
         }
@@ -510,7 +487,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      */
     public abstract Collection<String> getIgnoredFields();
 
-    public abstract DocumentMapperParser docMapperParser();
+    public abstract Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter);
 
     /**
      * Return a new context that will be within a copy-to operation.
@@ -587,6 +564,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
     public abstract Document rootDoc();
 
+    public abstract List<Document> docs();
+
     public abstract Document doc();
 
     protected abstract void addDoc(Document doc);
@@ -595,7 +574,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
     public abstract DocumentMapper docMapper();
 
-    public abstract MapperService mapperService();
+    public abstract IndexAnalyzers indexAnalyzers();
 
     public abstract Field version();
 

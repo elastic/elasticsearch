@@ -165,6 +165,46 @@ tasks.register("copyKeystore", Sync) {
   }
 }
 
+tasks.register("checkSecurityAuditLayoutPatternIdentical") {
+  // the two log4j2.properties files containing security audit configuration for archive and docker builds respectively
+  def originalLog4j = project(":x-pack:plugin:core").file('src/main/config/log4j2.properties')
+  def dockerLog4j = project.file("src/docker/config/log4j2.properties")
+  inputs.files(originalLog4j, dockerLog4j)
+  def patternPropertyKey = "appender.audit_rolling.layout.pattern"
+  doLast {
+    def coreLog4jProperties = new Properties()
+    originalLog4j.withInputStream { input ->
+      coreLog4jProperties.load(input)
+    }
+
+    if (false == coreLog4jProperties.containsKey(patternPropertyKey)) {
+      throw new GradleException("The [${originalLog4j.getPath()}] file changed such that the layout pattern is not " +
+              "referred to by the property named [${patternPropertyKey}]. Please update the task [${name}] " +
+              "definition from project [${path}] to reflect the new name for the layout pattern property.")
+    }
+
+    def dockerLog4jProperties = new Properties()
+    dockerLog4j.withInputStream { input ->
+      dockerLog4jProperties.load(input)
+    }
+
+    if (false == dockerLog4jProperties.containsKey(patternPropertyKey)) {
+      throw new GradleException("The [${dockerLog4j.getPath()}] file changed such that the layout pattern is not " +
+              "referred to by the property named [${patternPropertyKey}]. Please update the task [${name}] " +
+              "definition from project [${path}] to reflect the new name for the layout pattern property.")
+    }
+
+    if (false == coreLog4jProperties.getProperty(patternPropertyKey).equals(dockerLog4jProperties.getProperty(patternPropertyKey))) {
+      throw new GradleException("The property value for the layout pattern [${patternPropertyKey}] is NOT identical " +
+              "between the [${originalLog4j.getPath()}] and the [${dockerLog4j.getPath()}] files.")
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn 'checkSecurityAuditLayoutPatternIdentical'
+}
+
 elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->
     Flavor.values().each { distroFlavor ->

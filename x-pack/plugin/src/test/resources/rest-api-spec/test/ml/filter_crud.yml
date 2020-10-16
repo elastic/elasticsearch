@@ -1,6 +1,8 @@
 ---
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features:
         - headers
         - warnings
@@ -35,6 +37,10 @@ setup:
 
 ---
 "Test get filter API with bad ID":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -43,6 +49,10 @@ setup:
 
 ---
 "Test get filter API":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_filters:
@@ -56,6 +66,10 @@ setup:
 
 ---
 "Test get filters API":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_filters: {}
@@ -87,6 +101,10 @@ setup:
 
 ---
 "Test get filters API with expression ID":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_filters:
@@ -122,6 +140,10 @@ setup:
 
 ---
 "Test create filter given invalid filter_id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: bad_request
       ml.put_filter:
@@ -133,6 +155,10 @@ setup:
 
 ---
 "Test create filter api":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_filter:
         filter_id: new-filter
@@ -159,6 +185,10 @@ setup:
 
 ---
 "Test create filter api with mismatching body ID":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /illegal_argument_exception/
       ml.put_filter:
@@ -171,6 +201,10 @@ setup:
 
 ---
 "Test update filter given no filter matches filter_id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.update_filter:
@@ -181,6 +215,10 @@ setup:
 
 ---
 "Test update filter":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_filter:
         filter_id: "test_update_filter"
@@ -219,6 +257,10 @@ setup:
 
 ---
 "Test update filter given remove item is not present":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /Cannot remove item \[not present item\] as it is not present in filter \[filter-foo\]/
       ml.update_filter:
@@ -230,6 +272,10 @@ setup:
 
 ---
 "Test delete in-use filter":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_job:
         job_id: filter-crud
@@ -261,6 +307,10 @@ setup:
 
 ---
 "Test non-existing filter":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.delete_filter:
@@ -268,6 +318,10 @@ setup:
 
 ---
 "Test valid delete filter":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_filters:
@@ -290,6 +344,10 @@ setup:
 
 ---
 "Test get all filter given no filter exists":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.delete_filter:

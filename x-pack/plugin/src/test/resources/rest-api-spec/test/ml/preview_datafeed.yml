@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       indices.create:
         index: airline-data
@@ -68,6 +72,10 @@ setup:
 
 ---
 "Test preview scroll datafeed":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -111,6 +119,10 @@ setup:
 
 ---
 "Test preview aggregation datafeed with doc_count":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -183,6 +195,10 @@ setup:
 
 ---
 "Test preview single metric aggregation datafeed with different summary count field":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -241,6 +257,10 @@ setup:
 
 ---
 "Test preview multi metric aggregation datafeed with different summary count field":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -320,6 +340,10 @@ setup:
 
 ---
 "Test preview missing datafeed":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -328,6 +352,10 @@ setup:
 
 ---
 "Test preview datafeed with unavailable index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -359,6 +387,10 @@ setup:
 
 ---
 "Test preview datafeed with query that matches nothing":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:

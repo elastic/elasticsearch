@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features:
         - headers
         - allowed_warnings
@@ -402,6 +404,10 @@ setup:
           }
 ---
 "Test get given missing trained model":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -409,6 +415,10 @@ setup:
         model_id: "missing-trained-model"
 ---
 "Test get given expression without matches and allow_no_match is false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -418,6 +428,10 @@ setup:
 
 ---
 "Test get given expression without matches and allow_no_match is true":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_trained_models:
@@ -427,6 +441,10 @@ setup:
   - match: { trained_model_configs: [] }
 ---
 "Test get models":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_trained_models:
         model_id: "*"
@@ -538,6 +556,10 @@ setup:
 
 ---
 "Test get models with tags":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_trained_models:
         model_id: "*"
@@ -570,6 +592,10 @@ setup:
   - match: { trained_model_configs.0.model_id: "a-regression-model-1" }
 ---
 "Test get models with include total feature importance":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_trained_models:
         model_id: "a-regression-model-*"
@@ -584,18 +610,30 @@ setup:
 
 ---
 "Test delete given unused trained model":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.delete_trained_model:
         model_id: "a-classification-model"
   - match: { acknowledged: true }
 ---
 "Test delete with missing model":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.delete_trained_model:
         model_id: "missing-trained-model"
 ---
 "Test delete given used trained model":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ingest.put_pipeline:
         id: "regression-model-pipeline"
@@ -620,6 +658,10 @@ setup:
         model_id: "a-regression-model-0"
 ---
 "Test get pre-packaged trained models":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_trained_models:
         model_id: "lang_ident_model_1"
@@ -628,6 +670,10 @@ setup:
   - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
 ---
 "Test put ensemble with single node and empty feature_names":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_trained_model:
@@ -663,6 +709,10 @@ setup:
 
 ---
 "Test put ensemble with empty models":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /\[trained_models\] must not be empty/
       ml.put_trained_model:
@@ -684,6 +734,10 @@ setup:
           }
 ---
 "Test put ensemble with tree where tree has out of bounds feature_names index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /feature index \[1\] is out of bounds for the \[feature_names\] array/
       ml.put_trained_model:
@@ -722,6 +776,10 @@ setup:
           }
 ---
 "Test put model with empty input.field_names":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /\[input\.field_names\] must not be empty/
       ml.put_trained_model:
@@ -760,6 +818,10 @@ setup:
           }
 ---
 "Test put model":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_trained_model:
         model_id: my-regression-model
@@ -811,6 +873,10 @@ setup:
   - is_true: estimated_heap_memory_usage_bytes
 ---
 "Test PUT model where target type and inference config mismatch":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /Model \[my-regression-model\] inference config type \[classification\] does not support definition target type \[regression\]/
       ml.put_trained_model:
@@ -855,6 +921,10 @@ setup:
           }
 ---
 "Test for_export flag":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_trained_models:
         model_id: "a-regression-model-1"
@@ -877,6 +947,8 @@ setup:
 ---
 "Test deprecation of include model definition param":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: "warnings"
   - do:
       warnings:

@@ -1,5 +1,9 @@
 ---
 "Get old outlier_detection job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_data_frame_analytics:
@@ -19,6 +23,10 @@
 
 ---
 "Get old outlier_detection job stats":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_data_frame_analytics_stats:
@@ -29,6 +37,10 @@
 
 ---
 "Start and stop old outlier_detection job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.start_data_frame_analytics:
@@ -49,6 +61,10 @@
 
 ---
 "Get old regression job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_data_frame_analytics:
@@ -64,6 +80,10 @@
 
 ---
 "Get old regression job stats":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_data_frame_analytics_stats:
@@ -74,6 +94,10 @@
 
 ---
 "Start and stop old regression job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.start_data_frame_analytics:
@@ -94,6 +118,10 @@
 
 ---
 "Get old classification job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_data_frame_analytics:
@@ -109,6 +137,10 @@
 
 ---
 "Get old classification job stats":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_data_frame_analytics_stats:
@@ -119,6 +151,10 @@
 
 ---
 "Put an outlier_detection job on the mixed cluster":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:
@@ -171,6 +207,10 @@
 
 ---
 "Put and delete jobs":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_data_frame_analytics:

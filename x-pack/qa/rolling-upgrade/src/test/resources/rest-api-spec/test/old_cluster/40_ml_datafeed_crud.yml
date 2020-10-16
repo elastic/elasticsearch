@@ -1,5 +1,8 @@
 ---
 "Put job and datafeed without aggs in old cluster":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
 
   - do:
       ml.put_job:
@@ -118,8 +121,8 @@
 ---
 "Put job and datafeed with aggs in old cluster - deprecated interval with warning and warning on stats":
   - skip:
-      version: " - 7.3.99"
-      reason:  calendar_interval introduced in 7.2.0 and datafeed config expansion not introduced on stats until 7.4.0
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: warnings
 
   - do:
@@ -192,8 +195,8 @@
 ---
 "Put job and datafeed with aggs in old cluster - deprecated interval with warning but not on stats":
   - skip:
-      version: " - 7.1.99, 7.4.0 - "
-      reason:  calendar_interval introduced in 7.2.0, and datafeeds expanded in stats after and on 7.4.0
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: warnings
 
   - do:

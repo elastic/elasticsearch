@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -58,6 +60,10 @@ setup:
 
 ---
 "Test result records api":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_records:
         job_id: "jobs-get-result-records"
@@ -72,6 +78,10 @@ setup:
 
 ---
 "Test get records with paging":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_records:
         job_id: "jobs-get-result-records"
@@ -86,6 +96,10 @@ setup:
 
 ---
 "Test get records with paging in body":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_records:
         job_id: "jobs-get-result-records"
@@ -105,6 +119,10 @@ setup:
 
 ---
 "Test get records given exclude_interim is false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_records:
         job_id: "jobs-get-result-records"
@@ -114,6 +132,10 @@ setup:
 
 ---
 "Test get records given exclude_interim is true":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_records:
         job_id: "jobs-get-result-records"
@@ -125,6 +147,10 @@ setup:
 
 ---
 "Test result records api with time range":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_records:
         job_id: "jobs-get-result-records"
@@ -138,6 +164,10 @@ setup:
 
 ---
 "Test with unknown job id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.get_records:

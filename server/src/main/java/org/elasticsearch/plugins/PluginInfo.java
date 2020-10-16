@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -183,7 +184,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
         }
 
-        final boolean hasNativeController = parseBooleanValue("has.native.controller", propsMap.remove("has.native.controller"));
+        final boolean hasNativeController = parseBooleanValue(name, "has.native.controller", propsMap.remove("has.native.controller"));
 
         final PluginType type = getPluginType(name, propsMap.remove("type"));
 
@@ -196,7 +197,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         if (propsMap.isEmpty() == false) {
-            throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
+            throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
         }
 
         return new PluginInfo(name, description, version, esVersion, javaVersionString,
@@ -217,25 +218,18 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
     }
 
-    private static boolean parseBooleanValue(String name, String rawValue) {
-        if (rawValue == null) {
-            return false;
-        }
-
-        switch (rawValue) {
-            case "true":
-                return true;
-
-            case "false":
-                return false;
-
-            default:
-                final String message = String.format(
-                    Locale.ROOT,
-                    "property [%s] must be [true], [false], or unspecified but was [%s]",
-                    name,
-                    rawValue);
-                throw new IllegalArgumentException(message);
+    private static boolean parseBooleanValue(String pluginName, String name, String rawValue) {
+        try {
+            return Booleans.parseBoolean(rawValue, false);
+        } catch (IllegalArgumentException e) {
+            final String message = String.format(
+                Locale.ROOT,
+                "property [%s] must be [true], [false], or unspecified but was [%s] for plugin [%s]",
+                name,
+                rawValue,
+                pluginName
+            );
+            throw new IllegalArgumentException(message);
         }
     }
 

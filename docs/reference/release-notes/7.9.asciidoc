@@ -43,7 +43,7 @@ Features/Ingest::
 
 Machine Learning::
 * Fix online updates with custom rules referencing filters {es-pull}63057[#63057] (issue: {es-issue}62948[#62948])
-* Reset reindexing progress when DFA job resumes with incomplete reindexing {es-pull}62772[#62772]
+* Reset reindexing progress when data frame analytics job resumes with incomplete reindexing {es-pull}62772[#62772]
 
 SQL::
 * Fix exception when using CAST on inexact field {es-pull}62943[#62943] (issue: {es-issue}60178[#60178])

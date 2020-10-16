@@ -140,14 +140,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         return DateFieldType.handleNow(context, now -> {
-            long l = DateFieldType.parseToLong(
-                value,
-                false,
-                null,
-                this.dateMathParser,
-                now,
-                DateFieldMapper.Resolution.MILLISECONDS
-            );
+            long l = DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS);
             checkAllowExpensiveQueries(context);
             return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), l);
         });
@@ -161,16 +154,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         return DateFieldType.handleNow(context, now -> {
             LongSet terms = new LongHashSet(values.size());
             for (Object value : values) {
-                terms.add(
-                    DateFieldType.parseToLong(
-                        value,
-                        false,
-                        null,
-                        this.dateMathParser,
-                        now,
-                        DateFieldMapper.Resolution.MILLISECONDS
-                    )
-                );
+                terms.add(DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS));
             }
             checkAllowExpensiveQueries(context);
             return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);

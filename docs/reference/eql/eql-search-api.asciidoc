@@ -63,15 +63,15 @@ NOTE: Unlike the <<search-search,search API>>, the EQL search API returns an
 error for requests that target only missing or closed indices regardless of
 this argument.
 +
-If `false`, any wildcard expression or <<indices-aliases,index alias>> that
-targets only missing or closed indices returns an error. For example, if `foo`
-is an index but `bar` is not, a request targeting `foo*,bar*` returns an
-error.
+If `false`, any wildcard expression, <<indices-aliases,index alias>>, or `_all`
+value that targets only missing or closed indices returns an error. For example,
+if an index starts with `foo` but no index starts with `bar`, a request
+targeting `foo*,bar*` returns an error.
 +
 If `true`, only requests that exclusively target missing or closed indices
-return an error. For example, if `foo` is an index but `bar` is not, a request
-targeting `foo*,bar*` does not return an error. However, a request that targets
-only `bar*` still returns an error.
+return an error. For example, if an index starts with `foo` but no index starts
+with `bar`, a request targeting `foo*,bar*` does not return an error. However, a
+request that targets only `bar*` still returns an error.
 +
 Defaults to `true`.
 

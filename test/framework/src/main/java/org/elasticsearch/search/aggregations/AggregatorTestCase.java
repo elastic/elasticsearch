@@ -827,9 +827,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         iw.addDocument(doc);
     }
 
-    private class MockParserContext extends Mapper.TypeParser.ParserContext {
+    private static class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, Version.CURRENT, null, null, null);
+            super(null, null, Version.CURRENT, null, null, null, null, null, null);
         }
 
         @Override

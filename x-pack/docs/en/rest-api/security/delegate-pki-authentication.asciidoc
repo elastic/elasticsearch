@@ -89,7 +89,28 @@ Which returns the following response:
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
   "type" : "Bearer",
-  "expires_in" : 1200
+  "expires_in" : 1200,
+  "authentication" : {
+    "username" : "Elasticsearch Test Client",
+    "roles" : [ ],
+    "full_name" : null,
+    "email" : null,
+    "metadata" : {
+      "pki_dn" : "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client",
+      "pki_delegated_by_user" : "test_admin",
+      "pki_delegated_by_realm" : "file"
+      },
+    "enabled" : true,
+    "authentication_realm" : {
+      "name" : "pki1",
+      "type" : "pki"
+      },
+    "lookup_realm" : {
+      "name" : "pki1",
+      "type" : "pki"
+      },
+    "authentication_type" : "realm"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]

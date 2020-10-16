@@ -149,6 +149,8 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                         optionsBuilder.build());
                 String token = delegatePkiResponse.getAccessToken();
                 assertThat(token, is(notNullValue()));
+                assertNotNull(delegatePkiResponse.getAuthenticationResponse());
+
                 // authenticate
                 optionsBuilder = RequestOptions.DEFAULT.toBuilder();
                 optionsBuilder.addHeader("Authorization", "Bearer " + token);
@@ -187,6 +189,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                     optionsBuilder.build());
             String token = delegatePkiResponse.getAccessToken();
             assertThat(token, is(notNullValue()));
+            assertNotNull(delegatePkiResponse.getAuthenticationResponse());
             // authenticate
             optionsBuilder = RequestOptions.DEFAULT.toBuilder();
             optionsBuilder.addHeader("Authorization", "Bearer " + token);

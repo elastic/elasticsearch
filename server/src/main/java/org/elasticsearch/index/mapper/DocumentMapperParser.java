@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
@@ -41,23 +40,21 @@ import java.util.function.Supplier;
 public class DocumentMapperParser {
 
     final MapperService mapperService;
-    private final NamedXContentRegistry xContentRegistry;
     private final SimilarityService similarityService;
     private final Supplier<QueryShardContext> queryShardContextSupplier;
-
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
-
     private final Version indexVersionCreated;
-
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
     private final ScriptService scriptService;
 
-    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
-            SimilarityService similarityService, MapperRegistry mapperRegistry,
-            Supplier<QueryShardContext> queryShardContextSupplier, ScriptService scriptService) {
+    public DocumentMapperParser(IndexSettings indexSettings,
+                                MapperService mapperService,
+                                SimilarityService similarityService,
+                                MapperRegistry mapperRegistry,
+                                Supplier<QueryShardContext> queryShardContextSupplier,
+                                ScriptService scriptService) {
         this.mapperService = mapperService;
-        this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
         this.queryShardContextSupplier = queryShardContextSupplier;
         this.scriptService = scriptService;
@@ -67,13 +64,15 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-                typeParsers::get, indexVersionCreated, queryShardContextSupplier, null, scriptService);
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, typeParsers::get, indexVersionCreated,
+            queryShardContextSupplier, null, scriptService, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            mapperService::isIdFieldDataEnabled);
     }
 
     public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-            typeParsers::get, indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService);
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, typeParsers::get, indexVersionCreated,
+            queryShardContextSupplier, dateFormatter, scriptService, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            mapperService::isIdFieldDataEnabled);
     }
 
     @SuppressWarnings("unchecked")
@@ -150,7 +149,7 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        return docBuilder.build(mapperService.getIndexSettings(), mapperService.documentMapperParser(), mapperService.getIndexAnalyzers());
+        return docBuilder.build();
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {
@@ -170,9 +169,5 @@ public class DocumentMapperParser {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();
-    }
-
-    NamedXContentRegistry getXContentRegistry() {
-        return xContentRegistry;
     }
 }

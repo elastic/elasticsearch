@@ -19,12 +19,11 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
-import java.util.function.Function;
 
 /**
  * All the required context to pull a field from the doc values.
@@ -33,20 +32,25 @@ public class FetchDocValuesContext {
 
     private final List<FieldAndFormat> fields;
 
-    public static FetchDocValuesContext create(Function<String, Set<String>> simpleMatchToFullName,
-                                               int maxAllowedDocvalueFields,
-                                               List<FieldAndFormat> fieldPatterns) {
+    public static FetchDocValuesContext create(MapperService mapperService, List<FieldAndFormat> fieldPatterns) {
+        int maxAllowedDocvalueFields = mapperService.getIndexSettings().getMaxDocvalueFields();
+
         List<FieldAndFormat> fields = new ArrayList<>();
+        int mappedFieldCount = 0;
         for (FieldAndFormat field : fieldPatterns) {
-            Collection<String> fieldNames = simpleMatchToFullName.apply(field.field);
+            Collection<String> fieldNames = mapperService.simpleMatchToFullName(field.field);
             for (String fieldName: fieldNames) {
                 fields.add(new FieldAndFormat(fieldName, field.format));
+                // only count the mapped fields towards the limit fedinde by IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING
+                if (mapperService.fieldType(fieldName) != null) {
+                    mappedFieldCount++;
+                }
             }
         }
-        if (fields.size() > maxAllowedDocvalueFields) {
+        if (mappedFieldCount > maxAllowedDocvalueFields) {
             throw new IllegalArgumentException(
-                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
-                    + "] but was [" + fields.size() + "]. This limit can be set by changing the ["
+                "Trying to retrieve too many mapped docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
+                    + "] but was [" + mappedFieldCount + "]. This limit can be set by changing the ["
                     + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
         }
 

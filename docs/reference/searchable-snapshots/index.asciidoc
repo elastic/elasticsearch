@@ -1,24 +1,101 @@
 [[searchable-snapshots]]
 == {search-snaps-cap}
 
-{search-snaps-cap} enable you to significantly reduce costs by 
-leveraging external storage for read-only data. 
-Like snapshots used for backup and recovery, a searchable snapshot is a point-in-time copy 
-of an index or data stream stored in a remote data store such as S3. 
+Nodes in a distributed system like {es} will inevitably fail from time to time.
+To protect your data against node failures, by default when you index a
+document into {es} it is stored on two or more nodes. You also take periodic
+<<snapshot-restore,snapshots>> of your data so that you can recover from more
+serious failures. This means that each document is stored in at least three
+places. These extra copies are important for resiliency, but the storage they
+consume has an impact on your cluster's operating costs. The two storage
+mechanisms have different, but complementary, performance characteristics:
 
-Snapshot-backed indices use searchable snapshots for redundancy rather than replicas within the cluster. 
-They support all regular data retrieval operations with performance comparable to a normal index.
-In the event of a failure, data is recovered from the snapshot. 
-Latency increases during recovery, but you can continue to query your data.
+* Snapshot repositories are much more reliable than local storage on individual
+  nodes.
 
-A snapshot-backed index essentially halves the number of nodes you need for read-only data. 
-If you are using {ilm-init} to manage your data, in the cold phase it can 
-automatically create a searchable snapshot, convert your index to a snapshot-backed index, 
-and move it to nodes in the cold tier.
+* The monetary cost per GB in a snapshot repository is usually lower than on a
+  node.
 
-While searchable snapshots are separate from the snapshots used for backup and recovery, 
-they are just snapshots. In fact, you can mount any existing snapshot as a snapshot-backed index. 
-When you use the same repository for both types of snapshots, each snapshot is incremental. 
-Files are shared among searchable snapshots and backup snapshots to avoid data duplication. 
-This means that the additional storage costs for using searchable snapshots are negligible.
+* The monetary cost per read or write operation on a snapshot repository is
+  usually much higher.
+
+* Reading or writing data in a snapshot repository usually takes much more time
+  compared with accessing a node's local storage.
+
+{search-snaps-cap} let you reduce your operating costs by treating the snapshot
+as the authoritative copy of some of your indices. The high reliability of the
+snapshot repository removes the need to keep multiple copies of their data in
+your cluster purely for resiliency. {es} makes a copy of a searchable snapshot
+on the nodes in the cluster to reduce the performance impact and costs of
+accessing the snapshot repository.
+
+With {search-snaps-cap} you may be able to halve your cluster size without
+increasing the risk of data loss or reducing the amount of data exposed to
+searches. Put differently, {search-snaps-cap} may allow you to expose twice as
+much data to searches for a given cluster size.
+
+=== Using searchable snapshots
+
+A searchable snapshot can be searched just like any other index.
+{search-snaps-cap} are often used to access a large archive of historical data,
+for which searches may sometimes be complex and time-consuming.
+<<async-search>> is particularly useful for these long-running searches.
+
+The shards of searchable snapshots are also allocated just like shards of any
+other index. You can, for instance, use <<shard-allocation-filtering>> to
+restrict these shards to a subset of your nodes.
+
+Normally you will use {search-snaps-cap} via the
+<<ilm-searchable-snapshot,searchable snapshots ILM action>> which automatically
+and transparently converts your index into a searchable snapshot when it
+reaches the `cold` ILM phase. If you already have some snapshots that you want
+to search, you can also use the <<searchable-snapshots-api-mount-snapshot>> to
+manually mount them as searchable snapshots.
+
+You must not delete a snapshot while any of its indices are mounted as a
+searchable snapshot. However, most snapshots contain a large number of indices,
+most of which will not be mounted as searchable snapshots. Therefore we
+recommend that you use the <<clone-snapshot-api>> to cheaply create a clone of
+a snapshot that contains just the index you want to mount first. This will
+allow you to delete older multiple-index snapshots, reducing the size of your
+snapshot repository, without losing access to any mounted indices.
+
+We recommend that you <<indices-forcemerge,force-merge>> indices to a single
+segment per shard before mounting them as searchable snapshots. Each read from
+a snapshot repository takes time and costs money, and the fewer segments there
+are the fewer reads are needed to restore the snapshot.
+
+By default a searchable snapshot has `number_of_replicas` set to `0`. You can
+increase the number of replicas if desired, for instance if you want to perform
+more concurrent searches of these shards.
+
+=== How searchable snapshots work
+
+When you mount a searchable snapshot index, {es} allocates its shards onto the
+data nodes in your cluster similarly to shards of regular indices. When a shard
+of a searchable snapshot index is allocated to a data node, that node
+automatically restores the shard data from the repository into its local
+storage. When the restore process has completed these shards will respond to
+searches using the data held in local storage and will not need to access the
+repository. This avoids incurring the monetary cost or performance penalty
+associated with reading data from the repository. However, if the node holding
+one of these shards fails then {es} will automatically allocate the shards onto
+the other nodes in the cluster and restore the shard data from the repository
+again. This means you can safely run these indices without replicas, and yet
+you do not need to perform any complicated monitoring or orchestration to
+restore lost shards yourself.
+
+Restoring a shard of a searchable snapshot index happens in the background,
+which means that you can search these shards even if they have not been fully
+restored. If you attempt to search a shard of a searchable snapshot index
+before it has been fully restored then {es} will eagerly retrieve just the data
+needed for the search. This means that some searches will be slower if the
+shard is freshly allocated to a node and still warming up. Searches usually
+only need to access a very small fraction of the total shard data so the
+performance penalty on searches during the background restore process is often
+very small.
+
+Replicas of searchable snapshots are restored by copying data from the snapshot
+repository. In contrast, replicas of regular indices are restored by copying
+data from the primary.
 

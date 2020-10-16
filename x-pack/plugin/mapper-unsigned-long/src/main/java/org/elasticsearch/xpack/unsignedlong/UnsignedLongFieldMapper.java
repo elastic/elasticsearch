@@ -277,6 +277,11 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
             return null;
         }
 
+        @Override
+        public CollapseType collapseType() {
+            return CollapseType.NUMERIC;
+        }
+
         /**
          * Parses value to unsigned long for Term Query
          * @param value to to parse

@@ -177,7 +177,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         final List<Object> components = new ArrayList<>();
         // This registers a cluster state listener, so appears unused but is not.
-        @SuppressWarnings("unused")
         ILMHistoryTemplateRegistry ilmTemplateRegistry =
             new ILMHistoryTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
         ilmTemplateRegistry.initialize();
@@ -188,7 +187,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         components.add(indexLifecycleInitialisationService.get());
 
         // the template registry is a cluster state listener
-        @SuppressWarnings("unused")
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
             client, xContentRegistry);
         templateRegistry.initialize();

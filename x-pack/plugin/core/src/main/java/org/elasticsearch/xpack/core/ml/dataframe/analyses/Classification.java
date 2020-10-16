@@ -41,7 +41,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 
 public class Classification implements DataFrameAnalysis {
 
@@ -406,8 +405,38 @@ public class Classification implements DataFrameAnalysis {
         return additionalProperties;
     }
 
-    private static Object extractMapping(String path, Map<String, Object> mappingsProperties) {
-        return extractValue(String.join(".properties.", path.split("\\.")), mappingsProperties);
+    // Visible for testing
+    static Object extractMapping(String path, Map<String, Object> mappingsProperties) {
+        if (path.isEmpty()) {
+            return mappingsProperties;
+        }
+        Object current = mappingsProperties;
+        Map<String, Object> currentAsMap = mappingsProperties;
+        String[] pathParts = path.split("\\.");
+        for (int i = 0; i < pathParts.length; ++i) {
+            if (current == null) {
+                return null;
+            }
+            String pathPart = pathParts[i];
+            if (currentAsMap.containsKey(pathPart) == false) {
+                return null;
+            }
+            current = currentAsMap.get(pathPart);
+            if (i == pathParts.length - 1) {
+                break;
+            }
+            currentAsMap = (Map<String, Object>) current;
+            if (currentAsMap.containsKey("properties")) {
+                current = currentAsMap.get("properties");
+                currentAsMap = (Map<String, Object>) current;
+            } else if (currentAsMap.containsKey("fields")) {
+                current = currentAsMap.get("fields");
+                currentAsMap = (Map<String, Object>) current;
+            } else {
+                return null;
+            }
+        }
+        return current;
     }
 
     @Override

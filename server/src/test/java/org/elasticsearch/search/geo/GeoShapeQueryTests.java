@@ -70,8 +70,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class GeoShapeQueryTests extends GeoQueryTests {
     protected static final String[] PREFIX_TREES = new String[] {
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.GEOHASH,
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
+        LegacyGeoShapeFieldMapper.PrefixTrees.GEOHASH,
+        LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE
     };
 
     @Override
@@ -477,7 +477,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         // don't use random mapping as permits quadtree
         String mapping = Strings.toString(
             usePrefixTrees ?
-                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE) :
+                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE) :
                 createDefaultMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();

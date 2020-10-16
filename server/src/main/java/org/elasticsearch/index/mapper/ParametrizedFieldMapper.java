@@ -162,6 +162,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private Function<T, String> conflictSerializer = Objects::toString;
         private BiPredicate<T, T> mergeValidator;
+        private boolean deprecated;
         private T value;
         private boolean isSet;
 
@@ -230,6 +231,17 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public Parameter<T> addDeprecatedName(String deprecatedName) {
             this.deprecatedNames.add(deprecatedName);
+            return this;
+        }
+
+        /**
+         * Deprecates the entire parameter.
+         *
+         * If this parameter is encountered during parsing, a deprecation warning will
+         * be emitted.
+         */
+        public Parameter<T> deprecated() {
+            this.deprecated = true;
             return this;
         }
 
@@ -620,6 +632,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     }
                     throw new MapperParsingException("unknown parameter [" + propName
                         + "] on mapper [" + name + "] of type [" + type + "]");
+                }
+                if (parameter.deprecated) {
+                    deprecationLogger.deprecate(propName,
+                        "Parameter [{}] is deprecated and will be removed in a future version",
+                        propName);
                 }
                 if (propNode == null && parameter.acceptsNull == false) {
                     throw new MapperParsingException("[" + propName + "] on mapper [" + name

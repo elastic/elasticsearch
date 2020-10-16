@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -15,7 +14,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.Mapper;
@@ -26,7 +24,6 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -44,7 +41,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             xContentBuilder.field("ignore_malformed", ignored_malformed);
         }
         if (ignoreZValue == false || randomBoolean()) {
-            xContentBuilder.field(PointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue);
+            xContentBuilder.field("ignore_z_value", ignoreZValue);
         }
         return xContentBuilder.endObject().endObject().endObject().endObject();
     }
@@ -63,7 +60,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
         ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
         assertThat(shapeFieldMapper.fieldType().orientation(),
-            equalTo(ShapeFieldMapper.Defaults.ORIENTATION.value()));
+            equalTo(ShapeBuilder.Orientation.RIGHT));
     }
 
     /**
@@ -122,7 +119,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        boolean coerce = ((ShapeFieldMapper)fieldMapper).coerce().value();
+        boolean coerce = ((ShapeFieldMapper)fieldMapper).coerce();
         assertThat(coerce, equalTo(true));
 
         // explicit false coerce test
@@ -138,7 +135,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        coerce = ((ShapeFieldMapper)fieldMapper).coerce().value();
+        coerce = ((ShapeFieldMapper)fieldMapper).coerce();
         assertThat(coerce, equalTo(false));
     }
 
@@ -150,7 +147,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "shape")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "true")
+            .field("ignore_z_value", "true")
             .endObject().endObject()
             .endObject().endObject());
 
@@ -159,14 +156,14 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        boolean ignoreZValue = ((ShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        boolean ignoreZValue = ((ShapeFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "shape")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "false")
+            .field("ignore_z_value", "false")
             .endObject().endObject()
             .endObject().endObject());
 
@@ -175,7 +172,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        ignoreZValue = ((ShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        ignoreZValue = ((ShapeFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
     }
 
@@ -195,8 +192,8 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        Explicit<Boolean> ignoreMalformed = ((ShapeFieldMapper)fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed.value(), equalTo(true));
+        boolean ignoreMalformed = ((ShapeFieldMapper)fieldMapper).ignoreMalformed();
+        assertThat(ignoreMalformed, equalTo(true));
 
         // explicit false ignore_malformed test
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -212,8 +209,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
         ignoreMalformed = ((ShapeFieldMapper)fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed.explicit(), equalTo(true));
-        assertThat(ignoreMalformed.value(), equalTo(false));
+        assertThat(ignoreMalformed, equalTo(false));
     }
 
     public void testShapeMapperMerge() throws Exception {
@@ -260,7 +256,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             String serialized = toXContentString((ShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-                AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+                ShapeBuilder.Orientation.RIGHT + "\""));
         }
     }
 
@@ -299,19 +295,16 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(fields.length, equalTo(2));
     }
 
-    public String toXContentString(ShapeFieldMapper mapper, boolean includeDefaults) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        ToXContent.Params params;
+    public String toXContentString(ShapeFieldMapper mapper, boolean includeDefaults) {
         if (includeDefaults) {
-            params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+            ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+            return Strings.toString(mapper, params);
         } else {
-            params = ToXContent.EMPTY_PARAMS;
+            return Strings.toString(mapper);
         }
-        mapper.doXContentBody(builder, includeDefaults, params);
-        return Strings.toString(builder.endObject());
     }
 
-    public String toXContentString(ShapeFieldMapper mapper) throws IOException {
+    public String toXContentString(ShapeFieldMapper mapper) {
         return toXContentString(mapper, true);
     }
 }

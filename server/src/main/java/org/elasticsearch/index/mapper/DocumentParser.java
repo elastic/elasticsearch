@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -45,6 +46,12 @@ import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTIN
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
 
+    private final NamedXContentRegistry xContentRegistry;
+
+    DocumentParser(NamedXContentRegistry xContentRegistry) {
+        this.xContentRegistry = xContentRegistry;
+    }
+
     ParsedDocument parseDocument(SourceToParse source,
                                  MetadataFieldMapper[] metadataFieldsMappers,
                                  DocumentMapper docMapper) throws MapperParsingException {
@@ -53,7 +60,7 @@ final class DocumentParser {
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
 
-        try (XContentParser parser = XContentHelper.createParser(docMapper.documentMapperParser().getXContentRegistry(),
+        try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
             context = new ParseContext.InternalParseContext(docMapper, source, parser);
             validateStart(parser);

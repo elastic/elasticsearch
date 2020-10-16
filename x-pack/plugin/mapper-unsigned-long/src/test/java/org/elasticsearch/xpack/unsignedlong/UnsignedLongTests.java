@@ -276,21 +276,6 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
     }
 
-    public void testRangeQuery() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setSize(0)
-            .setQuery(new RangeQueryBuilder("ul_field").to("9.223372036854776E18"))
-            .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-        response = client().prepareSearch("idx")
-            .setSize(0)
-            .setQuery(new RangeQueryBuilder("ul_field").from("9.223372036854776E18").to("1.8446744073709552E19"))
-            .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-        response = client().prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").from("1.8446744073709552E19")).get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-    }
-
     public void testSortDifferentFormatsShouldFail() {
         Exception exception = expectThrows(
             SearchPhaseExecutionException.class,

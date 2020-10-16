@@ -152,7 +152,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 creds.setValue("1");
             });
             repo.getAuthentication().create("header", HttpHeaderAuthentication.class);
-            repo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
+            String urlPath = "/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]?x-elastic-no-kpi=true";
+            repo.patternLayout(layout -> layout.artifact(urlPath));
         });
         project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
             exclusiveContentRepository.filter(config -> config.includeGroup(group));

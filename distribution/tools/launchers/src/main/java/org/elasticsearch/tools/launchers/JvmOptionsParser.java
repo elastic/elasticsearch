@@ -95,7 +95,12 @@ final class JvmOptionsParser {
         }
 
         try {
-            final List<String> jvmOptions = parser.jvmOptions(Paths.get(args[0]), Paths.get(args[1]), System.getenv("ES_JAVA_OPTS"), substitutions);
+            final List<String> jvmOptions = parser.jvmOptions(
+                Paths.get(args[0]),
+                Paths.get(args[1]),
+                System.getenv("ES_JAVA_OPTS"),
+                substitutions
+            );
             Launchers.outPrintln(String.join(" ", jvmOptions));
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(

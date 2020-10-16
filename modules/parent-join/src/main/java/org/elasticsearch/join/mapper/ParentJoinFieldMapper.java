@@ -134,7 +134,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            final IndexSettings indexSettings = parserContext.mapperService().getIndexSettings();
+            final IndexSettings indexSettings = parserContext.getIndexSettings();
             checkIndexCompatibility(indexSettings, name);
 
             Builder builder = new Builder(name);

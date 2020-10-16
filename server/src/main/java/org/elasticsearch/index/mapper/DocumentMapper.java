@@ -27,10 +27,8 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -56,22 +54,24 @@ public class DocumentMapper implements ToXContentFragment {
     public static class Builder {
 
         private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-
         private final RootObjectMapper rootObjectMapper;
+        private final Mapper.BuilderContext builderContext;
+        private final IndexSettings indexSettings;
+        private final IndexAnalyzers indexAnalyzers;
+        private final DocumentMapperParser documentMapperParser;
 
         private Map<String, Object> meta;
 
-        private final Mapper.BuilderContext builderContext;
-
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
-            final Settings indexSettings = mapperService.getIndexSettings().getSettings();
-            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
+            this.indexSettings = mapperService.getIndexSettings();
+            this.indexAnalyzers = mapperService.getIndexAnalyzers();
+            this.documentMapperParser = mapperService.documentMapperParser();
+            this.builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
 
             final DocumentMapper existingMapper = mapperService.documentMapper();
-            final Version indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
             final Map<String, TypeParser> metadataMapperParsers =
-                mapperService.mapperRegistry.getMetadataMapperParsers(indexCreatedVersion);
+                mapperService.mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
                 final MetadataFieldMapper existingMetadataMapper = existingMapper == null
@@ -99,7 +99,7 @@ public class DocumentMapper implements ToXContentFragment {
             return this;
         }
 
-        public DocumentMapper build(IndexSettings indexSettings, DocumentMapperParser documentMapperParser, IndexAnalyzers indexAnalyzers) {
+        public DocumentMapper build() {
             Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             Mapping mapping = new Mapping(
                     indexSettings.getIndexVersionCreated(),

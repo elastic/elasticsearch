@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +48,7 @@ import static org.mockito.Mockito.when;
 public class JobNodeSelectorTests extends ESTestCase {
 
     // To simplify the logic in this class all jobs have the same memory requirement
-    private static final ByteSizeValue JOB_MEMORY_REQUIREMENT = new ByteSizeValue(10, ByteSizeUnit.MB);
+    private static final ByteSizeValue JOB_MEMORY_REQUIREMENT = ByteSizeValue.ofMb(10);
 
     private MlMemoryTracker memoryTracker;
     private boolean isMemoryTrackerRecentlyRefreshed;

@@ -313,7 +313,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             builder.humanReadableField(
                 ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
                 ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
-                new ByteSizeValue(estimatedHeapMemory));
+                ByteSizeValue.ofBytes(estimatedHeapMemory));
             builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
             builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
         }

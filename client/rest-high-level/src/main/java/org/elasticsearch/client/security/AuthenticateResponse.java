@@ -22,6 +22,8 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -38,7 +40,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * user object contains all user metadata which Elasticsearch uses to map roles,
  * etc.
  */
-public final class AuthenticateResponse {
+public final class AuthenticateResponse implements ToXContentObject {
 
     static final ParseField USERNAME = new ParseField("username");
     static final ParseField ROLES = new ParseField("roles");
@@ -121,6 +123,27 @@ public final class AuthenticateResponse {
 
     public String getAuthenticationType() {
         return authenticationType;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+            .field("username", user.getUsername())
+            .field("roles", user.getRoles())
+            .field("metadata", user.getMetadata())
+            .field("full_name", user.getFullName())
+            .field("email", user.getEmail())
+            .field("enabled", enabled);
+        builder.startObject("authentication_realm")
+            .field("name", authenticationRealm.name)
+            .field("type", authenticationRealm.type);
+        builder.endObject();
+        builder.startObject("lookup_realm")
+            .field("name", lookupRealm == null? authenticationRealm.name: lookupRealm.name)
+            .field("type", lookupRealm == null? authenticationRealm.type: lookupRealm.type);
+        builder.endObject();
+            builder.field("authentication_type", authenticationType);
+        return builder.endObject();
     }
 
     @Override

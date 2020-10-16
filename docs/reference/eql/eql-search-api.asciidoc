@@ -60,8 +60,8 @@ To search all data streams and indices in a cluster, use
 (Optional, boolean)
 +
 NOTE: Unlike the <<search-search,search API>>, the EQL search API returns an
-error for requests that target only missing or closed indices regardless of
-this argument.
+error for requests that exclusively target missing or closed indices, regardless
+of this argument.
 +
 If `false`, any wildcard expression, <<indices-aliases,index alias>>, or `_all`
 value that targets only missing or closed indices returns an error. For example,

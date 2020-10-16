@@ -93,8 +93,8 @@ be automatically calculated by multiplying monthly rate by 12.
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 Instead of counting the number of documents, it is also possible to calculate a sum of all values of the fields in the documents in each
-bucket. The following request will group all sales records into monthly bucket and than calculate the total monthly sales and convert them
-into average daily sales.
+bucket or the number of values in each bucket. The following request will group all sales records into monthly bucket and than calculate
+the total monthly sales and convert them into average daily sales.
 
 [source,console]
 --------------------------------------------------
@@ -164,6 +164,84 @@ The response will contain the average daily sale prices for each month.
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
+By adding the `mode` parameter with the value `value_count`, we can change the calculation from `sum` to the number of values of the field:
+
+[source,console]
+--------------------------------------------------
+GET sales/_search
+{
+  "size": 0,
+  "aggs": {
+    "by_date": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"  <1>
+      },
+      "aggs": {
+        "avg_number_of_sales_per_year": {
+          "rate": {
+            "field": "price", <2>
+            "unit": "year",  <3>
+            "mode": "value_count" <4>
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:sales]
+<1> Histogram is grouped by month.
+<2> Calculate number of of all sale prices
+<3> Convert to annual counts
+<4> Changing the mode to value count
+
+The response will contain the average daily sale prices for each month.
+
+[source,console-result]
+--------------------------------------------------
+{
+  ...
+  "aggregations" : {
+    "by_date" : {
+      "buckets" : [
+        {
+          "key_as_string" : "2015/01/01 00:00:00",
+          "key" : 1420070400000,
+          "doc_count" : 3,
+          "avg_number_of_sales_per_year" : {
+            "value" : 36.0
+          }
+        },
+        {
+          "key_as_string" : "2015/02/01 00:00:00",
+          "key" : 1422748800000,
+          "doc_count" : 2,
+          "avg_number_of_sales_per_year" : {
+            "value" : 24.0
+          }
+        },
+        {
+          "key_as_string" : "2015/03/01 00:00:00",
+          "key" : 1425168000000,
+          "doc_count" : 2,
+          "avg_number_of_sales_per_year" : {
+            "value" : 24.0
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+By default `sum` mode is used.
+
+`"mode": "sum"`:: calculate the sum of all values field
+`"mode": "value_count"`:: use the number of values in the field
+
+The `mode` parameter can only be used with fields and scripts.
 
 ==== Relationship between bucket sizes and rate
 

@@ -74,8 +74,6 @@ public class BwcSetupExtension {
             loggedExec.setWorkingDir(checkoutDir.get());
             loggedExec.doFirst(t -> {
                 // Execution time so that the checkouts are available
-                File file = new File(checkoutDir.get(), ".ci/java-versions.properties");
-                System.out.println("g = " + file.getAbsolutePath());
                 String javaVersionsString = readFromFile(new File(checkoutDir.get(), ".ci/java-versions.properties"));
                 loggedExec.environment(
                     "JAVA_HOME",

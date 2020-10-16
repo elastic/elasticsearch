@@ -122,8 +122,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     }
 
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("new york city");
+    @Override
+    protected Object getSampleValueForDocument() {
+        return "new york city";
     }
 
     @Override

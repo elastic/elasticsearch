@@ -68,8 +68,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesAction extends AbstractCatAction {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestIndicesAction.class);
-    static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act " +
-        "locally, and should not be used. It will be unsupported in version 8.0.";
+    static final String LOCAL_DEPRECATED_MESSAGE = "The parameter [local] is deprecated and will be removed in a future release.";
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 

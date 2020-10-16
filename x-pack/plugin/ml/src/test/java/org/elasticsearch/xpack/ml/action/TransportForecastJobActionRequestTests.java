@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -69,18 +68,18 @@ public class TransportForecastJobActionRequestTests extends ESTestCase {
             assertThat(TransportForecastJobAction.getAdjustedMemoryLimit(jobBuilder.build(), null, auditor), is(nullValue()));
             assertThat(TransportForecastJobAction.getAdjustedMemoryLimit(
                 jobBuilder.build(),
-                new ByteSizeValue(20, ByteSizeUnit.MB).getBytes(),
+                ByteSizeValue.ofMb(20).getBytes(),
                 auditor),
-                equalTo(new ByteSizeValue(20, ByteSizeUnit.MB).getBytes()));
+                equalTo(ByteSizeValue.ofMb(20).getBytes()));
             assertThat(TransportForecastJobAction.getAdjustedMemoryLimit(
                 jobBuilder.build(),
-                new ByteSizeValue(499, ByteSizeUnit.MB).getBytes(),
+                ByteSizeValue.ofMb(499).getBytes(),
                 auditor),
-                equalTo(new ByteSizeValue(499, ByteSizeUnit.MB).getBytes()));
+                equalTo(ByteSizeValue.ofMb(499).getBytes()));
         }
 
         {
-            long limit = new ByteSizeValue(100, ByteSizeUnit.MB).getBytes();
+            long limit = ByteSizeValue.ofMb(100).getBytes();
             assertThat(TransportForecastJobAction.getAdjustedMemoryLimit(
                 jobBuilder.setAnalysisLimits(new AnalysisLimits(1L)).build(),
                 limit,
@@ -98,14 +97,14 @@ public class TransportForecastJobActionRequestTests extends ESTestCase {
         }
 
         {
-            long limit = new ByteSizeValue(200, ByteSizeUnit.MB).getBytes();
+            long limit = ByteSizeValue.ofMb(200).getBytes();
             assertThat(TransportForecastJobAction.getAdjustedMemoryLimit(jobBuilder.build(), limit, auditor), equalTo(limit));
             // gets adjusted down due to job analysis limits
             assertThat(TransportForecastJobAction.getAdjustedMemoryLimit(
                 jobBuilder.setAnalysisLimits(new AnalysisLimits(200L, null)).build(),
                 limit,
                 auditor),
-                equalTo(new ByteSizeValue(80, ByteSizeUnit.MB).getBytes() - 1L));
+                equalTo(ByteSizeValue.ofMb(80).getBytes() - 1L));
         }
     }
 

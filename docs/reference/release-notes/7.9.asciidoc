@@ -1,3 +1,70 @@
+[[release-notes-7.9.3]]
+== {es} version 7.9.3
+
+coming[7.9.3]
+
+Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
+
+[[bug-7.9.3]]
+[float]
+=== Bug fixes
+
+Allocation::
+* InternalClusterInfoService should not ignore hidden indices {es-pull}62995[#62995]
+
+Audit::
+* Move RestRequestFilter to core {es-pull}63507[#63507]
+
+Authentication::
+* Ensure domain_name setting for AD realm is present {es-pull}61983[#61983] (issue: {es-issue}61859[#61859])
+
+Authorization::
+* Fix API key role descriptors rewrite bug for upgraded clusters {es-pull}62917[#62917] (issue: {es-issue}62911[#62911])
+
+CCR::
+* Retry CCR shard follow task when no seed node left {es-pull}63225[#63225]
+
+Cluster Coordination::
+* Uniquely associate term with update task during election {es-pull}62212[#62212] (issue: {es-issue}61437[#61437])
+
+EQL::
+* Avoid filtering on tiebreakers {es-pull}63215[#63215] (issue: {es-issue}62781[#62781])
+* Fix bug in sequences with any pattern {es-pull}63007[#63007] (issue: {es-issue}62967[#62967])
+
+Engine::
+* Fix to actually throttle indexing on getting activated {es-pull}61768[#61768]
+
+Features/Data streams::
+* Fix querying a data stream name in _index field. {es-pull}63170[#63170]
+
+Features/Ingest::
+* Handle error conditions when simulating ingest pipelines with verbosity enabled {es-pull}63327[#63327] (issue: {es-issue}63199[#63199])
+* Make for each processor resistant to field modification {es-pull}62791[#62791] (issue: {es-issue}62790[#62790])
+
+Machine Learning::
+* Fix online updates with custom rules referencing filters {es-pull}63057[#63057] (issue: {es-issue}62948[#62948])
+* Reset reindexing progress when DFA job resumes with incomplete r… {es-pull}62772[#62772]
+
+SQL::
+* Fix exception when using CAST on inexact field {es-pull}62943[#62943] (issue: {es-issue}60178[#60178])
+
+Search::
+* Async search should retry updates on version conflict {es-pull}63652[#63652] (issue: {es-issue}63213[#63213])
+
+Transform::
+* Fix possible NPE if transform task has no node assigned {es-pull}62946[#62946] (issue: {es-issue}62847[#62847])
+* [ML][Transform] Filter null objects from field caps request {es-pull}62945[#62945]
+
+
+
+[[upgrade-7.9.3]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Switch bundled jdk back to Oracle JDK {es-pull}63288[#63288] (issue: {es-issue}62709[#62709])
+
+
 [[release-notes-7.9.2]]
 == {es} version 7.9.2
 

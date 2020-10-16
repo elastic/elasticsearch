@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -44,7 +44,7 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getName(),
-            new SimpleAckedStateUpdateTask(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerDelete(request, currentState);

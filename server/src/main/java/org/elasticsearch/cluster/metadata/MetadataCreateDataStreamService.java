@@ -27,8 +27,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -84,7 +84,7 @@ public class MetadataCreateDataStreamService {
             finalListener::onFailure
         );
         clusterService.submitStateUpdateTask("create-data-stream [" + request.name + "]",
-            new SimpleAckedStateUpdateTask(Priority.HIGH, request, listener) {
+            new AckedClusterStateUpdateTask<>(Priority.HIGH, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);

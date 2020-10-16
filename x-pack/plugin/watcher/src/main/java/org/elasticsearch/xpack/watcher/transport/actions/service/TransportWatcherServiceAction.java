@@ -13,8 +13,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -71,7 +71,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
     private void setWatcherMetadataAndWait(boolean manuallyStopped, final ActionListener<AcknowledgedResponse> listener) {
         String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
-        clusterService.submitStateUpdateTask(source, new SimpleAckedStateUpdateTask(ackedRequest, listener) {
+        clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask<>(ackedRequest, listener) {
             @Override
             public ClusterState execute(ClusterState clusterState) {
                 XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);

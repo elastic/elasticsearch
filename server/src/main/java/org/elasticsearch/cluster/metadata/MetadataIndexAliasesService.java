@@ -23,8 +23,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -77,7 +77,7 @@ public class MetadataIndexAliasesService {
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
                                final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("index-aliases",
-            new SimpleAckedStateUpdateTask(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return applyAliasActions(currentState, request.actions());

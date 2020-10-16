@@ -27,10 +27,10 @@ import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRe
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -421,7 +421,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]", exception);
         }
 
-        clusterService.submitStateUpdateTask("put-script-" + request.id(), new SimpleAckedStateUpdateTask(request, listener) {
+        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask<>(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
@@ -436,7 +436,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
                                    ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-script-" + request.id(),
-            new SimpleAckedStateUpdateTask(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);

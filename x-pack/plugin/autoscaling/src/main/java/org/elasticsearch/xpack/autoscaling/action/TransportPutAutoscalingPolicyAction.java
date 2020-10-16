@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -61,7 +61,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask("put-autoscaling-policy", new SimpleAckedStateUpdateTask(request, listener) {
+        clusterService.submitStateUpdateTask("put-autoscaling-policy", new AckedClusterStateUpdateTask<>(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 return putAutoscalingPolicy(currentState, request.policy(), logger);

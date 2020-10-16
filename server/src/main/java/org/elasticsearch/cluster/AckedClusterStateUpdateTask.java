@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -64,8 +65,10 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
         listener.onResponse(newResponse(e == null));
     }
 
-    protected abstract Response newResponse(boolean acknowledged);
-
+    @SuppressWarnings("unchecked")
+    protected Response newResponse(boolean acknowledged) {
+        return (Response) AcknowledgedResponse.of(acknowledged);
+    }
     /**
      * Called once the acknowledgement timeout defined by
      * {@link AckedClusterStateUpdateTask#ackTimeout()} has expired

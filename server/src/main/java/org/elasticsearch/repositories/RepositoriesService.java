@@ -27,12 +27,12 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -150,7 +150,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
 
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",
-            new SimpleAckedStateUpdateTask(request, registrationListener) {
+            new AckedClusterStateUpdateTask<>(request, registrationListener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -214,7 +214,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      */
     public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete_repository [" + request.name() + "]",
-            new SimpleAckedStateUpdateTask(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {

@@ -24,9 +24,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -72,7 +72,7 @@ public class MetadataDeleteIndexService {
         }
 
         clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()),
-            new SimpleAckedStateUpdateTask(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
                     return deleteIndices(currentState, Sets.newHashSet(request.indices()));

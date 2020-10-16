@@ -18,8 +18,8 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -125,7 +125,7 @@ public final class TransportFreezeIndexAction extends
     private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
                                       final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
-            new SimpleAckedStateUpdateTask(Priority.URGENT, request, new ActionListener<>() {
+            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()

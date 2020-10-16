@@ -34,8 +34,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -123,8 +123,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                 final String taskSource = "delete-dangling-index [" + indexName + "] [" + indexUUID + "]";
 
                 clusterService.submitStateUpdateTask(
-                    taskSource,
-                    new SimpleAckedStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
+                    taskSource, new AckedClusterStateUpdateTask<>(deleteRequest, clusterStateUpdatedListener) {
                         @Override
                         public ClusterState execute(final ClusterState currentState) {
                             return deleteDanglingIndex(currentState, indexToDelete);

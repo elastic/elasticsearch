@@ -25,8 +25,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -103,7 +103,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 finalListener::onFailure
             );
             clusterService.submitStateUpdateTask("auto create [" + request.index() + "]",
-                new SimpleAckedStateUpdateTask(Priority.URGENT, request, listener) {
+                new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());

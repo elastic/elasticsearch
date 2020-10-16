@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -38,7 +38,7 @@ public class TransportStopILMAction extends AcknowledgedTransportMasterNodeActio
     @Override
     protected void masterOperation(Task task, StopILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
-            new SimpleAckedStateUpdateTask(Priority.IMMEDIATE, request, listener) {
+            new AckedClusterStateUpdateTask<>(Priority.IMMEDIATE, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return (OperationModeUpdateTask.ilmMode(OperationMode.STOPPING)).execute(currentState);

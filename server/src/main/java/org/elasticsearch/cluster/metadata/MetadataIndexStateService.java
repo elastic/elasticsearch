@@ -44,9 +44,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -814,7 +814,7 @@ public class MetadataIndexStateService {
 
         final String indicesAsString = Arrays.toString(request.indices());
         clusterService.submitStateUpdateTask("open-indices " + indicesAsString,
-            new SimpleAckedStateUpdateTask(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
                     final ClusterState updatedState = openIndices(request.indices(), currentState);

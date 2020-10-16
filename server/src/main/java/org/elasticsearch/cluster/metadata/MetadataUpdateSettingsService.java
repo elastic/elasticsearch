@@ -27,8 +27,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -116,7 +116,8 @@ public class MetadataUpdateSettingsService {
         final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings " + Arrays.toString(request.indices()),
-                new SimpleAckedStateUpdateTask(Priority.URGENT, request, wrapPreservingContext(listener, threadPool.getThreadContext())) {
+                new AckedClusterStateUpdateTask<>(Priority.URGENT, request,
+                    wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -320,7 +321,7 @@ public class MetadataUpdateSettingsService {
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request,
                                      final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("update-index-compatibility-versions",
-            new SimpleAckedStateUpdateTask(Priority.URGENT, request, wrapPreservingContext(listener, threadPool.getThreadContext())) {
+            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             public ClusterState execute(ClusterState currentState) {

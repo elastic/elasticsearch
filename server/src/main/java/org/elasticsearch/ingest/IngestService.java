@@ -33,10 +33,10 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.SimpleAckedStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -249,7 +249,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(),
-            new SimpleAckedStateUpdateTask(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerDelete(request, currentState);
@@ -332,7 +332,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // validates the pipeline and processor configuration before submitting a cluster update task:
         validatePipeline(ingestInfos, request);
         clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
-            new SimpleAckedStateUpdateTask(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerPut(request, currentState);

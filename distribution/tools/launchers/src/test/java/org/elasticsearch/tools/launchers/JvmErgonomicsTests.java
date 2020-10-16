@@ -136,7 +136,6 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         }
     }
 
-    //@Ignore(value = "https://github.com/elastic/elasticsearch/issues/63828")
     public void testG1GOptionsForSmallHeapWhenTuningSet() throws InterruptedException, IOException {
         List<String> jvmErgonomics = JvmErgonomics.choose(
             Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=45")

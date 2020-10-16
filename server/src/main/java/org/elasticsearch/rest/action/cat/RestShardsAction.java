@@ -64,8 +64,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestShardsAction.class);
-    static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act " +
-        "locally, and should not be used. It will be unsupported in version 8.0.";
+    static final String LOCAL_DEPRECATED_MESSAGE = "The parameter [local] is deprecated and will be removed in a future release.";
 
     @Override
     public List<Route> routes() {

@@ -47,7 +47,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 
-public final class DocumentMapper implements ToXContentFragment {
+public class DocumentMapper implements ToXContentFragment {
 
     public static final class Builder {
         private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers;

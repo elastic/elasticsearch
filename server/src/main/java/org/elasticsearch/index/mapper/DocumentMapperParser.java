@@ -22,57 +22,42 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class DocumentMapperParser {
-
-    final MapperService mapperService;
-    private final SimilarityService similarityService;
-    private final Supplier<QueryShardContext> queryShardContextSupplier;
+    private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
+    private final Function<String, String> documentTypeResolver;
+    private final DocumentParser documentParser;
+    private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
+    private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
-    private final Version indexVersionCreated;
-    private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
-    private final ScriptService scriptService;
 
-    public DocumentMapperParser(IndexSettings indexSettings,
-                                MapperService mapperService,
-                                SimilarityService similarityService,
-                                MapperRegistry mapperRegistry,
-                                Supplier<QueryShardContext> queryShardContextSupplier,
-                                ScriptService scriptService) {
-        this.mapperService = mapperService;
-        this.similarityService = similarityService;
-        this.queryShardContextSupplier = queryShardContextSupplier;
-        this.scriptService = scriptService;
-        this.typeParsers = mapperRegistry.getMapperParsers();
-        this.indexVersionCreated = indexSettings.getIndexVersionCreated();
-        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
-    }
-
-    public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, typeParsers::get, indexVersionCreated,
-            queryShardContextSupplier, null, scriptService, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
-            mapperService::isIdFieldDataEnabled);
-    }
-
-    public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, typeParsers::get, indexVersionCreated,
-            queryShardContextSupplier, dateFormatter, scriptService, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
-            mapperService::isIdFieldDataEnabled);
+    DocumentMapperParser(IndexSettings indexSettings,
+                         IndexAnalyzers indexAnalyzers,
+                         Function<String, String> documentTypeResolver,
+                         DocumentParser documentParser,
+                         Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
+                         Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier,
+                         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers) {
+        this.indexSettings = indexSettings;
+        this.indexAnalyzers = indexAnalyzers;
+        this.documentTypeResolver = documentTypeResolver;
+        this.documentParser = documentParser;
+        this.metadataMappersSupplier = metadataMappersSupplier;
+        this.parserContextSupplier = parserContextSupplier;
+        this.rootTypeParsers = metadataMapperParsers;
     }
 
     @SuppressWarnings("unchecked")
@@ -86,7 +71,7 @@ public class DocumentMapperParser {
                 }
             } else {
                 String rootName = mapping.keySet().iterator().next();
-                if (type == null || type.equals(rootName) || mapperService.resolveDocumentType(type).equals(rootName)) {
+                if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
                     type = rootName;
                     mapping = (Map<String, Object>) mapping.get(rootName);
                 }
@@ -104,10 +89,11 @@ public class DocumentMapperParser {
             throw new MapperParsingException("Failed to derive type");
         }
 
-        Mapper.TypeParser.ParserContext parserContext = parserContext();
+        Mapper.TypeParser.ParserContext parserContext = parserContextSupplier.get();
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
-                (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+        RootObjectMapper.Builder root = (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext);
+        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(root, indexSettings, indexAnalyzers, documentParser,
+            metadataMappersSupplier.get());
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {

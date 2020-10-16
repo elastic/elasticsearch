@@ -214,7 +214,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             }
             return null;
         }, version, () -> null, null, null,
-            mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), mapperService::isIdFieldDataEnabled);
+            mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+            throw new UnsupportedOperationException();
+        });
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));

@@ -50,7 +50,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -312,13 +311,13 @@ public class QueryShardContextTests extends ESTestCase {
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.index()).thenReturn(indexMetadata.getIndex());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        DocumentMapperParser documentMapperParser = mock(DocumentMapperParser.class);
         Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(Collections.emptyList());
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
             Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
-            mapperService::isIdFieldDataEnabled);
-        when(documentMapperParser.parserContext()).thenReturn(parserContext);
-        when(mapperService.documentMapperParser()).thenReturn(documentMapperParser);
+            () -> {
+                throw new UnsupportedOperationException();
+            });
+        when(mapperService.parserContext()).thenReturn(parserContext);
         if (runtimeDocValues != null) {
             when(mapperService.fieldType(any())).thenAnswer(fieldTypeInv -> {
                 String fieldName = (String)fieldTypeInv.getArguments()[0];

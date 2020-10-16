@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -115,7 +114,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
         tokenService.decodeToken(response.getTokenString(), userTokenFuture);
         assertNotNull(userTokenFuture.actionGet());
-        assertNotNull(response.getAuthenticationResponse());
+        assertNotNull(response.getAuthentication());
     }
 
 
@@ -150,7 +149,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertNotEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
         assertNotNull(response.getAuthentication());
-        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.getAuthentication().getUser().getUsername());
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.getAuthentication().getUser().principal());
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
@@ -472,8 +471,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         assertNoTimeout(client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
             .admin().cluster().prepareHealth().get());
-        // Assert that we can authenticate with the refreshed access token
-        assertAuthenticateWithToken(refreshResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
         assertNotNull(refreshResponse.getAuthentication());
     }
 

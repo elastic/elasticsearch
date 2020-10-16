@@ -11,7 +11,7 @@ setup:
       index:
           index:  test_1
           id:     1
-          body:   { foo: bar }
+          body:   { foo: bar, foo2: bar, foo3: bar }
 
   - do:
       indices.refresh: {}
@@ -86,7 +86,7 @@ setup:
 "Docvalues_fields size limit":
 
   - do:
-      catch:      /Trying to retrieve too many docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./
+      catch:      /Trying to retrieve too many mapped docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./
       search:
         rest_total_hits_as_int: true
         index: test_1
@@ -94,9 +94,9 @@ setup:
           query:
             match_all: {}
           docvalue_fields:
-            - "one"
-            - "two"
-            - "three"
+            - "foo"
+            - "foo2"
+            - "foo3"
 
 ---
 "Script_fields size limit":

@@ -1007,6 +1007,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
         }
+
+        @Override
+        public CollapseType collapseType() {
+            return CollapseType.NUMERIC;
+        }
     }
 
     private final NumberType type;

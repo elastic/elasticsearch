@@ -26,12 +26,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -102,27 +102,27 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
-        return new ParentAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
+        return new ParentAggregatorFactory(name, config, childFilter, parentFilter, context, parent,
                 subFactoriesBuilder, metadata);
     }
 
     @Override
-    protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
+    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         ValuesSourceConfig config;
-        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(queryShardContext.getMapperService());
+        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(context::getFieldType, context::getMapper);
         ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
         if (parentIdFieldMapper != null) {
             parentFilter = parentIdFieldMapper.getParentFilter();
             childFilter = parentIdFieldMapper.getChildFilter(childType);
             MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            config = ValuesSourceConfig.resolveFieldOnly(fieldType, queryShardContext);
+            config = ValuesSourceConfig.resolveFieldOnly(fieldType, context);
         } else {
             // unmapped case
-            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), queryShardContext);
+            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), context);
         }
         return config;
     }

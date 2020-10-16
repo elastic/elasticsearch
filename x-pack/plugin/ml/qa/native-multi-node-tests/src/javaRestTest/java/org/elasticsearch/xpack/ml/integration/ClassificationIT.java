@@ -19,7 +19,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -367,7 +366,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String predictedClassField = dependentVariable + "_prediction";
         indexData(sourceIndex, 300, 0, dependentVariable);
 
-        int numTopClasses = 2;
+        int numTopClasses = randomBoolean() ? 2 : -1;  // Occasionally it's worth testing the special value -1.
+        int expectedNumTopClasses = 2;
         DataFrameAnalyticsConfig config =
             buildAnalytics(
                 jobId,
@@ -391,7 +391,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(dependentVariableValues)));
-            assertTopClasses(resultsObject, numTopClasses, dependentVariable, dependentVariableValues);
+            assertTopClasses(resultsObject, expectedNumTopClasses, dependentVariable, dependentVariableValues);
 
             // Let's just assert there's both training and non-training results
             //
@@ -784,7 +784,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(
             buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(NESTED_FIELD)))
-            .setModelMemoryLimit(new ByteSizeValue(1, ByteSizeUnit.KB))
+            .setModelMemoryLimit(ByteSizeValue.ofKb(1))
             .build();
         putAnalytics(config);
         // Shouldn't throw

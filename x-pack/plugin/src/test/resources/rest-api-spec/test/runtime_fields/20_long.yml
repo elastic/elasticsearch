@@ -183,7 +183,7 @@ setup:
             term:
               voltage_times_ten: 58
   - match: {hits.hits.0._explanation.value: 1.0}
-  - match: {hits.hits.0._explanation.description: voltage_times_ten:58}
+  - match: {hits.hits.0._explanation.description: "voltage_times_ten:58"}
   - match: {hits.hits.0._explanation.details.0.value: 1.0}
   - match: {hits.hits.0._explanation.details.0.description: 'boost * runtime_field_score'}
   - match: {hits.hits.0._explanation.details.0.details.0.value: 1.0}

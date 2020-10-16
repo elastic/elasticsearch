@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -127,7 +126,7 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, false, false, true, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -220,9 +219,8 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "[" + CONTENT_TYPE + "] field do not support searching, " +
-                "use dedicated aggregations instead: ["
-                + name() + "]");
+            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] field do not support searching, " +
+                "use dedicated aggregations instead: [" + name() + "]");
         }
     }
 

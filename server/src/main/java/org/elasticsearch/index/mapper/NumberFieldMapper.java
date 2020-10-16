@@ -886,7 +886,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final class NumberFieldType extends SimpleMappedFieldType {
+    public static class NumberFieldType extends SimpleMappedFieldType {
 
         private final NumberType type;
         private final boolean coerce;
@@ -991,6 +991,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
+        }
+
+        @Override
+        public CollapseType collapseType() {
+            return CollapseType.NUMERIC;
         }
     }
 

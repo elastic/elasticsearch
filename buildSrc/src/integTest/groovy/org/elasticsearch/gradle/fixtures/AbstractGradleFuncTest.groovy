@@ -123,8 +123,8 @@ abstract class AbstractGradleFuncTest extends Specification {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
         if(proc.exitValue()) {
-            println "Error running command ${command}:"
-            println "Syserr: " + proc.errorStream.text
+            System.err.println("Error running command ${command}:")
+            System.err.println("Syserr: " + proc.errorStream.text)
         }
     }
 }

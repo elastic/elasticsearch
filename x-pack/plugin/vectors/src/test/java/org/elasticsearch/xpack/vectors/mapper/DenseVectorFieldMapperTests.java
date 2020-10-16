@@ -40,8 +40,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startArray().value(1).value(2).value(3).value(4).endArray();
+    protected Object getSampleValueForDocument() {
+        return List.of(1, 2, 3, 4);
     }
 
     @Override

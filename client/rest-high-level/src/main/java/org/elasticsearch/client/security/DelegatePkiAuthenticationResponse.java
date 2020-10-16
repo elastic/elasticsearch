@@ -34,11 +34,14 @@ public final class DelegatePkiAuthenticationResponse {
     private final String accessToken;
     private final String type;
     private final TimeValue expiresIn;
+    private final AuthenticateResponse authenticationResponse;
 
-    public DelegatePkiAuthenticationResponse(String accessToken, String type, TimeValue expiresIn) {
+    public DelegatePkiAuthenticationResponse(String accessToken, String type, TimeValue expiresIn,
+                                             AuthenticateResponse authenticationResponse) {
         this.accessToken = accessToken;
         this.type = type;
         this.expiresIn = expiresIn;
+        this.authenticationResponse = authenticationResponse;
     }
 
     public String getAccessToken() {
@@ -53,6 +56,8 @@ public final class DelegatePkiAuthenticationResponse {
         return expiresIn;
     }
 
+    public AuthenticateResponse getAuthenticationResponse() { return authenticationResponse; }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -64,22 +69,26 @@ public final class DelegatePkiAuthenticationResponse {
         final DelegatePkiAuthenticationResponse that = (DelegatePkiAuthenticationResponse) o;
         return Objects.equals(accessToken, that.accessToken) &&
             Objects.equals(type, that.type) &&
-            Objects.equals(expiresIn, that.expiresIn);
+            Objects.equals(expiresIn, that.expiresIn) &&
+            Objects.equals(authenticationResponse, that.authenticationResponse);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(accessToken, type, expiresIn);
+        return Objects.hash(accessToken, type, expiresIn, authenticationResponse);
     }
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DelegatePkiAuthenticationResponse, Void> PARSER = new ConstructingObjectParser<>(
             "delegate_pki_response", true,
-            args -> new DelegatePkiAuthenticationResponse((String) args[0], (String) args[1], TimeValue.timeValueSeconds((Long) args[2])));
+            args -> new DelegatePkiAuthenticationResponse((String) args[0], (String) args[1], TimeValue.timeValueSeconds((Long) args[2]),
+                (AuthenticateResponse) args[3]));
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("access_token"));
         PARSER.declareString(constructorArg(), new ParseField("type"));
         PARSER.declareLong(constructorArg(), new ParseField("expires_in"));
+        PARSER.declareObject(constructorArg(), (p, c) -> AuthenticateResponse.fromXContent(p), new ParseField("authentication"));
     }
 
     public static DelegatePkiAuthenticationResponse fromXContent(XContentParser parser) throws IOException {

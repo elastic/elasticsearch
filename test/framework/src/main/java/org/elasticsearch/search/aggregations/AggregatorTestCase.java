@@ -322,7 +322,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             String fieldName = (String) invocation.getArguments()[0];
             if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
                 BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
-                return new ObjectMapper.Builder<>(fieldName).nested(Nested.newNested()).build(context);
+                return new ObjectMapper.Builder(fieldName).nested(Nested.newNested()).build(context);
             }
             return null;
         });
@@ -823,9 +823,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         iw.addDocument(doc);
     }
 
-    private class MockParserContext extends Mapper.TypeParser.ParserContext {
+    private static class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null, null, null);
         }
 
         @Override

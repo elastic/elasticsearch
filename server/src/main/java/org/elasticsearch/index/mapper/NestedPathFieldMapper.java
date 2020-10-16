@@ -68,7 +68,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     }
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> {
-        final IndexSettings indexSettings = c.mapperService().getIndexSettings();
+        final IndexSettings indexSettings = c.getIndexSettings();
         return new NestedPathFieldMapper(indexSettings.getSettings());
     });
 

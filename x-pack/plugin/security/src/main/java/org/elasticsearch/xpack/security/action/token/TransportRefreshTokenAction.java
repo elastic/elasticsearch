@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
@@ -32,9 +33,11 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
     protected void doExecute(Task task, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tuple -> {
             final String scope = getResponseScopeValue(request.getScope());
-            final CreateTokenResponse response =
-                    new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope, tuple.v2(), null);
-            listener.onResponse(response);
+            tokenService.authenticateToken(new SecureString(tuple.v1()), ActionListener.wrap(authentication -> {
+                listener.onResponse(new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope, tuple.v2(), null,
+                    authentication));
+            },
+                listener::onFailure));
         }, listener::onFailure));
     }
 }

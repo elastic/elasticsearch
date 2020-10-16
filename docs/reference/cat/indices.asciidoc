@@ -74,15 +74,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
-+
---
 `local`::
-(Optional, boolean) If true, the request retrieves information from the local node
-only. Defaults to false, which means information is retrieved from the master node.
-deprecated::[8.0,This parameter does not cause this API to act locally. It will be
-removed in version 8.0.]
---
+(Optional, boolean)
++
+deprecated::[7.10.0,"This parameter does not affect the request. It will be removed in version 8.0.0."]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

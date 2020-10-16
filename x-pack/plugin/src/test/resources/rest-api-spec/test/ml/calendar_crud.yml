@@ -1,5 +1,9 @@
 ---
 "Test calendar CRUD":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_calendars:
         calendar_id: _all
@@ -92,6 +96,10 @@
 
 ---
 "Test get calendar given missing":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /No calendar with id \[unknown\]/
       ml.get_calendars:
@@ -99,6 +107,10 @@
 
 ---
 "Test put calendar given id contains invalid chars":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: bad_request
       ml.put_calendar:
@@ -106,6 +118,10 @@
 
 ---
 "Test PageParams":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_calendar:
         calendar_id: "calendar1"
@@ -147,6 +163,10 @@
 
 ---
 "Test PageParams with ID is invalid":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: bad_request
       ml.get_calendars:
@@ -155,6 +175,10 @@
 
 ---
 "Test cannot overwrite an exisiting calendar":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_calendar:
@@ -167,6 +191,10 @@
 
 ---
 "Test cannot create calendar with name _all":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: bad_request
       ml.put_calendar:
@@ -174,6 +202,10 @@
 
 ---
 "Test deleted job is removed from calendar":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -209,6 +241,10 @@
 
 ---
 "Test update calendar job ids":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_calendar:
@@ -282,6 +318,10 @@
         job_id: "missing_job"
 ---
 "Test calendar get events":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_calendar:
@@ -390,6 +430,8 @@
 ---
 "Test delete calendar deletes events":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: warnings
 
   - do:
@@ -456,6 +498,10 @@
 
 ---
 "Test get all calendar events":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_calendar:
@@ -492,6 +538,10 @@
 
 ---
 "Test get calendar events for job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -581,6 +631,10 @@
 
 ---
 "Test get calendar events with job groups":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 # Test job group
   - do:
       ml.put_job:
@@ -633,6 +687,10 @@
 
 ---
 "Test post calendar events given empty events":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /At least 1 event is required/
@@ -645,6 +703,10 @@
 
 ---
 "Test delete event from non existing calendar":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /No calendar with id \[unknown\]/
@@ -654,6 +716,10 @@
 
 ---
 "Test delete job from non existing calendar":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /No calendar with id \[unknown\]/
@@ -663,6 +729,10 @@
 
 ---
 "Test list of job Ids":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_job:
         job_id: foo-a
@@ -724,6 +794,10 @@
 
 ---
 "Test calendar actions with new job group":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_job:
         job_id: calendar-job

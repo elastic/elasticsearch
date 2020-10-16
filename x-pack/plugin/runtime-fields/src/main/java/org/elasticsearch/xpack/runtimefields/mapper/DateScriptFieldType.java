@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -87,7 +86,14 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
         return DateFieldType.handleNow(context, now -> {
-            long originLong = DateFieldType.parseToLong(origin, true, null, dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS);
+            long originLong = DateFieldType.parseToLong(
+                origin,
+                true,
+                null,
+                this.dateMathParser,
+                now,
+                DateFieldMapper.Resolution.MILLISECONDS
+            );
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             return new LongScriptFieldDistanceFeatureQuery(
                 script,
@@ -116,6 +122,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         @Nullable DateMathParser parser,
         QueryShardContext context
     ) {
+        parser = parser == null ? this.dateMathParser : parser;
         checkAllowExpensiveQueries(context);
         return DateFieldType.dateRangeQuery(
             lowerTerm,
@@ -124,7 +131,6 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             includeUpper,
             timeZone,
             parser,
-            dateMathParser,
             context,
             DateFieldMapper.Resolution.MILLISECONDS,
             (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
@@ -134,7 +140,14 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         return DateFieldType.handleNow(context, now -> {
-            long l = DateFieldType.parseToLong(value, false, null, dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS);
+            long l = DateFieldType.parseToLong(
+                value,
+                false,
+                null,
+                this.dateMathParser,
+                now,
+                DateFieldMapper.Resolution.MILLISECONDS
+            );
             checkAllowExpensiveQueries(context);
             return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), l);
         });
@@ -148,7 +161,16 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         return DateFieldType.handleNow(context, now -> {
             LongSet terms = new LongHashSet(values.size());
             for (Object value : values) {
-                terms.add(DateFieldType.parseToLong(value, false, null, dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS));
+                terms.add(
+                    DateFieldType.parseToLong(
+                        value,
+                        false,
+                        null,
+                        this.dateMathParser,
+                        now,
+                        DateFieldMapper.Resolution.MILLISECONDS
+                    )
+                );
             }
             checkAllowExpensiveQueries(context);
             return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);

@@ -138,8 +138,8 @@ seconds) that the token expires in, and the type:
       "type" : "file"
     },
     "lookup_realm" : {
-    "name" : "file",
-    "type" : "file"
+      "name" : "file",
+      "type" : "file"
   },
   "authentication_type" : "realm"
   }

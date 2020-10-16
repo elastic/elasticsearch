@@ -135,7 +135,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertNotEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
         assertNotNull(response.getAuthentication());
-        assertEquals(response.getAuthentication().getUser().getUsername(), SecuritySettingsSource.TEST_USER_NAME);
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.getAuthentication().getUser().getUsername());
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {

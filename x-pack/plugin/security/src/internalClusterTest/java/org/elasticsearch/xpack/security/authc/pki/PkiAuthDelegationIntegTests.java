@@ -150,6 +150,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 String token = delegatePkiResponse.getAccessToken();
                 assertThat(token, is(notNullValue()));
                 assertNotNull(delegatePkiResponse.getAuthentication());
+                assertEquals("Elasticsearch Test Client", delegatePkiResponse.getAuthentication().getUser().getUsername());
 
                 // authenticate
                 optionsBuilder = RequestOptions.DEFAULT.toBuilder();

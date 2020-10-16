@@ -92,8 +92,11 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
         final Shell.Result result = runElasticsearchStartCommand(null, false, false);
 
+        // Generate a Path for this location so that the platform-specific line-endings will be used.
+        final String platformPath = Path.of("/this/does/not/exist.properties").toString();
+
         assertThat("Elasticsearch should have terminated unsuccessfully", result.isSuccess(), equalTo(false));
-        assertThat(result.stderr, containsString("NoSuchFileException: /this/does/not/exist.properties"));
+        assertThat(result.stderr, containsString("NoSuchFileException: " + platformPath));
     }
 
     /**

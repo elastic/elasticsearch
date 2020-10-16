@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -20,6 +22,10 @@ setup:
 
 ---
 "Test delete forecast on missing forecast":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /resource_not_found_exception/
       ml.delete_forecast:
@@ -28,6 +34,10 @@ setup:
 
 ---
 "Test delete forecast":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -122,6 +132,10 @@ setup:
 
 ---
 "Test delete on _all forecasts not allow no forecasts":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /resource_not_found_exception/
       ml.delete_forecast:
@@ -131,6 +145,10 @@ setup:
 
 ---
 "Test delete on _all forecasts":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.delete_forecast:
         job_id: delete-forecast-job
@@ -140,6 +158,10 @@ setup:
 
 ---
 "Test delete all where no forecast_id is set":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.delete_forecast:
         job_id: delete-forecast-job

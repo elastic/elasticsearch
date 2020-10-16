@@ -11,3 +11,8 @@ testClusters.all {
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
 }
+
+// Entire suite muted while https://github.com/elastic/elasticsearch/pull/63542
+// and https://github.com/elastic/ml-cpp/pull/1520 are merged
+javaRestTest.enabled = false
+

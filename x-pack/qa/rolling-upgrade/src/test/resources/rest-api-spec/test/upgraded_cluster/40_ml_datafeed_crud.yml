@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
      cluster.health:
         wait_for_status: green
@@ -8,6 +12,10 @@ setup:
  
 ---
 "Test old and mixed cluster datafeeds without aggs":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       indices.create:
         index: airline-data
@@ -105,6 +113,10 @@ setup:
 
 ---
 "Test old and mixed cluster datafeeds with aggs":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       indices.create:
         index: airline-data

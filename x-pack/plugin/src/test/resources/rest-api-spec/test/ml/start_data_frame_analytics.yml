@@ -1,5 +1,9 @@
 ---
 "Test start given missing config":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.start_data_frame_analytics:
@@ -7,6 +11,10 @@
 
 ---
 "Test start given missing source index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       indices.create:
@@ -37,6 +45,10 @@
 
 ---
 "Test start outlier_detection given source index has no fields":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       indices.create:
@@ -63,6 +75,10 @@
 
 ---
 "Test start regression given source index only has dependent variable":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       indices.create:
@@ -97,6 +113,10 @@
 
 ---
 "Test start with compatible fields but no data":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       indices.create:
         index: empty-index-with-compatible-fields
@@ -126,6 +146,10 @@
 
 ---
 "Test start with inconsistent body/param ids":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Inconsistent id; 'body_id' specified in the body differs from 'url_id' specified as a URL argument/
@@ -138,6 +162,10 @@
 
 ---
 "Test start given dest index is not empty":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       index:
@@ -178,6 +206,10 @@
 
 ---
 "Test start classification analysis when the dependent variable cardinality is too low":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       indices.create:
         index: index-with-dep-var-with-too-high-card
@@ -217,6 +249,10 @@
 
 ---
 "Test start classification analysis when the dependent variable is missing":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       indices.create:
         index: index-with-missing-dep-var

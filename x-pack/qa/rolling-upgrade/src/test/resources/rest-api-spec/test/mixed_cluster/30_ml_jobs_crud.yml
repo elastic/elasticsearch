@@ -1,5 +1,9 @@
 ---
 "Test get old cluster job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_jobs:
         job_id: old-cluster-job
@@ -37,6 +41,10 @@
 
 ---
 "Test get old cluster job's timing stats":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_job_stats:
         job_id: old-cluster-job-with-ts
@@ -51,6 +59,10 @@
 
 ---
 "Test get old cluster categorization job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_jobs:
         job_id: old-cluster-categorization-job
@@ -88,6 +100,10 @@
 
 ---
 "Create a job in the mixed cluster and write some data":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_job:
         job_id: mixed-cluster-job
@@ -140,6 +156,10 @@
 
 ---
 "Test job with pre 6.4 rules":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_jobs:

@@ -185,7 +185,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             getClock(), System::currentTimeMillis, xContentRegistry, ilmHistoryStore.get()));
         components.add(indexLifecycleInitialisationService.get());
 
-        // the template registry is a cluster state listener
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
             client, xContentRegistry);
         templateRegistry.initialize();

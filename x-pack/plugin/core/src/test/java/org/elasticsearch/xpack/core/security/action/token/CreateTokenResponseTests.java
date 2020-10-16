@@ -65,10 +65,7 @@ public class CreateTokenResponseTests extends ESTestCase {
 
     public void testSerializationToPost62Pre65Version() throws Exception {
         CreateTokenResponse response = new CreateTokenResponse(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueMinutes(20L),
-            randomBoolean() ? null : "FULL", randomAlphaOfLengthBetween(1, 10), null,
-            new Authentication(new User("joe", new String[]{"custom_superuser"}, new User("bar", "not_superuser")),
-                new Authentication.RealmRef("test", "test", "node"),
-                new Authentication.RealmRef("test", "test", "node")));
+            randomBoolean() ? null : "FULL", randomAlphaOfLengthBetween(1, 10), null, null);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_2_0, Version.V_6_4_0);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);

@@ -19,16 +19,16 @@
 
 package org.elasticsearch.tools.launchers;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 /**
  * This class looks for plugins whose "type" is "bootstrap". Such plugins
@@ -37,9 +37,7 @@ import java.util.Properties;
  */
 public class BootstrapJvmOptions {
     public static List<String> bootstrapJvmOptions(Path plugins) throws IOException {
-        final File pluginsDir = Objects.requireNonNull(plugins).toFile();
-
-        if (pluginsDir.isDirectory() == false) {
+        if (Files.isDirectory(plugins) == false) {
             throw new IllegalArgumentException("Plugins path " + plugins + " must be a directory");
         }
 
@@ -50,30 +48,30 @@ public class BootstrapJvmOptions {
 
     // Find all plugins and return their jars and descriptors.
     private static List<PluginInfo> getPluginInfo(Path plugins) throws IOException {
-        final File[] pluginDirectories = plugins.toFile().listFiles(File::isDirectory);
-
-        Objects.requireNonNull(pluginDirectories);
-
         final List<PluginInfo> pluginInfo = new ArrayList<>();
 
-        for (File pluginDir : pluginDirectories) {
-            List<String> jarFiles = new ArrayList<>();
-            Properties props = null;
+        final List<Path> pluginDirs = Files.list(plugins).collect(Collectors.toList());
 
-            for (File pluginFile : Objects.requireNonNull(pluginDir.listFiles())) {
-                final String lowerCaseName = pluginFile.getName().toLowerCase(Locale.ROOT);
+        for (Path pluginDir : pluginDirs) {
+            final List<String> jarFiles = new ArrayList<>();
+            final Properties props = new Properties();
+
+            final List<Path> pluginFiles = Files.list(pluginDir).collect(Collectors.toList());
+            for (Path pluginFile : pluginFiles) {
+                final String lowerCaseName = pluginFile.getFileName().toString().toLowerCase(Locale.ROOT);
 
                 if (lowerCaseName.endsWith(".jar")) {
-                    jarFiles.add(pluginFile.getAbsolutePath());
+                    jarFiles.add(pluginFile.toString());
                 } else if (lowerCaseName.equals("plugin-descriptor.properties")) {
-                    props = new Properties();
-                    try (InputStream stream = Files.newInputStream(pluginFile.toPath())) {
+                    try (InputStream stream = Files.newInputStream(pluginFile)) {
                         props.load(stream);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
                     }
                 }
             }
 
-            if (props != null) {
+            if (props.isEmpty() == false) {
                 pluginInfo.add(new PluginInfo(jarFiles, props));
             }
         }

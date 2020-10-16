@@ -40,7 +40,7 @@ public class CreateTokenResponseTests extends ESTestCase {
         final String scope = randomBoolean() ? null : randomAlphaOfLength(4);
         final String type = randomAlphaOfLength(6);
         final String kerberosAuthenticationResponseToken = randomBoolean() ? null : randomAlphaOfLength(7);
-        final AuthenticateResponse authenticateResponse = new AuthenticateResponse(new User(randomAlphaOfLength(7),
+        final AuthenticateResponse authentication = new AuthenticateResponse(new User(randomAlphaOfLength(7),
             Arrays.asList( randomAlphaOfLength(9) )),
             true, new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7) ),
             new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5) ), "realm");
@@ -60,7 +60,7 @@ public class CreateTokenResponseTests extends ESTestCase {
         if (kerberosAuthenticationResponseToken != null) {
             builder.field("kerberos_authentication_response_token", kerberosAuthenticationResponseToken);
         }
-        builder.field("authentication", authenticateResponse);
+        builder.field("authentication", authentication);
         builder.endObject();
         BytesReference xContent = BytesReference.bytes(builder);
 
@@ -71,6 +71,6 @@ public class CreateTokenResponseTests extends ESTestCase {
         assertThat(response.getType(), equalTo(type));
         assertThat(response.getExpiresIn(), equalTo(expiresIn));
         assertThat(response.getKerberosAuthenticationResponseToken(), equalTo(kerberosAuthenticationResponseToken));
-        assertThat(response.getAuthenticationResponse(), equalTo(authenticateResponse));
+        assertThat(response.getAuthentication(), equalTo(authentication));
     }
 }

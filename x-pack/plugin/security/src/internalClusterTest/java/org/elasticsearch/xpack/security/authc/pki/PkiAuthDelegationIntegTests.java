@@ -149,7 +149,8 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                         optionsBuilder.build());
                 String token = delegatePkiResponse.getAccessToken();
                 assertThat(token, is(notNullValue()));
-                assertNotNull(delegatePkiResponse.getAuthenticationResponse());
+                assertNotNull(delegatePkiResponse.getAuthentication());
+                assertEquals("Elasticsearch Test Client", delegatePkiResponse.getAuthentication().getUser().getUsername());
 
                 // authenticate
                 optionsBuilder = RequestOptions.DEFAULT.toBuilder();
@@ -189,7 +190,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                     optionsBuilder.build());
             String token = delegatePkiResponse.getAccessToken();
             assertThat(token, is(notNullValue()));
-            assertNotNull(delegatePkiResponse.getAuthenticationResponse());
+            assertNotNull(delegatePkiResponse.getAuthentication());
             // authenticate
             optionsBuilder = RequestOptions.DEFAULT.toBuilder();
             optionsBuilder.addHeader("Authorization", "Bearer " + token);

@@ -99,16 +99,16 @@ Which returns the following response:
       "pki_dn" : "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client",
       "pki_delegated_by_user" : "test_admin",
       "pki_delegated_by_realm" : "file"
-      },
+    },
     "enabled" : true,
     "authentication_realm" : {
       "name" : "pki1",
       "type" : "pki"
-      },
+    },
     "lookup_realm" : {
       "name" : "pki1",
       "type" : "pki"
-      },
+    },
     "authentication_type" : "realm"
   }
 }

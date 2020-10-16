@@ -207,6 +207,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             final Object authentication = result.get("authentication");
             assertThat(authentication, notNullValue());
             assertThat(authentication, instanceOf(Map.class));
+            assertEquals("thor", ((Map)authentication).get("username"));
 
             return new Tuple<>((String) accessToken, (String) refreshToken);
         }

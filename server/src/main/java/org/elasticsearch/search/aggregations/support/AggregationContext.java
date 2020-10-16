@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -89,12 +88,10 @@ public abstract class AggregationContext {
      */
     public abstract MappedFieldType getFieldType(String path);
 
-    public abstract boolean isFieldMapped(String field);
-
     /**
-     * Lookup a field {@link Mapper} by path.
+     * Returns true if the field identified by the provided name is mapped, false otherwise
      */
-    public abstract Mapper getMapper(String path);
+    public abstract boolean isFieldMapped(String field);
 
     /**
      * Compile a script.
@@ -192,11 +189,6 @@ public abstract class AggregationContext {
         @Override
         public boolean isFieldMapped(String field) {
             return context.isFieldMapped(field);
-        }
-
-        @Override
-        public Mapper getMapper(String path) {
-            return context.getMapperService().documentMapper().mappers().getMapper(path);
         }
 
         @Override

@@ -267,12 +267,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public long nowInMillis() {
                 return 0;
             }
-
-            @Override
-            public Mapper getMapper(String name) {
-                throw new UnsupportedOperationException();
-            }
-
+            
             @Override
             public boolean isFieldMapped(String field) {
                 throw new UnsupportedOperationException();

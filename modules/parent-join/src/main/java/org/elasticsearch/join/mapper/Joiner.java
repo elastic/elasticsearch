@@ -41,7 +41,7 @@ import java.util.function.Predicate;
 /**
  * Utility class to help build join queries and aggregations, based on a join_field
  */
-public class Joiner {
+public final class Joiner {
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
@@ -60,7 +60,7 @@ public class Joiner {
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
-    public static Joiner getJoiner(Predicate<String> isMapped, Function<String, MappedFieldType> getFieldType) {
+    static Joiner getJoiner(Predicate<String> isMapped, Function<String, MappedFieldType> getFieldType) {
         if (isMapped.test(MetaJoinFieldMapper.NAME) == false) {
             return null;
         }
@@ -83,7 +83,7 @@ public class Joiner {
     /**
      * Constructs a Joiner based on a join field and a set of relations
      */
-    public Joiner(String joinField, List<Relations> relations) {
+    Joiner(String joinField, List<Relations> relations) {
         this.joinField = joinField;
         for (Relations r : relations) {
             for (String child : r.children) {
@@ -120,7 +120,7 @@ public class Joiner {
     /**
      * @return a filter for child documents of a specific parent type
      */
-    public Query getChildrenFilter(String parentType) {
+    public Query childrenFilter(String parentType) {
         assert parentTypeExists(parentType);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (String child : parentsToChildren.get(parentType)) {

@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -63,7 +64,6 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
-import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -1168,15 +1168,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 ),
                 makeDecider(diskSettings))));
 
-        final Snapshot snapshot = new Snapshot("_repository", new SnapshotId("_snapshot_uuid", "_snapshot_name"));
-        final IndexId indexId = new IndexId("_indexid_uuid", "_indexid_name");
+        final Snapshot snapshot = new Snapshot("_repository", new SnapshotId("_snapshot_name", UUIDs.randomBase64UUID(random())));
+        final IndexId indexId = new IndexId("_indexid_name", UUIDs.randomBase64UUID(random()));
         final ShardId shardId = new ShardId(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), 0);
-
-        final AtomicReference<SnapshotShardSizeInfo> snapshotShardSizeInfoRef = new AtomicReference<>(SnapshotShardSizeInfo.EMPTY);
-        final SnapshotsInfoService snapshotsInfoService = snapshotShardSizeInfoRef::get;
-
-        final AllocationService strategy = new AllocationService(deciders, new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY), clusterInfoService, snapshotsInfoService);
 
         final Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test")
@@ -1213,6 +1207,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).stream().map(ShardRouting::unassignedInfo)
             .allMatch(unassignedInfo -> AllocationStatus.NO_ATTEMPT.equals(unassignedInfo.getLastAllocationStatus())), is(true));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
+
+        final AtomicReference<SnapshotShardSizeInfo> snapshotShardSizeInfoRef = new AtomicReference<>(SnapshotShardSizeInfo.EMPTY);
+        final AllocationService strategy = new AllocationService(deciders, new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY), clusterInfoService, snapshotShardSizeInfoRef::get);
 
         // reroute triggers snapshot shard size fetching
         clusterState = strategy.reroute(clusterState, "reroute");

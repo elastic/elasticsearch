@@ -9,9 +9,9 @@ statistics for the stream's backing indices.
 
 [source,console]
 ----
-GET /twitter/_stats
+GET /my-index-000001/_stats
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-stats-api-request]]
@@ -112,7 +112,7 @@ GET /index1,index2/_stats
 --------------------------------------------------
 GET /_stats
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-stats-api-specific-stats-ex]]
@@ -126,7 +126,7 @@ for all indices.
 --------------------------------------------------
 GET /_stats/merge,refresh
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-stats-api-specific-groups-ex]]
@@ -140,4 +140,4 @@ for the `group1` and `group2` search groups.
 --------------------------------------------------
 GET /_stats/search?groups=group1,group2
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]

@@ -12,11 +12,13 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.utils.persistence.LimitAwareBulkIndexer;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
@@ -36,6 +38,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private static final int RESULTS_BATCH_SIZE = 1000;
 
     private final String analyticsId;
+    private final Settings settings;
     private final TaskId parentTaskId;
     private final DataFrameDataExtractor dataExtractor;
     private final ResultsPersisterService resultsPersisterService;
@@ -44,9 +47,10 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private volatile String failure;
     private volatile boolean isCancelled;
 
-    DataFrameRowsJoiner(String analyticsId, TaskId parentTaskId, DataFrameDataExtractor dataExtractor,
+    DataFrameRowsJoiner(String analyticsId, Settings settings, TaskId parentTaskId, DataFrameDataExtractor dataExtractor,
                         ResultsPersisterService resultsPersisterService) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
+        this.settings = Objects.requireNonNull(settings);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
         this.dataExtractor = Objects.requireNonNull(dataExtractor);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
@@ -86,23 +90,26 @@ class DataFrameRowsJoiner implements AutoCloseable {
     }
 
     private void joinCurrentResults() {
-        BulkRequest bulkRequest = new BulkRequest();
-        while (currentResults.isEmpty() == false) {
-            RowResults result = currentResults.pop();
-            DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
-            checkChecksumsMatch(row, result);
-            bulkRequest.add(createIndexRequest(result, row.getHit()));
+        try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
+            while (currentResults.isEmpty() == false) {
+                RowResults result = currentResults.pop();
+                DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
+                checkChecksumsMatch(row, result);
+                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row.getHit()));
+            }
         }
-        if (bulkRequest.numberOfActions() > 0) {
-            bulkRequest.setParentTask(parentTaskId);
-            resultsPersisterService.bulkIndexWithHeadersWithRetry(
-                dataExtractor.getHeaders(),
-                bulkRequest,
-                analyticsId,
-                () -> isCancelled == false,
-                errorMsg -> {});
-        }
+
         currentResults = new LinkedList<>();
+    }
+
+    private void executeBulkRequest(BulkRequest bulkRequest) {
+        bulkRequest.setParentTask(parentTaskId);
+        resultsPersisterService.bulkIndexWithHeadersWithRetry(
+            dataExtractor.getHeaders(),
+            bulkRequest,
+            analyticsId,
+            () -> isCancelled == false,
+            errorMsg -> {});
     }
 
     private void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {

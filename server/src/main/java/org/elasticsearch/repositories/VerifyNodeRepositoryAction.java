@@ -75,7 +75,9 @@ public class VerifyNodeRepositoryAction {
         final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
-            nodes.add(node);
+            if (RepositoriesService.isDedicatedVotingOnlyNode(node.getRoles()) == false) {
+                nodes.add(node);
+            }
         }
         final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();
         final AtomicInteger counter = new AtomicInteger(nodes.size());

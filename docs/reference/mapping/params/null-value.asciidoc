@@ -10,7 +10,7 @@ the specified value so that it can be indexed and searched.  For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -22,17 +22,17 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "status_code": null
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "status_code": [] <2>
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {

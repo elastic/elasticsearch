@@ -5,8 +5,6 @@
 <titleabbrev>Data stream stats</titleabbrev>
 ++++
 
-experimental::[]
-
 Retrieves statistics for one or more <<data-streams,data streams>>.
 
 ////
@@ -148,7 +146,7 @@ Total size, in bytes, of all shards for the data stream's backing indices.
 `maximum_timestamp`::
 (integer)
 The data stream's highest `@timestamp` value, converted to milliseconds since
-the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
+the {wikipedia}/Unix_time[Unix epoch].
 +
 [NOTE]
 =====

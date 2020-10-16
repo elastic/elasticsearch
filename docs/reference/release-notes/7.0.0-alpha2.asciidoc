@@ -2,7 +2,7 @@
 == {es} version 7.0.0-alpha2
 
 [[breaking-7.0.0-alpha2]]
-[float]
+[discrete]
 === Breaking changes
 
 Authentication::
@@ -35,14 +35,14 @@ ZenDiscovery::
 * Best-effort cluster formation if unconfigured {es-pull}36215[#36215]
 
 [[breaking-java-7.0.0-alpha2]]
-[float]
+[discrete]
 === Breaking Java changes
 
 ZenDiscovery::
 * Make node field in JoinRequest private {es-pull}36405[#36405]
 
 [[deprecation-7.0.0-alpha2]]
-[float]
+[discrete]
 === Deprecations
 
 Core::
@@ -96,7 +96,7 @@ Watcher::
 
 
 [[feature-7.0.0-alpha2]]
-[float]
+[discrete]
 === New features
 
 Analysis::
@@ -130,7 +130,7 @@ Search::
 * Added soft limit to open scroll contexts #25244 {es-pull}36009[#36009] (issue: {es-issue}25244[#25244])
 
 [[enhancement-7.0.0-alpha2]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -405,7 +405,7 @@ ZenDiscovery::
 * Zen2: Add basic Zen1 transport-level BWC {es-pull}35443[#35443]
 
 [[bug-7.0.0-alpha2]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -567,7 +567,7 @@ ZenDiscovery::
 
 
 [[regression-7.0.0-alpha2]]
-[float]
+[discrete]
 === Regressions
 
 Scripting::
@@ -575,7 +575,7 @@ Scripting::
 
 
 [[upgrade-7.0.0-alpha2]]
-[float]
+[discrete]
 === Upgrades
 
 Ingest::

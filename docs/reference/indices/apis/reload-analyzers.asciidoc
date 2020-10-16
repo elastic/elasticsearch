@@ -12,9 +12,9 @@ stream's backing indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_reload_search_analyzers
+POST /my-index-000001/_reload_search_analyzers
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [discrete]
 [[indices-reload-analyzers-api-request]]
@@ -100,36 +100,36 @@ NOTE: Using the following analyzer as an index analyzer results in an error.
 
 [source,console]
 --------------------------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "my_synonyms" : {
-                        "tokenizer" : "whitespace",
-                        "filter" : ["synonym"]
-                    }
-                },
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym_graph",
-                        "synonyms_path" : "analysis/synonym.txt", <1>
-                        "updateable" : true <2>
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_synonyms": {
+            "tokenizer": "whitespace",
+            "filter": [ "synonym" ]
+          }
+        },
+        "filter": {
+          "synonym": {
+            "type": "synonym_graph",
+            "synonyms_path": "analysis/synonym.txt",  <1>
+            "updateable": true                        <2>
+          }
         }
-    },
-    "mappings": {
-        "properties": {
-            "text": {
-                "type": "text",
-                "analyzer" : "standard",
-                "search_analyzer": "my_synonyms" <3>
-            }
-        }
+      }
     }
+  },
+  "mappings": {
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "standard",
+        "search_analyzer": "my_synonyms"              <3>
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -144,7 +144,7 @@ and pick up the file changes.
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_reload_search_analyzers
+POST /my-index-000001/_reload_search_analyzers
 --------------------------------------------------
 // TEST[continued]
 
@@ -153,25 +153,25 @@ The API returns the following response.
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "successful" : 2,
-        "failed" : 0
-    },
-    "reload_details" : [
-        {
-            "index" : "my_index",
-            "reloaded_analyzers" : [
-                "my_synonyms" 
-            ],
-            "reloaded_node_ids" : [
-                "mfdqTXn_T7SGr2Ho2KT8uw"
-            ]
-        }
-    ]
+  "_shards": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0
+  },
+  "reload_details": [
+    {
+      "index": "my-index-000001",
+      "reloaded_analyzers": [
+        "my_synonyms"
+      ],
+      "reloaded_node_ids": [
+        "mfdqTXn_T7SGr2Ho2KT8uw"
+      ]
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
-// TESTRESPONSE[s/"total" : 2/"total" : $body._shards.total/]
-// TESTRESPONSE[s/"successful" : 2/"successful" : $body._shards.successful/]
+// TESTRESPONSE[s/"total": 2/"total": $body._shards.total/]
+// TESTRESPONSE[s/"successful": 2/"successful": $body._shards.successful/]
 // TESTRESPONSE[s/mfdqTXn_T7SGr2Ho2KT8uw/$body.reload_details.0.reloaded_node_ids.0/]

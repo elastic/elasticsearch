@@ -6,7 +6,7 @@ releases of 7.0.0.
 
 Also see <<breaking-changes-7.0,Breaking changes in 7.0>>.
 
-[float]
+[discrete]
 === Known issues
 
 * Applying deletes or updates on an index after it has been shrunk may corrupt
@@ -24,7 +24,7 @@ This is fixed in {es} 7.7 and later versions.
 
 
 [[breaking-7.0.0]]
-[float]
+[discrete]
 === Breaking changes
 
 Aggregations::
@@ -197,7 +197,7 @@ ZenDiscovery::
 * Remove DiscoveryPlugin#getDiscoveryTypes {es-pull}38414[#38414] (issue: {es-issue}38410[#38410])
 
 [[breaking-java-7.0.0]]
-[float]
+[discrete]
 === Breaking Java changes
 
 Aggregations::
@@ -229,7 +229,7 @@ ZenDiscovery::
 * Make node field in JoinRequest private {es-pull}36405[#36405]
 
 [[deprecation-7.0.0]]
-[float]
+[discrete]
 === Deprecations
 
 Aggregations::
@@ -350,7 +350,7 @@ Watcher::
 
 
 [[feature-7.0.0]]
-[float]
+[discrete]
 === New features
 
 Allocation::
@@ -466,7 +466,7 @@ Suggesters::
 
 
 [[enhancement-7.0.0]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -1103,7 +1103,7 @@ ZenDiscovery::
 
 
 [[bug-7.0.0]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -1606,7 +1606,7 @@ ZenDiscovery::
 * Fix cluster state persistence for single-node discovery {es-pull}36825[#36825]
 
 [[regression-7.0.0]]
-[float]
+[discrete]
 === Regressions
 
 Infra/Core::
@@ -1620,7 +1620,7 @@ Scripting::
 * Use Number as a return value for BucketAggregationScript {es-pull}35653[#35653] (issue: {es-issue}35351[#35351])
 
 [[upgrade-7.0.0]]
-[float]
+[discrete]
 === Upgrades
 
 Discovery-Plugins::

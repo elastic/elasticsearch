@@ -1,5 +1,5 @@
 [[number]]
-=== Numeric data types
+=== Numeric field types
 ++++
 <titleabbrev>Numeric</titleabbrev>
 ++++
@@ -20,7 +20,7 @@ Below is an example of configuring a mapping with numeric fields:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {

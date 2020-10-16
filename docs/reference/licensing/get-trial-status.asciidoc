@@ -8,12 +8,12 @@
 
 Enables you to check the status of your trial.
 
-[float]
+[discrete]
 ==== Request
 
 `GET /_license/trial_status`
 
-[float]
+[discrete]
 ==== Description
 
 If you want to try all the subscription features, you can start a 30-day trial. 
@@ -32,7 +32,7 @@ You must have `monitor` cluster privileges to use this API.
 For more information, see
 <<security-privileges>>.
 
-[float]
+[discrete]
 ==== Examples
 
 The following example checks whether you are eligible to start a trial:

@@ -206,7 +206,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "        \"inference\": {\n" +
             "          \"target_field\": \"ml.classification\",\n" +
             "          \"inference_config\": {\"classification\": " +
-            "                {\"num_top_classes\":2, " +
+            "                {\"num_top_classes\":0, " +
             "                \"top_classes_results_field\": \"result_class_prob\"," +
             "                \"num_top_feature_importance_values\": 2" +
             "          }},\n" +
@@ -245,6 +245,8 @@ public class InferenceIngestIT extends ESRestTestCase {
 
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
+        assertThat(responseString, containsString("\"prediction_probability\":1.0"));
+        assertThat(responseString, containsString("\"prediction_score\":1.0"));
         assertThat(responseString, containsString("\"predicted_value\":\"second\""));
         assertThat(responseString, containsString("\"predicted_value\":1.0"));
         assertThat(responseString, containsString("\"feature_name\":\"col1\""));

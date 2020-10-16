@@ -164,6 +164,16 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * 7.8.0.
      */
     public final void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
+        if (pipelineAggregatorsForBwcSerialization != null) {
+            /*
+             * This method is called once per level on the results but only
+             * has useful pipeline aggregations on the top level. Every level
+             * below the top will always be empty. So if we've already been
+             * called we should bail. This is pretty messy but it is the kind
+             * of weird thing we have to do to deal with bwc serialization....
+             */
+            return;
+        }
         pipelineAggregatorsForBwcSerialization = pipelineTree.aggregators();
         forEachBucket(bucketAggs -> bucketAggs.mergePipelineTreeForBWCSerialization(pipelineTree));
     }

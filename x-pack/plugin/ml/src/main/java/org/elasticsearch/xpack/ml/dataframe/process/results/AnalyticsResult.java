@@ -66,14 +66,14 @@ public class AnalyticsResult implements ToXContentObject {
     private final ModelSizeInfo modelSizeInfo;
     private final TrainedModelDefinitionChunk trainedModelDefinitionChunk;
 
-    public AnalyticsResult(@Nullable RowResults rowResults,
-                           @Nullable PhaseProgress phaseProgress,
-                           @Nullable MemoryUsage memoryUsage,
-                           @Nullable OutlierDetectionStats outlierDetectionStats,
-                           @Nullable ClassificationStats classificationStats,
-                           @Nullable RegressionStats regressionStats,
-                           @Nullable ModelSizeInfo modelSizeInfo,
-                           @Nullable TrainedModelDefinitionChunk trainedModelDefinitionChunk) {
+    private AnalyticsResult(@Nullable RowResults rowResults,
+                            @Nullable PhaseProgress phaseProgress,
+                            @Nullable MemoryUsage memoryUsage,
+                            @Nullable OutlierDetectionStats outlierDetectionStats,
+                            @Nullable ClassificationStats classificationStats,
+                            @Nullable RegressionStats regressionStats,
+                            @Nullable ModelSizeInfo modelSizeInfo,
+                            @Nullable TrainedModelDefinitionChunk trainedModelDefinitionChunk) {
         this.rowResults = rowResults;
         this.phaseProgress = phaseProgress;
         this.memoryUsage = memoryUsage;
@@ -171,5 +171,76 @@ public class AnalyticsResult implements ToXContentObject {
     public int hashCode() {
         return Objects.hash(rowResults, phaseProgress, memoryUsage, outlierDetectionStats, classificationStats,
             regressionStats, modelSizeInfo, trainedModelDefinitionChunk);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private RowResults rowResults;
+        private PhaseProgress phaseProgress;
+        private MemoryUsage memoryUsage;
+        private OutlierDetectionStats outlierDetectionStats;
+        private ClassificationStats classificationStats;
+        private RegressionStats regressionStats;
+        private ModelSizeInfo modelSizeInfo;
+        private TrainedModelDefinitionChunk trainedModelDefinitionChunk;
+
+        private Builder() {}
+
+        public Builder setRowResults(RowResults rowResults) {
+            this.rowResults = rowResults;
+            return this;
+        }
+
+        public Builder setPhaseProgress(PhaseProgress phaseProgress) {
+            this.phaseProgress = phaseProgress;
+            return this;
+        }
+
+        public Builder setMemoryUsage(MemoryUsage memoryUsage) {
+            this.memoryUsage = memoryUsage;
+            return this;
+        }
+
+        public Builder setOutlierDetectionStats(OutlierDetectionStats outlierDetectionStats) {
+            this.outlierDetectionStats = outlierDetectionStats;
+            return this;
+        }
+
+        public Builder setClassificationStats(ClassificationStats classificationStats) {
+            this.classificationStats = classificationStats;
+            return this;
+        }
+
+        public Builder setRegressionStats(RegressionStats regressionStats) {
+            this.regressionStats = regressionStats;
+            return this;
+        }
+
+        public Builder setModelSizeInfo(ModelSizeInfo modelSizeInfo) {
+            this.modelSizeInfo = modelSizeInfo;
+            return this;
+        }
+
+        public Builder setTrainedModelDefinitionChunk(TrainedModelDefinitionChunk trainedModelDefinitionChunk) {
+            this.trainedModelDefinitionChunk = trainedModelDefinitionChunk;
+            return this;
+        }
+
+        public AnalyticsResult build() {
+            return new AnalyticsResult(
+                rowResults,
+                phaseProgress,
+                memoryUsage,
+                outlierDetectionStats,
+                classificationStats,
+                regressionStats,
+                modelSizeInfo,
+                trainedModelDefinitionChunk
+            );
+        }
     }
 }

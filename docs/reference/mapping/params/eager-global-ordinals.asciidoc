@@ -51,7 +51,7 @@ aggregations:
 
 [source,console]
 ------------
-PUT my_index/_mapping
+PUT my-index-000001/_mapping
 {
   "properties": {
     "tags": {
@@ -61,7 +61,7 @@ PUT my_index/_mapping
   }
 }
 ------------
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 When `eager_global_ordinals` is enabled, global ordinals are built when a shard
 is <<indices-refresh, refreshed>> -- Elasticsearch always loads them before
@@ -74,7 +74,7 @@ Eager loading can be disabled at any time by updating the `eager_global_ordinals
 
 [source,console]
 ------------
-PUT my_index/_mapping
+PUT my-index-000001/_mapping
 {
   "properties": {
     "tags": {

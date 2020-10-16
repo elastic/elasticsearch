@@ -25,7 +25,7 @@ POST _search?typed_keys
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 In the response, the suggester names will be changed to respectively `term#my-first-suggester` and
 `phrase#my-second-suggester`, reflecting the types of each suggestion:

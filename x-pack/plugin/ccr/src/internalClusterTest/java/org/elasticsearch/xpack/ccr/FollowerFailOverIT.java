@@ -55,6 +55,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
     }
 
     public void testFailOverOnFollower() throws Exception {
+        removeMasterNodeRequestsValidatorOnFollowerCluster();
         final String leaderIndex = "leader_test_failover";
         final String followerIndex = "follower_test_failover";
         int numberOfReplicas = between(1, 2);
@@ -124,6 +125,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
     }
 
     public void testFollowIndexAndCloseNode() throws Exception {
+        removeMasterNodeRequestsValidatorOnFollowerCluster();
         getFollowerCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
@@ -178,6 +180,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
     }
 
     public void testAddNewReplicasOnFollower() throws Exception {
+        removeMasterNodeRequestsValidatorOnFollowerCluster();
         int numberOfReplicas = between(0, 1);
         String leaderIndexSettings = getIndexSettings(1, numberOfReplicas);
         assertAcked(leaderClient().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
@@ -226,7 +229,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         });
         flushingOnFollower.start();
         awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), 50);
-        followerClient().admin().indices().prepareUpdateSettings("follower-index")
+        followerClient().admin().indices().prepareUpdateSettings("follower-index").setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas + 1).build()).get();
         ensureFollowerGreen("follower-index");
         awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), 100);
@@ -238,6 +241,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
     }
 
     public void testReadRequestsReturnLatestMappingVersion() throws Exception {
+        removeMasterNodeRequestsValidatorOnFollowerCluster();
         InternalTestCluster leaderCluster = getLeaderCluster();
         Settings nodeAttributes = Settings.builder().put("node.attr.box", "large").build();
         String dataNode = leaderCluster.startDataOnlyNode(nodeAttributes);

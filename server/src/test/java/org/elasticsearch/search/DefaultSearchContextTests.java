@@ -58,10 +58,14 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -201,6 +205,49 @@ public class DefaultSearchContextTests extends ESTestCase {
             Query query2 = context4.query();
             assertTrue(query1 instanceof MatchNoDocsQuery || query2 instanceof MatchNoDocsQuery);
 
+        }
+    }
+
+    public void testClearQueryCancellationsOnClose() throws IOException {
+        TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
+        ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
+        ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
+        when(shardSearchRequest.shardId()).thenReturn(shardId);
+
+        ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
+        IndexShard indexShard = mock(IndexShard.class);
+        QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
+        when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
+        when(indexShard.getThreadPool()).thenReturn(threadPool);
+
+        IndexService indexService = mock(IndexService.class);
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString())).thenReturn(queryShardContext);
+
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+             IndexReader reader = w.getReader();
+             Engine.Searcher searcher = new Engine.Searcher("test", reader,
+                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
+                 IndexSearcher.getDefaultQueryCachingPolicy(), reader)) {
+
+
+            SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
+            DefaultSearchContext context = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 1L), shardSearchRequest,
+                target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null, false, Version.CURRENT);
+
+            assertThat(context.searcher().hasCancellations(), is(false));
+            context.searcher().addQueryCancellation(() -> {});
+            assertThat(context.searcher().hasCancellations(), is(true));
+
+            context.close();
+            assertThat(context.searcher().hasCancellations(), is(false));
+
+        } finally {
+            threadPool.shutdown();
         }
     }
 }

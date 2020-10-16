@@ -19,13 +19,11 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
 
 public class DataStreamsStatsRequest implements Validatable {
 
     private final String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
 
     public DataStreamsStatsRequest(String... indices) {
         this.indices = indices;
@@ -33,14 +31,5 @@ public class DataStreamsStatsRequest implements Validatable {
 
     public String[] indices() {
         return indices;
-    }
-
-    public IndicesOptions indicesOptions() {
-        return indicesOptions;
-    }
-
-    public DataStreamsStatsRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
-        return this;
     }
 }

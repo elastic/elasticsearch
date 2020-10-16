@@ -85,7 +85,7 @@ IMPORTANT: You cannot view, edit, or remove any roles that are defined in the ro
 mapping files by using the the role mapping APIs. 
 
 ==== Realm specific details
-[float]
+[discrete]
 [[ldap-role-mapping]]
 ===== Active Directory and LDAP realms
 
@@ -138,7 +138,7 @@ PUT /_security/role_mapping/basic_users
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[pki-role-mapping]]
 ===== PKI realms
 

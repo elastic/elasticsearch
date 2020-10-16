@@ -13,12 +13,12 @@ value per document.  For instance:
 
 [source,console]
 ------------------------------
-PUT my_index/_doc/1?routing=user1&refresh=true <1>
+PUT my-index-000001/_doc/1?routing=user1&refresh=true <1>
 {
   "title": "This is a document"
 }
 
-GET my_index/_doc/1?routing=user1 <2>
+GET my-index-000001/_doc/1?routing=user1 <2>
 ------------------------------
 // TESTSETUP
 
@@ -31,7 +31,7 @@ The value of the `_routing` field is accessible in queries:
 
 [source,console]
 --------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "terms": {
@@ -54,7 +54,7 @@ just the shard that matches the specific routing value (or values):
 
 [source,console]
 ------------------------------
-GET my_index/_search?routing=user1,user2 <1>
+GET my-index-000001/_search?routing=user1,user2 <1>
 {
   "query": {
     "match": {
@@ -79,7 +79,7 @@ custom `routing` value required for all CRUD operations:
 
 [source,console]
 ------------------------------
-PUT my_index2
+PUT my-index-000002
 {
   "mappings": {
     "_routing": {
@@ -88,7 +88,7 @@ PUT my_index2
   }
 }
 
-PUT my_index2/_doc/1 <2>
+PUT my-index-000002/_doc/1 <2>
 {
   "text": "No routing value provided"
 }

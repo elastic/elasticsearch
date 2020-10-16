@@ -17,6 +17,7 @@ Never expose an unprotected node to the public internet.
 ==== Commonly used network settings
 
 `network.host`::
+(<<static-cluster-setting,Static>>)
 The node will bind to this hostname or IP address and _publish_ (advertise)
 this host to other nodes in the cluster. Accepts an IP address, hostname, a
 <<network-interface-values,special value>>, or an array of any combination of
@@ -29,12 +30,13 @@ same effect as the value `0.0.0.0`.
 Defaults to `_local_`.
 
 `discovery.seed_hosts`::
+(<<static-cluster-setting,Static>>)
 In order to join a cluster, a node needs to know the hostname or IP address of
 at least some of the other nodes in the cluster.  This setting provides the
 initial list of addresses this node will try to contact. Accepts IP addresses
 or hostnames. If a hostname lookup resolves to multiple IP addresses then each
 IP address will be used for discovery.
-https://en.wikipedia.org/wiki/Round-robin_DNS[Round robin DNS] -- returning a
+{wikipedia}/Round-robin_DNS[Round robin DNS] -- returning a
 different IP from a list on each lookup -- can be used for discovery; non-
 existent IP addresses will throw exceptions and cause another DNS lookup on the
 next round of pinging (subject to <<networkaddress-cache-ttl,JVM DNS
@@ -43,6 +45,7 @@ caching>>).
 Defaults to `["127.0.0.1", "[::1]"]`.
 
 `http.port`::
+(<<static-cluster-setting,Static>>)
 Port to bind to for incoming HTTP requests. Accepts a single value or a range.
 If a range is specified, the node will bind to the first available port in the
 range.
@@ -50,6 +53,7 @@ range.
 Defaults to `9200-9300`.
 
 `transport.port`::
+(<<static-cluster-setting,Static>>)
 Port to bind for communication between nodes. Accepts a single value or a
 range. If a range is specified, the node will bind to the first available port
 in the range.
@@ -126,7 +130,8 @@ Any component that uses TCP (like the <<modules-http,HTTP>> and
 <<modules-transport,transport>> layers) share the following settings:
 
 `network.tcp.no_delay`::
-Enable or disable the https://en.wikipedia.org/wiki/Nagle%27s_algorithm[TCP no delay]
+(<<static-cluster-setting,Static>>)
+Enable or disable the {wikipedia}/Nagle%27s_algorithm[TCP no delay]
 setting. Defaults to `true`.
 
 `network.tcp.keep_alive`::
@@ -134,14 +139,17 @@ Enable or disable https://en.wikipedia.org/wiki/Keepalive[TCP keep alive].
 Defaults to `true`.
 
 `network.tcp.reuse_address`::
+(<<static-cluster-setting,Static>>)
 Should an address be reused or not. Defaults to `true` on non-windows
 machines.
 
 `network.tcp.send_buffer_size`::
+(<<static-cluster-setting,Static>>)
 The size of the TCP send buffer (specified with <<size-units,size units>>).
 By default not explicitly set.
 
 `network.tcp.receive_buffer_size`::
+(<<static-cluster-setting,Static>>)
 The size of the TCP receive buffer (specified with <<size-units,size units>>).
 By default not explicitly set.
 

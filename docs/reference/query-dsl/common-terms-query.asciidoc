@@ -7,7 +7,7 @@ The `common` terms query is a modern alternative to stopwords which
 improves the precision and recall of search results (by taking stopwords
 into account), without sacrificing performance.
 
-[float]
+[discrete]
 ==== The problem
 
 Every term in a query has a cost. A search for `"The brown fox"`
@@ -26,7 +26,7 @@ we lose precision, (eg we are unable to distinguish between `"happy"`
 and `"not happy"`) and we lose recall (eg text like `"The The"` or
 `"To be or not to be"` would simply not exist in the index).
 
-[float]
+[discrete]
 ==== The solution
 
 The `common` terms query divides the query terms into two groups: more
@@ -64,7 +64,7 @@ domain specific stopwords automatically. For example, on a video hosting
 site, common terms like `"clip"` or `"video"` will automatically behave
 as stopwords without the need to maintain a manual list.
 
-[float]
+[discrete]
 ==== Examples
 
 In this example, words that have a document frequency greater than 0.1%
@@ -74,14 +74,14 @@ In this example, words that have a document frequency greater than 0.1%
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "this is bonsai cool",
-                "cutoff_frequency": 0.001
-            }
-        }
+  "query": {
+    "common": {
+      "body": {
+        "query": "this is bonsai cool",
+        "cutoff_frequency": 0.001
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
@@ -98,15 +98,15 @@ all terms required:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "nelly the elephant as a cartoon",
-                "cutoff_frequency": 0.001,
-                "low_freq_operator": "and"
-            }
-        }
+  "query": {
+    "common": {
+      "body": {
+        "query": "nelly the elephant as a cartoon",
+        "cutoff_frequency": 0.001,
+        "low_freq_operator": "and"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
@@ -117,20 +117,20 @@ which is roughly equivalent to:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool": {
-            "must": [
-            { "term": { "body": "nelly"}},
-            { "term": { "body": "elephant"}},
-            { "term": { "body": "cartoon"}}
-            ],
-            "should": [
-            { "term": { "body": "the"}},
-            { "term": { "body": "as"}},
-            { "term": { "body": "a"}}
-            ]
-        }
+  "query": {
+    "bool": {
+      "must": [
+      { "term": { "body": "nelly"}},
+      { "term": { "body": "elephant"}},
+      { "term": { "body": "cartoon"}}
+      ],
+      "should": [
+      { "term": { "body": "the"}},
+      { "term": { "body": "as"}},
+      { "term": { "body": "a"}}
+      ]
     }
+  }
 }
 --------------------------------------------------
 
@@ -143,15 +143,15 @@ must be present, for instance:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "nelly the elephant as a cartoon",
-                "cutoff_frequency": 0.001,
-                "minimum_should_match": 2
-            }
-        }
+  "query": {
+    "common": {
+      "body": {
+        "query": "nelly the elephant as a cartoon",
+        "cutoff_frequency": 0.001,
+        "minimum_should_match": 2
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
@@ -162,25 +162,25 @@ which is roughly equivalent to:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
+  "query": {
+    "bool": {
+      "must": {
         "bool": {
-            "must": {
-                "bool": {
-                    "should": [
-                    { "term": { "body": "nelly"}},
-                    { "term": { "body": "elephant"}},
-                    { "term": { "body": "cartoon"}}
-                    ],
-                    "minimum_should_match": 2
-                }
-            },
-            "should": [
-                { "term": { "body": "the"}},
-                { "term": { "body": "as"}},
-                { "term": { "body": "a"}}
-                ]
+          "should": [
+            { "term": { "body": "nelly"}},
+            { "term": { "body": "elephant"}},
+            { "term": { "body": "cartoon"}}
+          ],
+          "minimum_should_match": 2
         }
+      },
+      "should": [
+        { "term": { "body": "the"}},
+        { "term": { "body": "as"}},
+        { "term": { "body": "a"}}
+      ]
     }
+  }
 }
 --------------------------------------------------
 
@@ -194,18 +194,18 @@ additional parameters (note the change in structure):
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "nelly the elephant not as a cartoon",
-                "cutoff_frequency": 0.001,
-                "minimum_should_match": {
-                    "low_freq" : 2,
-                    "high_freq" : 3
-                }
-            }
+  "query": {
+    "common": {
+      "body": {
+        "query": "nelly the elephant not as a cartoon",
+        "cutoff_frequency": 0.001,
+        "minimum_should_match": {
+          "low_freq": 2,
+          "high_freq": 3
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
@@ -216,31 +216,31 @@ which is roughly equivalent to:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
+  "query": {
+    "bool": {
+      "must": {
         "bool": {
-            "must": {
-                "bool": {
-                    "should": [
-                    { "term": { "body": "nelly"}},
-                    { "term": { "body": "elephant"}},
-                    { "term": { "body": "cartoon"}}
-                    ],
-                    "minimum_should_match": 2
-                }
-            },
-            "should": {
-                "bool": {
-                    "should": [
-                    { "term": { "body": "the"}},
-                    { "term": { "body": "not"}},
-                    { "term": { "body": "as"}},
-                    { "term": { "body": "a"}}
-                    ],
-                    "minimum_should_match": 3
-                }
-            }
+          "should": [
+            { "term": { "body": "nelly"}},
+            { "term": { "body": "elephant"}},
+            { "term": { "body": "cartoon"}}
+          ],
+          "minimum_should_match": 2
         }
+      },
+      "should": {
+        "bool": {
+          "should": [
+            { "term": { "body": "the"}},
+            { "term": { "body": "not"}},
+            { "term": { "body": "as"}},
+            { "term": { "body": "a"}}
+          ],
+          "minimum_should_match": 3
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -254,18 +254,18 @@ for high frequency terms is when there are only high frequency terms:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "how not to be",
-                "cutoff_frequency": 0.001,
-                "minimum_should_match": {
-                    "low_freq" : 2,
-                    "high_freq" : 3
-                }
-            }
+  "query": {
+    "common": {
+      "body": {
+        "query": "how not to be",
+        "cutoff_frequency": 0.001,
+        "minimum_should_match": {
+          "low_freq": 2,
+          "high_freq": 3
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
@@ -276,17 +276,17 @@ which is roughly equivalent to:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool": {
-            "should": [
-            { "term": { "body": "how"}},
-            { "term": { "body": "not"}},
-            { "term": { "body": "to"}},
-            { "term": { "body": "be"}}
-            ],
-            "minimum_should_match": "3<50%"
-        }
+  "query": {
+    "bool": {
+      "should": [
+        { "term": { "body": "how"}},
+        { "term": { "body": "not"}},
+        { "term": { "body": "to"}},
+        { "term": { "body": "be"}}
+      ],
+      "minimum_should_match": "3<50%"
     }
+  }
 }
 --------------------------------------------------
 

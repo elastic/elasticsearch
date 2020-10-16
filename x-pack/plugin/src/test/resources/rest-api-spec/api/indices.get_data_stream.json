@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
       "description":"Returns data streams."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "url":{
       "paths":[
         {

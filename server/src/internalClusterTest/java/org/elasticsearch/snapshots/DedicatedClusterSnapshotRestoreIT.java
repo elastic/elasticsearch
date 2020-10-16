@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.IntSet;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -68,6 +69,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -87,6 +89,7 @@ import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -175,7 +178,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetadataPlugin.class, BrokenSettingPlugin.class);
+        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetadataPlugin.class, BrokenSettingPlugin.class,
+                MockTransportService.TestPlugin.class);
     }
 
     public static class BrokenSettingPlugin extends Plugin {
@@ -1273,6 +1277,85 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
                 .setPartial(true).setWaitForCompletion(true).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+    }
+
+    /**
+     * Tests for the legacy snapshot path that is normally executed if the cluster contains any nodes older than
+     * {@link SnapshotsService#NO_REPO_INITIALIZE_VERSION}.
+     * Makes sure that blocking as well as non-blocking snapshot create paths execute cleanly as well as that error handling works out
+     * correctly by testing a snapshot name collision.
+     */
+    public void testCreateSnapshotLegacyPath() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        createIndex("some-index");
+
+        final SnapshotsService snapshotsService = internalCluster().getMasterNodeInstance(SnapshotsService.class);
+        final Snapshot snapshot1 =
+                PlainActionFuture.get(f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f));
+        awaitNoMoreRunningOperations(masterNode);
+
+        final InvalidSnapshotNameException sne = expectThrows(InvalidSnapshotNameException.class,
+                () -> PlainActionFuture.<SnapshotInfo, Exception>get(
+                        f -> snapshotsService.executeSnapshotLegacy(
+                                new CreateSnapshotRequest(repoName, snapshot1.getSnapshotId().getName()), f)));
+
+        assertThat(sne.getMessage(), containsString("snapshot with the same name already exists"));
+        final SnapshotInfo snapshot2 =
+                PlainActionFuture.get(f -> snapshotsService.executeSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-2"), f));
+        assertThat(snapshot2.state(), is(SnapshotState.SUCCESS));
+
+        final SnapshotInfo snapshot3 =
+                PlainActionFuture.get(f -> snapshotsService.executeSnapshotLegacy(
+                        new CreateSnapshotRequest(repoName, "snap-3").indices("does-not-exist-*"), f));
+        assertThat(snapshot3.state(), is(SnapshotState.SUCCESS));
+    }
+
+    public void testSnapshotDeleteRelocatingPrimaryIndex() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        // Create index on two nodes and make sure each node has a primary by setting no replicas
+        final String indexName = "test-idx";
+        assertAcked(prepareCreate(indexName, 2, indexSettingsNoReplicas(between(2, 10))));
+        ensureGreen(indexName);
+        indexRandomDocs(indexName, 100);
+
+        // Drop all file chunk requests so that below relocation takes forever and we're guaranteed to run the snapshot in parallel to it
+        for (String nodeName : dataNodes) {
+            ((MockTransportService) internalCluster().getInstance(TransportService.class, nodeName)).addSendBehavior(
+                    (connection, requestId, action, request, options) -> {
+                        if (PeerRecoveryTargetService.Actions.FILE_CHUNK.equals(action)) {
+                            return;
+                        }
+                        connection.sendRequest(requestId, action, request, options);
+                    });
+        }
+
+        logger.info("--> start relocations");
+        allowNodes(indexName, 1);
+
+        logger.info("--> wait for relocations to start");
+
+        assertBusy(() -> assertThat(
+                client().admin().cluster().prepareHealth(indexName).execute().actionGet().getRelocatingShards(), greaterThan(0)),
+                1L, TimeUnit.MINUTES);
+
+        logger.info("--> snapshot");
+        client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
+                .setWaitForCompletion(false).setPartial(true).setIndices(indexName).get();
+
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        logger.info("--> wait for snapshot to complete");
+        SnapshotInfo snapshotInfo = waitForCompletion(repoName, "test-snap", TimeValue.timeValueSeconds(600));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
+        assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
+        logger.info("--> done");
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_suggesters_changes]]
 === Suggesters changes
 
@@ -9,12 +9,12 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 ==== Registration of suggesters in plugins has changed
 
 Plugins must now explicitly indicate the type of suggestion that they produce.
 
-[float]
+[discrete]
 ==== Phrase suggester now multiples alpha
 Previously, the laplace smoothing used by the phrase suggester added `alpha`,
 when it should instead multiply.  This behavior has been changed and will

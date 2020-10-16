@@ -67,6 +67,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
     private static Integer _defaultParallel = null;
+    private static Boolean _isBundledJdkSupported = null;
 
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final ObjectFactory objects;
@@ -105,6 +106,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setRuntimeJavaHome(runtimeJavaHome);
             params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
             params.setIsRutimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
+            params.setRuntimeJavaDetails(getJavaInstallation(runtimeJavaHome).getImplementationName());
             params.setJavaVersions(getAvailableJavaVersions(minimumCompilerVersion));
             params.setMinimumCompilerVersion(minimumCompilerVersion);
             params.setMinimumRuntimeVersion(minimumRuntimeVersion);

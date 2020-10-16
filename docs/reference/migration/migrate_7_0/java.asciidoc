@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_java_changes]]
 === Java API changes
 
@@ -9,7 +9,7 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 [[isshardsacked-removed]]
 ==== `isShardsAcked` deprecated in `6.2` has been removed
 
@@ -17,7 +17,7 @@
 `CreateIndexResponse`, `RolloverResponse` and
 `CreateIndexClusterStateUpdateResponse`.
 
-[float]
+[discrete]
 [[prepareexecute-removed-client-api]]
 ==== `prepareExecute` removed from the client api
 
@@ -25,7 +25,7 @@ The `prepareExecute` method which created a request builder has been
 removed from the client api. Instead, construct a builder for the
 appropriate request directly.
 
-[float]
+[discrete]
 ==== Some Aggregation classes have moved packages
 
 * All classes present in `org.elasticsearch.search.aggregations.metrics.*` packages
@@ -37,28 +37,28 @@ addition, `org.elasticsearch.search.aggregations.pipeline.PipelineAggregationBui
 was moved to `org.elasticsearch.search.aggregations.PipelineAggregationBuilders`
 
 
-[float]
+[discrete]
 [[retry-withbackoff-methods-removed]]
 ==== `Retry.withBackoff` methods with `Settings` removed
 
 The variants of `Retry.withBackoff` that included `Settings` have been removed
 because `Settings` is no longer needed.
 
-[float]
+[discrete]
 [[client-termvector-removed]]
 ==== Deprecated method `Client#termVector` removed
 
 The client method `termVector`, deprecated in 2.0, has been removed. The method
 `termVectors` (plural) should be used instead.
 
-[float]
+[discrete]
 [[abstractlifecyclecomponent-constructor-removed]]
 ==== Deprecated constructor `AbstractLifecycleComponent(Settings settings)` removed
 
 The constructor `AbstractLifecycleComponent(Settings settings)`, deprecated in 6.7
 has been removed. The parameterless constructor should be used instead.
 
-[float]
+[discrete]
 ==== Changes to Geometry classes
 
 Geometry classes used to represent geo values in SQL have been moved from the

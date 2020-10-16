@@ -293,6 +293,11 @@ BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInf
       createBuildBwcTask(projectName, "${baseDir}/${projectName}", projectArtifact)
     }
 
+    // Create build tasks for the JDBC driver used for compatibility testing
+    String jdbcProjectDir = 'x-pack/plugin/sql/jdbc'
+    File jdbcProjectArtifact = file("${checkoutDir}/${jdbcProjectDir}/build/distributions/x-pack-sql-jdbc-${bwcVersion}-SNAPSHOT.jar")
+    createBuildBwcTask('jdbc', jdbcProjectDir, jdbcProjectArtifact)
+
     createRunBwcGradleTask("resolveAllBwcDependencies") {
       args 'resolveAllDependencies'
     }

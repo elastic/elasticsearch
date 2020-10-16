@@ -206,17 +206,20 @@ public class EnsembleInferenceModel implements InferenceModel {
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
                 assert classificationWeights == null || processedInferences.length == classificationWeights.length;
                 // Adjust the probabilities according to the thresholds
-                Tuple<Integer, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
+                Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
                     processedInferences,
                     classificationLabels,
                     classificationWeights,
                     classificationConfig.getNumTopClasses(),
                     classificationConfig.getPredictionFieldType());
-                return new ClassificationInferenceResults((double)topClasses.v1(),
-                    classificationLabel(topClasses.v1(), classificationLabels),
+                final InferenceHelpers.TopClassificationValue value = topClasses.v1();
+                return new ClassificationInferenceResults((double)value.getValue(),
+                    classificationLabel(topClasses.v1().getValue(), classificationLabels),
                     topClasses.v2(),
                     transformFeatureImportance(decodedFeatureImportance, classificationLabels),
-                    config);
+                    config,
+                    value.getProbability(),
+                    value.getScore());
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on ensemble model");
         }

@@ -190,7 +190,7 @@ public class DiskThresholdMonitor {
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
 
-                if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                     reroute = true;
                     explanation = "high disk watermark exceeded on one or more nodes";
                     usagesOverHighThreshold.add(usage);
@@ -225,7 +225,7 @@ public class DiskThresholdMonitor {
                 if (nodesOverLowThreshold.contains(node)) {
                     // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more shards
                     // if we reroute now.
-                    if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                    if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                         reroute = true;
                         explanation = "one or more nodes has gone under the high or low watermark";
                         nodesOverLowThreshold.remove(node);

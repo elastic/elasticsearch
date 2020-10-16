@@ -4,7 +4,7 @@
 Also see <<breaking-changes-7.0,Breaking changes in 7.0>>.
 
 [[breaking-7.0.0-beta1]]
-[float]
+[discrete]
 === Breaking changes
 
 Audit::
@@ -67,7 +67,7 @@ ZenDiscovery::
 
 
 [[breaking-java-7.0.0-beta1]]
-[float]
+[discrete]
 === Breaking Java changes
 
 Features/Java Low Level REST Client::
@@ -79,7 +79,7 @@ Infra/Core::
 
 
 [[deprecation-7.0.0-beta1]]
-[float]
+[discrete]
 === Deprecations
 
 Aggregations::
@@ -140,7 +140,7 @@ Search::
 
 
 [[feature-7.0.0-beta1]]
-[float]
+[discrete]
 === New features
 
 Authentication::
@@ -186,7 +186,7 @@ Search::
 
 
 [[enhancement-7.0.0-beta1]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -447,7 +447,7 @@ ZenDiscovery::
 
 
 [[bug-7.0.0-beta1]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -663,7 +663,7 @@ ZenDiscovery::
 
 
 [[regression-7.0.0-beta1]]
-[float]
+[discrete]
 === Regressions
 
 Infra/Core::
@@ -676,7 +676,7 @@ Mapping::
 
 
 [[upgrade-7.0.0-beta1]]
-[float]
+[discrete]
 === Upgrades
 
 Engine::

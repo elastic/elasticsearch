@@ -77,10 +77,16 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         client().performRequest(new Request("POST", "/_license/start_basic?acknowledge=true"));
     }
 
-    private void checkLicenseType(String type) throws IOException {
-        Map<String, Object> license = getAsMap("/_license");
-        assertThat(license, notNullValue());
-        assertThat(ObjectPath.evaluate(license, "license.type"), equalTo(type));
+    private void checkLicenseType(String type) throws Exception {
+        assertBusy(() -> {
+            try {
+                Map<String, Object> license = getAsMap("/_license");
+                assertThat(license, notNullValue());
+                assertThat(ObjectPath.evaluate(license, "license.type"), equalTo(type));
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     private void checkSecurityEnabled(boolean allowAllRealms) throws IOException {

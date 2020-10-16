@@ -14,7 +14,7 @@ include::install_remove.asciidoc[]
 
 
 [[analysis-smartcn-tokenizer]]
-[float]
+[discrete]
 ==== `smartcn` tokenizer and token filter
 
 The plugin provides the `smartcn` analyzer, `smartcn_tokenizer` tokenizer, and

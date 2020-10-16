@@ -119,7 +119,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final int numberOfReplicas,
             final String followerIndex,
             final int numberOfDocuments) throws IOException {
-        final ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
+        final ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
         final String chunkSize = new ByteSizeValue(randomFrom(4, 128, 1024), ByteSizeUnit.KB).getStringRep();
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), chunkSize));
         assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
@@ -129,7 +129,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final Map<String, String> additionalSettings = new HashMap<>();
         additionalSettings.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalSettings);
-        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
+            .setMasterNodeTimeout(TimeValue.MAX_VALUE).setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen(leaderIndex);
 
         logger.info("indexing [{}] docs", numberOfDocuments);
@@ -152,7 +153,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 .indicesOptions(indicesOptions)
                 .renamePattern("^(.*)$")
                 .renameReplacement(followerIndex)
-                .masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS));
+                .masterNodeTimeout(TimeValue.MAX_VALUE);
     }
 
     public void testRetentionLeaseIsTakenAtTheStartOfRecovery() throws Exception {
@@ -470,7 +471,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         ensureFollowerGreen(true, followerIndex);
 
         pauseFollow(followerIndex);
-        followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet();
+        followerClient().admin().indices().close(new CloseIndexRequest(followerIndex).masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
 
         // we will disrupt requests to remove retention leases for these random shards
         final Set<Integer> shardIds =
@@ -944,7 +945,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         ensureFollowerGreen(true, followerIndex);
 
         pauseFollow(followerIndex);
-        followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet();
+        followerClient().admin().indices().close(new CloseIndexRequest(followerIndex).masterNodeTimeout(TimeValue.MAX_VALUE)).actionGet();
 
         final ClusterStateResponse followerIndexClusterState =
                 followerClient().admin().cluster().prepareState().clear().setMetadata(true).setIndices(followerIndex).get();

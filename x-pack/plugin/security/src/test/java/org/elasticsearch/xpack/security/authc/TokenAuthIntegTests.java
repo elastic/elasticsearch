@@ -60,6 +60,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -166,8 +167,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
@@ -198,7 +199,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     .actionGet();
                 assertThat(invalidateResponseTwo.getResult().getInvalidatedTokens(), equalTo(0));
                 assertThat(invalidateResponseTwo.getResult().getPreviouslyInvalidatedTokens(), equalTo(0));
-                assertThat(invalidateResponseTwo.getResult().getErrors().size(), equalTo(0));
+                assertThat(invalidateResponseTwo.getResult().getErrors(), empty());
             }
             client.admin().indices().prepareRefresh(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).get();
             SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
@@ -214,16 +215,16 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setType(randomFrom(InvalidateTokenRequest.Type.values()))
             .execute()
             .actionGet();
-        assertThat(invalidateAccessTokenResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateAccessTokenResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateAccessTokenResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateAccessTokenResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateAccessTokenResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateAccessTokenResponse.getResult().getErrors(), empty());
         InvalidateTokenResponse invalidateRefreshTokenResponse = securityClient.prepareInvalidateToken(refreshToken)
             .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
             .execute()
             .actionGet();
-        assertThat(invalidateRefreshTokenResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateRefreshTokenResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateRefreshTokenResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateRefreshTokenResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateRefreshTokenResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateRefreshTokenResponse.getResult().getErrors(), empty());
     }
 
     public void testInvalidateAllTokensForUser() throws Exception{
@@ -244,8 +245,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setUserName(SecuritySettingsSource.TEST_USER_NAME)
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(2 * (numOfRequests)));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
     }
 
     public void testInvalidateAllTokensForRealm() throws Exception{
@@ -266,8 +267,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setRealmName("file")
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(2 * (numOfRequests)));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
     }
 
     public void testInvalidateAllTokensForRealmThatHasNone() {
@@ -287,9 +288,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .prepareInvalidateToken()
             .setRealmName("saml")
             .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
     }
 
     public void testExpireMultipleTimes() {
@@ -304,15 +305,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
         InvalidateTokenResponse invalidateAgainResponse = securityClient()
             .prepareInvalidateToken(response.getTokenString())
             .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
             .get();
-        assertThat(invalidateAgainResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateAgainResponse.getResult().getInvalidatedTokens(), empty());
         assertThat(invalidateAgainResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(1));
-        assertThat(invalidateAgainResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateAgainResponse.getResult().getErrors(), empty());
     }
 
     public void testInvalidateMultipleTimes() {
@@ -326,15 +327,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
         InvalidateTokenResponse invalidateAgainResponse = securityClient()
             .prepareInvalidateToken(response.getTokenString())
             .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
             .get();
-        assertThat(invalidateAgainResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
+        assertThat(invalidateAgainResponse.getResult().getInvalidatedTokens(), empty());
         assertThat(invalidateAgainResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(1));
-        assertThat(invalidateAgainResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateAgainResponse.getResult().getErrors(), empty());
     }
 
     public void testInvalidateNotValidAccessTokens() throws Exception {
@@ -356,27 +357,27 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .prepareInvalidateToken("!this_is_not_a_base64_string_and_we_should_fail_decoding_it")
                 .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
                 .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
 
         invalidateResponse =
             securityClient()
                 .prepareInvalidateToken("10we+might+assume+this+is+valid+old+token")
                 .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
                 .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
 
         invalidateResponse =
             securityClient()
                 .prepareInvalidateToken(generateInvalidShortAccessToken(Version.CURRENT))
                 .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
                 .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
 
         // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
         // tokens index
@@ -385,9 +386,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .prepareInvalidateToken(generateAccessToken(Version.CURRENT))
                 .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
                 .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
     }
 
     public void testInvalidateNotValidRefreshTokens() throws Exception {
@@ -397,7 +398,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
             .get());
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        // Create a token to trigger index creation
         // Create a token to trigger index creation
         securityClient().prepareCreateToken()
             .setGrantType("password")
@@ -410,27 +410,27 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .prepareInvalidateToken("!this_is_not_a_base64_string_and_we_should_fail_decoding_it")
                 .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
                 .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
 
         invalidateResponse =
             securityClient()
                 .prepareInvalidateToken(TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, randomAlphaOfLength(32)))
                 .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
                 .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
 
         invalidateResponse =
             securityClient()
                 .prepareInvalidateToken("10we+might+assume+this+is+valid+old+token")
                 .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
                 .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
 
         // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
         // tokens index
@@ -439,9 +439,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .prepareInvalidateToken(TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()))
                 .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
                 .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
 
     }
 
@@ -485,8 +485,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
             .get();
         assertThat(invalidateResponse.getResult().getInvalidatedTokens().size(), equalTo(1));
-        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponse.getResult().getErrors(), empty());
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
             () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
@@ -708,8 +708,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             new InvalidateTokenRequest(createTokenResponse.getTokenString(), InvalidateTokenRequest.Type.ACCESS_TOKEN.getValue());
         securityClient.invalidateToken(invalidateTokenRequest, invalidateResponseFuture);
         assertThat(invalidateResponseFuture.get().getResult().getInvalidatedTokens().size(), equalTo(1));
-        assertThat(invalidateResponseFuture.get().getResult().getPreviouslyInvalidatedTokens().size(), equalTo(0));
-        assertThat(invalidateResponseFuture.get().getResult().getErrors().size(), equalTo(0));
+        assertThat(invalidateResponseFuture.get().getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(invalidateResponseFuture.get().getResult().getErrors(), empty());
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             PlainActionFuture<AuthenticateResponse> responseFuture = new PlainActionFuture<>();

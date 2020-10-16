@@ -4,7 +4,7 @@
 Also see <<breaking-changes-7.0,Breaking changes in 7.0.0-rc1>>.
 
 [[breaking-7.0.0-rc1]]
-[float]
+[discrete]
 === Breaking changes
 
 Distributed::
@@ -16,7 +16,7 @@ Features/Features::
 
 
 [[deprecation-7.0.0-rc1]]
-[float]
+[discrete]
 === Deprecations
 
 Cluster Coordination::
@@ -28,7 +28,7 @@ Infra/Packaging::
 
 
 [[feature-7.0.0-rc1]]
-[float]
+[discrete]
 === New features
 
 Allocation::
@@ -40,7 +40,7 @@ Security::
 
 
 [[enhancement-7.0.0-rc1]]
-[float]
+[discrete]
 === Enhancements
 
 CCR::
@@ -89,7 +89,7 @@ SQL::
 
 
 [[bug-7.0.0-rc1]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -174,7 +174,7 @@ Search::
 
 
 [[upgrade-7.0.0-rc1]]
-[float]
+[discrete]
 === Upgrades
 
 Discovery-Plugins::

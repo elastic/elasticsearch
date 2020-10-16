@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
@@ -79,6 +78,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -89,6 +89,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -420,6 +421,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
                 try {
+                    // The ConcreteIndices#resolveIfAbsent(...) method validates via IndexNameExpressionResolver whether
+                    // an operation is allowed in index into a data stream, but this isn't done when resolve call is cached, so
+                    // the validation needs to be performed here too.
+                    IndexAbstraction indexAbstraction = clusterState.getMetadata().getIndicesLookup().get(concreteIndex.getName());
+                    if (indexAbstraction.getParentDataStream() != null &&
+                        // avoid valid cases when directly indexing into a backing index
+                        // (for example when directly indexing into .ds-logs-foobar-000001)
+                        concreteIndex.getName().equals(docWriteRequest.index()) == false &&
+                        docWriteRequest.opType() != DocWriteRequest.OpType.CREATE) {
+                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
+                    }
+
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
@@ -577,7 +590,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (concreteIndex == null) {
                 try {
                     concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException ex) {
+                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
                     addFailure(request, idx, ex);
                     return true;
                 }
@@ -623,8 +636,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
-                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0],
-                    false, includeDataStreams);
+                try {
+                    concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(),
+                        request.indices()[0], false, includeDataStreams);
+                } catch (IndexNotFoundException e) {
+                    if (includeDataStreams == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
+                    } else {
+                        throw e;
+                    }
+                }
                 indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;
@@ -692,8 +713,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
-
-        private static final Logger logger = LogManager.getLogger(BulkRequestModifier.class);
 
         final BulkRequest bulkRequest;
         final SparseFixedBitSet failedSlots;
@@ -775,7 +794,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-            logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
+            logger.debug(String.format(Locale.ROOT, "failed to execute pipeline [%s] for document [%s/%s/%s]",
                 indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), e);
 
             // We hit a error during preprocessing a request, so we:

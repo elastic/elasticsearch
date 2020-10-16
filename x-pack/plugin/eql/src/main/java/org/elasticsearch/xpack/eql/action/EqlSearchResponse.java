@@ -16,10 +16,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 
@@ -192,26 +194,28 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             new ConstructingObjectParser<>("eql/search_response_sequence", true,
                 args -> {
                     int i = 0;
-                    @SuppressWarnings("unchecked") List<String> joinKeys = (List<String>) args[i++];
+                    @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
                     @SuppressWarnings("unchecked") List<SearchHit> events = (List<SearchHit>) args[i];
                     return new EqlSearchResponse.Sequence(joinKeys, events);
                 });
 
         static {
-            PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), JOIN_KEYS);
+            PARSER.declareFieldArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p),
+                JOIN_KEYS, ObjectParser.ValueType.VALUE_ARRAY);
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHit.fromXContent(p), EVENTS);
         }
 
-        private final List<String> joinKeys;
+        private final List<Object> joinKeys;
         private final List<SearchHit> events;
 
-        public Sequence(List<String> joinKeys, List<SearchHit> events) {
+        public Sequence(List<Object> joinKeys, List<SearchHit> events) {
             this.joinKeys = joinKeys == null ? Collections.emptyList() : joinKeys;
             this.events = events == null ? Collections.emptyList() : events;
         }
 
+        @SuppressWarnings("unchecked")
         public Sequence(StreamInput in) throws IOException {
-            this.joinKeys = in.readStringList();
+            this.joinKeys = (List<Object>) in.readGenericValue();
             this.events = in.readList(SearchHit::new);
         }
 
@@ -221,7 +225,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(joinKeys);
+            out.writeGenericValue(joinKeys);
             out.writeList(events);
         }
 
@@ -260,7 +264,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             return Objects.hash(joinKeys, events);
         }
 
-        public List<String> joinKeys() {
+        public List<Object> joinKeys() {
             return joinKeys;
         }
 
@@ -278,7 +282,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         }
 
         private final int count;
-        private final List<String> keys;
+        private final List<Object> keys;
         private final float percent;
 
         private static final ParseField COUNT = new ParseField(Fields.COUNT);
@@ -290,26 +294,28 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 args -> {
                     int i = 0;
                     int count = (int) args[i++];
-                    @SuppressWarnings("unchecked") List<String> joinKeys = (List<String>) args[i++];
+                    @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
                     float percent = (float) args[i];
                     return new EqlSearchResponse.Count(count, joinKeys, percent);
                 });
 
         static {
             PARSER.declareInt(constructorArg(), COUNT);
-            PARSER.declareStringArray(constructorArg(), KEYS);
+            PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p), KEYS,
+                ObjectParser.ValueType.VALUE_ARRAY);
             PARSER.declareFloat(constructorArg(), PERCENT);
         }
 
-        public Count(int count, List<String> keys, float percent) {
+        public Count(int count, List<Object> keys, float percent) {
             this.count = count;
             this.keys = keys == null ? Collections.emptyList() : keys;
             this.percent = percent;
         }
 
+        @SuppressWarnings("unchecked")
         public Count(StreamInput in) throws IOException {
             count = in.readVInt();
-            keys = in.readStringList();
+            keys = (List<Object>) in.readGenericValue();
             percent = in.readFloat();
         }
 
@@ -320,7 +326,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(count);
-            out.writeStringCollection(keys);
+            out.writeGenericValue(keys);
             out.writeFloat(percent);
         }
 
@@ -357,7 +363,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             return count;
         }
 
-        public List<String> keys() {
+        public List<Object> keys() {
             return keys;
         }
 

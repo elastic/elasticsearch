@@ -784,7 +784,12 @@ public final class HyperLogLogPlusPlus implements Releasable {
         this.bigArrays = bigArrays;
         algorithm = new OpenBitSet();
         runLens = bigArrays.newByteArray(initialBucketCount << p);
-        hashSet = new Hashset(initialBucketCount);
+        try {
+            hashSet = new Hashset(initialBucketCount);
+        } catch (RuntimeException e) {
+            runLens.close();
+            throw e;
+        }
         final double alpha;
         switch (p) {
             case 4:

@@ -15,6 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 
@@ -63,7 +64,7 @@ public final class ClientHelper {
     public static final String INDEX_LIFECYCLE_ORIGIN = "index_lifecycle";
     public static final String MONITORING_ORIGIN = "monitoring";
     public static final String DEPRECATION_ORIGIN = "deprecation";
-    public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
+    public static final String PERSISTENT_TASK_ORIGIN = PersistentTasksService.PERSISTENT_TASK_ORIGIN;
     public static final String ROLLUP_ORIGIN = "rollup";
     public static final String ENRICH_ORIGIN = "enrich";
     public static final String TRANSFORM_ORIGIN = "transform";

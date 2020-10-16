@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -34,7 +35,9 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
     public static class Request extends BroadcastRequest<Request> {
         public Request() {
-            super((String[]) null);
+            // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
+            // a data stream's backing indices are retrieved from its metadata
+            super(null, IndicesOptions.fromOptions(false, true, true, true, true, false, true, false));
         }
 
         public Request(StreamInput in) throws IOException {

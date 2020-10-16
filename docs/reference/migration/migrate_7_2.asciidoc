@@ -14,11 +14,11 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 //tag::notable-breaking-changes[]
 
-[float]
+[discrete]
 [[breaking_72_discovery_changes]]
 === Discovery changes
 
-[float]
+[discrete]
 ==== Only a single port may be given for each seed host.
 
 In earlier versions you could include a range of ports in entries in the

@@ -4,7 +4,7 @@
 The changes listed below have been released for the first time in Elasticsearch 7.0.0-alpha1.
 
 [[breaking-7.0.0-alpha1]]
-[float]
+[discrete]
 === Breaking changes
 
 Aggregations::
@@ -127,7 +127,7 @@ Suggesters::
 
 
 [[breaking-java-7.0.0-alpha1]]
-[float]
+[discrete]
 === Breaking Java changes
 
 Aggregations::
@@ -154,7 +154,7 @@ Infra/Transport API::
 * Java api clean up: remove deprecated `isShardsAcked` {es-pull}28311[#28311] (issues: {es-issue}27784[#27784], {es-issue}27819[#27819])
 
 [[deprecation-7.0.0-alpha1]]
-[float]
+[discrete]
 === Deprecations
 
 Analysis::
@@ -176,7 +176,7 @@ Search::
 
 
 [[feature-7.0.0-alpha1]]
-[float]
+[discrete]
 === New features
 
 Analysis::
@@ -239,7 +239,7 @@ Suggesters::
 
 
 [[enhancement-7.0.0-alpha1]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -374,7 +374,7 @@ ZenDiscovery::
 
 
 [[bug-7.0.0-alpha1]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -446,7 +446,7 @@ ZenDiscovery::
 
 
 [[upgrade-7.0.0-alpha1]]
-[float]
+[discrete]
 === Upgrades
 
 Geo::

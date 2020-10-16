@@ -398,7 +398,8 @@ public class MetadataCreateIndexService {
             try {
                 updateIndexMappingsAndBuildSortOrder(indexService, request, mappings, sourceMetadata);
             } catch (Exception e) {
-                logger.debug("failed on parsing mappings on index creation [{}]", request.index());
+                logger.log(silent ? Level.DEBUG : Level.INFO,
+                    "failed on parsing mappings on index creation [{}]", request.index(), e);
                 throw e;
             }
 
@@ -495,6 +496,13 @@ public class MetadataCreateIndexService {
                                                                final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
                                                                                     throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
+
+        ComposableIndexTemplate template = currentState.getMetadata().templatesV2().get(templateName);
+        if (request.dataStreamName() == null && template.getDataStreamTemplate() != null) {
+           throw new IllegalArgumentException("cannot create index with name [" + request.index() +
+               "], because it matches with template [" + templateName + "] that creates data streams only, " +
+               "use create data stream api instead");
+        }
 
         final List<Map<String, Map<String, Object>>> mappings =
             collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry, request.index());

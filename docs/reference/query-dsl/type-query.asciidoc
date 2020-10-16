@@ -9,10 +9,10 @@ Filters documents matching the provided document / mapping type.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "type" : {
-            "value" : "_doc"
-        }
+  "query": {
+    "type": {
+      "value": "_doc"
     }
-}    
+  }
+}
 --------------------------------------------------

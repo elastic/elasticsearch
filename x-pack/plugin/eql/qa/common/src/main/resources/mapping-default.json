@@ -1,10 +1,12 @@
+# Text patterns like "[runtime_random_keyword_type]" will get replaced at runtime with a random string type.
+# See DataLoader class for pattern replacements.
 {
     "properties" : {
         "command_line" : {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "event_type" : {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "event" : {
             "properties" : {
@@ -19,13 +21,13 @@
             }
         },
         "md5" : {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "parent_process_name": {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "parent_process_path": {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "pid" : {
             "type" : "long"
@@ -34,13 +36,13 @@
             "type" : "long"
         },
         "process_name": {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "process_path": {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "subtype" : {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "timestamp" : {
             "type" : "date"
@@ -49,19 +51,19 @@
             "type" : "date"
         },
         "user" : {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "user_name" : {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "user_domain": {
-            "type" : "keyword"
+            "type" : "[runtime_random_keyword_type]"
         },
         "hostname" : {
             "type" : "text",
             "fields" : {
-                "keyword" : {
-                    "type" : "keyword",
+                "[runtime_random_keyword_type]" : {
+                    "type" : "[runtime_random_keyword_type]",
                     "ignore_above" : 256
                 }
             }
@@ -72,8 +74,8 @@
         "file_name" : {
             "type" : "text",
             "fields" : {
-                "keyword" : {
-                    "type" : "keyword",
+                "[runtime_random_keyword_type]" : {
+                    "type" : "[runtime_random_keyword_type]",
                     "ignore_above" : 256
                 }
             }

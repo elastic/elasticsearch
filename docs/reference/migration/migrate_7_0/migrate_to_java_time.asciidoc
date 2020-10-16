@@ -233,35 +233,35 @@ To update joda-time date formats in index mappings, you must create a new index
 with an updated mapping and reindex your data to it.
 You can however update your pipelines or templates.
 
-The following `my_index_1` index contains a mapping for the `datetime` field, a
+The following `my-index-000001` index contains a mapping for the `datetime` field, a
 `date` field with a custom joda-time date format.
 ////
 [source,console]
 --------------------------------------------------
-PUT my_index_1
+PUT my-index-000001
 {
-    "mappings" : {
-      "properties" : {
-         "datetime": {
-           "type": "date",
-           "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
-         }
+  "mappings": {
+    "properties": {
+      "datetime": {
+        "type": "date",
+        "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
       }
     }
+  }
 }
 --------------------------------------------------
 ////
 
 [source,console]
 --------------------------------------------------
-GET my_index_1/_mapping
+GET my-index-000001/_mapping
 --------------------------------------------------
 // TEST[continued]
 
 [source,console-result]
 --------------------------------------------------
 {
-  "my_index_1" : {
+  "my-index-000001" : {
     "mappings" : {
       "properties" : {
          "datetime": {
@@ -278,13 +278,13 @@ GET my_index_1/_mapping
 To change the date format for the `datetime` field, create a separate index
 containing an updated mapping and date format.
 
-For example, the following `my_index_2` index changes the `datetime` field's 
+For example, the following `my-index-000002` index changes the `datetime` field's 
 date format to `8uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis`. The `8` prefix 
 indicates this date format uses java time.
 
 [source,console]
 --------------------------------------------------
-PUT my_index_2
+PUT my-index-000002
 {
   "mappings": {
     "properties": {
@@ -301,17 +301,17 @@ PUT my_index_2
 Next, reindex data from the old index to the new index.
 
 The following <<docs-reindex,reindex>> API request reindexes data from
-`my_index_1` to `my_index_2`.
+`my-index-000001` to `my-index-000002`.
 
 [source,console]
 --------------------------------------------------
 POST _reindex
 {
   "source": {
-    "index": "my_index_1"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "my_index_2"
+    "index": "my-index-000002"
   }
 }
 --------------------------------------------------
@@ -323,10 +323,10 @@ If you use index aliases, update them to point to the new index.
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "remove" : { "index" : "my_index_1", "alias" : "my_index" } },
-        { "add" : { "index" : "my_index_2", "alias" : "my_index" } }
-    ]
+  "actions" : [
+    { "remove" : { "index" : "my-index-000001", "alias" : "my-index" } },
+    { "add" : { "index" : "my-index-000002", "alias" : "my-index" } }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]

@@ -9,9 +9,9 @@ streams, the API retrieves mappings for the stream's backing indices.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_mapping
+GET /my-index-000001/_mapping
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings
 in responses no longer contain a type name by default, you can still request the old format
@@ -73,10 +73,9 @@ The following are some examples:
 
 [source,console]
 --------------------------------------------------
-GET /twitter,kimchy/_mapping
+GET /my-index-000001,my-index-000002/_mapping
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/^/PUT kimchy\nPUT book\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 If you want to get mappings of all indices in a cluster, the following
 examples are equivalent:
@@ -89,4 +88,4 @@ GET /_all/_mapping
 
 GET /_mapping
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]

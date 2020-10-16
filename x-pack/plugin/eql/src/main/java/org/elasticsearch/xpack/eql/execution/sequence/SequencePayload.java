@@ -25,7 +25,7 @@ class SequencePayload extends AbstractPayload {
         for (int i = 0; i < sequences.size(); i++) {
             Sequence s = sequences.get(i);
             List<SearchHit> hits = searchHits.get(i);
-            values.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asStringList(), hits));
+            values.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asList(), hits));
         }
     }
 

@@ -48,7 +48,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[ilm-remove-policy-example]]
 ==== {api-examples-title}
 
-The following example removes the assigned policy from `my_index`.
+The following example removes the assigned policy from `my-index-000001`.
 
 //////////////////////////
 
@@ -76,7 +76,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy"
@@ -88,7 +88,7 @@ PUT my_index
 
 [source,console]
 --------------------------------------------------
-POST my_index/_ilm/remove
+POST my-index-000001/_ilm/remove
 --------------------------------------------------
 // TEST[continued]
 

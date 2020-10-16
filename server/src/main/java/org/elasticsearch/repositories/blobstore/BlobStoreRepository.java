@@ -164,8 +164,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final ThreadPool threadPool;
 
-    private static final int BUFFER_SIZE = 4096;
-
     public static final String SNAPSHOT_PREFIX = "snap-";
 
     public static final String SNAPSHOT_CODEC = "snapshot";
@@ -222,6 +220,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> CACHE_REPOSITORY_DATA =
         Setting.boolSetting("cache_repository_data", true, Setting.Property.Deprecated);
+
+    /**
+     * Size hint for the IO buffer size to use when reading from and writing to the repository.
+     */
+    public static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting("io_buffer_size",
+        ByteSizeValue.parseBytesSizeValue("128kb", "io_buffer_size"), ByteSizeValue.parseBytesSizeValue("8kb", "buffer_size"),
+        ByteSizeValue.parseBytesSizeValue("16mb", "io_buffer_size"), Setting.Property.NodeScope);
 
     private final boolean compress;
 
@@ -286,6 +291,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private volatile boolean bestEffortConsistency;
 
     /**
+     * IO buffer size hint for reading and writing to the underlying blob store.
+     */
+    protected final int bufferSize;
+
+    /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
      * @param clusterService ClusterService
@@ -310,6 +320,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, compress);
         indexShardSnapshotsFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_INDEX_CODEC, SNAPSHOT_INDEX_NAME_FORMAT,
             BlobStoreIndexShardSnapshots::fromXContent, namedXContentRegistry, compress);
+        bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
     }
 
     @Override
@@ -1192,7 +1203,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 return seed;
             }
-        } catch (IOException exp) {
+        } catch (Exception exp) {
             throw new RepositoryVerificationException(metadata.name(), "path " + basePath() + " is not accessible on master node", exp);
         }
     }
@@ -1203,7 +1214,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 final String testPrefix = testBlobPrefix(seed);
                 blobStore().blobContainer(basePath().add(testPrefix)).delete();
-            } catch (IOException exp) {
+            } catch (Exception exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
         }
@@ -2077,7 +2088,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     return container.readBlob(fileInfo.partName(slice));
                                 }
                             })) {
-                                final byte[] buffer = new byte[BUFFER_SIZE];
+                                final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize, fileInfo.length()))];
                                 int length;
                                 while ((length = stream.read(buffer)) > 0) {
                                     indexOutput.writeBytes(buffer, 0, length);
@@ -2141,7 +2152,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (isReadOnly()) {
             try {
                 latestIndexBlobId();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new RepositoryVerificationException(metadata.name(), "path " + basePath() +
                     " is not accessible on node " + localNode, e);
             }
@@ -2152,7 +2163,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try (InputStream stream = bytes.streamInput()) {
                     testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length(), true);
                 }
-            } catch (IOException exp) {
+            } catch (Exception exp) {
                 throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() +
                     "] is not accessible on the node [" + localNode + "]", exp);
             }
@@ -2167,7 +2178,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     "] cannot be accessed on the node [" + localNode + "]. " +
                     "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or " +
                     "that permissions on the store don't allow reading files written by the master node", e);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new RepositoryVerificationException(metadata.name(), "Failed to verify repository", e);
             }
         }
@@ -2329,7 +2340,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final String partName = fileInfo.partName(i);
                 logger.trace(() ->
                         new ParameterizedMessage("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path()));
-                shardContainer.writeBlob(partName, inputStream, partBytes, true);
+                shardContainer.writeBlob(partName, inputStream, partBytes, false);
             }
             Store.verify(indexInput);
             snapshotStatus.addProcessedFile(fileInfo.length());

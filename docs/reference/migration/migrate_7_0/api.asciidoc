@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_api_changes]]
 === API changes
 
@@ -10,7 +10,7 @@
 // end::notable-breaking-changes[]
 
 
-[float]
+[discrete]
 ==== Internal Versioning is no longer supported for optimistic concurrency control
 
 Elasticsearch maintains a numeric version field for each document it stores. That field
@@ -26,7 +26,7 @@ method based on sequence numbers. See <<optimistic-concurrency-control>> for mor
 
 Note that the `external` versioning type is still fully supported.
 
-[float]
+[discrete]
 ==== Camel case and underscore parameters deprecated in 6.x have been removed
 A number of duplicate parameters deprecated in 6.x have been removed from
 Bulk request, Multi Get request, Term Vectors request, and More Like This Query
@@ -48,7 +48,7 @@ The following parameters starting with underscore have been removed:
 Instead of these removed parameters, use their non camel case equivalents without
 starting underscore, e.g. use `version_type` instead of `_version_type` or `versionType`.
 
-[float]
+[discrete]
 ==== Thread pool info
 
 In previous versions of Elasticsearch, the thread pool info returned in the
@@ -75,13 +75,13 @@ aligns the output of the API with the configuration values for thread
 pools. Note that `core` and `max` will be populated for scaling thread pools,
 and `size` will be populated for fixed thread pools.
 
-[float]
+[discrete]
 [[fields-param-removed-bulk-update-request]]
 ==== The parameter `fields` deprecated in 6.x has been removed from Bulk request
 and Update request. The Update API returns `400 - Bad request` if request contains
 unknown parameters (instead of ignored in the previous version).
 
-[float]
+[discrete]
 ==== PUT Document with Version error message changed when document is missing
 
 If you attempt to `PUT` a document with versioning (e.g. `PUT /test/_doc/1?version=4`)
@@ -103,7 +103,7 @@ Although exceptions messages are liable to change and not generally subject to
 backwards compatibility, the nature of this message might mean clients are relying
 on parsing the version numbers and so the format change might impact some users.
 
-[float]
+[discrete]
 [[remove-suggest-metric]]
 ==== Remove support for `suggest` metric/index metric in indices stats and nodes stats APIs
 
@@ -118,7 +118,7 @@ In the past, `fields` could be provided either as a parameter, or as part of the
 body. Specifying `fields` in the request body as opposed to a parameter was deprecated
 in 6.4.0, and is now unsupported in 7.0.0.
 
-[float]
+[discrete]
 [[copy-settings-deprecated-shrink-split-apis]]
 ==== `copy_settings` is deprecated on shrink and split APIs
 
@@ -130,12 +130,12 @@ will be for such settings to be copied on such operations. To enable users in
 the only behavior in 8.0.0, this parameter is deprecated in 7.0.0 for removal in
 8.0.0.
 
-[float]
+[discrete]
 ==== The deprecated stored script contexts have now been removed
 When putting stored scripts, support for storing them with the deprecated `template` context or without a context is
 now removed. Scripts must be stored using the `script` context as mentioned in the documentation.
 
-[float]
+[discrete]
 ==== Removed Get Aliases API limitations when {security-features} are enabled
 
 The behavior and response codes of the get aliases API no longer vary
@@ -144,7 +144,7 @@ depending on whether {security-features} are enabled. Previously a
 current user was not authorized for any alias. An empty response with
 status 200 - OK is now returned instead at all times.
 
-[float]
+[discrete]
 [[user-object-removed-put-user-api]]
 ==== Put User API response no longer has `user` object
 
@@ -152,33 +152,33 @@ The Put User API response was changed in 6.5.0 to add the `created` field
 outside of the user object where it previously had been. In 7.0.0 the user
 object has been removed in favor of the top level `created` field.
 
-[float]
+[discrete]
 [[source-include-exclude-params-removed]]
 ==== Source filtering url parameters `_source_include` and `_source_exclude` have been removed
 
 The deprecated in 6.x url parameters are now removed. Use `_source_includes` and `_source_excludes` instead.
 
-[float]
+[discrete]
 ==== Multi Search Request metadata validation
 
 MultiSearchRequests issued through `_msearch` now validate all keys in the metadata section. Previously unknown keys were ignored
 while now an exception is thrown.
 
-[float]
+[discrete]
 ==== Deprecated graph endpoints removed
 
 The deprecated graph endpoints (those with `/_graph/_explore`) have been
 removed.
 
 
-[float]
+[discrete]
 [[deprecated-termvector-endpoint-removed]]
 ==== Deprecated `_termvector` endpoint removed
 
 The `_termvector` endpoint was deprecated in 2.0 and has now been removed.
 The endpoint `_termvectors` (plural) should be used instead.
 
-[float]
+[discrete]
 ==== When {security-features} are enabled, index monitoring APIs over restricted indices are not authorized implicitly anymore
 
 Restricted indices (currently only `.security-6` and `.security`) are special internal
@@ -190,21 +190,21 @@ has been forfeited and index monitoring privileges have to be granted explicitly
 using the `allow_restricted_indices` flag on the permission (as any other index
 privilege).
 
-[float]
+[discrete]
 [[remove-get-support-cache-clear-api]]
 ==== Removed support for `GET` on the `_cache/clear` API
 
 The `_cache/clear` API no longer supports the `GET` HTTP verb. It must be called
 with `POST`.
 
-[float]
+[discrete]
 ==== Cluster state size metrics removed from Cluster State API Response
 
 The `compressed_size` / `compressed_size_in_bytes` fields were removed from
 the Cluster State API response.  The calculation of the size was expensive and had
 dubious value, so the field was removed from the response.
 
-[float]
+[discrete]
 ==== Migration Assistance API has been removed
 
 The Migration Assistance API has been functionally replaced by the
@@ -213,21 +213,21 @@ transition from ES 6.x to 7.x, and does not need to be kept around to
 repair indices that were not properly upgraded before upgrading the
 cluster, as was the case in 6.
 
-[float]
+[discrete]
 ==== Changes to thread pool naming in Node and Cat APIs
 The `thread_pool` information returned from the Nodes and Cat APIs has been
 standardized to use the same terminology as the thread pool configurations.
 This means the response will align with the configuration instead of being
 the same across all the thread pools, regardless of type.
 
-[float]
+[discrete]
 ==== Return 200 when cluster has valid read-only blocks
 If the cluster was configured with `no_master_block: write` and lost its master,
 it would return a `503` status code from a main request (`GET /`) even though
 there are viable read-only nodes available.  The cluster now returns 200 status
 in this situation.
 
-[float]
+[discrete]
 ==== Clearing indices cache is now POST-only
 Clearing the cache indices could previously be done via GET and POST. As GET should
 only support read only non state-changing operations, this is no longer allowed.

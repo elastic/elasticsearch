@@ -32,7 +32,7 @@ If the {es} {security-features} are enabled, you must have the following privile
 
 * cluster: `monitor_ml`
   
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 
 [[ml-explain-dfanalytics-desc]]

@@ -5,9 +5,9 @@ Validates a potentially expensive query without executing it.
 
 [source,console]
 --------------------------------------------------
-GET twitter/_validate/query?q=user:foo
+GET my-index-000001/_validate/query?q=user.id:kimchy
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[search-validate-api-request]]
@@ -79,11 +79,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_bulk?refresh
+PUT my-index-000001/_bulk?refresh
 {"index":{"_id":1}}
-{"user" : "kimchy", "post_date" : "2009-11-15T14:12:12", "message" : "trying out Elasticsearch"}
+{"user" : { "id": "kimchy" }, "@timestamp" : "2099-11-15T14:12:12", "message" : "trying out Elasticsearch"}
 {"index":{"_id":2}}
-{"user" : "kimchi", "post_date" : "2009-11-15T14:12:13", "message" : "My username is similar to @kimchy!"}
+{"user" : { "id": "kimchi" }, "@timestamp" : "2099-11-15T14:12:13", "message" : "My user ID is similar to kimchy!"}
 --------------------------------------------------
 
 
@@ -91,7 +91,7 @@ When sent a valid query:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_validate/query?q=user:foo
+GET my-index-000001/_validate/query?q=user.id:kimchy
 --------------------------------------------------
 // TEST[continued]
 
@@ -108,7 +108,7 @@ The query may also be sent in the request body:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_validate/query
+GET my-index-000001/_validate/query
 {
   "query" : {
     "bool" : {
@@ -118,7 +118,7 @@ GET twitter/_validate/query
         }
       },
       "filter" : {
-        "term" : { "user" : "kimchy" }
+        "term" : { "user.id" : "kimchy" }
       }
     }
   }
@@ -135,11 +135,11 @@ mapping, and 'foo' does not correctly parse into a date:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_validate/query
+GET my-index-000001/_validate/query
 {
   "query": {
     "query_string": {
-      "query": "post_date:foo",
+      "query": "@timestamp:foo",
       "lenient": false
     }
   }
@@ -159,11 +159,11 @@ why a query failed:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_validate/query?explain=true
+GET my-index-000001/_validate/query?explain=true
 {
   "query": {
     "query_string": {
-      "query": "post_date:foo",
+      "query": "@timestamp:foo",
       "lenient": false
     }
   }
@@ -184,9 +184,9 @@ The API returns the following response:
     "failed" : 0
   },
   "explanations" : [ {
-    "index" : "twitter",
+    "index" : "my-index-000001",
     "valid" : false,
-    "error" : "twitter/IAEc2nIXSSunQA_suI0MLw] QueryShardException[failed to create query:...failed to parse date field [foo]"
+    "error" : "my-index-000001/IAEc2nIXSSunQA_suI0MLw] QueryShardException[failed to create query:...failed to parse date field [foo]"
   } ]
 }
 --------------------------------------------------
@@ -200,7 +200,7 @@ showing the actual Lucene query that will be executed.
 
 [source,console]
 --------------------------------------------------
-GET twitter/_validate/query?rewrite=true
+GET my-index-000001/_validate/query?rewrite=true
 {
   "query": {
     "more_like_this": {
@@ -228,7 +228,7 @@ The API returns the following response:
    },
    "explanations": [
       {
-         "index": "twitter",
+         "index": "my-index-000001",
          "valid": true,
          "explanation": "((user:terminator^3.71334 plot:future^2.763601 plot:human^2.8415773 plot:sarah^3.4193945 plot:kyle^3.8244398 plot:cyborg^3.9177752 plot:connor^4.040236 plot:reese^4.7133346 ... )~6) -ConstantScore(_id:2)) #(ConstantScore(_type:_doc))^0.0"
       }
@@ -248,21 +248,21 @@ all available shards.
 ////
 [source,console]
 --------------------------------------------------
-PUT twitter/_bulk?refresh
+PUT my-index-000001/_bulk?refresh
 {"index":{"_id":1}}
-{"user" : "kimchy", "post_date" : "2009-11-15T14:12:12", "message" : "trying out Elasticsearch"}
+{"user" : { "id": "kimchy" }, "@timestamp" : "2099-11-15T14:12:12", "message" : "trying out Elasticsearch"}
 {"index":{"_id":2}}
-{"user" : "kimchi", "post_date" : "2009-11-15T14:12:13", "message" : "My username is similar to @kimchy!"}
+{"user" : { "id": "kimchi" }, "@timestamp" : "2099-11-15T14:12:13", "message" : "My user ID is similar to kimchy!"}
 --------------------------------------------------
 ////
 
 [source,console]
 --------------------------------------------------
-GET twitter/_validate/query?rewrite=true&all_shards=true
+GET my-index-000001/_validate/query?rewrite=true&all_shards=true
 {
   "query": {
     "match": {
-      "user": {
+      "user.id": {
         "query": "kimchy",
         "fuzziness": "auto"
       }
@@ -285,10 +285,10 @@ The API returns the following response:
   },
   "explanations": [
     {
-      "index": "twitter",
+      "index": "my-index-000001",
       "shard": 0,
       "valid": true,
-      "explanation": "(user:kimchi)^0.8333333 user:kimchy"
+      "explanation": "(user.id:kimchi)^0.8333333 user.id:kimchy"
     }
   ]
 }

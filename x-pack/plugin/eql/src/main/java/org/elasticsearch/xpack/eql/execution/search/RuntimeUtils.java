@@ -11,6 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
@@ -27,10 +30,13 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
 public final class RuntimeUtils {
 
@@ -48,10 +54,10 @@ public final class RuntimeUtils {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
 
-        logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
-                + "{} successful shards, {} total shards, took {}, timed out [{}]]", response.getHits().getTotalHits().relation.toString(),
-                response.getHits().getTotalHits().value, aggs.size(), aggsNames, response.getFailedShards(), response.getSkippedShards(),
-                response.getSuccessfulShards(), response.getTotalShards(), response.getTook(), response.isTimedOut());
+        logger.trace("Got search response [hits {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+                + "{} successful shards, {} total shards, took {}, timed out [{}]]", response.getHits().getTotalHits(), aggs.size(),
+                aggsNames, response.getFailedShards(), response.getSkippedShards(), response.getSuccessfulShards(),
+                response.getTotalShards(), response.getTook(), response.isTimedOut());
     }
 
     public static List<HitExtractor> createExtractor(List<FieldExtraction> fields, EqlConfiguration cfg) {
@@ -62,7 +68,7 @@ public final class RuntimeUtils {
         }
         return extractors;
     }
-    
+
     public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
         if (ref instanceof SearchHitFieldRef) {
             SearchHitFieldRef f = (SearchHitFieldRef) ref;
@@ -92,7 +98,7 @@ public final class RuntimeUtils {
 
         throw new EqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
     }
-    
+
 
     public static SearchRequest prepareRequest(Client client,
                                                SearchSourceBuilder source,
@@ -104,5 +110,35 @@ public final class RuntimeUtils {
                 .setIndicesOptions(
                         includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
+    }
+
+    public static List<SearchHit> searchHits(SearchResponse response) {
+        return Arrays.asList(response.getHits().getHits());
+    }
+
+    // optimized method that adds filter to existing bool queries without additional wrapping
+    // additionally checks whether the given query exists for safe decoration
+    public static SearchSourceBuilder addFilter(QueryBuilder filter, SearchSourceBuilder source) {
+        BoolQueryBuilder bool = null;
+        QueryBuilder query = source.query();
+
+        if (query instanceof BoolQueryBuilder) {
+            bool = (BoolQueryBuilder) query;
+            if (filter != null && bool.filter().contains(filter) == false) {
+                bool.filter(filter);
+            }
+        }
+        else {
+            bool = boolQuery();
+            if (query != null) {
+                bool.filter(query);
+            }
+            if (filter != null) {
+                bool.filter(filter);
+            }
+
+            source.query(bool);
+        }
+        return source;
     }
 }

@@ -22,9 +22,12 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -33,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Expose reindex over rest.
  */
-public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
+public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> implements RestRequestFilter {
 
     public RestReindexAction() {
         super(ReindexAction.INSTANCE);
@@ -70,5 +73,12 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
         }
         return internal;
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Collections.singleton("source.remote.host.password");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

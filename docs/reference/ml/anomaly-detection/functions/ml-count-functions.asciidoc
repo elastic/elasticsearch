@@ -20,7 +20,7 @@ The {ml-features} include the following count functions:
 * xref:ml-nonzero-count[`non_zero_count`, `high_non_zero_count`, `low_non_zero_count`]
 * xref:ml-distinct-count[`distinct_count`, `high_distinct_count`, `low_distinct_count`]
 
-[float]
+[discrete]
 [[ml-count]]
 == Count, high_count, low_count
 
@@ -143,7 +143,7 @@ function (for example, `sum(events_per_min)`). Instead, use the count function
 and the `summary_count_field_name` property. For more information, see 
 <<ml-configuring-aggregation>>.
 
-[float]
+[discrete]
 [[ml-nonzero-count]]
 == Non_zero_count, high_non_zero_count, low_non_zero_count
 
@@ -213,7 +213,7 @@ supported for the `non_zero_count`, `high_non_zero_count`, and
 data is sparse, use the `count` functions, which are optimized for that scenario.
 
 
-[float]
+[discrete]
 [[ml-distinct-count]]
 == Distinct_count, high_distinct_count, low_distinct_count
 

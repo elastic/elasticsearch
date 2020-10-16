@@ -176,8 +176,8 @@ creation. For example:
 --------------------------------------------------
 POST /_security/oauth2/token
 {
-    "grant_type": "refresh_token",
-    "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+  "grant_type": "refresh_token",
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
 // TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]

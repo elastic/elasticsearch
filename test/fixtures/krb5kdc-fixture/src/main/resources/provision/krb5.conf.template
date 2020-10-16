@@ -29,6 +29,7 @@
     permitted_enctypes = rc4-hmac
     # udp_preference_limit = 1
     kdc_timeout = 3000
+    canonicalize = true
 
 [realms]
     ${REALM_NAME} = {

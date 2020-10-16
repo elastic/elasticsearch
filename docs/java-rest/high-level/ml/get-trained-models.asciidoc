@@ -5,18 +5,18 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Get Trained Models API
+=== Get trained models API
 
-experimental[]
+experimental::[]
 
-Retrieves one or more Trained Models.
+Retrieves one or more trained models.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Get Trained Models request
+==== Get trained models request
 
-A +{request}+ requires either a Trained Model ID, a comma-separated list of
-IDs, or the special wildcard `_all` to get all Trained Models.
+A +{request}+ requires either a trained model ID, a comma-separated list of
+IDs, or the special wildcard `_all` to get all trained models.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -26,8 +26,8 @@ include-tagged::{doc-tests-file}[{api}-request]
 <2> Set the paging parameters
 <3> Indicate if the complete model definition should be included
 <4> Should the definition be fully decompressed on GET
-<5> Allow empty response if no Trained Models match the provided ID patterns.
-    If false, an error will be thrown if no Trained Models match the
+<5> Allow empty response if no trained models match the provided ID patterns.
+    If false, an error will be thrown if no trained models match the
     ID patterns.
 <6> An optional list of tags used to narrow the model search. A Trained Model
     can have many tags or none. The trained models in the response will

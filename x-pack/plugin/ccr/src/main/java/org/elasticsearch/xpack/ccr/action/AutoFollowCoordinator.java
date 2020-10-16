@@ -571,6 +571,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             request.getParameters().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
             request.getParameters().setMaxRetryDelay(pattern.getMaxRetryDelay());
             request.getParameters().setReadPollTimeout(pattern.getReadPollTimeout());
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

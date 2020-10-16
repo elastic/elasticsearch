@@ -37,6 +37,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,6 +50,8 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
 public abstract class TransportInstanceSingleOperationAction<
             Request extends InstanceShardOperationRequest<Request>,
@@ -143,7 +146,15 @@ public abstract class TransportInstanceSingleOperationAction<
                         throw blockException;
                     }
                 }
-                request.concreteIndex(indexNameExpressionResolver.concreteWriteIndex(clusterState, request).getName());
+                try {
+                    request.concreteIndex(indexNameExpressionResolver.concreteWriteIndex(clusterState, request).getName());
+                } catch (IndexNotFoundException e) {
+                    if (request.includeDataStreams() == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
+                    } else {
+                        throw e;
+                    }
+                }
                 resolveRequest(clusterState, request);
                 blockException = checkRequestBlock(clusterState, request);
                 if (blockException != null) {

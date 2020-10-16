@@ -57,7 +57,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[ilm-explain-lifecycle-example]]
 ==== {api-examples-title}
 
-The following example retrieves the lifecycle state of `my_index`:
+The following example retrieves the lifecycle state of `my-index-000001`:
 
 //////////////////////////
 
@@ -85,7 +85,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy",
@@ -101,7 +101,7 @@ GET /_cluster/health?wait_for_status=green&timeout=10s
 
 [source,console]
 --------------------------------------------------
-GET my_index/_ilm/explain
+GET my-index-000001/_ilm/explain
 --------------------------------------------------
 // TEST[continued]
 
@@ -112,8 +112,8 @@ that the index is managed and in the `new` phase:
 --------------------------------------------------
 {
   "indices": {
-    "my_index": {
-      "index": "my_index",
+    "my-index-000001": {
+      "index": "my-index-000001",
       "managed": true, <1>
       "policy": "my_policy", <2>
       "lifecycle_date_millis": 1538475653281, <3>

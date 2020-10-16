@@ -8,7 +8,7 @@ Using an <<java-admin-indices,`IndicesAdminClient`>>, you can create an index wi
 client.admin().indices().prepareCreate("twitter").get();
 --------------------------------------------------
 
-[float]
+[discrete]
 [[java-admin-indices-create-index-settings]]
 ===== Index Settings
 

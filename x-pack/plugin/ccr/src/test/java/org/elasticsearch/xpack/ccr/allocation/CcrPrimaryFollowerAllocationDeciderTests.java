@@ -52,6 +52,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.util.ArrayList;
@@ -60,6 +61,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -151,9 +153,10 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
             .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1).numberOfReplicas(1);
-        DiscoveryNode dataOnlyNode = newNode("d1", Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE));
-        DiscoveryNode dataAndRemoteNode = newNode("dr1",
+        final DiscoveryNode dataOnlyNode = newNode("data_role_only", Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE));
+        final DiscoveryNode dataAndRemoteNode = newNode("data_and_remote_cluster_client_role",
             Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
+        final DiscoveryNode nodeWithLegacyRolesOnly = newNodeWithLegacyRoles("legacy_roles_only");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(dataOnlyNode).add(dataAndRemoteNode).build();
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
         RoutingTable.Builder routingTable = RoutingTable.builder()
@@ -171,6 +174,11 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             Decision yesDecision = executeAllocation(clusterState, shardRouting.primaryShard(), dataAndRemoteNode);
             assertThat(yesDecision.type(), equalTo(Decision.Type.YES));
             assertThat(yesDecision.getExplanation(), equalTo("shard is a primary follower and node has the remote_cluster_client role"));
+
+            yesDecision = executeAllocation(clusterState, shardRouting.primaryShard(), nodeWithLegacyRolesOnly);
+            assertThat(yesDecision.type(), equalTo(Decision.Type.YES));
+            assertThat(yesDecision.getExplanation(), equalTo("shard is a primary follower and node has only the legacy roles"));
+
             for (ShardRouting replica : shardRouting.replicaShards()) {
                 assertThat(replica.state(), equalTo(UNASSIGNED));
                 yesDecision = executeAllocation(clusterState, replica, randomFrom(dataOnlyNode, dataAndRemoteNode));
@@ -179,6 +187,12 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
                     equalTo("shard is a replica follower and is not under the purview of this decider"));
             }
         }
+    }
+
+    static DiscoveryNode newNodeWithLegacyRoles(String id) {
+        final Version version = VersionUtils.randomVersionBetween(random(),
+            Version.V_6_0_0, VersionUtils.getPreviousVersion(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION));
+        return new DiscoveryNode(id, buildNewFakeTransportAddress(), emptyMap(), Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), version);
     }
 
     static Decision executeAllocation(ClusterState clusterState, ShardRouting shardRouting, DiscoveryNode node) {

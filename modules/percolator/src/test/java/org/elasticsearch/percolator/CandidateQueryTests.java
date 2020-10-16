@@ -95,7 +95,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
@@ -124,7 +123,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     private IndexWriter indexWriter;
     private DocumentMapper documentMapper;
     private DirectoryReader directoryReader;
-    private IndexService indexService;
     private MapperService mapperService;
 
     private PercolatorFieldMapper fieldMapper;
@@ -146,7 +144,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         indexWriter = new IndexWriter(directory, config);
 
         String indexName = "test";
-        indexService = createIndex(indexName, Settings.EMPTY);
+        IndexService indexService = createIndex(indexName, Settings.EMPTY);
         mapperService = indexService.mapperService();
 
         String mapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -199,7 +197,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         Collections.sort(intValues);
 
-        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
         MappedFieldType intFieldType = mapperService.fieldType("int_field");
 
         List<Supplier<Query>> queryFunctions = new ArrayList<>();
@@ -210,10 +207,10 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         queryFunctions.add(() -> new TermQuery(new Term(field1, randomFrom(stringContent.get(field1)))));
         String field2 = randomFrom(stringFields);
         queryFunctions.add(() -> new TermQuery(new Term(field2, randomFrom(stringContent.get(field2)))));
-        queryFunctions.add(() -> intFieldType.termQuery(randomFrom(intValues), context));
-        queryFunctions.add(() -> intFieldType.termsQuery(Arrays.asList(randomFrom(intValues), randomFrom(intValues)), context));
+        queryFunctions.add(() -> intFieldType.termQuery(randomFrom(intValues), null));
+        queryFunctions.add(() -> intFieldType.termsQuery(Arrays.asList(randomFrom(intValues), randomFrom(intValues)), null));
         queryFunctions.add(() -> intFieldType.rangeQuery(intValues.get(4), intValues.get(intValues.size() - 4), true,
-            true, ShapeRelation.WITHIN, null, null, context));
+            true, ShapeRelation.WITHIN, null, null, null));
         queryFunctions.add(() -> new TermInSetQuery(field1, new BytesRef(randomFrom(stringContent.get(field1))),
                 new BytesRef(randomFrom(stringContent.get(field1)))));
         queryFunctions.add(() -> new TermInSetQuery(field2, new BytesRef(randomFrom(stringContent.get(field1))),
@@ -338,7 +335,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         ranges.add(new int[]{0, 10});
         ranges.add(new int[]{15, 50});
 
-        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
         List<ParseContext.Document> documents = new ArrayList<>();
         {
             addQuery(new TermQuery(new Term("string_field", randomFrom(stringValues))), documents);
@@ -348,13 +344,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         {
             int[] range = randomFrom(ranges);
-            Query rangeQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, context);
+            Query rangeQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, null);
             addQuery(rangeQuery, documents);
         }
         {
             int numBooleanQueries = randomIntBetween(1, 5);
             for (int i = 0; i < numBooleanQueries; i++) {
-                Query randomBQ = randomBQ(1, stringValues, ranges, intFieldType, context);
+                Query randomBQ = randomBQ(1, stringValues, ranges, intFieldType);
                 addQuery(randomBQ, documents);
             }
         }
@@ -379,7 +375,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);
         }
-
         for (int[] range : ranges) {
             List<Field> numberFields =
                 NumberFieldMapper.NumberType.INTEGER.createFields("int_field", between(range[0], range[1]), true, true, false);
@@ -392,8 +387,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
     }
 
-    private BooleanQuery randomBQ(int depth, List<String> stringValues, List<int[]> ranges,
-                                  MappedFieldType intFieldType, QueryShardContext context) {
+    private BooleanQuery randomBQ(int depth, List<String> stringValues, List<int[]> ranges, MappedFieldType intFieldType) {
         final int numClauses = randomIntBetween(1, 4);
         final boolean onlyShouldClauses = randomBoolean();
         final BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -402,10 +396,10 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numClauses; i++) {
             Query subQuery;
             if (randomBoolean() && depth <= 3) {
-                subQuery = randomBQ(depth + 1, stringValues, ranges, intFieldType, context);
+                subQuery = randomBQ(depth + 1, stringValues, ranges, intFieldType);
             } else if (randomBoolean()) {
                 int[] range = randomFrom(ranges);
-                subQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, context);
+                subQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, null);
             } else {
                 subQuery = new TermQuery(new Term("string_field", randomFrom(stringValues)));
             }

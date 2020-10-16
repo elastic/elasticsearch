@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_ingest_changes]]
 === API changes
 
@@ -7,7 +7,7 @@
 
 //tag::notable-breaking-changes[]
 
-[float]
+[discrete]
 ==== Ingest configuration exception information is now transmitted in metadata field
 
 Previously, some ingest configuration exception information about ingest processors
@@ -17,7 +17,7 @@ exceptions are conveyed in other parts of Elasticsearch.
 Configuration exception information is now conveyed as a field in the response
 body.
 //end::notable-breaking-changes[]
-[float]
+[discrete]
 ==== Ingest plugin special handling has been removed
 There was some special handling for installing and removing the `ingest-geoip` and
 `ingest-user-agent` plugins after they were converted to modules. This special handling

@@ -215,8 +215,15 @@ public class Pivot implements Function {
 
     @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
+        CompositeAggregationBuilder aggregationBuilder = null;
+
+        // skip if none of the group_by's requires it
+        if (supportsIncrementalBucketUpdate()) {
+            aggregationBuilder = createCompositeAggregationSources(config, true);
+        }
+
         return CompositeBucketsChangeCollector.buildChangeCollector(
-            createCompositeAggregationSources(config, true),
+            aggregationBuilder,
             config.getGroupConfig().getGroups(),
             synchronizationField
         );

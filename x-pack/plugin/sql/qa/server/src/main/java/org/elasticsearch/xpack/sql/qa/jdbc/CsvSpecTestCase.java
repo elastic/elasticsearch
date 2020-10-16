@@ -30,7 +30,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = JdbcTestUtils.classpathResources("/*.csv-spec");
-        assertTrue("Not enough specs found " + urls.toString(), urls.size() > 15);
+        assertTrue("Not enough specs found (" + urls.size() + ") " + urls.toString(), urls.size() >= 23);
         return readScriptSpec(urls, specParser());
     }
 

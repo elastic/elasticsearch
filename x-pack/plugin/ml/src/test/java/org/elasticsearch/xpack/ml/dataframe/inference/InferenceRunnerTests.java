@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.SourceField;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -75,6 +78,10 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testInferTestDocs() {
+        ExtractedFields extractedFields = new ExtractedFields(
+            Collections.singletonList(new SourceField("key", Collections.singleton("integer"))),
+            Collections.emptyMap());
+
         Map<String, Object> doc1 = new HashMap<>();
         doc1.put("key", 1);
         Map<String, Object> doc2 = new HashMap<>();
@@ -86,15 +93,21 @@ public class InferenceRunnerTests extends ESTestCase {
         InferenceConfig config = ClassificationConfig.EMPTY_PARAMS;
 
         LocalModel localModel = localModelInferences(new ClassificationInferenceResults(1.0,
-        "foo",
-            Collections.emptyList(),
-            config),
+                "foo",
+                Collections.emptyList(),
+                Collections.emptyList(),
+                config,
+                1.0,
+                1.0),
             new ClassificationInferenceResults(0.0,
                 "bar",
                 Collections.emptyList(),
-                config));
+                Collections.emptyList(),
+                config,
+                .5,
+                .7));
 
-        InferenceRunner inferenceRunner = createInferenceRunner();
+        InferenceRunner inferenceRunner = createInferenceRunner(extractedFields);
 
         inferenceRunner.inferTestDocs(localModel, testDocsIterator);
 
@@ -110,10 +123,14 @@ public class InferenceRunnerTests extends ESTestCase {
 
         Map<String, Object> expectedResultsField1 = new HashMap<>();
         expectedResultsField1.put("predicted_value", "foo");
+        expectedResultsField1.put("prediction_probability", 1.0);
+        expectedResultsField1.put("prediction_score", 1.0);
         expectedResultsField1.put("is_training", false);
 
         Map<String, Object> expectedResultsField2 = new HashMap<>();
         expectedResultsField2.put("predicted_value", "bar");
+        expectedResultsField2.put("prediction_probability", 0.5);
+        expectedResultsField2.put("prediction_score", 0.7);
         expectedResultsField2.put("is_training", false);
 
         assertThat(doc1Source.get("test_results_field"), equalTo(expectedResultsField1));
@@ -121,13 +138,13 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testInferTestDocs_GivenCancelWasCalled() {
-
+        ExtractedFields extractedFields = mock(ExtractedFields.class);
         LocalModel localModel = mock(LocalModel.class);
 
         TestDocsIterator infiniteDocsIterator = mock(TestDocsIterator.class);
         when(infiniteDocsIterator.hasNext()).thenReturn(true);
 
-        InferenceRunner inferenceRunner = createInferenceRunner();
+        InferenceRunner inferenceRunner = createInferenceRunner(extractedFields);
         inferenceRunner.cancel();
 
         inferenceRunner.inferTestDocs(localModel, infiniteDocsIterator);
@@ -157,8 +174,8 @@ public class InferenceRunnerTests extends ESTestCase {
         return localModel;
     }
 
-    private InferenceRunner createInferenceRunner() {
-        return new InferenceRunner(client, modelLoadingService,  resultsPersisterService, parentTaskId, config, progressTracker,
-            new DataCountsTracker());
+    private InferenceRunner createInferenceRunner(ExtractedFields extractedFields) {
+        return new InferenceRunner(Settings.EMPTY, client, modelLoadingService,  resultsPersisterService, parentTaskId, config,
+            extractedFields, progressTracker, new DataCountsTracker());
     }
 }

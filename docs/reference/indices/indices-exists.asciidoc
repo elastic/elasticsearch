@@ -8,9 +8,9 @@ Checks if an index exists.
 
 [source,console]
 --------------------------------------------------
-HEAD /twitter
+HEAD /my-index-000001
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[indices-exists-api-request]]

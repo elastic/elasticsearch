@@ -21,6 +21,11 @@ public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGrou
         return new TermsGroupSource(field, scriptConfig);
     }
 
+    public static TermsGroupSource randomTermsGroupSourceNoScript() {
+        String field = randomAlphaOfLengthBetween(1, 20);
+        return new TermsGroupSource(field, null);
+    }
+
     @Override
     protected TermsGroupSource doParseInstance(XContentParser parser) throws IOException {
         return TermsGroupSource.fromXContent(parser, false);

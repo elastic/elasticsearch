@@ -1457,6 +1457,114 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
     }
 
+    public void testEnableSoftDeletesOnRestore() throws Exception {
+        final String snapshot = "snapshot-" + index;
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            createIndex(index, settings.build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(0, 100);
+            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            // create repo
+            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
+            {
+                repoConfig.field("type", "fs");
+                repoConfig.startObject("settings");
+                {
+                    repoConfig.field("compress", randomBoolean());
+                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                }
+                repoConfig.endObject();
+            }
+            repoConfig.endObject();
+            Request createRepoRequest = new Request("PUT", "/_snapshot/repo");
+            createRepoRequest.setJsonEntity(Strings.toString(repoConfig));
+            client().performRequest(createRepoRequest);
+            // create snapshot
+            Request createSnapshot = new Request("PUT", "/_snapshot/repo/" + snapshot);
+            createSnapshot.addParameter("wait_for_completion", "true");
+            createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
+            client().performRequest(createSnapshot);
+        } else {
+            String restoredIndex = "restored-" + index;
+            // Restore
+            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
+            restoreCommand.field("indices", index);
+            restoreCommand.field("rename_pattern", index);
+            restoreCommand.field("rename_replacement", restoredIndex);
+            restoreCommand.startObject("index_settings");
+            {
+                restoreCommand.field("index.soft_deletes.enabled", true);
+            }
+            restoreCommand.endObject();
+            restoreCommand.endObject();
+            Request restoreRequest = new Request("POST", "/_snapshot/repo/" + snapshot + "/_restore");
+            restoreRequest.addParameter("wait_for_completion", "true");
+            restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
+            client().performRequest(restoreRequest);
+            ensureGreen(restoredIndex);
+            int numDocs = countOfIndexedRandomDocuments();
+            assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + restoredIndex + "/_search"))));
+        }
+    }
+
+    public void testForbidDisableSoftDeletesOnRestore() throws Exception {
+        assumeTrue("soft deletes is introduced in 6.5", getOldClusterVersion().onOrAfter(Version.V_6_5_0));
+        final String snapshot = "snapshot-" + index;
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            createIndex(index, settings.build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(0, 100);
+            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            // create repo
+            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
+            {
+                repoConfig.field("type", "fs");
+                repoConfig.startObject("settings");
+                {
+                    repoConfig.field("compress", randomBoolean());
+                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                }
+                repoConfig.endObject();
+            }
+            repoConfig.endObject();
+            Request createRepoRequest = new Request("PUT", "/_snapshot/repo");
+            createRepoRequest.setJsonEntity(Strings.toString(repoConfig));
+            client().performRequest(createRepoRequest);
+            // create snapshot
+            Request createSnapshot = new Request("PUT", "/_snapshot/repo/" + snapshot);
+            createSnapshot.addParameter("wait_for_completion", "true");
+            createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
+            client().performRequest(createSnapshot);
+        } else {
+            // Restore
+            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
+            restoreCommand.field("indices", index);
+            restoreCommand.field("rename_pattern", index);
+            restoreCommand.field("rename_replacement", "restored-" + index);
+            restoreCommand.startObject("index_settings");
+            {
+                restoreCommand.field("index.soft_deletes.enabled", false);
+            }
+            restoreCommand.endObject();
+            restoreCommand.endObject();
+            Request restoreRequest = new Request("POST", "/_snapshot/repo/" + snapshot + "/_restore");
+            restoreRequest.addParameter("wait_for_completion", "true");
+            restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
+            final ResponseException error = expectThrows(ResponseException.class, () -> client().performRequest(restoreRequest));
+            assertThat(error.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
+        }
+    }
+
     public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
         Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(resp);

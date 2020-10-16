@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -82,6 +83,8 @@ import java.util.function.IntConsumer;
 public class IngestService implements ClusterStateApplier, ReportingService<IngestInfo> {
 
     public static final String NOOP_PIPELINE_NAME = "_none";
+
+    public static final String INGEST_ORIGIN = "ingest";
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
 
@@ -470,6 +473,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
+                        i++;
                         continue;
                     }
 
@@ -492,6 +496,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
+                        i++;
                         continue;
                     }
 
@@ -526,6 +531,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 String originalIndex = indexRequest.indices()[0];
                 innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
                     if (e != null) {
+                        logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                            pipelineId, indexRequest.index(), indexRequest.id()), e);
                         onFailure.accept(slot, e);
                     }
 
@@ -565,6 +572,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
                 });
             } catch (Exception e) {
+                logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                    pipelineId, indexRequest.index(), indexRequest.id()), e);
                 onFailure.accept(slot, e);
                 if (counter.decrementAndGet() == 0) {
                     onCompletion.accept(originalThread, null);

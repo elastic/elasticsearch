@@ -28,7 +28,8 @@ to login. The <<saml-kibana>> section provides more detail about how this works.
 The Elastic Stack supports the SAML 2.0 _Web Browser SSO_ and the SAML
 2.0 _Single Logout_ profiles and can integrate with any Identity Provider (IdP)
 that supports at least the SAML 2.0 _Web Browser SSO Profile_.
-It has been tested with a number of popular IdP implementations.
+It has been tested with a number of popular IdP implementations, such as
+https://www.elastic.co/blog/how-to-configure-elasticsearch-saml-authentication-with-adfs[Microsoft Active Directory Federation Services (ADFS)].
 
 This guide assumes that you have an existing IdP and wish to add {kib} as a
 Service Provider.
@@ -249,7 +250,7 @@ URI such as `urn:oid:0.9.2342.19200300.100.1.1`, however there are some
 additional names that can be used:
 
 `nameid`::
-    This uses the SAML `NamedID` value instead of a SAML attribute. SAML
+    This uses the SAML `NameID` value instead of a SAML attribute. SAML
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login

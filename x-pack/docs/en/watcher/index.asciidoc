@@ -38,7 +38,7 @@ All of these use-cases share a few key properties:
 * One or more actions are taken if the condition is true -- an email is sent, a
   3rd party system is notified, or the query results are stored.
 
-[float]
+[discrete]
 === How watches work
 
 The {alert-features} provide an API for creating, managing and testing _watches_.

@@ -268,6 +268,29 @@ public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builde
         assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), dvField.binaryValue());
         assertFalse(dvField.fieldType().stored());
+
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "ip")
+            .field("null_value", ":1")
+            .endObject()
+            .endObject()
+            .endObject().endObject());
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()),
+            XContentType.JSON));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+
+        assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]; [null_value] will be ignored");
     }
 
     public void testSerializeDefaults() throws Exception {

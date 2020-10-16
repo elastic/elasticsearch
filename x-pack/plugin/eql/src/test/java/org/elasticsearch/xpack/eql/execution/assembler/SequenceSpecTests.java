@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.execution.assembler;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
@@ -90,7 +89,7 @@ public class SequenceSpecTests extends ESTestCase {
 
         TestCriterion(final int ordinal) {
             super(ordinal,
-                  new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()).size(ordinal), "timestamp", null),
+                  new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()).size(ordinal), "timestamp"),
                   keyExtractors,
                   tsExtractor, tbExtractor, false);
             this.ordinal = ordinal;

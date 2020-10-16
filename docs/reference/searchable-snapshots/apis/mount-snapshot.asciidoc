@@ -86,16 +86,16 @@ Names of settings that should be removed from the index when it is mounted.
 -----------------------------------
 PUT /my_docs
 {
-    "settings" : {
-        "index.number_of_shards" : 1,
-        "index.number_of_replicas" : 0
-    }
+  "settings" : {
+    "index.number_of_shards" : 1,
+    "index.number_of_replicas" : 0
+  }
 }
 
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 {
-    "include_global_state": false,
-    "indices": "my_docs"
+  "include_global_state": false,
+  "indices": "my_docs"
 }
 
 DELETE /my_docs

@@ -1,5 +1,8 @@
 [[date-processor]]
-=== Date Processor
+=== Date processor
+++++
+<titleabbrev>Date</titleabbrev>
+++++
 
 Parses dates from fields, and then uses the date or timestamp as the timestamp for the document.
 By default, the date processor adds the parsed date as a new field called `@timestamp`. You can specify a

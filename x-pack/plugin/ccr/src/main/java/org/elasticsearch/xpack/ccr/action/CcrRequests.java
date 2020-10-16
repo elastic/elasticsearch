@@ -44,6 +44,7 @@ public final class CcrRequests {
         putMappingRequest.origin("ccr");
         putMappingRequest.type(mappingMetadata.type());
         putMappingRequest.source(mappingMetadata.source().string(), XContentType.JSON);
+        putMappingRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
         return putMappingRequest;
     }
 

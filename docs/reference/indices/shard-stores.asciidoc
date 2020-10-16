@@ -11,9 +11,9 @@ information for the stream's backing indices.
 
 [source,console]
 ----
-GET /twitter/_shard_stores
+GET /my-index-000001/_shard_stores
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-shard-stores-api-request]]
@@ -139,34 +139,34 @@ for assigned primary and replica shards.
 GET /_shard_stores?status=green
 --------------------------------------------------
 // TEST[setup:node]
-// TEST[s/^/PUT my-index\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST my-index\/test\?refresh\n{"test": "test"}\n/]
+// TEST[s/^/PUT my-index-00001\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST my-index-00001\/test\?refresh\n{"test": "test"}\n/]
 
 The API returns the following response:
 
 [source,console-result]
 --------------------------------------------------
 {
-   "indices": {
-       "my-index": {
-           "shards": {
-              "0": { <1>
-                "stores": [ <2>
-                    {
-                        "sPa3OgxLSYGvQ4oPs-Tajw": { <3>
-                            "name": "node_t0",
-                            "ephemeral_id" : "9NlXRFGCT1m8tkvYCMK-8A",
-                            "transport_address": "local[1]",
-                            "attributes": {}
-                        },
-                        "allocation_id": "2iNySv_OQVePRX-yaRH_lQ", <4>
-                        "allocation" : "primary|replica|unused" <5>
-                        "store_exception": ... <6>
-                    }
-                ]
-              }
-           }
-       }
-   }
+  "indices": {
+    "my-index-00001": {
+      "shards": {
+        "0": {                                          <1>
+          "stores": [                                   <2>
+            {
+            "sPa3OgxLSYGvQ4oPs-Tajw": {                 <3>
+              "name": "node_t0",
+              "ephemeral_id": "9NlXRFGCT1m8tkvYCMK-8A",
+              "transport_address": "local[1]",
+              "attributes": {}
+            },
+            "allocation_id": "2iNySv_OQVePRX-yaRH_lQ",  <4>
+            "allocation": "primary|replica|unused"      <5>
+            "store_exception": ...                      <6>
+            }
+          ]
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"store_exception": \.\.\.//]

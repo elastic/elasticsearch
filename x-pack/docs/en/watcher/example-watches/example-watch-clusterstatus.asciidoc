@@ -13,7 +13,7 @@ Elasticsearch cluster:
 
 * <<health-take-action,Take action>> if the cluster is RED.
 
-[float]
+[discrete]
 [[health-add-input]]
 ==== Schedule the watch and add an input
 
@@ -122,7 +122,7 @@ GET .watcher-history*/_search
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[health-add-condition]]
 ==== Add a condition
 
@@ -176,7 +176,7 @@ GET .watcher-history*/_search?pretty
 ------------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[health-take-action]]
 ==== Take action
 
@@ -266,7 +266,7 @@ GET .watcher-history*/_search?pretty
 -------------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[health-delete]]
 ==== Delete the watch
 

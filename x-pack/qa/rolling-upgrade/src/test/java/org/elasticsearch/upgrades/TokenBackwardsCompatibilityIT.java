@@ -405,6 +405,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "    \"token\": \"" + accessToken + "\",\n" +
                 "    \"refresh_token\": \"" + refreshToken + "\"\n" +
                 "}");
+        useIgnoreMultipleMatchingTemplatesWarningsHandler(indexRequest);
         Response indexResponse1 = client.performRequest(indexRequest);
         assertOK(indexResponse1);
     }

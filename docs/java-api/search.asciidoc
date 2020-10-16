@@ -160,11 +160,11 @@ For example, if you have a file named `config/scripts/template_gender.mustache` 
 [source,js]
 --------------------------------------------------
 {
-    "query" : {
-        "match" : {
-            "gender" : "{{param_gender}}"
-        }
+  "query" : {
+    "match" : {
+      "gender" : "{{param_gender}}"
     }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

@@ -6,7 +6,7 @@ A multi-bucket aggregation that creates composite buckets from different sources
 Unlike the other `multi-bucket` aggregation the `composite` aggregation can be used
 to paginate **all** buckets from a multi-level aggregation efficiently. This aggregation
 provides a way to stream **all** buckets of a specific aggregation similarly to what
-<<request-body-search-scroll, scroll>> does for documents.
+<<scroll-search-results, scroll>> does for documents.
 
 The composite buckets are built from the combinations of the
 values extracted/created for each document and each combination is considered as
@@ -293,17 +293,17 @@ include::datehistogram-aggregation.asciidoc[tag=offset-explanation]
 
 [source,console,id=composite-aggregation-datehistogram-offset-example]
 ----
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T05:30:00Z"
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T06:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "my_buckets": {
@@ -359,7 +359,7 @@ include::datehistogram-aggregation.asciidoc[tag=offset-note]
 The `geotile_grid` value source works on `geo_point` fields and groups points into buckets that represent
 cells in a grid. The resulting grid can be sparse and only contains cells
 that have matching data. Each cell corresponds to a
-https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map
+{wikipedia}/Tiled_web_map[map tile] as used by many online map
 sites. Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal
 to the user-specified precision.
 
@@ -642,7 +642,7 @@ For instance the following index sort:
 
 [source,console]
 --------------------------------------------------
-PUT twitter
+PUT my-index-000001
 {
   "settings": {
     "index": {

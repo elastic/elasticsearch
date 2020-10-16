@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Builder> {
@@ -332,7 +333,7 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
                 .endObject().endObject());
 
         Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("[format] must not have a [null] value", e.getMessage());
+        assertThat(e.getMessage(), containsString("[format] must not have a [null] value"));
     }
 
     public void testEmptyName() throws IOException {
@@ -345,6 +346,82 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testNanosNullValue() throws IOException {
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "date_nanos")
+            .field("null_value", "2016-03-11")
+            .endObject()
+            .endObject()
+            .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DateFieldMapper df = (DateFieldMapper) mapper.mappers().getMapper("field");
+        DateFieldMapper.DateFieldType ft = df.fieldType();
+        long expectedNullValue = ft.parse("2016-03-11");
+
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()),
+            XContentType.JSON));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
+        assertEquals(8, pointField.fieldType().pointNumBytes());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals(expectedNullValue, pointField.numericValue().longValue());
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(expectedNullValue, dvField.numericValue().longValue());
+        assertFalse(dvField.fieldType().stored());
+    }
+
+    public void testBadFormat() throws IOException {
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "date")
+            .field("format", "")
+            .endObject()
+            .endObject()
+            .endObject().endObject());
+
+        Exception e = expectThrows(Exception.class, () -> parser.parse("type", new CompressedXContent(mapping)));
+
+        assertThat(e.getMessage(),
+            equalTo("Error parsing [format] on field [field]: No date pattern provided"));
+    }
+
+    public void testBadNullValue() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "date")
+            .field("null_value", "foo")
+            .endObject()
+            .endObject()
+            .endObject().endObject());
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()),
+            XContentType.JSON));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]; [null_value] will be ignored");
     }
 
     public void testTimeZoneParsing() throws Exception {
@@ -435,7 +512,8 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("Invalid format: [[test_format]]: Unknown pattern letter: t", e.getMessage());
+        assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
+        assertThat(e.getMessage(), containsString("Error parsing [format] on field [field]: Invalid"));
     }
 
     public void testMeta() throws Exception {

@@ -26,7 +26,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.TLSv1DeprecationHandler;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;

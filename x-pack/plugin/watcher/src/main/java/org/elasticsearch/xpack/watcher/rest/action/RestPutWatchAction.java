@@ -20,7 +20,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 

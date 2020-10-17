@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       index:
         index: .ml-state
@@ -18,10 +14,6 @@ setup:
 
 ---
 "Put job on the old cluster and post some data":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.put_job:
@@ -80,10 +72,6 @@ setup:
 
 ---
 "Put categorization job on the old cluster and post some data":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.put_job:
@@ -143,10 +131,6 @@ setup:
 
 ---
 "Put job on the old cluster with the default model memory limit and post some data":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: no-model-memory-limit-job
@@ -201,10 +185,6 @@ setup:
 
 ---
 "Put job with timing stats checking on the old cluster and post some data":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.put_job:
@@ -263,10 +243,6 @@ setup:
 
 ---
 "Put job with empty strings in the configuration":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: old-cluster-job-empty-fields
@@ -290,10 +266,6 @@ setup:
 
 ---
 "Test job with pre 6.4 rules - dummy job 6.4 onwards":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: job-with-old-rules
@@ -312,10 +284,6 @@ setup:
 
 ---
 "Test function shortcut expansion":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: old-cluster-function-shortcut-expansion

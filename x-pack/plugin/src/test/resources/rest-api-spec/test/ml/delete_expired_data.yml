@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -47,20 +45,12 @@ setup:
 
 ---
 "Test delete expired data with no body":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.delete_expired_data: {}
 
   - match: { deleted: true}
 ---
 "Test delete expired data with body parameters":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.delete_expired_data:
         body:  >
@@ -68,10 +58,6 @@ setup:
   - match: { deleted: true}
 ---
 "Test delete expired data with path parameters":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.delete_expired_data:
         timeout: "10h"
@@ -79,10 +65,6 @@ setup:
   - match: { deleted: true}
 ---
 "Test delete expired data with unknown job id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: missing
       ml.delete_expired_data:
@@ -90,8 +72,6 @@ setup:
 ---
 "Test delete expired data with job id":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: warnings
   - do:
       headers:

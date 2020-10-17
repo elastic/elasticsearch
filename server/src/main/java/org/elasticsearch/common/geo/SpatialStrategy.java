@@ -56,4 +56,10 @@ public enum SpatialStrategy implements Writeable {
         }
         return null;
     }
+
+
+    @Override
+    public String toString() {
+        return super.toString();
+    }
 }

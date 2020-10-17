@@ -51,6 +51,7 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -143,7 +144,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
 
         Parameter<SpatialStrategy> strategy = new Parameter<>("strategy", false, () -> SpatialStrategy.RECURSIVE,
-            (n, c, o) -> SpatialStrategy.fromString(o.toString()), m -> builder(m).strategy.get())
+            (n, c, o) -> SpatialStrategy.fromString(o.toString().toLowerCase(Locale.ROOT)), m -> builder(m).strategy.get())
             .deprecated();
         Parameter<String> tree = Parameter.stringParam("tree", false, m -> builder(m).tree.get(), Defaults.TREE)
             .deprecated();

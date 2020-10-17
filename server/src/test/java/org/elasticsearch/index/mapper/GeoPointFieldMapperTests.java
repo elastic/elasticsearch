@@ -56,7 +56,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         });
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "41.12,-71.34"));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
-        checker.registerConflictCheck("stored", b -> b.field("stored", true));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
     }
 
     @Override

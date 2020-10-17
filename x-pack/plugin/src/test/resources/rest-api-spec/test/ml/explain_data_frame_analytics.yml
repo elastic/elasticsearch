@@ -1,9 +1,5 @@
 ---
 "Test neither job id nor body":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /Please provide a job \[id\] or the config object/
       ml.explain_data_frame_analytics:
@@ -11,10 +7,6 @@
 
 ---
 "Test both job id and body":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /Please provide either a job \[id\] or the config object but not both/
       ml.explain_data_frame_analytics:
@@ -25,10 +17,6 @@
 
 ---
 "Test missing job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: missing
       ml.explain_data_frame_analytics:
@@ -36,10 +24,6 @@
 
 ---
 "Test id that matches multiple jobs":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       indices.create:
@@ -80,10 +64,6 @@
 
 ---
 "Test empty data frame given body":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       indices.create:
@@ -121,10 +101,6 @@
 
 ---
 "Test non-empty data frame given body":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       indices.create:
@@ -203,10 +179,6 @@
 
 ---
 "Test field_selection given body":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       indices.create:
@@ -269,10 +241,6 @@
 
 ---
 "Test field_selection given job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       indices.create:

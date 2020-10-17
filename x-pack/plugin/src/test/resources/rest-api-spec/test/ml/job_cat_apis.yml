@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -73,10 +71,6 @@ setup:
 
 ---
 "Test cat anomaly detector jobs":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.post_data:

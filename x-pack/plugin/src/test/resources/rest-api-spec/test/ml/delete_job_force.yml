@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -20,10 +18,6 @@ setup:
 
 ---
 "Test force delete a closed job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.delete_job:
         force: true
@@ -37,10 +31,6 @@ setup:
 
 ---
 "Test force delete an open job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.open_job:
@@ -59,10 +49,6 @@ setup:
 
 ---
 "Test cannot force delete a non-existent job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: /resource_not_found_exception/
@@ -72,10 +58,6 @@ setup:
 
 ---
 "Test force delete job that is referred by a datafeed":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.put_datafeed:

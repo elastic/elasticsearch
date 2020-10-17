@@ -5,8 +5,3 @@ testClusters.all {
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }
-
-// Entire suite muted while https://github.com/elastic/elasticsearch/pull/63542
-// and https://github.com/elastic/ml-cpp/pull/1520 are merged
-javaRestTest.enabled = false
-

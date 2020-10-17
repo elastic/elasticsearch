@@ -2,8 +2,6 @@
 # These are more like ingest processor tests than actual ML focused tests.
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -32,10 +30,6 @@ setup:
 
 ---
 "Test create processor with missing mandatory fields":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[model_id\] required property is missing/
       ingest.put_pipeline:
@@ -55,10 +49,6 @@ setup:
 
 ---
 "Test simulate":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ingest.simulate:
         body:  >

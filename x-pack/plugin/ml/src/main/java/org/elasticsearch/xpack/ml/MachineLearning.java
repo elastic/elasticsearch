@@ -625,7 +625,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         AnalyticsProcessFactory<MemoryUsageEstimationResult> memoryEstimationProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
             try {
-                NativeController nativeController = NativeController.makeNativeController(clusterService.getNodeName(), environment);
+                NativeController nativeController =
+                    NativeController.makeNativeController(clusterService.getNodeName(), environment, xContentRegistry);
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(
                     environment,
                     settings,

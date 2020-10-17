@@ -1,9 +1,5 @@
 ---
 "Get old cluster outlier_detection job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_data_frame_analytics:
@@ -23,10 +19,6 @@
 
 ---
 "Get old cluster outlier_detection job stats":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_data_frame_analytics_stats:
@@ -37,10 +29,6 @@
 
 ---
 "Get old cluster regression job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_data_frame_analytics:
@@ -57,10 +45,6 @@
 
 ---
 "Get old cluster regression job stats":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_data_frame_analytics_stats:
@@ -71,10 +55,6 @@
 
 ---
 "Get old classification job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_data_frame_analytics:
@@ -91,10 +71,6 @@
 
 ---
 "Get old classification job stats":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_data_frame_analytics_stats:
@@ -105,10 +81,6 @@
 
 ---
 "Get mixed cluster outlier_detection job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"
@@ -127,10 +99,6 @@
 
 ---
 "Get mixed cluster outlier_detection job stats":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_data_frame_analytics_stats:
         id: "mixed_cluster_outlier_detection_job"

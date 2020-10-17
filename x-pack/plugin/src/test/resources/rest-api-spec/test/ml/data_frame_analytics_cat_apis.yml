@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       indices.create:
@@ -42,10 +40,6 @@ setup:
 
 ---
 "Test cat data frame analytics single job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       cat.ml_data_frame_analytics:
@@ -57,10 +51,6 @@ setup:
 
 ---
 "Test cat data frame analytics single job with header":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       cat.ml_data_frame_analytics:
         id: dfa-outlier-detection-job
@@ -72,10 +62,6 @@ setup:
 
 ---
 "Test cat data frame analytics all jobs with header":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       cat.ml_data_frame_analytics:
         v: true
@@ -88,10 +74,6 @@ setup:
 
 ---
 "Test cat data frame analytics all jobs with header and column selection":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       cat.ml_data_frame_analytics:
         v: true

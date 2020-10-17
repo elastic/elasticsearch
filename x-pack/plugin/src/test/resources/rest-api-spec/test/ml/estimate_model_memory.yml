@@ -1,9 +1,5 @@
 ---
 "Test by field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -20,10 +16,6 @@
 
 ---
 "Test by field also influencer":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -44,10 +36,6 @@
 
 ---
 "Test by field with independent influencer":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -68,10 +56,6 @@
 
 ---
 "Test over field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -88,10 +72,6 @@
 
 ---
 "Test over field also influencer":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -112,10 +92,6 @@
 
 ---
 "Test over field with independent influencer":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -136,10 +112,6 @@
 
 ---
 "Test partition field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -156,10 +128,6 @@
 
 ---
 "Test partition field also influencer":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -180,10 +148,6 @@
 
 ---
 "Test partition field with independent influencer":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -204,10 +168,6 @@
 
 ---
 "Test by and partition field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -225,10 +185,6 @@
 
 ---
 "Test by and partition fields also influencers":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -251,10 +207,6 @@
 
 ---
 "Test by and partition fields with independent influencer":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -276,10 +228,6 @@
 
 ---
 "Test over and partition field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -297,10 +245,6 @@
 
 ---
 "Test over and partition fields also influencers":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -323,10 +267,6 @@
 
 ---
 "Test over and partition fields with independent influencer":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.estimate_model_memory:
         body: >
@@ -348,10 +288,6 @@
 
 ---
 "Test missing overall cardinality":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[Overall\] cardinality estimate required for \[by_field_name\] \[airline\] but not supplied/
       ml.estimate_model_memory:
@@ -368,10 +304,6 @@
 
 ---
 "Test missing max bucket cardinality":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[Bucket max\] cardinality estimate required for \[influencers\] \[country\] but not supplied/
       ml.estimate_model_memory:

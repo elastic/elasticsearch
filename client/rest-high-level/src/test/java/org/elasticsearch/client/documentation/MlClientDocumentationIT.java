@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.documentation;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -245,7 +244,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/63542")
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After

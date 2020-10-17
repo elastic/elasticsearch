@@ -1,9 +1,5 @@
 ---
 "Test valid detector":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.validate_detector:
         body:  >
@@ -15,10 +11,6 @@
 
 ---
 "Test invalid detector":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /field_name must be set when the 'mean' function is used/
       ml.validate_detector:

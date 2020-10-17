@@ -1,7 +1,4 @@
 setup:
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
 
   - do:
       indices.create:
@@ -194,10 +191,6 @@ setup:
 
 ---
 "Test outlier_detection auc_roc":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -218,10 +211,6 @@ setup:
 
 ---
 "Test outlier_detection auc_roc given actual_field is int":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -242,10 +231,6 @@ setup:
 
 ---
 "Test outlier_detection auc_roc include curve":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -266,10 +251,6 @@ setup:
 
 ---
 "Test outlier_detection auc_roc given actual_field is always true":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[auc_roc\] requires at least one \[all_true_field\] to have a different value than \[true\]/
       ml.evaluate_data_frame:
@@ -289,10 +270,6 @@ setup:
 
 ---
 "Test outlier_detection auc_roc given actual_field is always false":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[auc_roc\] requires at least one \[all_false_field\] to have the value \[true\]/
       ml.evaluate_data_frame:
@@ -312,10 +289,6 @@ setup:
 
 ---
 "Test outlier_detection precision":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -339,10 +312,6 @@ setup:
 
 ---
 "Test outlier_detection recall":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -367,10 +336,6 @@ setup:
 
 ---
 "Test outlier_detection confusion_matrix":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -407,10 +372,6 @@ setup:
 
 ---
 "Test outlier_detection with query":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -438,10 +399,6 @@ setup:
 
 ---
 "Test outlier_detection default metrics":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -467,10 +424,6 @@ setup:
 
 ---
 "Test given missing index":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /Required \[index\]/
       ml.evaluate_data_frame:
@@ -486,10 +439,6 @@ setup:
 
 ---
 "Test given index does not exist":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: missing
       ml.evaluate_data_frame:
@@ -506,10 +455,6 @@ setup:
 
 ---
 "Test given missing evaluation":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /Required \[evaluation\]/
       ml.evaluate_data_frame:
@@ -520,10 +465,6 @@ setup:
 
 ---
 "Test outlier_detection given evaluation with empty metrics":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[outlier_detection\] must have one or more metrics/
       ml.evaluate_data_frame:
@@ -542,10 +483,6 @@ setup:
 
 ---
 "Test outlier_detection given missing actual_field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /No documents found containing all the required fields \[missing, outlier_score\]/
       ml.evaluate_data_frame:
@@ -562,10 +499,6 @@ setup:
 
 ---
 "Test outlier_detection given missing predicted_probability_field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /No documents found containing all the required fields \[is_outlier, missing\]/
       ml.evaluate_data_frame:
@@ -582,10 +515,6 @@ setup:
 
 ---
 "Test outlier_detection given precision with threshold less than zero":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[precision.at\] values must be in \[0.0, 1.0\]/
       ml.evaluate_data_frame:
@@ -605,10 +534,6 @@ setup:
 
 ---
 "Test outlier_detection given recall with threshold less than zero":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[recall.at\] values must be in \[0.0, 1.0\]/
       ml.evaluate_data_frame:
@@ -628,10 +553,6 @@ setup:
 
 ---
 "Test outlier_detection given confusion_matrix with threshold less than zero":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[confusion_matrix.at\] values must be in \[0.0, 1.0\]/
       ml.evaluate_data_frame:
@@ -651,10 +572,6 @@ setup:
 
 ---
 "Test outlier_detection given precision with empty thresholds":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[precision.at\] must have at least one value/
       ml.evaluate_data_frame:
@@ -674,10 +591,6 @@ setup:
 
 ---
 "Test outlier_detection given recall with empty thresholds":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[recall.at\] must have at least one value/
       ml.evaluate_data_frame:
@@ -697,10 +610,6 @@ setup:
 
 ---
 "Test outlier_detection given confusion_matrix with empty thresholds":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[confusion_matrix.at\] must have at least one value/
       ml.evaluate_data_frame:
@@ -720,10 +629,6 @@ setup:
 
 ---
 "Test classification given evaluation with empty metrics":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[classification\] must have one or more metrics/
       ml.evaluate_data_frame:
@@ -740,10 +645,6 @@ setup:
           }
 ---
 "Test classification auc_roc with missing class_name":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       # TODO: Revisit this error message as it does not give any clue about which field is missing
       catch: /Failed to build \[auc_roc\] after last required field arrived/
@@ -763,10 +664,6 @@ setup:
           }
 ---
 "Test classification auc_roc given actual_field is never equal to fish":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[auc_roc\] requires at least one \[classification_field_act.keyword\] to have the value \[fish\]/
       ml.evaluate_data_frame:
@@ -787,10 +684,6 @@ setup:
           }
 ---
 "Test classification auc_roc given predicted_class_field is never equal to mouse":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[auc_roc\] requires that \[mouse\] appears as one of the \[ml.top_classes.class_name\] for every document \(appeared in 0 out of 8\)./
       ml.evaluate_data_frame:
@@ -811,10 +704,6 @@ setup:
           }
 ---
 "Test classification auc_roc":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -836,10 +725,6 @@ setup:
   - is_false: classification.auc_roc.curve
 ---
 "Test classification auc_roc with default top_classes_field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -860,10 +745,6 @@ setup:
   - is_false: classification.auc_roc.curve
 ---
 "Test classification accuracy with missing predicted_field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[classification\] must define \[predicted_field\] as required by the following metrics \[accuracy\]/
       ml.evaluate_data_frame:
@@ -879,10 +760,6 @@ setup:
           }
 ---
 "Test classification accuracy":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -909,10 +786,6 @@ setup:
         overall_accuracy: 0.625  # 5 out of 8
 ---
 "Test classification precision":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -939,10 +812,6 @@ setup:
         avg_precision: 0.7222222222222222
 ---
 "Test classification recall":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -969,10 +838,6 @@ setup:
         avg_recall: 0.611111111111111
 ---
 "Test classification multiclass_confusion_matrix":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1023,10 +888,6 @@ setup:
         other_actual_class_count: 0
 ---
 "Test classification multiclass_confusion_matrix with explicit size":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1063,10 +924,6 @@ setup:
         other_actual_class_count: 1
 ---
 "Test classification with null metrics":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1083,10 +940,6 @@ setup:
   - is_true: classification.multiclass_confusion_matrix
 ---
 "Test classification given missing actual_field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /No documents found containing all the required fields \[missing, classification_field_pred.keyword\]/
       ml.evaluate_data_frame:
@@ -1103,10 +956,6 @@ setup:
 
 ---
 "Test classification given missing predicted_field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /No documents found containing all the required fields \[classification_field_act.keyword, missing\]/
       ml.evaluate_data_frame:
@@ -1123,10 +972,6 @@ setup:
 
 ---
 "Test classification given missing top_classes_field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /No documents found containing all the required fields \[classification_field_act.keyword, missing.class_name, missing.class_probability\]/
       ml.evaluate_data_frame:
@@ -1148,10 +993,6 @@ setup:
           }
 ---
 "Test regression given evaluation with empty metrics":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /\[regression\] must have one or more metrics/
       ml.evaluate_data_frame:
@@ -1168,10 +1009,6 @@ setup:
           }
 ---
 "Test regression mean_squared_error":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1192,10 +1029,6 @@ setup:
   - is_false: regression.huber.value
 ---
 "Test regression mean_squared_logarithmic_error":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1216,10 +1049,6 @@ setup:
   - is_false: regression.huber.value
 ---
 "Test regression huber":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1240,10 +1069,6 @@ setup:
   - is_false: regression.r_squared.value
 ---
 "Test regression r_squared":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1264,10 +1089,6 @@ setup:
 
 ---
 "Test regression with null metrics":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1287,10 +1108,6 @@ setup:
   - is_false: regression.huber.value
 ---
 "Test regression given missing actual_field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /No documents found containing all the required fields \[missing, regression_field_pred\]/
       ml.evaluate_data_frame:
@@ -1307,10 +1124,6 @@ setup:
 
 ---
 "Test regression given missing predicted_field":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /No documents found containing all the required fields \[regression_field_act, missing\]/
       ml.evaluate_data_frame:

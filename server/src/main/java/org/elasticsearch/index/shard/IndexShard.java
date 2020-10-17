@@ -3416,7 +3416,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         @Override
-        public void afterRefresh(boolean didRefresh) throws IOException {
+        public void afterRefresh(boolean didRefresh) {
             if (Assertions.ENABLED) {
                 assert callingThread != null : "afterRefresh called but not beforeRefresh";
                 assert callingThread == Thread.currentThread() : "beforeRefreshed called by a different thread. current ["
@@ -3430,7 +3430,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
         final RootObjectMapper.Builder noopRootMapper = new RootObjectMapper.Builder("__noop");
         final DocumentMapper noopDocumentMapper = mapperService != null ?
-            new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService) :
+            new DocumentMapper.Builder(noopRootMapper, mapperService).build() :
             null;
         return new EngineConfig.TombstoneDocSupplier() {
             @Override

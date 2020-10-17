@@ -70,30 +70,34 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             this.hasDocValues = false;
         }
 
-        private GeoShapeFieldType buildFieldType(BuilderContext context) {
-            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, meta);
-            GeometryParser geometryParser = new GeometryParser(ft.orientation.getAsBoolean(), coerce().value(),
-                ignoreZValue().value());
-            ft.setGeometryParser(new GeoShapeParser(geometryParser));
-            ft.setGeometryIndexer(new GeoShapeIndexer(orientation().value().getAsBoolean(), buildFullName(context)));
+        private GeoShapeFieldType buildFieldType(BuilderContext context, GeoShapeParser parser) {
+            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, parser, meta);
             ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
             return ft;
         }
 
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
-            return new GeoShapeFieldMapper(name, fieldType, buildFieldType(context), ignoreMalformed(context), coerce(context),
+            GeometryParser geometryParser = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(),
+                ignoreZValue().value());
+            GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
+            GeoShapeFieldType ft = buildFieldType(context, geoShapeParser);
+            return new GeoShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), orientation(),
-                multiFieldsBuilder.build(this, context), copyTo);
+                multiFieldsBuilder.build(this, context), copyTo,
+                new GeoShapeIndexer(orientation().value().getAsBoolean(), buildFullName(context)),
+                new GeoShapeParser(new GeometryParser(orientation().value().getAsBoolean(),
+                    coerce(context).value(), ignoreZValue().value())));
         }
     }
 
-    public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> implements GeoShapeQueryable {
+    public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
 
         private final VectorGeoShapeQueryProcessor queryProcessor;
 
-        public GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, false, meta);
+        public GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                 Parser<Geometry> parser, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, false, parser, meta);
             this.queryProcessor = new VectorGeoShapeQueryProcessor();
         }
 
@@ -123,9 +127,10 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     public GeoShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                Explicit<Boolean> ignoreZValue, Explicit<ShapeBuilder.Orientation> orientation,
-                               MultiFields multiFields, CopyTo copyTo) {
+                               MultiFields multiFields, CopyTo copyTo,
+                               Indexer<Geometry, Geometry> indexer, Parser<Geometry> parser) {
         super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
-            multiFields, copyTo);
+            multiFields, copyTo, indexer, parser);
     }
 
     @Override

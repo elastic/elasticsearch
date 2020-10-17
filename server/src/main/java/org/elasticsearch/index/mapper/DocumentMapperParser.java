@@ -48,18 +48,19 @@ public class DocumentMapperParser {
     private final NamedXContentRegistry xContentRegistry;
     private final SimilarityService similarityService;
     private final Supplier<QueryShardContext> queryShardContextSupplier;
-
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
-
     private final Version indexVersionCreated;
-
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
     private final ScriptService scriptService;
 
-    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
-            SimilarityService similarityService, MapperRegistry mapperRegistry,
-            Supplier<QueryShardContext> queryShardContextSupplier, ScriptService scriptService) {
+    public DocumentMapperParser(IndexSettings indexSettings,
+                                MapperService mapperService,
+                                NamedXContentRegistry xContentRegistry,
+                                SimilarityService similarityService,
+                                MapperRegistry mapperRegistry,
+                                Supplier<QueryShardContext> queryShardContextSupplier,
+                                ScriptService scriptService) {
         this.mapperService = mapperService;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
@@ -71,13 +72,15 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-                typeParsers::get, indexVersionCreated, queryShardContextSupplier, null, scriptService);
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, typeParsers::get, indexVersionCreated,
+            queryShardContextSupplier, null, scriptService, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            mapperService::isIdFieldDataEnabled);
     }
 
     public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-            typeParsers::get, indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService);
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, typeParsers::get, indexVersionCreated,
+            queryShardContextSupplier, dateFormatter, scriptService, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            mapperService::isIdFieldDataEnabled);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
@@ -145,7 +148,7 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        return docBuilder.build(mapperService);
+        return docBuilder.build();
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {
@@ -209,9 +212,5 @@ public class DocumentMapperParser {
             mapping = new Tuple<>(type, root);
         }
         return mapping;
-    }
-
-    NamedXContentRegistry getXContentRegistry() {
-        return xContentRegistry;
     }
 }

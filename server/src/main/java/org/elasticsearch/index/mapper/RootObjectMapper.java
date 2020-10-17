@@ -132,7 +132,6 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-
             RootObjectMapper.Builder builder = new Builder(name);
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -274,7 +273,7 @@ public class RootObjectMapper extends ObjectMapper {
             return null;
         }
         String dynamicType = matchType.defaultMappingType();
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(dateFormat);
+        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormat);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
@@ -395,7 +394,7 @@ public class RootObjectMapper extends ObjectMapper {
                 Mapper.Builder dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
                 fieldTypeConfig.remove("type");
                 if (fieldTypeConfig.isEmpty()) {
-                    Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
+                    Settings indexSettings = parserContext.getSettings();
                     BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
                     dummyBuilder.build(builderContext);
                     dynamicTemplateInvalid = false;

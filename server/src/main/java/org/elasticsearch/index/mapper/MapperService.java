@@ -126,20 +126,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         "#default-mapping-not-allowed] for more information.";
 
     private final IndexAnalyzers indexAnalyzers;
+    private final DocumentMapperParser documentMapperParser;
+    private final DocumentParser documentParser;
+    private final Version indexVersionCreated;
+    private final MapperAnalyzerWrapper indexAnalyzer;
+    final MapperRegistry mapperRegistry;
+    private final BooleanSupplier idFieldDataEnabled;
 
     private volatile String defaultMappingSource;
-
     private volatile DocumentMapper mapper;
     private volatile DocumentMapper defaultMapper;
-
-    private final DocumentMapperParser documentParser;
-    private final Version indexVersionCreated;
-
-    private final MapperAnalyzerWrapper indexAnalyzer;
-
-    final MapperRegistry mapperRegistry;
-
-    private final BooleanSupplier idFieldDataEnabled;
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
@@ -148,7 +144,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
-        this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
+        this.documentParser = new DocumentParser(xContentRegistry);
+        this.documentMapperParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
                 queryShardContextSupplier, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
         this.mapperRegistry = mapperRegistry;
@@ -179,6 +176,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapperParser documentMapperParser() {
+        return this.documentMapperParser;
+    }
+
+    DocumentParser documentParser() {
         return this.documentParser;
     }
 
@@ -366,7 +367,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // verify we can parse it
             // NOTE: never apply the default here
             try {
-                defaultMapper = documentParser.parse(DEFAULT_MAPPING, mappings.get(DEFAULT_MAPPING));
+                defaultMapper = documentMapperParser.parse(DEFAULT_MAPPING, mappings.get(DEFAULT_MAPPING));
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
             }
@@ -399,7 +400,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             try {
                 documentMapper =
-                    documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
+                    documentMapperParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
@@ -498,7 +499,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
-        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
+        return documentMapperParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 
     /**

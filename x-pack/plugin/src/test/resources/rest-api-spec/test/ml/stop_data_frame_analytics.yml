@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       indices.create:
         index: index-source
@@ -19,6 +23,10 @@ setup:
 
 ---
 "Test stop given missing config and allow_no_match is true":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.stop_data_frame_analytics:
@@ -27,6 +35,10 @@ setup:
 
 ---
 "Test stop given missing config and allow_no_match is false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.stop_data_frame_analytics:
@@ -35,6 +47,10 @@ setup:
 
 ---
 "Test stop with expression that does not match and allow_no_match is true":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.stop_data_frame_analytics:
         id: "missing-*"
@@ -43,6 +59,10 @@ setup:
 
 ---
 "Test stop with expression that does not match and allow_no_match is false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.stop_data_frame_analytics:
@@ -51,6 +71,10 @@ setup:
 
 ---
 "Test stop given stopped":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.stop_data_frame_analytics:
@@ -59,6 +83,10 @@ setup:
 
 ---
 "Test stop with inconsistent body/param ids":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Inconsistent id; 'body_id' specified in the body differs from 'url_id' specified as a URL argument/

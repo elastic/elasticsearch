@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       indices.create:
@@ -52,6 +54,10 @@ setup:
 
 ---
 "Test start and stop datafeed happy path":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.open_job:
         job_id: "start-stop-datafeed-job"
@@ -73,6 +79,10 @@ setup:
 
 ---
 "Test force stop datafeed":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.open_job:
         job_id: "start-stop-datafeed-job"
@@ -96,6 +106,10 @@ setup:
 
 ---
 "Test start datafeed given start is now":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.open_job:
         job_id: "start-stop-datafeed-job"
@@ -110,7 +124,11 @@ setup:
 
 ---
 "Test start non existing datafeed":
-    - do:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
+  - do:
         catch: missing
         ml.start_datafeed:
           datafeed_id: "non-existing-datafeed"
@@ -118,12 +136,16 @@ setup:
 
 ---
 "Test start datafeed job, but not open":
-    - do:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
+  - do:
         catch: conflict
         ml.start_datafeed:
           datafeed_id: "start-stop-datafeed-datafeed-1"
           start: 0
-    - do:
+  - do:
         catch: /cannot start datafeed \[start-stop-datafeed-datafeed-1\] because job \[start-stop-datafeed-job\] is closed/
         ml.start_datafeed:
           datafeed_id: "start-stop-datafeed-datafeed-1"
@@ -131,6 +153,10 @@ setup:
 
 ---
 "Test start already started datafeed job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.open_job:
         job_id: "start-stop-datafeed-job"
@@ -152,6 +178,10 @@ setup:
 
 ---
 "Test start given end earlier than start":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.open_job:
         job_id: "start-stop-datafeed-job"
@@ -165,6 +195,10 @@ setup:
 
 ---
 "Test start given end same as start":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.open_job:
         job_id: "start-stop-datafeed-job"
@@ -178,6 +212,10 @@ setup:
 
 ---
 "Test start given datafeed index does not exist":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.update_datafeed:
         datafeed_id: start-stop-datafeed-datafeed-1
@@ -197,6 +235,10 @@ setup:
 
 ---
 "Test start given field without mappings":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_job:
         job_id: start-stop-datafeed-job-field-without-mappings
@@ -234,7 +276,11 @@ setup:
 
 ---
 "Test stop non existing datafeed":
-    - do:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
+  - do:
         catch: missing
         ml.stop_datafeed:
           datafeed_id: "non-existing-datafeed"
@@ -242,6 +288,8 @@ setup:
 ---
 "Test stop with expression that does not match and allow_no_match":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features:
         - "warnings"
 
@@ -262,6 +310,8 @@ setup:
 ---
 "Test stop with expression that does not match and not allow_no_match":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features:
         - "warnings"
 
@@ -282,6 +332,8 @@ setup:
 ---
 "Test stop with body params":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features:
         - "warnings"
 
@@ -325,6 +377,10 @@ setup:
 
 ---
 "Test stop already stopped datafeed job is not an error":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.stop_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
@@ -335,6 +391,10 @@ setup:
 
 ---
 "Test stop given expression":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -461,6 +521,10 @@ setup:
 
 ---
 "Test start datafeed when persistent task allocation disabled":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.open_job:

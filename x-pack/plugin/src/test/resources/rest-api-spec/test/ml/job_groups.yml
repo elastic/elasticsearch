@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -87,6 +89,10 @@ setup:
 
 ---
 "Test put job with id that matches an existing group":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /resource_already_exists_exception/
@@ -102,6 +108,10 @@ setup:
 
 ---
 "Test put job with group that matches an job id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /resource_already_exists_exception/
@@ -118,6 +128,10 @@ setup:
 
 ---
 "Test put job with group that matches its id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /resource_already_exists_exception/
@@ -134,6 +148,10 @@ setup:
 
 ---
 "Test put job with empty group":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Invalid group id ''; must be non-empty string and may contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
@@ -150,6 +168,10 @@ setup:
 
 ---
 "Test put job with invalid group":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: /Invalid group id '___'; must be non-empty string and may contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
@@ -166,6 +188,10 @@ setup:
 
 ---
 "Test get job API":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_jobs:
@@ -230,6 +256,10 @@ setup:
 
 ---
 "Test get job stats API":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_job_stats:
@@ -240,6 +270,10 @@ setup:
 
 ---
 "Test close job API":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.open_job:

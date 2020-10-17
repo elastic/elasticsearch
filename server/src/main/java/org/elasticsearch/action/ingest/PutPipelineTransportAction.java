@@ -55,17 +55,12 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         IngestService ingestService, NodeClient client) {
         super(
             PutPipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, PutPipelineRequest::new, indexNameExpressionResolver
+            threadPool, actionFilters, PutPipelineRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME
         );
         // This client is only used to perform an internal implementation detail,
         // so uses an internal origin context rather than the user context
         this.client = new OriginSettingClient(client, INGEST_ORIGIN);
         this.ingestService = ingestService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

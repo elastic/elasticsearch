@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexSettings;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -72,21 +70,13 @@ public final class TransportPutFollowAction
                 threadPool,
                 actionFilters,
                 PutFollowAction.Request::new,
-                indexNameExpressionResolver);
+                indexNameExpressionResolver,
+                PutFollowAction.Response::new,
+                ThreadPool.Names.SAME);
         this.client = client;
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutFollowAction.Response read(StreamInput in) throws IOException {
-        return new PutFollowAction.Response(in);
     }
 
     @Override

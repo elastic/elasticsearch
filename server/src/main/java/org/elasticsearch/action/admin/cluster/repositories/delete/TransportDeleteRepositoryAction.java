@@ -46,13 +46,8 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              DeleteRepositoryRequest::new, indexNameExpressionResolver);
+              DeleteRepositoryRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.repositoriesService = repositoriesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

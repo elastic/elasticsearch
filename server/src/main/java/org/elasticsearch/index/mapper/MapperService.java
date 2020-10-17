@@ -103,17 +103,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.longSetting("index.mapping.field_name_length.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.IndexScope);
 
     private final IndexAnalyzers indexAnalyzers;
+    private final DocumentMapperParser documentMapperParser;
+    private final DocumentParser documentParser;
+    private final Version indexVersionCreated;
+    private final MapperAnalyzerWrapper indexAnalyzer;
+    final MapperRegistry mapperRegistry;
+    private final BooleanSupplier idFieldDataEnabled;
 
     private volatile DocumentMapper mapper;
-
-    private final DocumentMapperParser documentParser;
-    private final Version indexVersionCreated;
-
-    private final MapperAnalyzerWrapper indexAnalyzer;
-
-    final MapperRegistry mapperRegistry;
-
-    private final BooleanSupplier idFieldDataEnabled;
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
@@ -122,7 +119,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
-        this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
+        this.documentParser = new DocumentParser(xContentRegistry);
+        this.documentMapperParser = new DocumentMapperParser(indexSettings, this, similarityService, mapperRegistry,
                 queryShardContextSupplier, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
         this.mapperRegistry = mapperRegistry;
@@ -142,6 +140,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapperParser documentMapperParser() {
+        return this.documentMapperParser;
+    }
+
+    DocumentParser documentParser() {
         return this.documentParser;
     }
 
@@ -278,7 +280,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper documentMapper;
 
         try {
-            documentMapper = documentParser.parse(type, mappings);
+            documentMapper = documentMapperParser.parse(type, mappings);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
@@ -326,7 +328,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
-        return documentParser.parse(mappingType, mappingSource);
+        return documentMapperParser.parse(mappingType, mappingSource);
     }
 
     /**

@@ -57,8 +57,13 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("some words");
+    protected Object getSampleValueForDocument() {
+        return "some words";
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return 1;
     }
 
     @Override

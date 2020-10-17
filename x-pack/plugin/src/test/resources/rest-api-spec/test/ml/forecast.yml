@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.put_job:
         job_id: forecast-job
@@ -26,6 +30,10 @@ setup:
 
 ---
 "Test forecast on closed job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /status_exception/
       ml.forecast:
@@ -33,6 +41,10 @@ setup:
 
 ---
 "Test forecast given duration is zero":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /\[duration\] must be positive[:] \[0s\]/
       ml.forecast:
@@ -41,6 +53,10 @@ setup:
 
 ---
 "Test forecast given duration is negative":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /\[duration\] must be positive[:] \[-1\]/
       ml.forecast:
@@ -49,6 +65,10 @@ setup:
 
 ---
 "Test forecast given duration is too large":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /\[duration\] must be 3650d or less[:] \[3651d\]/
       ml.forecast:
@@ -57,6 +77,10 @@ setup:
 
 ---
 "Test forecast given expires_in is negative":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /\[expires_in\] must be non-negative[:] \[-1\]/
       ml.forecast:
@@ -64,6 +88,10 @@ setup:
         expires_in: "-1s"
 ---
 "Test forecast given max_model_memory is too large":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: /\[max_model_memory\] must be less than 500mb/
       ml.forecast:

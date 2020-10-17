@@ -101,9 +101,4 @@ public class HistogramGroupSource extends SingleGroupSource {
     public int hashCode() {
         return Objects.hash(field, scriptConfig, interval);
     }
-
-    @Override
-    public boolean supportsIncrementalBucketUpdate() {
-        return false;
-    }
 }

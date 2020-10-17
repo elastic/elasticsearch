@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -71,6 +73,10 @@ setup:
 
 ---
 "Test get job stats after uploading data prompting the creation of some stats":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.post_data:
@@ -109,6 +115,10 @@ setup:
 
 ---
 "Test get job stats for closed job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.post_data:
@@ -149,6 +159,10 @@ setup:
 
 ---
 "Test get job stats of datafeed job that has not received any data":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_job_stats:
@@ -168,6 +182,10 @@ setup:
 
 ---
 "Test get all job stats with _all":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_job_stats:
@@ -180,6 +198,10 @@ setup:
 
 ---
 "Test get all job stats with wildcard":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_job_stats:
@@ -192,6 +214,10 @@ setup:
 
 ---
 "Test get all job stats implicitly":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.get_job_stats: {}
@@ -199,6 +225,10 @@ setup:
 
 ---
 "Test get job stats given missing job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       catch: missing
@@ -208,6 +238,8 @@ setup:
 ---
 "Test get job stats given pattern and allow_no_match":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features:
         - "warnings"
 
@@ -228,6 +260,8 @@ setup:
 ---
 "Test get job stats given pattern and not allow_no_match":
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features:
         - "warnings"
 
@@ -247,6 +281,10 @@ setup:
 
 ---
 "Test reading v54 data counts and model size stats":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.put_job:
@@ -340,6 +378,10 @@ setup:
 
 ---
 "Test no exception on get job stats with missing index":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       ml.post_data:

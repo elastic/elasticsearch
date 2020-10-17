@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -42,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,24 +59,15 @@ public final class TransportFreezeIndexAction extends
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       DestructiveOperations destructiveOperations) {
         super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, FreezeRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, FreezeResponse::new, ThreadPool.Names.SAME);
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
-    }
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override
     protected void doExecute(Task task, FreezeRequest request, ActionListener<FreezeResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
-    }
-
-    @Override
-    protected FreezeResponse read(StreamInput in) throws IOException {
-        return new FreezeResponse(in);
     }
 
     private Index[] resolveIndices(FreezeRequest request, ClusterState state) {

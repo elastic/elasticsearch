@@ -24,10 +24,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -173,12 +173,13 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         return BucketCardinality.MANY;
     }
 
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    @Override
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new RareTermsAggregatorFactory(name, config, includeExclude,
-            queryShardContext, parent, subFactoriesBuilder, metadata, maxDocCount, precision);
+            context, parent, subFactoriesBuilder, metadata, maxDocCount, precision);
     }
 
     @Override

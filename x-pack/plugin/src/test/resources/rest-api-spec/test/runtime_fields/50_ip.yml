@@ -171,7 +171,7 @@ setup:
             term:
               ip: 252.0.0.0
   - match: {hits.hits.0._explanation.value: 1.0}
-  - match: {hits.hits.0._explanation.description: ip:252.0.0.0}
+  - match: {hits.hits.0._explanation.description: "ip:252.0.0.0"}
   - match: {hits.hits.0._explanation.details.0.value: 1.0}
   - match: {hits.hits.0._explanation.details.0.description: 'boost * runtime_field_score'}
   - match: {hits.hits.0._explanation.details.0.details.0.value: 1.0}

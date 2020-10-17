@@ -36,12 +36,7 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
                                                   ThreadPool threadPool, ActionFilters actionFilters,
                                                   IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
+            DeleteAutoFollowPatternAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
     }
 
     @Override

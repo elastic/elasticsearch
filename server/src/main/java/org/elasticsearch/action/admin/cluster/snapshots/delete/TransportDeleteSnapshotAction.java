@@ -45,13 +45,8 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              DeleteSnapshotRequest::new,indexNameExpressionResolver);
+                DeleteSnapshotRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.snapshotsService = snapshotsService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

@@ -42,13 +42,8 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final PersistentTasksService persistentTasksService) {
         super(PauseFollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PauseFollowAction.Request::new, indexNameExpressionResolver);
+            PauseFollowAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.persistentTasksService = persistentTasksService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

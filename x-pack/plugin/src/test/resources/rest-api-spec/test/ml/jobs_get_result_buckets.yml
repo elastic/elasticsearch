@@ -1,5 +1,7 @@
 setup:
   - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
       features: headers
   - do:
       headers:
@@ -73,6 +75,10 @@ setup:
 
 ---
 "Test result buckets api with time range":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "jobs-get-result-buckets"
@@ -86,6 +92,10 @@ setup:
 
 ---
 "Test result buckets api":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "jobs-get-result-buckets"
@@ -106,6 +116,10 @@ setup:
 
 ---
 "Test get buckets with paging":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "jobs-get-result-buckets"
@@ -121,6 +135,10 @@ setup:
 
 ---
 "Test get buckets with paging in body":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "jobs-get-result-buckets"
@@ -141,6 +159,10 @@ setup:
 
 ---
 "Test get buckets given exclude_interim is false":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "jobs-get-result-buckets"
@@ -150,6 +172,10 @@ setup:
 
 ---
 "Test get buckets given exclude_interim is true":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "jobs-get-result-buckets"
@@ -163,6 +189,10 @@ setup:
 
 ---
 "Test result single bucket api":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "jobs-get-result-buckets"
@@ -174,6 +204,10 @@ setup:
 
 ---
 "Test result single bucket api with empty body":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "jobs-get-result-buckets"
@@ -186,6 +220,10 @@ setup:
 
 ---
 "Test mutually-exclusive params":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: bad_request
       ml.get_buckets:
@@ -223,6 +261,10 @@ setup:
 
 ---
 "Test mutually-exclusive params via body":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: bad_request
       ml.get_buckets:
@@ -265,6 +307,10 @@ setup:
 
 ---
 "Test with unknown job id":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       catch: missing
       ml.get_buckets:
@@ -272,6 +318,10 @@ setup:
 
 ---
 "Test get buckets with sort field and secondary sort by time":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_buckets:
         job_id: "jobs-get-result-buckets"

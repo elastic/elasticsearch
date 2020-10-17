@@ -1,5 +1,9 @@
 setup:
- - do:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
+  - do:
      cluster.health:
         wait_for_status: green
         wait_for_nodes: 3
@@ -8,6 +12,10 @@ setup:
 
 ---
 "Test open old jobs":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.open_job:
         job_id: old-cluster-job
@@ -111,6 +119,10 @@ setup:
 
 ---
 "Test get old cluster job's timing stats":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_job_stats:
         job_id: old-cluster-job-with-ts
@@ -135,6 +147,10 @@ setup:
 
 ---
 "Test job with pre 6.4 rules":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_jobs:
         job_id: job-with-old-rules
@@ -144,6 +160,10 @@ setup:
 
 ---
 "Test get job with function shortcut should expand":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
   - do:
       ml.get_jobs:
         job_id: old-cluster-function-shortcut-expansion
@@ -152,6 +172,10 @@ setup:
 
 ---
 "Test annotation index mappings":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/pull/63542"
+      version: all
+
 
   - do:
       indices.get_mapping:

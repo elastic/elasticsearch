@@ -36,24 +36,30 @@ import java.util.Map;
 public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
     public static final String CONTENT_TYPE = "point";
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, PointFieldType> {
+    public static class CartesianPointParser extends PointParser<ParsedCartesianPoint> {
+
+        public CartesianPointParser(String name, ParsedPoint nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+            super(name, ParsedCartesianPoint::new, (parser, point) -> {
+                ParsedCartesianPoint.parsePoint(parser, point, ignoreZValue);
+                return point;
+            }, (ParsedCartesianPoint) nullValue, ignoreZValue, ignoreMalformed);
+        }
+    }
+
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder {
+
         public Builder(String name) {
             super(name, new FieldType());
-            builder = this;
         }
 
         @Override
         public PointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                       Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-            PointFieldType ft = new PointFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, meta);
-            ft.setGeometryParser(new PointParser<>(name, ParsedCartesianPoint::new, (parser, point) -> {
-                ParsedCartesianPoint.parsePoint(parser, point, ignoreZValue.value());
-                return point;
-            }, (ParsedCartesianPoint) nullValue, ignoreZValue.value(), ignoreMalformed.value()));
-            ft.setGeometryIndexer(new PointIndexer(ft));
+            CartesianPointParser parser = new CartesianPointParser(name, nullValue, ignoreZValue.value(), ignoreMalformed.value());
+            PointFieldType ft = new PointFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, parser, meta);
             return new PointFieldMapper(simpleName, fieldType, ft, multiFields,
-                ignoreMalformed, ignoreZValue(context), nullValue, copyTo);
+                ignoreMalformed, ignoreZValue(context), nullValue, copyTo, new PointIndexer(ft), parser);
         }
 
     }
@@ -82,8 +88,10 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
 
     public PointFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                             MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                            Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
+                            Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo,
+                            PointIndexer pointIndexer, CartesianPointParser parser) {
+        super(simpleName, fieldType, mappedFieldType, multiFields,
+            ignoreMalformed, ignoreZValue, nullValue, copyTo, pointIndexer, parser);
     }
 
     @Override
@@ -116,13 +124,13 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         return (PointFieldType) mappedFieldType;
     }
 
-    public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>>
-    implements ShapeQueryable {
+    public static class PointFieldType extends AbstractPointGeometryFieldType implements ShapeQueryable {
 
         private final ShapeQueryPointProcessor queryProcessor;
 
-        private PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, meta);
+        private PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                               CartesianPointParser parser, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, parser, meta);
             this.queryProcessor = new ShapeQueryPointProcessor();
         }
 

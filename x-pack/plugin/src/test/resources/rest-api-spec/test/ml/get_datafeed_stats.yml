@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -97,10 +95,6 @@ setup:
 
 ---
 "Test get datafeed stats given missing datafeed_id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: missing
@@ -110,8 +104,6 @@ setup:
 ---
 "Test get datafeed stats with expression that does not match and allow_no_match":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
         - "warnings"
 
@@ -134,8 +126,6 @@ setup:
 ---
 "Test get datafeed stats with expression that does not match and not allow_no_match":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
         - "warnings"
 
@@ -155,10 +145,6 @@ setup:
 
 ---
 "Test get single datafeed stats":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_datafeed_stats:
@@ -182,10 +168,6 @@ setup:
 
 ---
 "Test get stats for started datafeed":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.open_job:
@@ -207,10 +189,6 @@ setup:
 
 ---
 "Test get stats for started datafeed contains timing stats":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.open_job:
@@ -251,10 +229,6 @@ setup:
 
 ---
 "Test implicit get all datafeed stats given started datafeeds":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.open_job:
@@ -284,10 +258,6 @@ setup:
 
 ---
 "Test explicit get all datafeed stats given stopped datafeeds":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_datafeed_stats:
@@ -300,10 +270,6 @@ setup:
 
 ---
 "Test implicit get all datafeed stats given stopped datafeeds":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_datafeed_stats: {}
@@ -315,9 +281,8 @@ setup:
 
 ---
 "Test get datafeed stats when total_search_time_ms mapping is missing":
+
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
 
   - do:

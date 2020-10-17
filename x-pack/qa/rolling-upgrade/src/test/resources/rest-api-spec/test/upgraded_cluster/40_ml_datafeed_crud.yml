@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
      cluster.health:
         wait_for_status: green
@@ -13,10 +9,7 @@ setup:
 ---
 "Test old and mixed cluster datafeeds without aggs":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: allowed_warnings
-
   - do:
       allowed_warnings:
          - "index [airline-data] matches multiple legacy templates [global, template], composable templates will only match a single template"
@@ -117,10 +110,7 @@ setup:
 ---
 "Test old and mixed cluster datafeeds with aggs":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: allowed_warnings
-
   - do:
       allowed_warnings:
          - "index [airline-data] matches multiple legacy templates [global, template], composable templates will only match a single template"

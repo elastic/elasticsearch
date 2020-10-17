@@ -1,9 +1,5 @@
 ---
 "Test old cluster datafeed without aggs":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_datafeeds:
         datafeed_id: old-cluster-datafeed-without-aggs
@@ -22,8 +18,6 @@
 ---
 "Test old cluster datafeed with aggs":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: allowed_warnings
   - do:
       allowed_warnings:
@@ -47,9 +41,6 @@
 
 ---
 "Put job and datafeed without aggs in mixed cluster":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
 
   - do:
       ml.put_job:
@@ -97,8 +88,6 @@
 ---
 "Put job and datafeed with aggs in mixed cluster":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: allowed_warnings
 
   - do:

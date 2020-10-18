@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.Filter.Result;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -38,18 +39,31 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -82,6 +96,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -181,6 +196,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(setting("audit.logfile.events.emit_request_body"),
             false, Property.NodeScope, Property.Dynamic);
+    // actions (and their requests) that are audited as "security change" events
+    public static final Set<String> SECURITY_CHANGE_ACTIONS = Set.of(PutUserAction.NAME, PutRoleAction.NAME, PutRoleMappingAction.NAME,
+            SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
+            DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
+            DeletePrivilegesAction.NAME);
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that
@@ -521,34 +541,50 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         // The security changes here are the consequences of *user* requests,
         // so in a strict interpretation we should filter them out if there are ignore policies in place for the causing user,
         // but we do NOT do that because filtering out audit records of security changes can be unexpectedly dangerous.
-        if (events.contains(SECURITY_CONFIG_CHANGE)) {
+        if (events.contains(SECURITY_CONFIG_CHANGE) && SECURITY_CHANGE_ACTIONS.contains(action)) {
             try {
                 if (msg instanceof PutUserRequest) {
+                    assert PutUserAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutUserRequest) msg).build();
                 } else if (msg instanceof PutRoleRequest) {
+                    assert PutRoleAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleRequest) msg).build();
                 } else if (msg instanceof PutRoleMappingRequest) {
+                    assert PutRoleMappingAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleMappingRequest) msg).build();
                 } else if (msg instanceof SetEnabledRequest) {
+                    assert SetEnabledAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((SetEnabledRequest) msg).build();
                 } else if (msg instanceof ChangePasswordRequest) {
+                    assert ChangePasswordAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((ChangePasswordRequest) msg).build();
                 } else if (msg instanceof CreateApiKeyRequest) {
+                    assert CreateApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((CreateApiKeyRequest) msg).build();
                 } else if (msg instanceof GrantApiKeyRequest) {
+                    assert GrantApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((GrantApiKeyRequest) msg).build();
                 } else if (msg instanceof PutPrivilegesRequest) {
+                    assert PutPrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutPrivilegesRequest) msg).build();
                 } else if (msg instanceof DeleteUserRequest) {
+                    assert DeleteUserAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteUserRequest) msg).build();
                 } else if (msg instanceof DeleteRoleRequest) {
+                    assert DeleteRoleAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleRequest) msg).build();
                 } else if (msg instanceof DeleteRoleMappingRequest) {
+                    assert DeleteRoleMappingAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleMappingRequest) msg).build();
                 } else if (msg instanceof InvalidateApiKeyRequest) {
+                    assert InvalidateApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((InvalidateApiKeyRequest) msg).build();
                 } else if (msg instanceof DeletePrivilegesRequest) {
+                    assert DeletePrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeletePrivilegesRequest) msg).build();
+                } else {
+                    throw new IllegalStateException("Unknown message class type [" + msg.getClass().getSimpleName() +
+                            "] for the \"security change\" action [" + action + "]");
                 }
             } catch (IOException e) {
                 // TODO ensure and test that IOExceptions are gracefully handled up the call stack

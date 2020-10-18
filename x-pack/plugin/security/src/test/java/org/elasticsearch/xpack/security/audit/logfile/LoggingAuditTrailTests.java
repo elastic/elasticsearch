@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.mock.orig.Mockito;
@@ -40,6 +41,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -292,7 +294,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(e, hasToString(containsString("invalid pattern [/no-inspiration]")));
     }
 
-    public void testSecurityConfigChangeFormatting() throws Exception {
+    public void testSecurityConfigChangeFormatting() {
         RoleDescriptor.IndicesPrivileges testIndicesPrivileges =
                 RoleDescriptor.IndicesPrivileges.builder()
                         .indices("test*")
@@ -319,9 +321,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = createAuthentication();
-        auditTrail.accessGranted(requestId, authentication, "_action", createApiKeyRequest, authorizationInfo);
+        auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
 
-        //assertMsg(logger, Map.of(), Map.of());
+        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        //assertMsg(output.get(1), Map.of(), Map.of(), Map.of());
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {
@@ -1302,6 +1306,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
+        assertMsg(logger, checkFields, checkArrayFields, Collections.emptyMap());
+    }
+
+    private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields,
+                           Map<String, ToXContentObject> checkObjectFields) {
         final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat("Exactly one logEntry expected. Found: " + output.size(), output.size(), is(1));
         if (checkFields == null) {
@@ -1309,7 +1318,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
             return;
         }
         String logLine = output.get(0);
-        // check each field
+        assertMsg(logLine, checkFields, checkArrayFields, checkObjectFields);
+    }
+
+    private void assertMsg(String logLine, Map<String, String> checkFields, Map<String, String[]> checkArrayFields,
+                           Map<String, ToXContentObject> checkObjectFields) {
+        // check each string-valued field
         for (final Map.Entry<String, String> checkField : checkFields.entrySet()) {
             if (null == checkField.getValue()) {
                 // null checkField means that the field does not exist
@@ -1324,6 +1338,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
         }
+        // check each array-valued field
         for (final Map.Entry<String, String[]> checkArrayField : checkArrayFields.entrySet()) {
             if (null == checkArrayField.getValue()) {
                 // null checkField means that the field does not exist
@@ -1343,9 +1358,25 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
         }
+        // check each object-valued field
+        for (final Map.Entry<String, ToXContentObject> checkObjectField : checkObjectFields.entrySet()) {
+            if (null == checkObjectField.getValue()) {
+                // null checkField means that the field does not exist
+                assertThat("Field: " + checkObjectField.getKey() + " should be missing.",
+                        logLine.contains(Pattern.quote("\"" + checkObjectField.getKey() + "\":")), is(false));
+            } else {
+                final String objectStringValue = Strings.toString(checkObjectField.getValue());
+                final Pattern logEntryFieldPattern =
+                        Pattern.compile(Pattern.quote("\"" + checkObjectField.getKey() + "\":" + objectStringValue));
+                assertThat("Field " + checkObjectField.getKey() + " value mismatch. Expected " + objectStringValue +
+                        ".\nLog line: " + logLine, logEntryFieldPattern.matcher(logLine).find(), is(true));
+                // remove checked field
+                logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
+            }
+        }
         logLine = logLine.replaceFirst("\"" + LoggingAuditTrail.LOG_TYPE + "\":\"audit\", ", "")
-                         .replaceFirst("\"" + LoggingAuditTrail.TIMESTAMP + "\":\"[^\"]*\"", "")
-                         .replaceAll("[{},]", "");
+                .replaceFirst("\"" + LoggingAuditTrail.TIMESTAMP + "\":\"[^\"]*\"", "")
+                .replaceAll("[{},]", "");
         // check no extra fields
         assertThat("Log event has extra unexpected content: " + logLine, Strings.hasText(logLine), is(false));
     }

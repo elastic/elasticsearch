@@ -19,12 +19,11 @@
 
 package org.elasticsearch.index.search;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.SearchModule;
 
 import java.util.Collection;
@@ -136,13 +135,8 @@ public final class QueryParserHelper {
             }
 
             if (acceptAllTypes == false) {
-                try {
-                    fieldType.termQuery("", context);
-                } catch (QueryShardException | UnsupportedOperationException e) {
-                    // field type is never searchable with term queries (eg. geo point): ignore
+                if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                     continue;
-                } catch (IllegalArgumentException | ElasticsearchParseException e) {
-                    // other exceptions are parsing errors or not indexed fields: keep
                 }
             }
 

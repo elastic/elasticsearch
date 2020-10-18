@@ -28,6 +28,6 @@ public final class CloneSnapshotAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "cluster:admin/snapshot/clone";
 
     private CloneSnapshotAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 }

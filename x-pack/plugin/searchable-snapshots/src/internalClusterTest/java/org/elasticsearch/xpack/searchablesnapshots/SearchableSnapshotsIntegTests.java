@@ -37,7 +37,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -466,9 +465,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         for (String node : internalCluster().getNodeNames()) {
             final IndicesService service = internalCluster().getInstance(IndicesService.class, node);
             if (service != null && service.hasIndex(restoredIndex)) {
-                final RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
                 assertThat(
-                    repositoriesService.repository(repositoryName).getRestoreThrottleTimeInNanos(),
+                    getRepositoryOnNode(repositoryName, node).getRestoreThrottleTimeInNanos(),
                     useRateLimits ? greaterThan(0L) : equalTo(0L)
                 );
             }

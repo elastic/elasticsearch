@@ -33,7 +33,6 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -47,6 +46,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.StringF
 import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregator.CollectConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -72,18 +72,18 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                                                 QueryBuilder backgroundFilter,
                                                 TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                                 SignificanceHeuristic significanceHeuristic,
-                                                QueryShardContext queryShardContext,
+                                                AggregationContext context,
                                                 AggregatorFactory parent,
                                                 AggregatorFactories.Builder subFactoriesBuilder,
                                                 String fieldName,
                                                 String [] sourceFieldNames,
                                                 boolean filterDuplicateText,
                                                 Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, context, parent, subFactoriesBuilder, metadata);
 
         // Note that if the field is unmapped (its field type is null), we don't fail,
         // and just use the given field name as a placeholder.
-        this.fieldType = queryShardContext.getFieldType(fieldName);
+        this.fieldType = context.getFieldType(fieldName);
         if (fieldType != null && fieldType.indexAnalyzer() == null) {
             throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
                 "requires an analyzed field");
@@ -121,13 +121,13 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
         MapStringTermsAggregator.CollectorSource collectorSource = new SignificantTextCollectorSource(
-            queryShardContext.lookup().source(),
-            queryShardContext.bigArrays(),
+            context.lookup().source(),
+            context.bigArrays(),
             fieldType,
             sourceFieldNames,
             filterDuplicateText
         );
-        SignificanceLookup lookup = new SignificanceLookup(queryShardContext, fieldType, DocValueFormat.RAW, backgroundFilter);
+        SignificanceLookup lookup = new SignificanceLookup(context, fieldType, DocValueFormat.RAW, backgroundFilter);
         return new MapStringTermsAggregator(
             name,
             factories,

@@ -45,7 +45,6 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name) {
             super(name);
-            builder = this;
         }
 
         @Override
@@ -78,12 +77,7 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return new SourceValueFetcher(name(), mapperService) {
-                @Override
-                protected String parseSourceValue(Object value) {
-                    return value.toString();
-                }
-            };
+            return SourceValueFetcher.toString(name(), mapperService, format);
         }
     }
 

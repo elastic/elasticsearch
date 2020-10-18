@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
-
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
@@ -121,6 +120,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
     protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
+    //we don't include the binary field in the arrays below as it is not searchable
+    protected static final String BINARY_FIELD_NAME = "mapped_binary";
     protected static final String[] MAPPED_FIELD_NAMES = new String[]{TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME,
         INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_NANOS_FIELD_NAME, DATE_FIELD_NAME,
         DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME,
@@ -393,7 +394,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     OBJECT_FIELD_NAME, "type=object",
                     GEO_POINT_FIELD_NAME, "type=geo_point",
                     GEO_POINT_ALIAS_FIELD_NAME, "type=alias,path=" + GEO_POINT_FIELD_NAME,
-                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
+                    GEO_SHAPE_FIELD_NAME, "type=geo_shape",
+                    BINARY_FIELD_NAME, "type=binary"
                 ))), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
                 mapperService.merge("_doc", new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","

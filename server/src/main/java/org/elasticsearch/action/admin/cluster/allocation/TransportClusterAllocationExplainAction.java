@@ -37,17 +37,14 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -62,7 +59,6 @@ public class TransportClusterAllocationExplainAction
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final AllocationDeciders allocationDeciders;
-    private final ShardsAllocator shardAllocator;
     private final AllocationService allocationService;
 
     @Inject
@@ -70,25 +66,14 @@ public class TransportClusterAllocationExplainAction
                                                    ThreadPool threadPool, ActionFilters actionFilters,
                                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                                    ClusterInfoService clusterInfoService, SnapshotsInfoService snapshotsInfoService,
-                                                   AllocationDeciders allocationDeciders,
-                                                   ShardsAllocator shardAllocator, AllocationService allocationService) {
+                                                   AllocationDeciders allocationDeciders, AllocationService allocationService) {
         super(ClusterAllocationExplainAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClusterAllocationExplainRequest::new, indexNameExpressionResolver);
+            ClusterAllocationExplainRequest::new, indexNameExpressionResolver, ClusterAllocationExplainResponse::new,
+                ThreadPool.Names.MANAGEMENT);
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.allocationDeciders = allocationDeciders;
-        this.shardAllocator = shardAllocator;
         this.allocationService = allocationService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected ClusterAllocationExplainResponse read(StreamInput in) throws IOException {
-        return new ClusterAllocationExplainResponse(in);
     }
 
     @Override

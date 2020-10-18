@@ -258,7 +258,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         ArgumentCaptor<PutMappingRequest> putMappingRequestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
 
-        doAnswer(callListenerOnResponse(new AcknowledgedResponse(true)))
+        doAnswer(callListenerOnResponse(AcknowledgedResponse.TRUE))
             .when(client).execute(eq(PutMappingAction.INSTANCE), putMappingRequestCaptor.capture(), any());
 
         DestinationIndex.updateMappingsToDestIndex(

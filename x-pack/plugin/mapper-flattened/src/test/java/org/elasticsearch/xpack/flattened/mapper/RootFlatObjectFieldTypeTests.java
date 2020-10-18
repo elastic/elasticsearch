@@ -22,12 +22,15 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
     private static RootFlatObjectFieldType createDefaultFieldType() {
-        return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false, null);
+        return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
     }
 
     public void testValueForDisplay() {
@@ -49,19 +52,19 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
 
         RootFlatObjectFieldType unsearchable = new RootFlatObjectFieldType("field", false, true,
-            Collections.emptyMap(), false, null);
+            Collections.emptyMap(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlatObjectFieldType ft = new RootFlatObjectFieldType("field", true, false, Collections.emptyMap(), false, null);
+        RootFlatObjectFieldType ft = new RootFlatObjectFieldType("field", true, false, Collections.emptyMap(), false);
         assertEquals(
             new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))),
             ft.existsQuery(null));
 
-        RootFlatObjectFieldType withDv = new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false, null);
+        RootFlatObjectFieldType withDv = new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
         assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
     }
 
@@ -121,5 +124,13 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key", "value");
+        RootFlatObjectFieldType ft = createDefaultFieldType();
+
+        assertEquals(List.of(sourceValue), fetchSourceValue(ft, sourceValue));
+        assertEquals(List.of(), fetchSourceValue(ft, null));
     }
 }

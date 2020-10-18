@@ -65,20 +65,20 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
  *****************************************************************************/
 
 // integ test zip only uses server, so a different notice file is needed there
-tasks.register("buildServerNotice", NoticeTask)
+def buildServerNoticeTaskProvider = tasks.register("buildServerNotice", NoticeTask)
 
 // other distributions include notices from modules as well, which are added below later
-tasks.register("buildDefaultNotice", NoticeTask).configure {
+def buildDefaultNoticeTaskProvider = tasks.register("buildDefaultNotice", NoticeTask) {
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
-tasks.register("buildOssNotice", NoticeTask).configure {
+def buildOssNoticeTaskProvider = tasks.register("buildOssNotice", NoticeTask) {
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
-tasks.register("buildDefaultNoJdkNotice", NoticeTask)
+def buildDefaultNoJdkNoticeTaskProvider = tasks.register("buildDefaultNoJdkNotice", NoticeTask)
 
-tasks.register("buildOssNoJdkNotice", NoticeTask)
+def buildOssNoJdkNoticeTaskProvider = tasks.register("buildOssNoJdkNotice", NoticeTask)
 
 // The :server and :libs projects belong to all distributions
 tasks.withType(NoticeTask).configureEach {
@@ -99,32 +99,32 @@ String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 String externalTestOutputs = 'build/outputs/external-test'
 
-tasks.register("processOssOutputs", Sync) {
+def processOssOutputsTaskProvider = tasks.register("processOssOutputs", Sync) {
   into ossOutputs
 }
 
-tasks.register("processDefaultOutputs", Sync) {
+def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
   into defaultOutputs
-  from processOssOutputs
+  from processOssOutputsTaskProvider
 }
 
-tasks.register("processSystemdOutputs", Sync) {
+def processSystemdOutputsTaskProvider = tasks.register("processSystemdOutputs", Sync) {
   into systemdOutputs
 }
 
-tasks.register("processExternalTestOutputs", Sync) {
+def processExternalTestOutputsTaskProvider = tasks.register("processExternalTestOutputs", Sync) {
   into externalTestOutputs
 }
 
 // Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
 // All transport modules are included so that they may be randomized for testing
-tasks.register("processTransportOutputs", Sync) {
+def processTransportOutputsTaskProvider = tasks.register("processTransportOutputs", Sync) {
   into transportOutputs
 }
 
 // these are dummy tasks that can be used to depend on the relevant sub output dir
-tasks.register("buildOssModules") {
-  dependsOn "processOssOutputs"
+def buildOssModulesTaskProvider = tasks.register("buildOssModules") {
+  dependsOn processOssOutputsTaskProvider
   outputs.dir "${ossOutputs}/modules"
 }
 tasks.register("buildOssBin") {
@@ -135,27 +135,27 @@ tasks.register("buildOssConfig") {
   dependsOn "processOssOutputs"
   outputs.dir "${ossOutputs}/config"
 }
-tasks.register("buildDefaultModules") {
-  dependsOn "processDefaultOutputs"
+def buildDefaultModulesTaskProvider = tasks.register("buildDefaultModules") {
+  dependsOn processDefaultOutputsTaskProvider
   outputs.dir "${defaultOutputs}/modules"
 }
 tasks.register("buildDefaultBin") {
-  dependsOn "processDefaultOutputs"
+  dependsOn processDefaultOutputsTaskProvider
   outputs.dir "${defaultOutputs}/bin"
 }
-tasks.register("buildDefaultConfig") {
-  dependsOn "processDefaultOutputs"
+def buildDefaultConfigTaskProvider = tasks.register("buildDefaultConfig") {
+  dependsOn processOssOutputsTaskProvider
   outputs.dir "${defaultOutputs}/config"
 }
-tasks.register("buildSystemdModule") {
+def buildSystemdModuleTaskProvider = tasks.register("buildSystemdModule") {
   dependsOn "processSystemdOutputs"
   outputs.dir "${systemdOutputs}/modules"
 }
-tasks.register("buildTransportModules") {
-  dependsOn "processTransportOutputs"
+def buildTransportModulesTaskProvider = tasks.register("buildTransportModules") {
+  dependsOn processTransportOutputsTaskProvider
   outputs.dir "${transportOutputs}/modules"
 }
-tasks.register("buildExternalTestModules") {
+def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModules") {
   dependsOn "processExternalTestOutputs"
   outputs.dir "${externalTestOutputs}/modules"
 }
@@ -166,9 +166,10 @@ Configuration moduleZip(Project module) {
   return config
 }
 
-void copyModule(Sync copyTask, Project module) {
-  Configuration moduleConfig = moduleZip(module)
+void copyModule(TaskProvider<Sync> copyTask, Project module) {
   copyTask.configure {
+    Configuration moduleConfig = moduleZip(module)
+
     dependsOn moduleConfig
     from({ zipTree(moduleConfig.singleFile) }) {
       includeEmptyDirs false
@@ -194,14 +195,14 @@ void copyModule(Sync copyTask, Project module) {
 }
 
 // log4j config could be contained in modules, so we must join it together using these tasks
-tasks.register("buildOssLog4jConfig") {
+def buildOssLog4jConfigTaskProvider = tasks.register("buildOssLog4jConfig") {
   dependsOn "processOssOutputs"
   ext.contents = []
   ext.log4jFile = file("${ossOutputs}/log4j2.properties")
   outputs.file log4jFile
 }
-tasks.register("buildDefaultLog4jConfig") {
-  dependsOn "processDefaultOutputs"
+def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfig") {
+  dependsOn processDefaultOutputsTaskProvider
   ext.contents = []
   ext.log4jFile = file("${defaultOutputs}/log4j2.properties")
   outputs.file log4jFile
@@ -214,27 +215,32 @@ Closure writeLog4jProperties = {
     it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
   }
 }
-tasks.named("buildOssLog4jConfig").configure {
+buildOssLog4jConfigTaskProvider.configure {
   doLast(writeLog4jProperties)
 }
-tasks.named("buildDefaultLog4jConfig").configure {
+
+buildDefaultLog4jConfigTaskProvider.configure {
   doLast(writeLog4jProperties)
 }
 
 // copy log4j2.properties from modules that have it
-void copyLog4jProperties(Task buildTask, Project module) {
-  Configuration moduleConfig = moduleZip(module)
-  buildTask.dependsOn moduleConfig
-  buildTask.doFirst {
-    FileTree tree = zipTree(moduleConfig.singleFile)
-    FileTree filtered = tree.matching {
-      include 'config/log4j2.properties'
-      include '*/config/log4j2.properties' // could be in a bundled plugin
-    }
-    if (filtered.isEmpty() == false) {
-      buildTask.contents.add('\n\n' + filtered.singleFile.getText('UTF-8'))
+void copyLog4jProperties(TaskProvider buildTask, Project module) {
+  buildTask.configure {
+    Configuration moduleConfig = moduleZip(module)
+
+    dependsOn moduleConfig
+    doFirst {
+      FileTree tree = zipTree(moduleConfig.singleFile)
+      FileTree filtered = tree.matching {
+        include 'config/log4j2.properties'
+        include '*/config/log4j2.properties' // could be in a bundled plugin
+      }
+      if (filtered.isEmpty() == false) {
+        contents.add('\n\n' + filtered.singleFile.getText('UTF-8'))
+      }
     }
   }
+
 }
 
 ext.restTestExpansions = [
@@ -249,19 +255,23 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
   File licenses = new File(module.projectDir, 'licenses')
   if (licenses.exists()) {
-    buildDefaultNotice.licensesDir licenses
-    buildDefaultNotice.source module.file('src/main/java')
-    buildOssNotice.licensesDir licenses
-    buildOssNotice.source module.file('src/main/java')
+    buildDefaultNoticeTaskProvider.configure {
+      licensesDir licenses
+      source module.file('src/main/java')
+    }
+    buildOssNotice.configure {
+      licensesDir licenses
+      source module.file('src/main/java')
+    }
   }
 
-  copyModule(processOssOutputs, module)
+  copyModule(processOssOutputsTaskProvider, module)
   if (module.name.startsWith('transport-')) {
-    copyModule(processTransportOutputs, module)
+    copyModule(processTransportOutputsTaskProvider, module)
   }
 
-  copyLog4jProperties(buildOssLog4jConfig, module)
-  copyLog4jProperties(buildDefaultLog4jConfig, module)
+  copyLog4jProperties(buildOssLog4jConfigTaskProvider, module)
+  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, module)
 
   restTestExpansions['expected.modules.count'] += 1
 }
@@ -271,17 +281,19 @@ Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   File licenses = new File(xpackModule.projectDir, 'licenses')
   if (licenses.exists()) {
-    buildDefaultNotice.licensesDir licenses
-    buildDefaultNotice.source xpackModule.file('src/main/java')
+    buildDefaultNoticeTaskProvider.configure {
+      licensesDir licenses
+      source xpackModule.file('src/main/java')
+    }
   }
-  copyModule(processDefaultOutputs, xpackModule)
-  copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
+  copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, xpackModule)
 }
 
-copyModule(processSystemdOutputs, project(':modules:systemd'))
+copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
 
 project(':test:external-modules').subprojects.each { Project testModule ->
-  copyModule(processExternalTestOutputs, testModule)
+  copyModule(processExternalTestOutputsTaskProvider, testModule)
 }
 
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
@@ -366,11 +378,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.mode = 0644
           }
         }
-        Task buildModules
+        def buildModules
         if (oss) {
-          buildModules = project(':distribution').buildOssModules
+          buildModules = buildOssModulesTaskProvider
         } else {
-          buildModules = project(':distribution').buildDefaultModules
+          buildModules = buildDefaultModulesTaskProvider
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64']
         if (platform != null) {
@@ -390,16 +402,16 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           }
         }
         if (BuildParams.isSnapshotBuild()) {
-          from(project(':distribution').buildExternalTestModules)
+          from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {
-          from(project(':distribution').buildSystemdModule)
+          from(buildSystemdModuleTaskProvider)
         }
       }
     }
 
     transportModulesFiles = copySpec {
-      from project(':distribution').buildTransportModules
+      from buildTransportModulesTaskProvider
     }
 
     configFiles = { distributionType, oss, jdk ->
@@ -461,16 +473,16 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     noticeFile = { oss, jdk ->
       copySpec {
         if (project.name == 'integ-test-zip') {
-          from buildServerNotice
+          from buildServerNoticeTaskProvider
         } else {
           if (oss && jdk) {
-            from buildOssNotice
+            from buildOssNoticeTaskProvider
           } else if (oss) {
-            from buildOssNoJdkNotice
+            from buildOssNoJdkNoticeTaskProvider
           } else if (jdk) {
-            from buildDefaultNotice
+            from buildDefaultNoticeTaskProvider
           } else {
-            from buildDefaultNoJdkNotice
+            from buildDefaultNoJdkNoticeTaskProvider
           }
         }
       }

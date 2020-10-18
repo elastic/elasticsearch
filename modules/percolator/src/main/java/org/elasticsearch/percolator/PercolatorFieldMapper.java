@@ -219,15 +219,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-            }
-            return new SourceValueFetcher(name(), mapperService) {
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    return value;
-                }
-            };
+            return SourceValueFetcher.identity(name(), mapperService, format);
         }
 
         Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
@@ -371,7 +363,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         Rewriteable.rewriteAndFetch(queryBuilder, queryShardContext, future);
         queryBuilder = future.actionGet();
 
-        Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        Version indexVersion = context.indexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
 
         QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext));
@@ -403,7 +395,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         ParseContext.Document doc = context.doc();
         PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
-        Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        Version indexVersion = context.indexSettings().getIndexVersionCreated();
         result = QueryAnalyzer.analyze(query, indexVersion);
         if (result == QueryAnalyzer.Result.UNKNOWN) {
             doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, INDEXED_KEYWORD));

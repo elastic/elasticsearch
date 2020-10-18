@@ -203,10 +203,6 @@ class JNANatives {
             }
         } catch (UnsatisfiedLinkError e) {
             // this will have already been logged by Kernel32Library, no need to repeat it
-        } finally {
-            if (process != null) {
-                kernel.CloseHandle(process);
-            }
         }
     }
 

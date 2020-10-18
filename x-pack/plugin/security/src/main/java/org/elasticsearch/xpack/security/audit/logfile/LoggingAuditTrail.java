@@ -115,7 +115,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String IP_FILTER_ORIGIN_FIELD_VALUE = "ip_filter";
     public static final String SECURITY_CHANGE_ORIGIN_FIELD_VALUE = "security_config_change";
 
-    // changing any of these field names requires changing the log4j2.properties file too
+    // changing any of these field names requires changing the log4j2.properties file(s) too
     public static final String LOG_TYPE = "type";
     public static final String TIMESTAMP = "timestamp";
     public static final String ORIGIN_TYPE_FIELD_NAME = "origin.type";
@@ -149,8 +149,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String RULE_FIELD_NAME = "rule";
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
     public static final String X_FORWARDED_FOR_FIELD_NAME = "x_forwarded_for";
-    // the fields below are used exclusively for "security_configuration_change" type of events
-    public static final String PUT_CONFIG_FIELD_NAME = "put"; // the configuration object taking effect
+    // the fields below are used exclusively for "security_configuration_change" type of events, and show the configuration
+    // object taking effect; it could be creating a new, or updating an existing configuration
+    // if our (REST) APIs (at least the security APIs) would make the distinction between creating a *new* resource using the POST
+    // verb and updating an *existing* resource using the PUT verb, then auditing would also be able to show the create/update distinction
+    public static final String PUT_CONFIG_FIELD_NAME = "put";
     public static final String DELETE_CONFIG_FIELD_NAME = "delete";
     public static final String CHANGE_PASSWORD_FIELD_NAME = "change_password";
     public static final String ENABLE_CONFIG_FIELD_NAME = "enable";

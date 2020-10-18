@@ -83,8 +83,8 @@ public class TypeParsersTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(
-            null, mapperService, type -> typeParser, olderVersion, null, null, null);
+        Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(null, type -> typeParser, olderVersion, null,
+            null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), mapperService::isIdFieldDataEnabled);
 
         builder.parse("some-field", olderContext, fieldNode);
         assertWarnings("At least one multi-field, [sub-field], " +
@@ -98,8 +98,8 @@ public class TypeParsersTests extends ESTestCase {
             BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
-        Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(
-            null, mapperService, type -> typeParser, version, null, null, null);
+        Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(null, type -> typeParser, version, null, null,
+            null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), mapperService::isIdFieldDataEnabled);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             TextFieldMapper.Builder bad = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);

@@ -107,11 +107,6 @@ public class GeoTileGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public boolean supportsIncrementalBucketUpdate() {
-        return true;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         super.innerXContent(builder, params);

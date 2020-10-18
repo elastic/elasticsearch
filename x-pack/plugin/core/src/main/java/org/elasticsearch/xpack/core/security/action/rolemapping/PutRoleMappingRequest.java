@@ -31,7 +31,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingRequest extends ActionRequest implements WriteRequest<PutRoleMappingRequest> {
+public class PutRoleMappingRequest extends ActionRequest
+        implements WriteRequest<PutRoleMappingRequest> {
 
     private String name = null;
     private boolean enabled = true;

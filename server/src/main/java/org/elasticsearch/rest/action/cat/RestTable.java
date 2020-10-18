@@ -51,14 +51,14 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        XContentType xContentType = getXContentType(request);
+        XContentType xContentType = getxContentType(request);
         if (xContentType != null) {
             return buildXContentBuilder(table, channel);
         }
         return buildTextPlainResponse(table, channel);
     }
 
-    private static XContentType getXContentType(RestRequest request) {
+    private static XContentType getxContentType(RestRequest request) {
         if (request.hasParam("format")) {
             return XContentType.fromFormat(request.param("format"));
         }

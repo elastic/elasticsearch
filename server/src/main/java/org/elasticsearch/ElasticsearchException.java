@@ -631,7 +631,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
              * parsing exception because that is generally the most interesting
              * exception to return to the user. If that exception is caused by
              * an ElasticsearchException we'd like to keep unwrapping because
-             * ElasticsearchExceptions tend to contain useful information for
+             * ElasticserachExceptions tend to contain useful information for
              * the user.
              */
             Throwable cause = ex.getCause();

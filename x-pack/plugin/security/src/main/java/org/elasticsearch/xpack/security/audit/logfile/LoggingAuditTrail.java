@@ -522,38 +522,33 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         // so in a strict interpretation we should filter them out if there are ignore policies in place for the causing user,
         // but we do NOT do that because filtering out audit records of security changes can be unexpectedly dangerous.
         if (events.contains(SECURITY_CONFIG_CHANGE)) {
-            Supplier<LogEntryBuilder> newLogEntryBuilder = () -> {
-                return new LogEntryBuilder(false)
-                        .with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE)
-                        .withRequestId(requestId);
-            };
             try {
                 if (msg instanceof PutUserRequest) {
-                    newLogEntryBuilder.get().withRequestBody((PutUserRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((PutUserRequest) msg).build();
                 } else if (msg instanceof PutRoleRequest) {
-                    newLogEntryBuilder.get().withRequestBody((PutRoleRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleRequest) msg).build();
                 } else if (msg instanceof PutRoleMappingRequest) {
-                    newLogEntryBuilder.get().withRequestBody((PutRoleMappingRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleMappingRequest) msg).build();
                 } else if (msg instanceof SetEnabledRequest) {
-                    newLogEntryBuilder.get().withRequestBody((SetEnabledRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((SetEnabledRequest) msg).build();
                 } else if (msg instanceof ChangePasswordRequest) {
-                    newLogEntryBuilder.get().withRequestBody((ChangePasswordRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((ChangePasswordRequest) msg).build();
                 } else if (msg instanceof CreateApiKeyRequest) {
-                    newLogEntryBuilder.get().withRequestBody((CreateApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((CreateApiKeyRequest) msg).build();
                 } else if (msg instanceof GrantApiKeyRequest) {
-                    newLogEntryBuilder.get().withRequestBody((GrantApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((GrantApiKeyRequest) msg).build();
                 } else if (msg instanceof PutPrivilegesRequest) {
-                    newLogEntryBuilder.get().withRequestBody((PutPrivilegesRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((PutPrivilegesRequest) msg).build();
                 } else if (msg instanceof DeleteUserRequest) {
-                    newLogEntryBuilder.get().withRequestBody((DeleteUserRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteUserRequest) msg).build();
                 } else if (msg instanceof DeleteRoleRequest) {
-                    newLogEntryBuilder.get().withRequestBody((DeleteRoleRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleRequest) msg).build();
                 } else if (msg instanceof DeleteRoleMappingRequest) {
-                    newLogEntryBuilder.get().withRequestBody((DeleteRoleMappingRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleMappingRequest) msg).build();
                 } else if (msg instanceof InvalidateApiKeyRequest) {
-                    newLogEntryBuilder.get().withRequestBody((InvalidateApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((InvalidateApiKeyRequest) msg).build();
                 } else if (msg instanceof DeletePrivilegesRequest) {
-                    newLogEntryBuilder.get().withRequestBody((DeletePrivilegesRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeletePrivilegesRequest) msg).build();
                 }
             } catch (IOException e) {
                 // TODO ensure and test that IOExceptions are gracefully handled up the call stack
@@ -798,6 +793,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withXForwardedFor(threadContext)
                     .build();
         }
+    }
+
+    private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
+        return new LogEntryBuilder(false)
+                .with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE)
+                .withRequestId(requestId);
     }
 
     private class LogEntryBuilder {

@@ -122,7 +122,6 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
         coerce = ((GeoShapeFieldMapper)fieldMapper).coerce();
         assertThat(coerce, equalTo(false));
-        assertFieldWarnings("tree");
     }
 
     /**

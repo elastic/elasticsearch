@@ -351,8 +351,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
-        ParseContext context = new ParseContext.InternalParseContext(settings,
-            mapperService.documentMapperParser(), mapperService.documentMapper(), null, null);
+        ParseContext context = new ParseContext.InternalParseContext(mapperService.documentMapper(), null, null);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);

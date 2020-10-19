@@ -163,7 +163,7 @@ is not `0`, a reason for the rejection or failure is included in the response.
 
 `cluster_name`::
 (string)
-Name of the cluster. Based on the <<cluster.name>> setting.
+Name of the cluster. Based on the <<cluster-name>> setting.
 
 `nodes`::
 (object)
@@ -186,7 +186,7 @@ since the {wikipedia}/Unix_time[Unix Epoch].
 
 `name`::
 (string)
-Human-readable identifier for the node. Based on the <<node.name>> setting.
+Human-readable identifier for the node. Based on the <<node-name>> setting.
 
 `transport_address`::
 (string)

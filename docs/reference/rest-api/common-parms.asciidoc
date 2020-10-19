@@ -145,7 +145,11 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}.
+The _destination index_ for the {transform}. The mappings of the destination 
+index are deduced based on the source fields when possible. If alternate 
+mappings are required, use the 
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]

@@ -21,11 +21,13 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
@@ -43,8 +45,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -69,11 +70,11 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     @Override
     protected void doBuild(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
         QueryShardContext queryShardContext = context.getQueryShardContext();
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getQueryShardContext());
-        if (joinFieldMapper != null) {
+        Joiner joiner = Joiner.getJoiner(queryShardContext);
+        if (joiner != null) {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
             JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(name, context, typeName,
-                fetchChildInnerHits, joinFieldMapper);
+                fetchChildInnerHits, joiner);
             setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
             innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
         } else {
@@ -86,42 +87,36 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     static final class JoinFieldInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
         private final String typeName;
         private final boolean fetchChildInnerHits;
-        private final ParentJoinFieldMapper joinFieldMapper;
+        private final Joiner joiner;
 
         JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits,
-                                    ParentJoinFieldMapper joinFieldMapper) {
+                                    Joiner joiner) {
             super(name, context);
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
-            this.joinFieldMapper = joinFieldMapper;
+            this.joiner = joiner;
         }
 
         @Override
         public TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException {
             Weight innerHitQueryWeight = getInnerHitQueryWeight();
-            String joinName = getSortedDocValue(joinFieldMapper.name(), context, hit.docId());
+            String joinName = getSortedDocValue(joiner.getJoinField(), context, hit.docId());
             if (joinName == null) {
                 return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
             }
 
             QueryShardContext qsc = context.getQueryShardContext();
-            ParentIdFieldMapper parentIdFieldMapper =
-                joinFieldMapper.getParentIdFieldMapper(typeName, fetchChildInnerHits == false);
-            if (parentIdFieldMapper == null) {
-                return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
-            }
-
             Query q;
             if (fetchChildInnerHits) {
-                Query hitQuery = parentIdFieldMapper.fieldType().termQuery(hit.getId(), qsc);
+                Query hitQuery = new TermQuery(new Term(joiner.parentJoinField(typeName), hit.getId()));
                 q = new BooleanQuery.Builder()
                     // Only include child documents that have the current hit as parent:
                     .add(hitQuery, BooleanClause.Occur.FILTER)
                     // and only include child documents of a single relation:
-                    .add(joinFieldMapper.fieldType().termQuery(typeName, qsc), BooleanClause.Occur.FILTER)
+                    .add(new TermQuery(new Term(joiner.getJoinField(), typeName)), BooleanClause.Occur.FILTER)
                     .build();
             } else {
-                String parentId = getSortedDocValue(parentIdFieldMapper.name(), context, hit.docId());
+                String parentId = getSortedDocValue(joiner.childJoinField(typeName), context, hit.docId());
                 if (parentId == null) {
                     return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                 }

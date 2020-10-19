@@ -506,37 +506,14 @@ public class RestRequest implements ToXContent.Params {
             throw new IllegalStateException("source and source_content_type parameters are required");
         }
         BytesArray bytes = new BytesArray(source);
-        final XContentType xContentType = parseContentType(Collections.singletonList(typeParam));
+        final XContentType xContentType = XContentType.fromMediaType(ParsedMediaType.parseMediaType(typeParam).mimeTypeWithoutParams());
         if (xContentType == null) {
             throw new IllegalStateException("Unknown value for source_content_type [" + typeParam + "]");
         }
         return new Tuple<>(xContentType, bytes);
     }
 
-    /**
-     * Parses the given content type string for the media type. This method currently ignores parameters.
-     */
-    // TODO stop ignoring parameters such as charset...
-    public static XContentType parseContentType(List<String> header) {
-        if (header == null || header.isEmpty()) {
-            return null;
-        } else if (header.size() > 1) {
-            throw new IllegalArgumentException("only one Content-Type header should be provided");
-        }
 
-        String rawContentType = header.get(0);
-        final String[] elements = rawContentType.split("[ \t]*;");
-        if (elements.length > 0) {
-            final String[] splitMediaType = elements[0].split("/");
-            if (splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0]).matches()
-                && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) {
-                return XContentType.fromMediaType(elements[0]);
-            } else {
-                throw new IllegalArgumentException("invalid Content-Type header [" + rawContentType + "]");
-            }
-        }
-        throw new IllegalArgumentException("empty Content-Type header");
-    }
 
     public static class ContentTypeHeaderException extends RuntimeException {
 

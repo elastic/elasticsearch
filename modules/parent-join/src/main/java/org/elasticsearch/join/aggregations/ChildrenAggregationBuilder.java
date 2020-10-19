@@ -26,8 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -113,23 +112,16 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         ValuesSourceConfig config;
 
-        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(context::getFieldType, context::getMapper);
-        if (parentJoinFieldMapper == null) {
+        Joiner joiner = Joiner.getJoiner(context);
+        if (joiner == null || joiner.childTypeExists(childType) == false) {
             // Unmapped field case
             config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), context);
             return config;
         }
 
-        ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
-        if (parentIdFieldMapper == null) {
-            // Unmapped field case
-            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), context);
-            return config;
-        }
-
-        parentFilter = parentIdFieldMapper.getParentFilter();
-        childFilter = parentIdFieldMapper.getChildFilter(childType);
-        MappedFieldType fieldType = parentIdFieldMapper.fieldType();
+        parentFilter = joiner.parentFilter(childType);
+        childFilter = joiner.filter(childType);
+        MappedFieldType fieldType = context.getFieldType(joiner.parentJoinField(childType));
         config = ValuesSourceConfig.resolveFieldOnly(fieldType, context);
         return config;
     }

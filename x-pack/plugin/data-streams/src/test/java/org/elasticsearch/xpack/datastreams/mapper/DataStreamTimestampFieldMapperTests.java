@@ -291,5 +291,4 @@ public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
             + "{\"@timestamp2\": {\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
         assertConflicts(mapping1, mapping2, parser, "Mapper for [_data_stream_timestamp]", "[enabled] from [false] to [true]");
     }
-
 }

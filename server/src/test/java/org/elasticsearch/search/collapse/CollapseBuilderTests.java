@@ -205,7 +205,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             MappedFieldType fieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
-                    return null;
+                    return "some_type";
                 }
 
                 @Override
@@ -225,7 +225,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             when(shardContext.getFieldType("field")).thenReturn(fieldType);
             CollapseBuilder builder = new CollapseBuilder("field");
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
-            assertEquals(exc.getMessage(), "unknown type for collapse field `field`, only keywords and numbers are accepted");
+            assertEquals(exc.getMessage(), "collapse is not supported for the field [field] of the type [some_type]");
         }
     }
 

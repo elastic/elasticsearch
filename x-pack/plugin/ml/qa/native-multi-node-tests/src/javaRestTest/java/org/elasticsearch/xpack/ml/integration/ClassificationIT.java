@@ -19,7 +19,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -785,7 +784,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(
             buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(NESTED_FIELD)))
-            .setModelMemoryLimit(new ByteSizeValue(1, ByteSizeUnit.KB))
+            .setModelMemoryLimit(ByteSizeValue.ofKb(1))
             .build();
         putAnalytics(config);
         // Shouldn't throw

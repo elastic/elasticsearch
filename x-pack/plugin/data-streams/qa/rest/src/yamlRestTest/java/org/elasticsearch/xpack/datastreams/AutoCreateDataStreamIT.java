@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.xpack.datastreams;
 
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.Request;
@@ -31,20 +31,21 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.time.Instant;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.containsString;
 
-public class AutoCreateIndexIT extends ESRestTestCase {
+public class AutoCreateDataStreamIT extends ESRestTestCase {
 
     /**
      * Check that setting {@link AutoCreateIndex#AUTO_CREATE_INDEX_SETTING} to <code>false</code>
-     * disable the automatic creation on indices.
+     * disable the automatic creation on data streams.
      */
-    public void testCannotAutoCreateIndexWhenDisabled() throws IOException {
+    public void testCannotAutoCreateDataStreamWhenDisabled() throws IOException {
         configureAutoCreateIndex(false);
 
-        // Attempt to add a document to a non-existing index. Auto-creating the index should fail owing to the setting above.
+        // Attempt to add a document to a non-existing data stream. Auto-creating the data stream should fail owing to the setting above.
         final Request indexDocumentRequest = new Request("POST", "recipe_kr/_doc/123456");
         indexDocumentRequest.setJsonEntity("{ \"name\": \"Kimchi\" }");
         final ResponseException responseException = expectThrows(ResponseException.class, this::indexDocument);
@@ -60,7 +61,7 @@ public class AutoCreateIndexIT extends ESRestTestCase {
      * is <code>false</code>, when the index name matches a template and that template has <code>allow_auto_create</code>
      * set to <code>true</code>.
      */
-    public void testCanAutoCreateIndexWhenAllowedByTemplate() throws IOException {
+    public void testCanAutoCreateDataStreamWhenAllowedByTemplate() throws IOException {
         configureAutoCreateIndex(false);
 
         createTemplateWithAllowAutoCreate(true);
@@ -71,11 +72,11 @@ public class AutoCreateIndexIT extends ESRestTestCase {
     }
 
     /**
-     * Check that automatically creating an index is disallowed when the index name matches a template and that template has
+     * Check that automatically creating a data stream is disallowed when the data stream name matches a template and that template has
      * <code>allow_auto_create</code> explicitly to <code>false</code>, even when {@link AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
      * is set to <code>true</code>.
      */
-    public void testCannotAutoCreateIndexWhenDisallowedByTemplate() throws IOException {
+    public void testCannotAutoCreateDataStreamWhenDisallowedByTemplate() throws IOException {
         configureAutoCreateIndex(true);
 
         createTemplateWithAllowAutoCreate(false);
@@ -89,7 +90,6 @@ public class AutoCreateIndexIT extends ESRestTestCase {
             containsString("no such index [composable template [recipe*] forbids index auto creation]")
         );
     }
-
 
     private void configureAutoCreateIndex(boolean value) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder()
@@ -110,6 +110,7 @@ public class AutoCreateIndexIT extends ESRestTestCase {
             .startObject()
             .array("index_patterns", "recipe*")
             .field("allow_auto_create", allowAutoCreate)
+            .startObject("data_stream").endObject()
             .endObject();
 
         final Request createTemplateRequest = new Request("PUT", "_index_template/recipe_template");
@@ -119,8 +120,8 @@ public class AutoCreateIndexIT extends ESRestTestCase {
     }
 
     private Response indexDocument() throws IOException {
-        final Request indexDocumentRequest = new Request("POST", "recipe_kr/_doc/123456");
-        indexDocumentRequest.setJsonEntity("{ \"name\": \"Kimchi\" }");
+        final Request indexDocumentRequest = new Request("POST", "recipe_kr/_doc");
+        indexDocumentRequest.setJsonEntity("{ \"@timestamp\": \"" + Instant.now() + "\", \"name\": \"Kimchi\" }");
         return client().performRequest(indexDocumentRequest);
     }
 }

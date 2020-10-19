@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -22,7 +21,7 @@ public abstract class SizeEstimatorTestCase<T extends ToXContentObject & Account
     abstract T translateObject(U originalObject);
 
     public void testRamUsageEstimationAccuracy() {
-        final long bytesEps = new ByteSizeValue(2, ByteSizeUnit.KB).getBytes();
+        final long bytesEps = ByteSizeValue.ofKb(2).getBytes();
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
             U obj = generateTrueObject();
             T estimateObj = translateObject(obj);

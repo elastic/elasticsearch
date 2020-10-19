@@ -91,7 +91,6 @@ public class JobNodeSelector {
         long maxAvailableMemory = Long.MIN_VALUE;
         DiscoveryNode minLoadedNodeByCount = null;
         DiscoveryNode minLoadedNodeByMemory = null;
-        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
 
             // First check conditions that would rule out the node regardless of what other tasks are assigned to it

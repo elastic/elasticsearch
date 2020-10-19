@@ -25,6 +25,7 @@ import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
@@ -118,11 +119,11 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             fetchLatest.setCommandLine(asList("git", "fetch", "--all"));
         });
 
-        tasks.register("checkoutBwcBranch", checkoutBwcBranch -> {
+        TaskProvider<Task> checkoutBwcBranchTaskProvider = tasks.register("checkoutBwcBranch", checkoutBwcBranch -> {
             checkoutBwcBranch.dependsOn(fetchLatestTaskProvider);
             checkoutBwcBranch.doLast(t -> {
+                File checkoutDir = gitExtension.getCheckoutDir().get();
                 Logger logger = project.getLogger();
-
                 String bwcBranch = this.gitExtension.getBwcBranch().get();
                 final String refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
                     .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
@@ -131,15 +132,24 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                 String effectiveRefSpec = maybeAlignedRefSpec(logger, refspec);
 
                 logger.lifecycle("Performing checkout of {}...", refspec);
-                LoggedExec.exec(project, spec -> {
-                    spec.workingDir(gitExtension.getCheckoutDir());
+                LoggedExec.exec(execOperations, spec -> {
+                    spec.workingDir(checkoutDir);
                     spec.commandLine("git", "checkout", effectiveRefSpec);
                 });
 
-                String checkoutHash = GlobalBuildInfoPlugin.gitInfo(gitExtension.getCheckoutDir().get()).getRevision();
+                String checkoutHash = GlobalBuildInfoPlugin.gitInfo(checkoutDir).getRevision();
                 logger.lifecycle("Checkout hash for {} is {}", project.getPath(), checkoutHash);
                 writeFile(new File(project.getBuildDir(), "refspec"), checkoutHash);
             });
+        });
+
+        String checkoutConfiguration = "checkout";
+        project.getConfigurations().create(checkoutConfiguration);
+
+        project.getArtifacts().add(checkoutConfiguration, gitExtension.getCheckoutDir(), configurablePublishArtifact -> {
+            configurablePublishArtifact.builtBy(checkoutBwcBranchTaskProvider);
+            configurablePublishArtifact.setType("directory");
+            configurablePublishArtifact.setName("checkoutDir");
         });
     }
 

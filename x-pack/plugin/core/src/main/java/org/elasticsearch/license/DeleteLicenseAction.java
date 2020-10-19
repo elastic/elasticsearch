@@ -14,7 +14,7 @@ public class DeleteLicenseAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/license/delete";
 
     private DeleteLicenseAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

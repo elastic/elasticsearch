@@ -19,11 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
 
 public class NewArrayNode extends ArgumentsNode {
 
@@ -59,32 +56,4 @@ public class NewArrayNode extends ArgumentsNode {
         super(location);
     }
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(getLocation());
-
-        if (initialize) {
-            methodWriter.push(getArgumentNodes().size());
-            methodWriter.newArray(MethodWriter.getType(getExpressionType().getComponentType()));
-
-            for (int index = 0; index < getArgumentNodes().size(); ++index) {
-                ExpressionNode argumentNode = getArgumentNodes().get(index);
-
-                methodWriter.dup();
-                methodWriter.push(index);
-                argumentNode.write(classWriter, methodWriter, writeScope);
-                methodWriter.arrayStore(MethodWriter.getType(getExpressionType().getComponentType()));
-            }
-        } else {
-            for (ExpressionNode argumentNode : getArgumentNodes()) {
-                argumentNode.write(classWriter, methodWriter, writeScope);
-            }
-
-            if (getArgumentNodes().size() > 1) {
-                methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(getExpressionType()).getDescriptor(), getArgumentNodes().size());
-            } else {
-                methodWriter.newArray(MethodWriter.getType(getExpressionType().getComponentType()));
-            }
-        }
-    }
 }

@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -82,10 +80,6 @@ setup:
 
 ---
 "Test result influencers api":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_influencers:
         job_id: "get-influencers-test"
@@ -100,10 +94,6 @@ setup:
 
 ---
 "Test get influencers with paging":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_influencers:
         job_id: "get-influencers-test"
@@ -119,10 +109,6 @@ setup:
 
 ---
 "Test get influencers with paging in body":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_influencers:
         job_id: "get-influencers-test"
@@ -143,10 +129,6 @@ setup:
 
 ---
 "Test get influencers given exclude_interim false":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_influencers:
         job_id: "get-influencers-test"
@@ -156,10 +138,6 @@ setup:
 
 ---
 "Test get influencers given exclude_interim true":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_influencers:
         job_id: "get-influencers-test"
@@ -173,10 +151,6 @@ setup:
 
 ---
 "Test result influencers api with time range":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_influencers:
         job_id: "get-influencers-test"
@@ -188,10 +162,6 @@ setup:
 
 ---
 "Test with unknown job id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: missing
       ml.get_influencers:
@@ -199,10 +169,6 @@ setup:
 
 ---
 "Test get influencers api with influencer score filter":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_influencers:
         job_id: "get-influencers-test"
@@ -213,10 +179,6 @@ setup:
 
 ---
 "Test get influencers api sort":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_influencers:
         job_id: "get-influencers-test"

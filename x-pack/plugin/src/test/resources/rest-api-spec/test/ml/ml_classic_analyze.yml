@@ -1,9 +1,5 @@
 ---
 "Test analyze API with an analyzer that does what we used to do in native code":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       indices.analyze:
         body:  >

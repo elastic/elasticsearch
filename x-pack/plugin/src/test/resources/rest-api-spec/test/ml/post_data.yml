@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -48,10 +46,6 @@ setup:
 
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.post_data:
         job_id: post-data-job
@@ -110,10 +104,6 @@ setup:
 
 ---
 "Test flush and close job WITHOUT sending any data":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.flush_job:
         job_id: post-data-job
@@ -132,10 +122,6 @@ setup:
 
 ---
 "Test flush with skip_time":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.post_data:
@@ -281,10 +267,6 @@ setup:
 
 ---
 "Test open and close with non-existent job id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: missing
       ml.open_job:
@@ -297,10 +279,6 @@ setup:
 
 ---
 "Test flushing and posting a closed job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: /status_exception/

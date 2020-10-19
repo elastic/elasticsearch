@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
         - headers
         - allowed_warnings
@@ -150,10 +148,6 @@ setup:
         index: .ml-stats*
 ---
 "Test get stats given missing trained model":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: missing
@@ -161,10 +155,6 @@ setup:
         model_id: "missing-trained-model"
 ---
 "Test get stats given expression without matches and allow_no_match is false":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: missing
@@ -174,10 +164,6 @@ setup:
 
 ---
 "Test get stats given expression without matches and allow_no_match is true":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_trained_models_stats:
@@ -187,10 +173,6 @@ setup:
   - match: { trained_model_stats: [] }
 ---
 "Test get stats given trained models":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_trained_models_stats:
         model_id: "a-unused-regression-model"

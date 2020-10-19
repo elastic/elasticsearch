@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -88,10 +86,6 @@ setup:
 
 ---
 "Test get model snapshots API with no params":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_model_snapshots:
         job_id: "get-model-snapshots"
@@ -102,10 +96,6 @@ setup:
 
 ---
 "Test get model snapshots API with _all":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_model_snapshots:
         job_id: "get-model-snapshots"
@@ -117,10 +107,6 @@ setup:
 
 ---
 "Test get specific model snapshot":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_model_snapshots:
         job_id: "get-model-snapshots"
@@ -131,10 +117,6 @@ setup:
 
 ---
 "Test get model snapshots API with start/end":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_model_snapshots:
         job_id: "get-model-snapshots"
@@ -147,10 +129,6 @@ setup:
 
 ---
 "Test get model snapshots API with ascending":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_model_snapshots:
         job_id: "get-model-snapshots"
@@ -162,10 +140,6 @@ setup:
 
 ---
 "Test get model snapshots API with size":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_model_snapshots:
         job_id: "get-model-snapshots"
@@ -177,10 +151,6 @@ setup:
 
 ---
 "Test get model snapshots API with from":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.get_model_snapshots:
         job_id: "get-model-snapshots"
@@ -192,10 +162,6 @@ setup:
 
 ---
 "Test with unknown job id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: missing
       ml.get_model_snapshots:

@@ -197,7 +197,7 @@ public class HttpClient implements Closeable {
         if (request.hasBody() && internalRequest.containsHeader("Content-Type") == false) {
             XContentType xContentType = XContentFactory.xContentType(request.body());
             if (xContentType != null) {
-                internalRequest.setHeader("Content-Type", xContentType.mediaType());
+                internalRequest.setHeader("Content-Type", xContentType.canonical());
             }
         }
 

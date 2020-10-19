@@ -24,7 +24,7 @@ public enum DataAttachment implements ToXContentObject {
     YAML() {
         @Override
         public String contentType() {
-            return XContentType.YAML.mediaType();
+            return XContentType.YAML.canonical();
         }
 
         @Override
@@ -41,7 +41,7 @@ public enum DataAttachment implements ToXContentObject {
     JSON() {
         @Override
         public String contentType() {
-            return XContentType.JSON.mediaType();
+            return XContentType.JSON.canonical();
         }
 
         @Override

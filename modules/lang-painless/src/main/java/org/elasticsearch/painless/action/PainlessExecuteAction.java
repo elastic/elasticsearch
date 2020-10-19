@@ -214,7 +214,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeOptionalString(index);
                 out.writeOptionalBytesReference(document);
-                out.writeOptionalString(xContentType != null ? xContentType.mediaTypeWithoutParameters(): null);
+                out.writeOptionalString(xContentType != null ? xContentType.canonical(): null);
                 out.writeOptionalNamedWriteable(query);
             }
 

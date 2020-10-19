@@ -107,7 +107,7 @@ public class HttpClient {
                         (out) -> out.write(requestBytes),
                         this::readFrom,
                         "POST",
-                        requestBodyContentType.mediaTypeWithoutParameters() // "application/cbor" or "application/json"
+                        requestBodyContentType.canonical() // "application/cbor" or "application/json"
                     )
                 )).getResponseOrThrowException();
         return fromXContent(response.v1(), response.v2(), responseParser);

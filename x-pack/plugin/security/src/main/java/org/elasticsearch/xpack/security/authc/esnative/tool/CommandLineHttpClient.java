@@ -101,7 +101,7 @@ public class CommandLineHttpClient {
         // Add basic-auth header
         String token = UsernamePasswordToken.basicAuthHeaderValue(user, password);
         conn.setRequestProperty("Authorization", token);
-        conn.setRequestProperty("Content-Type", XContentType.JSON.mediaType());
+        conn.setRequestProperty("Content-Type", XContentType.JSON.canonical());
         String bodyString = requestBodySupplier.get();
         conn.setDoOutput(bodyString != null); // set true if we are sending a body
         SocketAccess.doPrivileged(conn::connect);

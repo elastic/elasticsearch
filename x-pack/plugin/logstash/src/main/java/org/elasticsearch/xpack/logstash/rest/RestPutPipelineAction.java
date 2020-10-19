@@ -52,7 +52,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
                     @Override
                     protected void processResponse(PutPipelineResponse putPipelineResponse) throws Exception {
                         channel.sendResponse(
-                            new BytesRestResponse(putPipelineResponse.status(), XContentType.JSON.mediaType(), BytesArray.EMPTY)
+                            new BytesRestResponse(putPipelineResponse.status(), XContentType.JSON.canonical(), BytesArray.EMPTY)
                         );
                     }
                 }

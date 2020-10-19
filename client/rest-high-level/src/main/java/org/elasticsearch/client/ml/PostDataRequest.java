@@ -162,7 +162,7 @@ public class PostDataRequest implements Validatable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
-        builder.field(CONTENT_TYPE.getPreferredName(), xContentType.mediaType());
+        builder.field(CONTENT_TYPE.getPreferredName(), xContentType.canonical());
         if (resetEnd != null) {
             builder.field(RESET_END.getPreferredName(), resetEnd);
         }

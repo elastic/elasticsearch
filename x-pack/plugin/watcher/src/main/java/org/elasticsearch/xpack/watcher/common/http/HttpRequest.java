@@ -424,7 +424,7 @@ public class HttpRequest implements ToXContentObject {
         }
 
         public Builder jsonBody(ToXContent xContent) {
-            return body(Strings.toString(xContent)).setHeader("Content-Type", XContentType.JSON.mediaType());
+            return body(Strings.toString(xContent)).setHeader("Content-Type", XContentType.JSON.canonical());
         }
 
         public Builder connectionTimeout(TimeValue timeout) {

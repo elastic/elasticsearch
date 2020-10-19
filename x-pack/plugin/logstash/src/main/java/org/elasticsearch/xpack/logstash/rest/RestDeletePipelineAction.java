@@ -44,7 +44,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
                 @Override
                 protected void processResponse(DeletePipelineResponse deletePipelineResponse) {
                     final RestStatus status = deletePipelineResponse.isDeleted() ? RestStatus.OK : RestStatus.NOT_FOUND;
-                    channel.sendResponse(new BytesRestResponse(status, XContentType.JSON.mediaType(), BytesArray.EMPTY));
+                    channel.sendResponse(new BytesRestResponse(status, XContentType.JSON.canonical(), BytesArray.EMPTY));
                 }
             }
         );

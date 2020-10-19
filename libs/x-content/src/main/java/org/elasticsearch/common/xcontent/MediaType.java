@@ -30,7 +30,7 @@ import java.util.Set;
 public interface MediaType {
     /**
      * The headers that can represent this MediaType, does not include the optional parameters
-     * i.e. application/yaml, application/yml, application/vnd.elasticsearch/yaml
+     * i.e. "application/json", "application/vnd.elasticsearch+json"
      */
     Set<String> mimeTypes();
 
@@ -42,9 +42,9 @@ public interface MediaType {
     }
 
     /**
-     * The default representation for the response of this MediaType
+     * The representation for the canonical string representation of this MediaType, i.e. 'application/json'
      */
-    default String defaultResponse(){
+    default String canonical(){
         return mimeTypes().iterator().next();
     }
 

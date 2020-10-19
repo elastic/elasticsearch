@@ -34,7 +34,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
                 .body(XContentBuilder.builder(type.xContent()).startObject().endObject())
                 .build();
         HttpRequest request = template.render(new MockTextTemplateEngine(), emptyMap());
-        assertThat(request.headers, hasEntry(HttpHeaders.Names.CONTENT_TYPE, type.mediaType()));
+        assertThat(request.headers, hasEntry(HttpHeaders.Names.CONTENT_TYPE, type.canonical()));
     }
 
     public void testBody() throws Exception {

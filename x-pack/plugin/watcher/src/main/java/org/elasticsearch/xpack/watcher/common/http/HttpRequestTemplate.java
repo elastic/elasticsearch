@@ -126,12 +126,12 @@ public class HttpRequestTemplate implements ToXContentObject {
             request.setParams(mapBuilder.map());
         }
         if ((headers == null || headers.isEmpty()) && body != null && body.getContentType() != null) {
-            request.setHeaders(singletonMap(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().mediaType()));
+            request.setHeaders(singletonMap(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().canonical()));
         } else if (headers != null && !headers.isEmpty()) {
             MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
             if (body != null && body.getContentType() != null) {
                 // putting the content type first, so it can be overridden by custom headers
-                mapBuilder.put(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().mediaType());
+                mapBuilder.put(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().canonical());
             }
             for (Map.Entry<String, TextTemplate> entry : headers.entrySet()) {
                 mapBuilder.put(entry.getKey(), engine.render(entry.getValue(), model));

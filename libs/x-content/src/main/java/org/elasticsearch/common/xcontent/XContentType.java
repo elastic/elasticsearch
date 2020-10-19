@@ -49,11 +49,6 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String defaultResponse() {
-            return "application/json; charset=UTF-8";
-        }
-
-        @Override
         public String shortName() {
             return "json";
         }
@@ -164,11 +159,7 @@ public enum XContentType implements MediaType {
                 return type;
             }
         }
-        // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
-        if (lowercaseMediaType.toLowerCase(Locale.ROOT).equals("application/x-ndjson")) {
-            return XContentType.JSON;
-        }
-
+        //TODO: don't allow null return type
         return null;
     }
 
@@ -189,7 +180,6 @@ public enum XContentType implements MediaType {
     public int index() {
         return index;
     }
-
 
     public abstract XContent xContent();
 

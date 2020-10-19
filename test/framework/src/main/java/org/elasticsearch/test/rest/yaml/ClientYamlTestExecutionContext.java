@@ -119,7 +119,7 @@ public class ClientYamlTestExecutionContext {
             XContentType xContentType = getContentType(headers, XContentType.values());
             BytesRef bytesRef = bodyAsBytesRef(bodies.get(0), xContentType);
             return new ByteArrayEntity(bytesRef.bytes, bytesRef.offset, bytesRef.length,
-                    ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+                    ContentType.create(xContentType.canonical(), StandardCharsets.UTF_8));
         } else {
             XContentType xContentType = getContentType(headers, STREAMING_CONTENT_TYPES);
             List<BytesRef> bytesRefList = new ArrayList<>(bodies.size());
@@ -137,7 +137,7 @@ public class ClientYamlTestExecutionContext {
                 }
                 bytes[position++] = xContentType.xContent().streamSeparator();
             }
-            return new ByteArrayEntity(bytes, ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            return new ByteArrayEntity(bytes, ContentType.create(xContentType.canonical(), StandardCharsets.UTF_8));
         }
     }
 

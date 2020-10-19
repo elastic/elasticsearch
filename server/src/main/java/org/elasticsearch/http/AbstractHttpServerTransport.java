@@ -337,37 +337,37 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         Exception badRequestCause = exception;
 
-
+        // find the rest handler and validate that accept and content-type are valid per the rest handler
+        // if no rest handler can be found
         try {
             ParsedMediaType parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
             ParsedMediaType parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
-            if (parsedContentType != null) {
+            RestHandler restHandler = dispatcher.getRestHandler(httpRequest);
 
-                RestHandler restHandler = dispatcher.getRestHandler(httpRequest);
-                if (restHandler != null) {
 
-                    Set<MediaType> validAccepts = restHandler.validAcceptMediaTypes();
-                    if (validAccepts.contains(parsedAccept.mimeTypeWithoutParams()) == false) {
-                        throw new RuntimeException("Kaboom");
-                    }
+            if (restHandler != null) { //if the handler is null, it may becuase of a request for options
 
-                    Set<MediaType> validContentTypes = restHandler.validContentTypeMediaType();
-                    if (validContentTypes.contains(parsedContentType.mimeTypeWithoutParams()) == false) {
-                        throw new RuntimeException("Kaboom");
-                    }
-
-                    try {
-                        restHandler.validateMediaTypes(parsedAccept, parsedContentType);
-                    }catch (RestRequest.InvalidRequestedMediaType e) {
-                        //TODO: clean this up so that it throws the correct response exception
-                        throw e;
-                    }
+                Set<MediaType> validAccepts = restHandler.validAcceptMediaTypes();
+                if (validAccepts.contains(parsedAccept.mimeTypeWithoutParams()) == false) {
+                    throw new RuntimeException("Kaboom");
                 }
 
+                Set<MediaType> validContentTypes = restHandler.validContentTypeMediaType();
+                if (validContentTypes.contains(parsedContentType.mimeTypeWithoutParams()) == false) {
+                    throw new RuntimeException("Kaboom");
+                }
+
+                try {
+                    restHandler.validateMediaTypes(parsedAccept, parsedContentType);
+                } catch (RestRequest.InvalidRequestedMediaType e) {
+                    //TODO: clean this up so that it throws the correct response exception
+                    throw e;
+                }
 
             }
         } catch (Exception e) {
-            //handle as bad request like below
+            //TODO: handle as bad request like below
+            throw e;
         }
 
 

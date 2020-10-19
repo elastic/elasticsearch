@@ -209,7 +209,7 @@ public class FakeRestRequest extends RestRequest {
         public Builder withContent(BytesReference content, XContentType xContentType) {
             this.content = content;
             if (xContentType != null) {
-                headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
+                headers.put("Content-Type", Collections.singletonList(xContentType.canonical()));
             }
             return this;
         }

@@ -110,7 +110,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     // this is really for search templates, that need to be converted to json format
                     XContentBuilder builder = XContentFactory.jsonBuilder();
                     source = Strings.toString(builder.copyCurrentStructure(parser));
-                    options.put(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
+                    options.put(Script.CONTENT_TYPE_OPTION, XContentType.JSON.canonical());
                 } else {
                     source = parser.text();
                 }

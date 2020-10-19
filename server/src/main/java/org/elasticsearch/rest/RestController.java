@@ -330,6 +330,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return null;
     }
 
+    //TODO: pass in handler found from getRestHandler if non-null, use it, if re-iterate through all to find out the proper way to dispatch
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();

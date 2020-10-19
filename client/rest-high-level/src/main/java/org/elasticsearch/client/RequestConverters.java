@@ -806,7 +806,7 @@ final class RequestConverters {
      */
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
     public static ContentType createContentType(final XContentType xContentType) {
-        return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
+        return ContentType.create(xContentType.canonical(), (Charset) null);
     }
 
     /**

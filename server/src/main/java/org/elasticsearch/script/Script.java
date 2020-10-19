@@ -165,7 +165,7 @@ public final class Script implements ToXContentObject, Writeable {
                     //this is really for search templates, that need to be converted to json format
                     XContentBuilder builder = XContentFactory.jsonBuilder();
                     idOrCode = Strings.toString(builder.copyCurrentStructure(parser));
-                    options.put(CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
+                    options.put(CONTENT_TYPE_OPTION, XContentType.JSON.canonical());
                 } else {
                     idOrCode = parser.text();
                 }
@@ -633,7 +633,7 @@ public final class Script implements ToXContentObject, Writeable {
         String contentType = options == null ? null : options.get(CONTENT_TYPE_OPTION);
 
         if (type == ScriptType.INLINE) {
-            if (contentType != null && builder.contentType().mediaType().equals(contentType)) {
+            if (contentType != null && builder.contentType().mimeTypes().contains(contentType)) {
                 try (InputStream stream = new BytesArray(idOrCode).streamInput()) {
                     builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), stream);
                 }

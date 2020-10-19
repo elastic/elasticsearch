@@ -51,7 +51,6 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -144,7 +143,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
 
         Parameter<SpatialStrategy> strategy = new Parameter<>("strategy", false, () -> SpatialStrategy.RECURSIVE,
-            (n, c, o) -> SpatialStrategy.fromString(o.toString().toLowerCase(Locale.ROOT)), m -> builder(m).strategy.get())
+            (n, c, o) -> SpatialStrategy.fromString(o.toString()), m -> builder(m).strategy.get())
             .deprecated();
         Parameter<String> tree = Parameter.stringParam("tree", false, m -> builder(m).tree.get(), Defaults.TREE)
             .deprecated();
@@ -162,9 +161,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             .deprecated()
             .acceptsNull();
         Parameter<Boolean> pointsOnly = new Parameter<>("points_only", false,
-            () -> strategy.get() == SpatialStrategy.TERM,   // points_only defaults to `true` for TERM, `false` otherwise
+            () -> null,
             (n, c, o) -> XContentMapValues.nodeBooleanValue(o), m -> builder(m).pointsOnly.get())
-            .deprecated();
+            .deprecated().acceptsNull();
 
         Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -182,6 +181,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
 
             this.pointsOnly.setValidator(v -> {
+                if (v == null) {
+                    return;
+                }
                 if (v == false && SpatialStrategy.TERM == strategy.get()) {
                     throw new IllegalArgumentException("points_only cannot be set to false for term strategy");
                 }
@@ -210,6 +212,13 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                     b.field(f, v.toString());
                 }
             }, Objects::toString);
+            pointsOnly.setSerializer((b, f, v) -> {
+                if (v == null) {
+                    b.field(f, strategy.get() == SpatialStrategy.TERM);
+                } else {
+                    b.field(f, v);
+                }
+            }, Objects::toString);
         }
 
         @Override
@@ -232,7 +241,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             if (precision.get() != null) {
                 ft.setPrecisionInMeters(precision.get().value);
             }
-            ft.setPointsOnly(pointsOnly.get());
+            if (pointsOnly.get() != null) {
+                ft.setPointsOnly(pointsOnly.get());
+            }
             if (distanceErrorPct.get() != null) {
                 ft.setDistanceErrorPct(distanceErrorPct.get());
             }

@@ -111,7 +111,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         }
 
         public Builder addRelation(String parent, Set<String> children) {
-            relations.get().add(new Relations(parent, children));
+            relations.setValue(Collections.singletonList(new Relations(parent, children)));
             return this;
         }
 
@@ -290,7 +290,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         }
 
         BytesRef binaryValue = new BytesRef(name);
-        Field field = new Field(fieldType().name(), binaryValue, fieldType);
+        Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();

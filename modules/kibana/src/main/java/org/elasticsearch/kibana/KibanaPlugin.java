@@ -64,7 +64,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     public static final Setting<List<String>> KIBANA_INDEX_NAMES_SETTING = Setting.listSetting(
         "kibana.system_indices",
-        Collections.unmodifiableList(Arrays.asList(".kibana*", ".reporting")),
+        Collections.unmodifiableList(Arrays.asList(".kibana*", ".reporting", ".apm-agent-configuration")),
         Function.identity(),
         Property.NodeScope
     );

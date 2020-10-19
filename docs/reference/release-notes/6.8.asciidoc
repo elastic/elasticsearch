@@ -11,7 +11,7 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 === Enhancements
 
 Features/Java Low Level REST Client::
-* [client] Add simple support for gzip compression {es-pull}63230[#63230] (issue: {es-issue}62044[#62044])
+* Add simple support for gzip compression {es-pull}63230[#63230] (issue: {es-issue}62044[#62044])
 
 
 
@@ -31,12 +31,9 @@ CCR::
 * Retry CCR shard follow task when no seed node left {es-pull}63225[#63225]
 * Set timeout of auto put-follow request to unbounded {es-pull}61679[#61679] (issue: {es-issue}56891[#56891])
 
-Features/Java Low Level REST Client::
-* [client] Decompressed gzip responses report inconsistent encoding values [ISSUE] {es-pull}63314[#63314]
 
-MULTIPLE AREA LABELS::
+Features/Java High Level REST Client::
 * Add hlrc_rest_total_hits_as_int parameter in scroll request {es-pull}61685[#61685] (issue: {es-issue}61677[#61677])
-* Fix bwc of HLRC scroll search requests {es-pull}61696[#61696] (issue: {es-issue}61677[#61677])
 
 
 

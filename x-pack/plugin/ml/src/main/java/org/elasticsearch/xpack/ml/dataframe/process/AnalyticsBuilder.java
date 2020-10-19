@@ -52,7 +52,7 @@ public class AnalyticsBuilder {
         return this;
     }
 
-    public void build() throws IOException {
+    public void build() throws IOException, InterruptedException {
         List<String> command = buildAnalyticsCommand();
         processPipes.addArgs(command);
         nativeController.startProcess(command);

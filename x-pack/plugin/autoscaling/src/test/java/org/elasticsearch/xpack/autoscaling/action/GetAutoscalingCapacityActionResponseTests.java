@@ -30,7 +30,7 @@ public class GetAutoscalingCapacityActionResponseTests extends AutoscalingTestCa
             .collect(Collectors.toSet());
 
         SortedMap<String, AutoscalingDeciderResults> decisions = new TreeMap<>(
-            policyNames.stream().map(s -> Tuple.tuple(s, randomAutoscalingDecisions())).collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+            policyNames.stream().map(s -> Tuple.tuple(s, randomAutoscalingDeciderResults())).collect(Collectors.toMap(Tuple::v1, Tuple::v2))
         );
 
         GetAutoscalingCapacityAction.Response response = new GetAutoscalingCapacityAction.Response(decisions);

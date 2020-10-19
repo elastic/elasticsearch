@@ -31,21 +31,21 @@ import java.util.stream.IntStream;
 
 public abstract class AutoscalingTestCase extends ESTestCase {
 
-    public static AutoscalingDeciderResult randomAutoscalingDecision() {
+    public static AutoscalingDeciderResult randomAutoscalingDeciderResult() {
         AutoscalingCapacity capacity = randomNullableAutoscalingCapacity();
-        return randomAutoscalingDecisionWithCapacity(capacity);
+        return randomAutoscalingDeciderResultWithCapacity(capacity);
     }
 
-    protected static AutoscalingDeciderResult randomAutoscalingDecisionWithCapacity(AutoscalingCapacity capacity) {
+    protected static AutoscalingDeciderResult randomAutoscalingDeciderResultWithCapacity(AutoscalingCapacity capacity) {
         return new AutoscalingDeciderResult(
             capacity,
             new FixedAutoscalingDeciderService.FixedReason(randomNullableByteSizeValue(), randomNullableByteSizeValue(), randomInt(1000))
         );
     }
 
-    public static AutoscalingDeciderResults randomAutoscalingDecisions() {
+    public static AutoscalingDeciderResults randomAutoscalingDeciderResults() {
         final SortedMap<String, AutoscalingDeciderResult> decisions = IntStream.range(0, randomIntBetween(1, 10))
-            .mapToObj(i -> Tuple.tuple(Integer.toString(i), randomAutoscalingDecision()))
+            .mapToObj(i -> Tuple.tuple(Integer.toString(i), randomAutoscalingDeciderResult()))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new IllegalStateException(); }, TreeMap::new));
         AutoscalingCapacity capacity = new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources());
         return new AutoscalingDeciderResults(capacity, decisions);

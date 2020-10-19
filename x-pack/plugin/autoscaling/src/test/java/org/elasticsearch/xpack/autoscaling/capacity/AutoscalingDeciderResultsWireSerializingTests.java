@@ -25,7 +25,7 @@ public class AutoscalingDeciderResultsWireSerializingTests extends AbstractWireS
 
     @Override
     protected AutoscalingDeciderResults createTestInstance() {
-        return AutoscalingTestCase.randomAutoscalingDecisions();
+        return AutoscalingTestCase.randomAutoscalingDeciderResults();
     }
 
 }

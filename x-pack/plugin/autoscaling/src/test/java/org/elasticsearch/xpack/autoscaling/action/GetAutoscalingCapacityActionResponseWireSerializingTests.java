@@ -16,7 +16,7 @@ import java.util.Collections;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingDecisions;
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingDeciderResults;
 
 public class GetAutoscalingCapacityActionResponseWireSerializingTests extends AbstractWireSerializingTestCase<
     GetAutoscalingCapacityAction.Response> {
@@ -36,7 +36,7 @@ public class GetAutoscalingCapacityActionResponseWireSerializingTests extends Ab
         final int numberOfPolicies = randomIntBetween(1, 8);
         final SortedMap<String, AutoscalingDeciderResults> decisions = new TreeMap<>();
         for (int i = 0; i < numberOfPolicies; i++) {
-            decisions.put(randomAlphaOfLength(8), randomAutoscalingDecisions());
+            decisions.put(randomAlphaOfLength(8), randomAutoscalingDeciderResults());
         }
         return new GetAutoscalingCapacityAction.Response(Collections.unmodifiableSortedMap(decisions));
     }

@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
 
-    public void testAutoscalingDecisionsRejectsEmptyDecisions() {
+    public void testAutoscalingDeciderResultsRejectsEmptyResults() {
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new AutoscalingDeciderResults(
@@ -82,7 +82,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
     private void verifyRequiredCapacity(AutoscalingCapacity expected, AutoscalingCapacity... capacities) {
         AtomicInteger uniqueGenerator = new AtomicInteger();
         SortedMap<String, AutoscalingDeciderResult> decisions = Arrays.stream(capacities)
-            .map(AutoscalingDeciderResultsTests::randomAutoscalingDecisionWithCapacity)
+            .map(AutoscalingDeciderResultsTests::randomAutoscalingDeciderResultWithCapacity)
             .collect(
                 Collectors.toMap(
                     k -> randomAlphaOfLength(10) + "-" + uniqueGenerator.incrementAndGet(),

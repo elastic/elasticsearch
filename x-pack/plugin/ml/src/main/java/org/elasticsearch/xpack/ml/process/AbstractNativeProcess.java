@@ -206,19 +206,22 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     @Override
-    public void kill() throws IOException {
+    public void kill(boolean awaitCompletion) throws IOException {
         LOGGER.debug("[{}] Killing {} process", jobId, getName());
         processKilled = true;
         try {
             // The PID comes via the processes log stream. We do wait here to give the process the time to start up and report its PID.
             // Without the PID we cannot kill the process.
-            nativeController.killProcess(cppLogHandler().getPid(processPipes.getTimeout()));
+            nativeController.killProcess(cppLogHandler().getPid(processPipes.getTimeout()), awaitCompletion);
 
             // Wait for the process to die before closing processInStream as if the process
             // is still alive when processInStream is closed it may start persisting state
             cppLogHandler().waitForLogStreamClose(WAIT_FOR_KILL_TIMEOUT);
         } catch (TimeoutException e) {
             LOGGER.warn("[{}] Failed to get PID of {} process to kill", jobId, getName());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("[{}] Interrupted while killing {} process", jobId, getName());
         } finally {
             try {
                 if (processInStream() != null) {

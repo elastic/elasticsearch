@@ -141,7 +141,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
@@ -1502,7 +1501,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings =
                     new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-                bigArrays = new MockBigArrays(new PageCacheRecycler(settings), null);
+                bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 indicesService = new IndicesService(
                     settings,
@@ -1613,14 +1612,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new TransportAutoPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
                         actionFilters, indexNameExpressionResolver));
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-                final SearchTransportService searchTransportService = new SearchTransportService(transportService,
+                final SearchTransportService searchTransportService = new SearchTransportService(transportService, client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
                 final SearchService searchService = new SearchService(clusterService, indicesService, threadPool, scriptService,
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService());
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,
-                    new TransportSearchAction(client, threadPool, new NoneCircuitBreakerService(), transportService, searchService,
+                    new TransportSearchAction(threadPool, new NoneCircuitBreakerService(), transportService, searchService,
                         searchTransportService, searchPhaseController, clusterService,
                         actionFilters, indexNameExpressionResolver, namedWriteableRegistry));
                 actions.put(RestoreSnapshotAction.INSTANCE,
@@ -1726,7 +1725,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         .map(n -> n.node.getAddress()).collect(Collectors.toList()),
                     clusterService.getClusterApplierService(), Collections.emptyList(), random(),
                     rerouteService, ElectionStrategy.DEFAULT_INSTANCE,
-                    () -> new StatusInfo(HEALTHY, "healthy-info"), bigArrays);
+                    () -> new StatusInfo(HEALTHY, "healthy-info"));
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);

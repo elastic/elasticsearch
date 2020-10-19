@@ -211,6 +211,7 @@ The API returns the following response:
           "version": <version>,
           "indices": [],
           "data_streams": [],
+          "feature_states": [],
           "include_global_state": true,
           "state": "SUCCESS",
           "start_time": "2020-07-06T21:55:18.129Z",

@@ -38,7 +38,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class DataStreamMigrationIT extends ESIntegTestCase {
 
@@ -78,8 +77,10 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
         assertAcked(admin().indices().aliases(request).get());
 
-        ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(new String[]{"*"},
-            IndicesOptions.fromOptions(true, true, true, true, true));
+        ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
+            new String[] { "*" },
+            IndicesOptions.fromOptions(true, true, true, true, true)
+        );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(0));
@@ -90,11 +91,12 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(0));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(1));
+        assertThat(resolveResponse.getDataStreams().get(0).getBackingIndices(), arrayContaining("index2", "index1"));
         assertThat(resolveResponse.getIndices().size(), equalTo(2));
 
         int numDocsDs = randomIntBetween(2, 16);
-        //DataStreamIT.indexDocs(alias, numDocsDs);
-        //DataStreamIT.verifyDocs(alias, numDocs1 + numDocs2 + numDocsDs, List.of("index1", "index2"));
+        // DataStreamIT.indexDocs(alias, numDocsDs);
+        // DataStreamIT.verifyDocs(alias, numDocs1 + numDocs2 + numDocsDs, List.of("index1", "index2"));
     }
 
     static void indexDocs(String index, int numDocs) {
@@ -111,7 +113,6 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         for (BulkItemResponse itemResponse : bulkResponse) {
             assertThat(itemResponse.getFailureMessage(), nullValue());
             assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
-            //assertThat(itemResponse.getIndex(), startsWith(index));
         }
         client().admin().indices().refresh(new RefreshRequest(index)).actionGet();
     }

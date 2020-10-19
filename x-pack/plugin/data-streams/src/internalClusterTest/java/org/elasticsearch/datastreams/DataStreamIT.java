@@ -1175,9 +1175,7 @@ public class DataStreamIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(expectedNumHits));
 
-        Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> {
-            assertTrue(expectedIndices.contains(hit.getIndex()));
-        });
+        Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> { assertTrue(expectedIndices.contains(hit.getIndex())); });
     }
 
     static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {

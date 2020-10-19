@@ -145,7 +145,11 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}.
+The _destination index_ for the {transform}. The mappings of the destination 
+index are deduced based on the source fields when possible. If alternate 
+mappings are required, use the 
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
@@ -647,7 +651,7 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are 
+Defines how to aggregate the grouped data. The following aggregations are
 supported:
 +
 --
@@ -660,6 +664,7 @@ supported:
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
+* <<search-aggregations-bucket-missing-aggregation,Missing>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
 * <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
@@ -669,7 +674,7 @@ supported:
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
 
-IMPORTANT: {transforms-cap} support a subset of the functionality in 
+IMPORTANT: {transforms-cap} support a subset of the functionality in
 aggregations. See <<transform-limitations>>.
 
 --
@@ -681,7 +686,7 @@ Defines how to group the data. More than one grouping can be defined
 +
 --
 * <<_date_histogram,Date histogram>>
-* <<_geotile_grid,Geotile Grid>> 
+* <<_geotile_grid,Geotile Grid>>
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 
@@ -772,7 +777,7 @@ end::scroll[]
 tag::scroll_size[]
 `scroll_size`::
 (Optional, integer) Size of the scroll request that powers the operation.
-Defaults to 100.
+Defaults to 1000.
 end::scroll_size[]
 
 tag::search-failures[]

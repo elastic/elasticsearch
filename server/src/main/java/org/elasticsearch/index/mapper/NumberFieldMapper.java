@@ -886,7 +886,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final class NumberFieldType extends SimpleMappedFieldType {
+    public static class NumberFieldType extends SimpleMappedFieldType {
 
         private final NumberType type;
         private final boolean coerce;
@@ -965,7 +965,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, false, nullValue) {
+            return new SourceValueFetcher(name(), mapperService, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -991,6 +991,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
+        }
+
+        @Override
+        public CollapseType collapseType() {
+            return CollapseType.NUMERIC;
         }
     }
 

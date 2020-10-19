@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -53,7 +52,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -88,11 +87,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -351,7 +347,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                                 .get();
 
         logger.info("--> waiting for block to kick in");
-        waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
+        waitForBlock(blockedNode, "test-repo");
 
         logger.info("--> execution was blocked on node [{}], shutting it down", blockedNode);
         unblockNode("test-repo", blockedNode);
@@ -359,9 +355,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         logger.info("--> waiting for completion");
-        SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(60));
-        logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
-        logger.info("--> done");
+        awaitNoMoreRunningOperations();
+        logger.info("Number of failed shards [{}]", getSnapshot("test-repo", "test-snap").shardFailures().size());
     }
 
     public void testSnapshotWithStuckNode() throws Exception {
@@ -391,7 +386,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                                 .get();
 
         logger.info("--> waiting for block to kick in");
-        waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
+        waitForBlock(blockedNode, "test-repo");
 
         logger.info("--> execution was blocked on node [{}], aborting snapshot", blockedNode);
 
@@ -561,11 +556,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testRestoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        Settings nodeSettings = Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                .build();
 
-        internalCluster().startNodes(2, nodeSettings);
+        internalCluster().startNodes(2);
         cluster().wipeIndices("_all");
 
         createRepository("test-repo", "fs");
@@ -576,6 +568,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ensureGreen();
 
         indexRandomDocs("test-idx", 100);
+
+        logger.info("--> force merging down to a single segment to get a deterministic set of files");
+        assertEquals(client().admin().indices().prepareForceMerge("test-idx").setMaxNumSegments(1).setFlush(true).get().getFailedShards(),
+            0);
 
         createSnapshot("test-repo", "test-snap-1", Collections.singletonList("test-idx"));
 
@@ -738,15 +734,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numberOfShards = getNumShards("test-idx").numPrimaries;
         logger.info("number of shards: {}", numberOfShards);
 
-        final String masterNode = blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
+        blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
 
         dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false)
             .setIndices("test-idx").get();
 
-        logger.info("--> stopping data node {}", dataNode);
         stopNode(dataNode);
-        logger.info("--> stopping master node {} ", masterNode);
         internalCluster().stopCurrentMasterNode();
 
         logger.info("--> wait until the snapshot is done");
@@ -818,7 +812,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public void testSnapshotWithDateMath() {
         final String repo = "repo";
 
-        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver();
+        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");
@@ -1132,7 +1126,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         blockAllDataNodes(repoName);
         final String snapshotName = "test-snap";
         final ActionFuture<CreateSnapshotResponse> snapshotResponse = startFullSnapshot(repoName, snapshotName);
-        waitForBlock(dataNodeName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(dataNodeName, repoName);
 
         final AtomicBoolean blocked = new AtomicBoolean(true);
 
@@ -1210,8 +1204,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        logger.info("--> wait for snapshot to complete");
-        SnapshotInfo snapshotInfo = waitForCompletion(repoName, "test-snap", TimeValue.timeValueSeconds(600));
+        awaitNoMoreRunningOperations();
+        SnapshotInfo snapshotInfo = getSnapshot(repoName, "test-snap");
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
         assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
         logger.info("--> done");
@@ -1229,32 +1223,22 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     private static List<Path> findRepoMetaBlobs(Path repoPath) throws IOException {
         List<Path> files = new ArrayList<>();
-        Files.walkFileTree(repoPath.resolve("indices"), new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    final String fileName = file.getFileName().toString();
-                    if (fileName.startsWith(BlobStoreRepository.METADATA_PREFIX) && fileName.endsWith(".dat")) {
-                        files.add(file);
-                    }
-                    return super.visitFile(file, attrs);
-                }
+        forEachFileRecursively(repoPath.resolve("indices"), ((file, basicFileAttributes) -> {
+            final String fileName = file.getFileName().toString();
+            if (fileName.startsWith(BlobStoreRepository.METADATA_PREFIX) && fileName.endsWith(".dat")) {
+                files.add(file);
             }
-        );
+        }));
         return files;
     }
 
     private List<Path> scanSnapshotFolder(Path repoPath) throws IOException {
         List<Path> files = new ArrayList<>();
-        Files.walkFileTree(repoPath, new SimpleFileVisitor<Path>(){
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (file.getFileName().toString().startsWith("__")){
-                        files.add(file);
-                    }
-                    return super.visitFile(file, attrs);
-                }
+        forEachFileRecursively(repoPath.resolve("indices"), ((file, basicFileAttributes) -> {
+            if (file.getFileName().toString().startsWith("__")){
+                files.add(file);
             }
-        );
+        }));
         return files;
     }
 
@@ -1286,7 +1270,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         public static SnapshottableMetadata fromXContent(XContentParser parser) throws IOException {
             return fromXContent(SnapshottableMetadata::new, parser);
         }
-
 
         @Override
         public EnumSet<Metadata.XContentContext> context() {

@@ -125,6 +125,7 @@ public class TransformContinuousIT extends ESRestTestCase {
     public void registerTestCases() {
         addTestCaseIfNotDisabled(new TermsGroupByIT());
         addTestCaseIfNotDisabled(new DateHistogramGroupByIT());
+        addTestCaseIfNotDisabled(new DateHistogramGroupByOtherTimeFieldIT());
     }
 
     @Before
@@ -213,6 +214,11 @@ public class TransformContinuousIT extends ESRestTestCase {
                     int randomizedLon = location.v2() + randomIntBetween(0, 17);
                     source.append("\"location\":\"").append(randomizedLat + "," + randomizedLon).append("\",");
                 }
+
+                // simulate a different timestamp that is off from the timestamp used for sync, so it can fall into the previous bucket
+                String metric_date_string = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(runDate.minusSeconds(randomIntBetween(0, 5)).plusNanos(randomIntBetween(0, 999999)));
+                source.append("\"metric-timestamp\":\"").append(metric_date_string).append("\",");
 
                 String date_string = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
                     .format(runDate.plusNanos(randomIntBetween(0, 999999)));
@@ -317,6 +323,9 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .endObject()
                     .startObject("run")
                     .field("type", "integer")
+                    .endObject()
+                    .startObject("metric-timestamp")
+                    .field("type", dateType)
                     .endObject()
                     .endObject()
                     .endObject();

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -199,7 +200,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0), instanceOf(MapperParsingException.class));
-        assertThat(errors.get(0).getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
+        assertThat(errors.get(0).getMessage(), containsString("analyzer [custom_1] has not been configured in mappings"));
     }
 
     public void testBrokenMapping() throws Exception {
@@ -226,6 +227,38 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0), instanceOf(IllegalArgumentException.class));
         assertThat(errors.get(0).getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
+    }
+
+    public void testIndexTemplateWithAlias() throws Exception {
+        final String templateName = "template_with_alias";
+        final String aliasName = "alias_with_settings";
+        PutRequest request = new PutRequest("api", templateName);
+        request.patterns(singletonList("te*"));
+        request.mappings("{}");
+        Alias alias = new Alias(aliasName)
+            .filter(randomBoolean() ? null : "{\"term\":{\"user_id\":12}}")
+            .indexRouting(randomBoolean() ? null : "route1")
+            .searchRouting(randomBoolean() ? null :"route2")
+            .isHidden(randomBoolean() ? null : randomBoolean())
+            .writeIndex(randomBoolean() ? null : randomBoolean());
+        Set<Alias> aliases = new HashSet<>();
+        aliases.add(alias);
+        request.aliases(aliases);
+
+        List<Throwable> errors = putTemplateDetail(request);
+        assertThat(errors, is(empty()));
+
+        final Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
+        IndexTemplateMetadata template = metadata.templates().get(templateName);
+        ImmutableOpenMap<String, AliasMetadata> aliasMap = template.getAliases();
+        assertThat(aliasMap.size(), equalTo(1));
+        AliasMetadata metaAlias = aliasMap.get(aliasName);
+        String filterString = metaAlias.filter() == null ? null : metaAlias.filter().string();
+        assertThat(filterString, equalTo(alias.filter()));
+        assertThat(metaAlias.indexRouting(), equalTo(alias.indexRouting()));
+        assertThat(metaAlias.searchRouting(), equalTo(alias.searchRouting()));
+        assertThat(metaAlias.isHidden(), equalTo(alias.isHidden()));
+        assertThat(metaAlias.writeIndex(), equalTo(alias.writeIndex()));
     }
 
     public void testFindTemplates() throws Exception {

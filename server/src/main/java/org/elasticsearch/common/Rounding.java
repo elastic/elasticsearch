@@ -904,6 +904,15 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
+            /*
+             * 128 is a power of two that isn't huge. We might be able to do
+             * better if the limit was based on the actual type of prepared
+             * rounding but this'll do for now.
+             */
+            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(minUtcMillis, maxUtcMillis, 128);
+        }
+
+        private TimeIntervalPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
             long minLookup = minUtcMillis - interval;
             long maxLookup = maxUtcMillis;
 
@@ -928,7 +937,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        Prepared prepareJavaTime() {
+        TimeIntervalPreparedRounding prepareJavaTime() {
             return new JavaTimeRounding();
         }
 
@@ -972,7 +981,7 @@ public abstract class Rounding implements Writeable {
             }
         }
 
-        private abstract class TimeIntervalPreparedRounding implements Prepared {
+        private abstract class TimeIntervalPreparedRounding extends PreparedRounding {
             @Override
             public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
                 if (timeUnit.isMillisBased) {
@@ -1307,7 +1316,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public long round(long utcMillis) {
-            assert values[0] <= utcMillis : "utcMillis must be after " + values[0];
+            assert values[0] <= utcMillis : utcMillis + " must be after " + values[0];
             int idx = Arrays.binarySearch(values, 0, max, utcMillis);
             assert idx != -1 : "The insertion point is before the array! This should have tripped the assertion above.";
             assert -1 - idx <= values.length : "This insertion point is after the end of the array.";

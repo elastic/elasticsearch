@@ -206,14 +206,14 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 () -> randomNonNegativeLong(), null, null, () -> true, null) {
 
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType getFieldType(String name) {
                 return provideMappedFieldType(name);
             }
 
             @Override
             public ObjectMapper getObjectMapper(String name) {
                 BuilderContext context = new BuilderContext(this.getIndexSettings().getSettings(), new ContentPath());
-                return new ObjectMapper.Builder<>(name).nested(Nested.newNested()).build(context);
+                return new ObjectMapper.Builder(name).nested(Nested.newNested()).build(context);
             }
         };
     }

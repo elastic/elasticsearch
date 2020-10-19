@@ -87,10 +87,13 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         // get and check some users
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOneCount(transformIndex + "/_search?q=reviewer:user_0", "hits.hits._source.affiliate_missing", 0);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOneCount(transformIndex + "/_search?q=reviewer:user_5", "hits.hits._source.affiliate_missing", 25);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
+        assertOneCount(transformIndex + "/_search?q=reviewer:user_26", "hits.hits._source.affiliate_missing", 0);
     }
 
     public void testSimpleDataStreamPivot() throws Exception {

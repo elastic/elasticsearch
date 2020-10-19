@@ -108,11 +108,12 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType fieldType = context.fieldMapper(field);
+        MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
             return Queries.newMatchNoDocsQuery("Can't run [" + NAME + "] query on unmapped fields!");
         }
-        return fieldType.distanceFeatureQuery(origin.origin(), pivot, boost, context);
+        // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
+        return fieldType.distanceFeatureQuery(origin.origin(), pivot, 1.0f, context);
     }
 
     String fieldName() {

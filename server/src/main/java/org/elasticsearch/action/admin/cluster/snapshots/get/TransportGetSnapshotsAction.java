@@ -289,7 +289,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         for (SnapshotId snapshotId : toResolve) {
             final List<String> indices = snapshotsToIndices.getOrDefault(snapshotId, Collections.emptyList());
             CollectionUtil.timSort(indices);
-            // NOCOMMIT is emptyList the correct featureStates?
+            // GWB-> is emptyList the correct featureStates?
             snapshotInfos.add(new SnapshotInfo(snapshotId, indices, Collections.emptyList(), Collections.emptyList(),
                 repositoryData.getSnapshotState(snapshotId)));
         }

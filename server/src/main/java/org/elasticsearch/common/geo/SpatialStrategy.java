@@ -56,10 +56,4 @@ public enum SpatialStrategy implements Writeable {
         }
         throw new IllegalArgumentException("Unknown strategy [" + strategyName + "]");
     }
-
-
-    @Override
-    public String toString() {
-        return super.toString();
-    }
 }

@@ -90,7 +90,7 @@ setup:
       reason: waiting for backport
 
   - do:
-      catch:      /Trying to retrieve too many mapped docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./
+      catch:      /Trying to retrieve too many docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./
       search:
         rest_total_hits_as_int: true
         index: test_1

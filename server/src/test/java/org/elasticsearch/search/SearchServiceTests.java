@@ -476,7 +476,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> service.createContext(reader, request, null, randomBoolean()));
             assertEquals(
-                "Trying to retrieve too many mapped docvalue_fields. Must be less than or equal to: [1] but was [2]. "
+                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [1] but was [2]. "
                     + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
                 ex.getMessage());
         }

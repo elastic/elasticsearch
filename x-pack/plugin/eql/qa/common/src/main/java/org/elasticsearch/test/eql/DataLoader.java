@@ -57,6 +57,9 @@ public class DataLoader {
     private static final long FILETIME_EPOCH_DIFF = 11644473600000L;
     private static final long FILETIME_ONE_MILLISECOND = 10 * 1000;
 
+    // runs as java main
+    private static boolean main = false;
+
     private static Map<String, String[]> getReplacementPatterns() {
         final Map<String, String[]> map = new HashMap<>(1);
         map.put("[runtime_random_keyword_type]", new String[] {"keyword", "wildcard"});
@@ -64,6 +67,7 @@ public class DataLoader {
     }
 
     public static void main(String[] args) throws IOException {
+        main = true;
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
             loadDatasetIntoEs(new RestHighLevelClient(
                 client,
@@ -121,13 +125,17 @@ public class DataLoader {
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("#") == false) {
                     for (Entry<String, String[]> entry : replacementPatterns.entrySet()) {
-                        line = line.replace(entry.getKey(), ESRestTestCase.randomFrom(entry.getValue()));
+                        line = line.replace(entry.getKey(), randomOf(entry.getValue()));
                     }
                     b.append(line);
                 }
             }
             return b.toString();
         }
+    }
+
+    private static CharSequence randomOf(String...values) {
+        return main ? values[0] : ESRestTestCase.randomFrom(values);
     }
 
     @SuppressWarnings("unchecked")

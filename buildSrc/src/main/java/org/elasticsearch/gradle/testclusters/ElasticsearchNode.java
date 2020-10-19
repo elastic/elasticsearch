@@ -38,6 +38,8 @@ import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logger;
@@ -53,6 +55,7 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.process.ExecOperations;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -121,6 +124,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final String name;
     private final Project project;
     private final ReaperService reaper;
+    private final FileSystemOperations fileSystemOperations;
+    private final ArchiveOperations archiveOperations;
+    private final ExecOperations execOperations;
+
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -161,11 +168,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Path confPathData;
     private String keystorePassword = "";
 
-    ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
+    ElasticsearchNode(
+        String path,
+        String name,
+        Project project,
+        ReaperService reaper,
+        FileSystemOperations fileSystemOperations,
+        ArchiveOperations archiveOperations,
+        ExecOperations execOperations,
+        File workingDirBase
+    ) {
         this.path = path;
         this.name = name;
         this.project = project;
         this.reaper = reaper;
+        this.fileSystemOperations = fileSystemOperations;
+        this.archiveOperations = archiveOperations;
+        this.execOperations = execOperations;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
@@ -433,7 +452,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 logToProcessStdout("Configuring working directory: " + workingDir);
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
-                    project.delete(workingDir);
+                    fileSystemOperations.delete(d -> d.delete(workingDir));
                 }
                 isWorkingDirConfigured = true;
             }
@@ -605,9 +624,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
                 // only install modules that are not already bundled with the integ-test distribution
                 if (Files.exists(destination) == false) {
-                    project.copy(spec -> {
+                    fileSystemOperations.copy(spec -> {
                         if (module.get().getName().toLowerCase().endsWith(".zip")) {
-                            spec.from(project.zipTree(module));
+                            spec.from(archiveOperations.zipTree(module));
                         } else if (module.get().isDirectory()) {
                             spec.from(module);
                         } else {
@@ -670,7 +689,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             );
         }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
-            LoggedExec.exec(project, spec -> {
+            LoggedExec.exec(execOperations, spec -> {
                 spec.setEnvironment(getESEnvironment());
                 spec.workingDir(getDistroDir());
                 spec.executable(OS.conditionalString().onUnix(() -> "./bin/" + tool).onWindows(() -> "cmd").supply());
@@ -1005,7 +1024,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void createWorkingDir() throws IOException {
         // Start configuration from scratch in case of a restart
-        project.delete(configFile.getParent());
+        fileSystemOperations.delete(d -> d.delete(configFile.getParent()));
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);
@@ -1251,7 +1270,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             .filter(File::exists)
             // TODO: We may be able to simplify this with Gradle 5.6
             // https://docs.gradle.org/nightly/release-notes.html#improved-handling-of-zip-archives-on-classpaths
-            .map(zipFile -> project.zipTree(zipFile).matching(filter))
+            .map(zipFile -> archiveOperations.zipTree(zipFile).matching(filter))
             .flatMap(tree -> tree.getFiles().stream())
             .sorted(Comparator.comparing(File::getName))
             .collect(Collectors.toList());

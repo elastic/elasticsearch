@@ -6,10 +6,8 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -39,7 +37,7 @@ public abstract class GeoShapeValuesSource extends ValuesSource {
     public abstract MultiGeoShapeValues geoShapeValues(LeafReaderContext context);
 
     @Override
-    public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+    protected Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
         throw new AggregationExecutionException("can't round a [geo_shape]");
     }
 

@@ -67,7 +67,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
         // memory estimation process pipe names are unique.  Therefore an increasing counter value is appended to the config ID
         // to ensure uniqueness between calls.
         ProcessPipes processPipes = new ProcessPipes(
-            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, config.getId() + "_" + counter.incrementAndGet(),
+            env, NAMED_PIPE_HELPER, processConnectTimeout, AnalyticsBuilder.ANALYTICS, config.getId() + "_" + counter.incrementAndGet(),
             false, false, true, false, false);
 
         createNativeProcess(config.getId(), analyticsProcessConfig, filesToDelete, processPipes);
@@ -78,8 +78,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             processPipes,
             0,
             filesToDelete,
-            onProcessCrash,
-            processConnectTimeout);
+            onProcessCrash);
 
         try {
             process.start(executorService);
@@ -103,8 +102,11 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
                 .performMemoryUsageEstimationOnly();
         try {
             analyticsBuilder.build();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("[{}] Interrupted while launching data frame analytics memory usage estimation process", jobId);
         } catch (IOException e) {
-            String msg = "Failed to launch data frame analytics memory usage estimation process for job " + jobId;
+            String msg = "[" + jobId + "] Failed to launch data frame analytics memory usage estimation process";
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

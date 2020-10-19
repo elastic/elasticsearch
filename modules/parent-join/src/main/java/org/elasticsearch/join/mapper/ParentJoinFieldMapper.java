@@ -32,18 +32,17 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -56,6 +55,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -81,19 +81,27 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     /**
+     * Returns the {@link ParentJoinFieldMapper} associated with the {@code context} or null
+     * if there is no parent-join field in this mapping.
+     */
+    public static ParentJoinFieldMapper getMapper(QueryShardContext context) {
+        return getMapper(context::getFieldType, context.getMapperService().documentMapper().mappers()::getMapper);
+    }
+
+    /**
      * Returns the {@link ParentJoinFieldMapper} associated with the <code>service</code> or null
      * if there is no parent-join field in this mapping.
      */
-    public static ParentJoinFieldMapper getMapper(MapperService service) {
+    public static ParentJoinFieldMapper getMapper(
+        Function<String, MappedFieldType> typeLookup,
+        Function<String, Mapper> mapperLookup
+    ) {
         MetaJoinFieldMapper.MetaJoinFieldType fieldType =
-            (MetaJoinFieldMapper.MetaJoinFieldType) service.fieldType(MetaJoinFieldMapper.NAME);
+            (MetaJoinFieldMapper.MetaJoinFieldType) typeLookup.apply(MetaJoinFieldMapper.NAME);
         if (fieldType == null) {
             return null;
         }
-        DocumentMapper mapper = service.documentMapper();
-        String joinField = fieldType.getJoinField();
-        MappingLookup fieldMappers = mapper.mappers();
-        return (ParentJoinFieldMapper) fieldMappers.getMapper(joinField);
+        return (ParentJoinFieldMapper) mapperLookup.apply(fieldType.getJoinField());
     }
 
     private static String getParentIdFieldName(String joinFieldName, String parentName) {
@@ -129,24 +137,23 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends FieldMapper.Builder {
         final List<ParentIdFieldMapper.Builder> parentIdFieldBuilders = new ArrayList<>();
         boolean eagerGlobalOrdinals = true;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
-            builder = this;
         }
 
         public Builder addParent(String parent, Set<String> children) {
             String parentIdFieldName = getParentIdFieldName(name, parent);
             parentIdFieldBuilders.add(new ParentIdFieldMapper.Builder(parentIdFieldName, parent, children));
-            return builder;
+            return this;
         }
 
         public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            return builder;
+            return this;
         }
 
         @Override
@@ -170,8 +177,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            final IndexSettings indexSettings = parserContext.mapperService().getIndexSettings();
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            final IndexSettings indexSettings = parserContext.getIndexSettings();
             checkIndexCompatibility(indexSettings, name);
 
             Builder builder = new Builder(name);
@@ -220,6 +227,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), mapperService, format);
         }
 
         @Override
@@ -341,19 +353,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException("parsing is implemented in parse(), this method should NEVER be called");
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
     }
 
     @Override

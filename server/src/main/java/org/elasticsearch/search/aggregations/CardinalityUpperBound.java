@@ -33,7 +33,7 @@ public abstract class CardinalityUpperBound {
     /**
      * {@link Aggregator}s with this cardinality won't collect any data at
      * all. For the most part this happens when an aggregation is inside of a
-     * {@link BucketsAggregator} that is pointing to an unmapped field. 
+     * {@link BucketsAggregator} that is pointing to an unmapped field.
      */
     public static final CardinalityUpperBound NONE = new CardinalityUpperBound() {
         @Override
@@ -128,6 +128,19 @@ public abstract class CardinalityUpperBound {
         @Override
         public <R> R map(IntFunction<R> mapper) {
             return mapper.apply(estimate);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            KnownCardinalityUpperBound that = (KnownCardinalityUpperBound) o;
+            return estimate == that.estimate;
+        }
+
+        @Override
+        public int hashCode() {
+            return Integer.hashCode(estimate);
         }
     }
 }

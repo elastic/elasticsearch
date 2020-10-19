@@ -318,6 +318,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
              * we can just cast to a long here and it'll be taken as millis.
              */
             DocValueFormat format = valuesSourceConfig.fieldType().docValueFormat(null, null);
+            // TODO correct the loss of precision from the range somehow.....?
             filters[i] = valuesSourceConfig.fieldType()
                 .rangeQuery(
                     ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from),

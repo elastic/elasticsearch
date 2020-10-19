@@ -1,0 +1,53 @@
+:es-issue: https://github.com/elastic/elasticsearch/issues/
+:es-pull:  https://github.com/elastic/elasticsearch/pull/
+
+[[release-notes-6.8.13]]
+== {es} version 6.8.13
+
+coming[6.8.13]
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
+[[enhancement-6.8.13]]
+[float]
+=== Enhancements
+
+Features/Java Low Level REST Client::
+* [client] Add simple support for gzip compression {es-pull}63230[#63230] (issue: {es-issue}62044[#62044])
+
+
+
+[[bug-6.8.13]]
+[float]
+=== Bug fixes
+
+Audit::
+* Move RestRequestFilter to core {es-pull}63507[#63507]
+
+Authorization::
+* Ensure authz operation overrides transient authz headers {es-pull}61621[#61621]
+* Relax the index access control check for scroll searches {es-pull}61446[#61446]
+
+CCR::
+* CCR should retry on CircuitBreakingException {es-pull}62013[#62013] (issue: {es-issue}55633[#55633])
+* Retry CCR shard follow task when no seed node left {es-pull}63225[#63225]
+* Set timeout of auto put-follow request to unbounded {es-pull}61679[#61679] (issue: {es-issue}56891[#56891])
+
+Features/Java Low Level REST Client::
+* [client] Decompressed gzip responses report inconsistent encoding values [ISSUE] {es-pull}63314[#63314]
+
+MULTIPLE AREA LABELS::
+* Add hlrc_rest_total_hits_as_int parameter in scroll request {es-pull}61685[#61685] (issue: {es-issue}61677[#61677])
+* Fix bwc of HLRC scroll search requests {es-pull}61696[#61696] (issue: {es-issue}61677[#61677])
+
+
+
+[[upgrade-6.8.13]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Upgrade the bundled JDK to JDK 15 {es-pull}62580[#62580]
+
+
+

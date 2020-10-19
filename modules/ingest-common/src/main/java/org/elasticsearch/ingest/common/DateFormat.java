@@ -98,10 +98,10 @@ enum DateFormat {
 
             DateFormatter dateFormatter = DateFormatter.forPattern(format)
                 .withLocale(locale);
-            // if UTC zone is set here, the time zone specified in the format will be ignored, leading to wrong dates
-            if (isUtc == false) {
-                dateFormatter = dateFormatter.withZone(zoneId);
-            }
+//            // if UTC zone is set here, the time zone specified in the format will be ignored, leading to wrong dates
+//            if (isUtc == false) {
+//                dateFormatter = dateFormatter.withZone(zoneId);
+//            }
             final DateFormatter formatter = dateFormatter;
             return text -> {
                 TemporalAccessor accessor = formatter.parse(text);
@@ -121,11 +121,13 @@ enum DateFormat {
                     accessor = newTime.withZoneSameLocal(zoneId);
                 }
 
-                if (isUtc) {
-                    return DateFormatters.from(accessor, locale).withZoneSameInstant(ZoneOffset.UTC);
-                } else {
-                    return DateFormatters.from(accessor, locale);
-                }
+//                if (isUtc) {
+//                    return DateFormatters.from(accessor, locale).withZoneSameInstant(ZoneOffset.UTC);
+//                } else {
+//                    return DateFormatters.from(accessor, locale);
+//                }
+                return DateFormatters.from(accessor, locale, zoneId)
+                    .withZoneSameInstant(zoneId);
             };
         }
     };

@@ -16,7 +16,7 @@ example, if the interval is a calendar day, `2020-01-03T07:00:01Z` is rounded to
 
 [source,java]
 ----
-bucket_key = Math.floor(value / interval) * interval)
+bucket_key = Math.floor(value / interval) * interval
 ----
 
 [[calendar_and_fixed_intervals]]

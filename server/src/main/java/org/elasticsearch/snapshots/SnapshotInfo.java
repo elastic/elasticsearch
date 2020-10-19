@@ -94,6 +94,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         private String reason = null;
         private List<String> indices = null;
         private List<String> dataStreams = null;
+        private List<SnapshotFeatureInfo> featureStates = null;
         private long startTime = 0L;
         private long endTime = 0L;
         private ShardStatsBuilder shardStatsBuilder = null;
@@ -124,6 +125,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
         private void setDataStreams(List<String> dataStreams) {
             this.dataStreams = dataStreams;
+        }
+
+        private void setFeatureStates(List<SnapshotFeatureInfo> featureStates) {
+            this.featureStates = featureStates;
         }
 
         private void setStartTime(long startTime) {
@@ -165,6 +170,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                 dataStreams = Collections.emptyList();
             }
 
+            if (featureStates == null) {
+                featureStates = Collections.emptyList();
+            }
+
             SnapshotState snapshotState = state == null ? null : SnapshotState.valueOf(state);
             Version version = this.version == -1 ? Version.CURRENT : Version.fromId(this.version);
 
@@ -175,7 +184,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                 shardFailures = new ArrayList<>();
             }
 
-            return new SnapshotInfo(snapshotId, indices, dataStreams, null, reason, version, startTime, endTime, totalShards,
+            return new SnapshotInfo(snapshotId, indices, dataStreams, featureStates, reason, version, startTime, endTime, totalShards,
                 successfulShards, shardFailures, includeGlobalState, userMetadata, snapshotState
             );
         }
@@ -273,8 +282,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public SnapshotInfo(SnapshotsInProgress.Entry entry) {
         this(entry.snapshot().getSnapshotId(),
-            entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()), entry.dataStreams(), null, null, Version.CURRENT,
-            entry.startTime(), 0L, 0, 0, Collections.emptyList(), entry.includeGlobalState(), entry.userMetadata(),
+            entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()), entry.dataStreams(), Collections.emptyList(),
+            null, Version.CURRENT, entry.startTime(), 0L, 0, 0, Collections.emptyList(), entry.includeGlobalState(), entry.userMetadata(),
             SnapshotState.IN_PROGRESS
         ); // TODO: Add featureStates to SnapshotInProgress.Entry
     }
@@ -294,6 +303,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indices = Collections.unmodifiableList(Objects.requireNonNull(indices));
         this.dataStreams = Collections.unmodifiableList(Objects.requireNonNull(dataStreams));
+        this.featureStates = Collections.unmodifiableList(Objects.requireNonNull(featureStates));
         this.state = state;
         this.reason = reason;
         this.version = version;
@@ -304,7 +314,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         this.shardFailures = Objects.requireNonNull(shardFailures);
         this.includeGlobalState = includeGlobalState;
         this.userMetadata = userMetadata;
-        this.featureStates = featureStates;
     }
 
     /**
@@ -325,9 +334,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         userMetadata = in.readMap();
         dataStreams = in.readStringList();
         if (in.getVersion().before(FEATURE_STATES_VERSION)) {
-            featureStates = null;
+            featureStates = Collections.emptyList();
         } else {
-            featureStates = in.readList(SnapshotFeatureInfo::new);
+            featureStates = Collections.unmodifiableList(in.readList(SnapshotFeatureInfo::new));
         }
     }
 
@@ -336,7 +345,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      * all information stripped out except the snapshot id, state, and indices.
      */
     public SnapshotInfo basic() {
-        return new SnapshotInfo(snapshotId, indices, Collections.emptyList(), null, state);
+        return new SnapshotInfo(snapshotId, indices, Collections.emptyList(), featureStates, state);
     }
 
     /**
@@ -650,7 +659,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         Boolean includeGlobalState = null;
         Map<String, Object> userMetadata = null;
         List<SnapshotShardFailure> shardFailures = Collections.emptyList();
-        List<SnapshotFeatureInfo> featureStates = null;
+        List<SnapshotFeatureInfo> featureStates = Collections.emptyList();
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }

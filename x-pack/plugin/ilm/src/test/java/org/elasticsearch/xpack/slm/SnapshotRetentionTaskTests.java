@@ -110,36 +110,36 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         // Test when user metadata is null
         SnapshotInfo info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
-            Collections.emptyList(), null, null, 1L, 1, Collections.emptyList(), true, null, 0L);
+            Collections.emptyList(), Collections.emptyList(), null, 1L, 1, Collections.emptyList(), true, null, 0L);
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
 
         // Test when no retention is configured
         info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            null, null, 1L, 1, Collections.emptyList(), true, null, 0L);
+            Collections.emptyList(), null, 1L, 1, Collections.emptyList(), true, null, 0L);
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyWithNoRetentionMap), equalTo(false));
 
         // Test when user metadata is a map that doesn't contain "policy"
         info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            null, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("foo", "bar"), 0L);
+            Collections.emptyList(), null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("foo", "bar"), 0L);
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
 
         // Test with an ancient snapshot that should be expunged
         info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            null, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", "policy"), 0L);
+            Collections.emptyList(), null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", "policy"), 0L);
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(true));
 
         // Test with a snapshot that's start date is old enough to be expunged (but the finish date is not)
         long time = System.currentTimeMillis() - TimeValue.timeValueDays(30).millis() - 1;
         info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            null, null, time + TimeValue.timeValueDays(4).millis(), 1, Collections.emptyList(), true,
+            Collections.emptyList(), null, time + TimeValue.timeValueDays(4).millis(), 1, Collections.emptyList(), true,
             Collections.singletonMap("policy", "policy"), time
         );
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(true));
 
         // Test with a fresh snapshot that should not be expunged
         info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
-            null, null, System.currentTimeMillis() + 1, 1, Collections.emptyList(), true, Collections.singletonMap("policy", "policy"),
-            System.currentTimeMillis()
+            Collections.emptyList(), null, System.currentTimeMillis() + 1, 1, Collections.emptyList(), true,
+            Collections.singletonMap("policy", "policy"), System.currentTimeMillis()
         );
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
     }
@@ -166,10 +166,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             ClusterServiceUtils.setState(clusterService, state);
 
             final SnapshotInfo eligibleSnapshot = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
-                Collections.emptyList(), null, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId),
-                0L);
+                Collections.emptyList(), Collections.emptyList(), null, 1L, 1, Collections.emptyList(), true,
+                Collections.singletonMap("policy", policyId), 0L);
             final SnapshotInfo ineligibleSnapshot = new SnapshotInfo(new SnapshotId("name2", "uuid2"), Collections.singletonList("index"),
-                Collections.emptyList(), null, null, System.currentTimeMillis() + 1, 1, Collections.emptyList(), true,
+                Collections.emptyList(), Collections.emptyList(), null, System.currentTimeMillis() + 1, 1, Collections.emptyList(), true,
                 Collections.singletonMap("policy", policyId), System.currentTimeMillis()
             );
 

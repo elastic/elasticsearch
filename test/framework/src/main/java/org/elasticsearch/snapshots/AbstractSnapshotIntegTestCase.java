@@ -410,8 +410,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 Collections.emptyList(), Collections.emptyList(),
-                null, "failed on purpose", SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L, 0L, 0, 0, Collections.emptyList(), randomBoolean(),
-                metadata, SnapshotState.FAILED
+                Collections.emptyList(), "failed on purpose", SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L, 0L, 0, 0, Collections.emptyList(),
+                randomBoolean(), metadata, SnapshotState.FAILED
         );
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,

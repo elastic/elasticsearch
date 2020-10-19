@@ -29,6 +29,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -70,8 +71,9 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, dataStreams, null, reason, endTime, totalShards, shardFailures, globalState,
-                SnapshotInfoTests.randomUserMetadata(), startTime
+            // NOCOMMIT generate actual feature states list here
+            new SnapshotInfo(snapshotId, indices, dataStreams, Collections.emptyList(), reason, endTime, totalShards, shardFailures,
+                globalState, SnapshotInfoTests.randomUserMetadata(), startTime
             ));
     }
 

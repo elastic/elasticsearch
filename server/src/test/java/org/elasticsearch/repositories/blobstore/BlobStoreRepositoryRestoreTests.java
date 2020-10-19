@@ -188,7 +188,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             .map(IndexId::getName)
                             .collect(Collectors.toList()),
                         Collections.emptyList(),
-                        null,
+                        Collections.emptyList(),
                         null,
                         1L,
                         6,

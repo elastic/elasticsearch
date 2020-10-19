@@ -81,8 +81,9 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             String reason = randomBoolean() ? null : "reason";
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
+            // NOCOMMIT generate actual feature states here
             snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"), Collections.singletonList("ds"),
-                null, reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
+                Collections.emptyList(), reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
                 SnapshotInfoTests.randomUserMetadata(), System.currentTimeMillis()
             ));
 

@@ -244,7 +244,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                              new SnapshotId(req.snapshot(), "uuid"),
                              Arrays.asList(req.indices()),
                              Collections.emptyList(),
-                             null, "snapshot started", endTime, 3, Collections.singletonList(
+                             Collections.emptyList(), "snapshot started", endTime, 3, Collections.singletonList(
                                  new SnapshotShardFailure("nodeId", new ShardId("index", "uuid", 0), "forced failure")),
                              req.includeGlobalState(), req.userMetadata(), startTime
                          ));

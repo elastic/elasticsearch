@@ -538,4 +538,11 @@ public class RestRequest implements ToXContent.Params {
 
     }
 
+    //TODO: find better location for this
+    public static class InvalidRequestedMediaType extends RuntimeException {
+        public InvalidRequestedMediaType(String message) {
+            super(message);
+        }
+    }
+
 }

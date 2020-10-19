@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -24,9 +25,14 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -36,6 +42,9 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
 public class RestSqlQueryAction extends BaseRestHandler {
 
     TextFormat textFormat;
+
+    final static Set<MediaType> acceptedMediaTypes = Stream.concat(Arrays.stream(XContentType.values()), Arrays.stream(TextFormat.values()))
+        .collect(Collectors.toUnmodifiableSet());
 
     @Override
     public List<Route> routes() {
@@ -138,5 +147,10 @@ public class RestSqlQueryAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "sql_query";
+    }
+
+    @Override
+    public Set<MediaType> validAcceptMediaTypes() {
+        return acceptedMediaTypes;
     }
 }

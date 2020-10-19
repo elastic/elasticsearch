@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -24,6 +25,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
@@ -32,7 +34,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 /**
  * Templating class for displaying SQL responses in text formats.
  */
-enum TextFormat {
+enum TextFormat implements MediaType {
 
     /**
      * Default text writer.
@@ -82,7 +84,7 @@ enum TextFormat {
         }
 
         @Override
-        String shortName() {
+        public String shortName() {
             return FORMAT_TEXT;
         }
 
@@ -99,6 +101,11 @@ enum TextFormat {
         @Override
         protected String eol() {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<String> mimeTypes() {
+            return Set.of(CONTENT_TYPE_TXT);
         }
     },
 
@@ -124,7 +131,7 @@ enum TextFormat {
         }
 
         @Override
-        String shortName() {
+        public String shortName() {
             return FORMAT_CSV;
         }
 
@@ -214,6 +221,11 @@ enum TextFormat {
                 return !header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT);
             }
         }
+
+        @Override
+        public Set<String> mimeTypes() {
+            return Set.of(CONTENT_TYPE_CSV);
+        }
     },
 
     TSV() {
@@ -229,7 +241,7 @@ enum TextFormat {
         }
 
         @Override
-        String shortName() {
+        public String shortName() {
             return FORMAT_TSV;
         }
 
@@ -262,6 +274,11 @@ enum TextFormat {
             }
 
             return sb.toString();
+        }
+
+        @Override
+        public Set<String> mimeTypes() {
+            return Set.of(CONTENT_TYPE_TSV);
         }
     };
 
@@ -307,12 +324,6 @@ enum TextFormat {
 
         throw new IllegalArgumentException("invalid format [" + accept + "]");
     }
-
-    /**
-     * Short name typically used by format parameter.
-     * Can differ from the IANA mime type.
-     */
-    abstract String shortName();
 
 
     /**

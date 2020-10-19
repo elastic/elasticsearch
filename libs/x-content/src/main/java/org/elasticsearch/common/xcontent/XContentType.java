@@ -26,23 +26,30 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
  */
-public enum XContentType {
+public enum XContentType implements MediaType {
 
     /**
      * A JSON based content type.
      */
     JSON(0) {
         @Override
-        public String mediaTypeWithoutParameters() {
-            return "application/json";
+        public Set<String> mimeTypes() {
+            return Set.of(
+                "application/json",
+                "application/vnd.elasticsearch+json",
+                "application/x-ndjson",
+                "application/vnd.elasticsearch+x-ndjson",
+                "application/*"
+            );
         }
 
         @Override
-        public String mediaType() {
+        public String defaultResponse() {
             return "application/json; charset=UTF-8";
         }
 
@@ -61,8 +68,11 @@ public enum XContentType {
      */
     SMILE(1) {
         @Override
-        public String mediaTypeWithoutParameters() {
-            return "application/smile";
+        public Set<String> mimeTypes() {
+            return Set.of(
+                "application/smile",
+                "application/vnd.elasticsearch+smile"
+            );
         }
 
         @Override
@@ -80,8 +90,11 @@ public enum XContentType {
      */
     YAML(2) {
         @Override
-        public String mediaTypeWithoutParameters() {
-            return "application/yaml";
+        public Set<String> mimeTypes() {
+            return Set.of(
+                "application/yaml",
+                "application/vnd.elasticsearch+yaml"
+            );
         }
 
         @Override
@@ -89,7 +102,6 @@ public enum XContentType {
             return "yaml";
         }
 
-        @Override
         public XContent xContent() {
             return YamlXContent.yamlXContent;
         }
@@ -99,8 +111,11 @@ public enum XContentType {
      */
     CBOR(3) {
         @Override
-        public String mediaTypeWithoutParameters() {
-            return "application/cbor";
+        public Set<String> mimeTypes() {
+            return Set.of(
+                "application/cbor",
+                "application/vnd.elasticsearch+cbor"
+            );
         }
 
         @Override
@@ -145,7 +160,7 @@ public enum XContentType {
     public static XContentType fromMediaType(String mediaType) {
         final String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
         for (XContentType type : values()) {
-            if (type.mediaTypeWithoutParameters().equals(lowercaseMediaType)) {
+            if (type.mimeTypes().contains(lowercaseMediaType)) {
                 return type;
             }
         }
@@ -158,9 +173,11 @@ public enum XContentType {
     }
 
     private static boolean isSameMediaTypeOrFormatAs(String stringType, XContentType type) {
-        return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType) ||
-                stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";") ||
-                type.shortName().equalsIgnoreCase(stringType);
+   //TODO: fixme
+        return false;
+//        return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType) ||
+//                stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";") ||
+//                type.shortName().equalsIgnoreCase(stringType);
     }
 
     private int index;
@@ -173,14 +190,7 @@ public enum XContentType {
         return index;
     }
 
-    public String mediaType() {
-        return mediaTypeWithoutParameters();
-    }
-
-    public abstract String shortName();
 
     public abstract XContent xContent();
-
-    public abstract String mediaTypeWithoutParameters();
 
 }

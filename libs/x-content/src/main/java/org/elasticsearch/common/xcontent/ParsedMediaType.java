@@ -42,7 +42,7 @@ public class ParsedMediaType {
         this.parameters = Collections.unmodifiableMap(parameters);
     }
 
-    public String asString() {
+    public String mimeTypeWithoutParams() {
         return type + "/" + subType;
     }
 

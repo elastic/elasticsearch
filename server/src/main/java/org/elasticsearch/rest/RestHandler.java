@@ -20,17 +20,24 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest.Method;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Handler for REST requests
  */
 @FunctionalInterface
 public interface RestHandler {
+
+    Set<MediaType> defaultMediaTypes = Set.of(XContentType.values());
 
     /**
      * Handles a rest request.
@@ -90,6 +97,17 @@ public interface RestHandler {
         return Collections.emptyList();
     }
 
+    default Set<MediaType> validAcceptMediaTypes(){
+        return defaultMediaTypes;
+    }
+
+    default Set<MediaType> validContentTypeMediaType(){
+        return defaultMediaTypes;
+    }
+
+    default void validateMediaTypes(ParsedMediaType acceptMediaType, ParsedMediaType contentTypeMediaType){
+        //do nothing
+    }
 
     /**
      * Controls whether requests handled by this class are allowed to to access system indices by default.

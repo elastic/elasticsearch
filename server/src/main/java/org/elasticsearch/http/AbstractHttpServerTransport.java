@@ -40,6 +40,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.rest.RestChannel;
@@ -341,23 +342,34 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             ParsedMediaType parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
             ParsedMediaType parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
             if (parsedContentType != null) {
-                //here i would like to know where I am going to end up , so i can make a decision ! ... however, i don't really know that
-                //until later when I dispatch ... i need to split up the dispatch request so that we know where we are going to dispatch
-                //once we know that then we can compare this against were it is going and validate
-                //we want this to happen even before we creating the rest request
-                // actually we want to know 3 things
-                // 1. is there an end point we can route to based on VERB and PATH
-                // 2. if there is an end point we can route to, does it support the content type and accept type ? set the xContentType for
-                //    content-type on the request so it can create the XContentTypeParser for the incoming bytes.
-                // 3. we want to apply to some custom rules per endpoint to see if it is valid .. e.g. endpoint.validateMediaTypes(
 
                 RestHandler restHandler = dispatcher.getRestHandler(httpRequest);
+                if (restHandler != null) {
+
+                    Set<MediaType> validAccepts = restHandler.validAcceptMediaTypes();
+                    if (validAccepts.contains(parsedAccept.mimeTypeWithoutParams()) == false) {
+                        throw new RuntimeException("Kaboom");
+                    }
+
+                    Set<MediaType> validContentTypes = restHandler.validContentTypeMediaType();
+                    if (validContentTypes.contains(parsedContentType.mimeTypeWithoutParams()) == false) {
+                        throw new RuntimeException("Kaboom");
+                    }
+
+                    try {
+                        restHandler.validateMediaTypes(parsedAccept, parsedContentType);
+                    }catch (RestRequest.InvalidRequestedMediaType e) {
+                        //TODO: clean this up so that it throws the correct response exception
+                        throw e;
+                    }
+                }
 
 
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             //handle as bad request like below
         }
+
 
         /*
          * We want to create a REST request from the incoming request from Netty. However, creating this request could fail if there
@@ -407,6 +419,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             channel = innerChannel;
         }
 
+        //TODO: if we found a valid restHandler, pass it down to the dispatch handler , so we don't need to that work again.
         dispatchRequest(restRequest, channel, badRequestCause);
     }
 

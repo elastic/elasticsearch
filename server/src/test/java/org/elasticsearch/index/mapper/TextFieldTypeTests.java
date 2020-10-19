@@ -95,13 +95,6 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
                 ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC));
 
-        // empty string lower bound should always result query with lower-include flag being set
-        assertEquals(new TermRangeQuery("field", BytesRefs.toBytesRef(""), null, true, true),
-            ft.rangeQuery("", null, true, true, null, null, null, MOCK_QSC));
-
-        assertEquals(new TermRangeQuery("field", BytesRefs.toBytesRef(""), null, true, true),
-            ft.rangeQuery("", null, false, true, null, null, null, MOCK_QSC));
-
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +

@@ -230,6 +230,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         client().admin().indices().preparePutMapping("test").setSource("field", "type=keyword").get();
 
+        client().prepareIndex("test").setId("0").setSource("field", "").get();
         client().prepareIndex("test").setId("1").setSource("field", "A").get();
         client().prepareIndex("test").setId("2").setSource("field", "B").get();
         client().prepareIndex("test").setId("3").setSource("field", "C").get();
@@ -250,7 +251,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(null).lt("C")).get();
         assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(searchResponse, 3L);
 
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("B").lt(null)).get();
         assertNoFailures(searchResponse);
@@ -258,7 +259,11 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(null).lt(null)).get();
         assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 3L);
+        assertHitCount(searchResponse, 4L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("").lt(null)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 4L);
 
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("").lt(null)).get();
         assertNoFailures(searchResponse);

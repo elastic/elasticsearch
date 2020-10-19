@@ -174,6 +174,17 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
+    @SuppressWarnings("deprecation")
+    protected void checkIncomingMergeType(FieldMapper mergeWith) {
+        if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
+            String strategy = ((LegacyGeoShapeFieldMapper)mergeWith).strategy();
+            throw new IllegalArgumentException("mapper [" + name()
+                + "] of type [geo_shape] cannot change strategy from [BKD] to [" + strategy + "]");
+        }
+        super.checkIncomingMergeType(mergeWith);
+    }
+
+    @Override
     protected void addStoredFields(ParseContext context, Geometry geometry) {
         // noop: we currently do not store geo_shapes
         // @todo store as geojson string?

@@ -471,6 +471,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         return (GeoShapeFieldType) super.fieldType();
     }
 
+    String strategy() {
+        return fieldType().strategy().getStrategyName();
+    }
+
     @Override
     protected void addStoredFields(ParseContext context, Shape geometry) {
         // noop: we do not store geo_shapes; and will not store legacy geo_shape types
@@ -495,5 +499,14 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion,
             builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value()).init(this);
+    }
+
+    @Override
+    protected void checkIncomingMergeType(FieldMapper mergeWith) {
+        if (mergeWith instanceof GeoShapeFieldMapper) {
+            throw new IllegalArgumentException("mapper [" + name()
+                + "] of type [geo_shape] cannot change strategy from [" + strategy() + "] to [BKD]");
+        }
+        super.checkIncomingMergeType(mergeWith);
     }
 }

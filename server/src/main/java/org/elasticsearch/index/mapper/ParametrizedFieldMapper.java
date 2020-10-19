@@ -83,15 +83,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
                 + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
         }
-        String mergeWithContentType = ((FieldMapper)mergeWith).contentType();
-        if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
-            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
-                + contentType() + "] to [" + mergeWithContentType + "]");
-        }
-        if (Objects.equals(contentType(), mergeWithContentType) == false) {
-            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
-                + contentType() + "] to [" + mergeWithContentType + "]");
-        }
+        checkIncomingMergeType((FieldMapper)mergeWith);
 
         ParametrizedFieldMapper.Builder builder = getMergeBuilder();
         if (builder == null) {
@@ -101,6 +93,17 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
         return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name())));
+    }
+
+    protected void checkIncomingMergeType(FieldMapper mergeWith) {
+        if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
+                + contentType() + "] to [" + mergeWith.contentType() + "]");
+        }
+        if (Objects.equals(contentType(), mergeWith.contentType()) == false) {
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
+                + contentType() + "] to [" + mergeWith.contentType() + "]");
+        }
     }
 
     private static ContentPath parentPath(String name) {

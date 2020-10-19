@@ -1,14 +1,8 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
 ---
 "Test new fields are mapped as keyword":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.put_job:
@@ -53,10 +47,6 @@ setup:
 
 ---
 "Test _meta exists when two jobs share an index":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.put_job:

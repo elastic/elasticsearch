@@ -1,8 +1,5 @@
 ---
 "Test get all jobs and stats given no job exists":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
 
   - do:
       ml.get_jobs:
@@ -19,8 +16,6 @@
 ---
 "Test get jobs with expression that does not match and allow_no_match":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
         - "warnings"
 
@@ -43,8 +38,6 @@
 ---
 "Test get jobs with expression that does not match and not allow_no_match":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
         - "warnings"
 
@@ -64,10 +57,6 @@
 
 ---
 "Test job crud apis":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.put_job:
@@ -128,10 +117,6 @@
 
 ---
 "Test put job with model_memory_limit as number":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.put_job:
@@ -153,8 +138,6 @@
 ---
 "Test put job with model_memory_limit as string and lazy open":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       ml.put_job:
@@ -207,10 +190,6 @@
 
 ---
 "Test get job API with non existing job id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: missing
       ml.get_jobs:
@@ -218,10 +197,6 @@
 
 ---
 "Test put job with inconsistent model snapshot settings":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /The value of daily_model_snapshot_retention_after_days \[4\] cannot be greater than model_snapshot_retention_days \[3\]/
       ml.put_job:
@@ -260,10 +235,6 @@
 
 ---
 "Test put job with inconsistent body/param ids":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /illegal_argument_exception/
       ml.put_job:
@@ -304,10 +275,6 @@
 
 ---
 "Test put job with id that is already taken":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: jobs-crud-id-already-taken
@@ -366,10 +333,6 @@
 
 ---
 "Test update job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: jobs-crud-update-job
@@ -556,8 +519,6 @@
 ---
 "Test cannot decrease model_memory_limit below current usage":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       ml.put_job:
@@ -621,10 +582,6 @@
 
 ---
 "Test delete job that does not exist":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: missing
       ml.delete_job:
@@ -632,10 +589,6 @@
 
 ---
 "Test delete job that is referred by a datafeed":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: jobs-crud-datafeed-job
@@ -672,10 +625,6 @@
 
 ---
 "Test delete job that is opened":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: delete-opened-job
@@ -708,8 +657,6 @@
 ---
 "Test close job":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       ml.put_job:
@@ -768,10 +715,6 @@
 
 ---
 "Test closing a closed job isn't an error":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: jobs-crud-close-a-closed-job
@@ -806,10 +749,6 @@
 
 ---
 "Test close all jobs":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: jobs-crud-close-all-1
@@ -863,10 +802,6 @@
 
 ---
 "Test close jobs with expression that matches":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: jobs-crud-with-expression-that-matches-foo-1
@@ -940,8 +875,6 @@
 ---
 "Test close jobs with expression that does not match and allow_no_match":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
         - "warnings"
 
@@ -962,8 +895,6 @@
 ---
 "Test close jobs with expression that does not match and not allow_no_match":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
         - "warnings"
 
@@ -984,8 +915,6 @@
 ---
 "Test force close job":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       ml.put_job:
@@ -1048,10 +977,6 @@
 
 ---
 "Test force closing a closed job isn't an error":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: jobs-crud-close-a-closed-job
@@ -1088,10 +1013,6 @@
 
 ---
 "Test open and close an unknown job is resource not found":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: missing
       ml.open_job:
@@ -1104,10 +1025,6 @@
 
 ---
 "Test cannot create job with existing categorizer state document":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       index:
@@ -1136,10 +1053,6 @@
 
 ---
 "Test cannot create job with existing quantiles document":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       index:
@@ -1170,8 +1083,6 @@
 ---
 "Test cannot create job with existing result document":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -1208,10 +1119,6 @@
 
 ---
 "Test cannot create job with model snapshot id set":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: /illegal_argument_exception/
@@ -1230,10 +1137,6 @@
 
 ---
 "Test put job with time field in analysis_config":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: /illegal_argument_exception/
@@ -1265,10 +1168,6 @@
 
 ---
 "Test put job with duplicate detector configurations":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
@@ -1308,10 +1207,6 @@
 
 ---
 "Test put job after closing results index":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       indices.create:
@@ -1339,10 +1234,6 @@
 
 ---
 "Test put job after closing state index":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       indices.create:
@@ -1371,8 +1262,6 @@
 ---
 "Test max model memory limit":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -1444,10 +1333,10 @@
 
 ---
 "Test create job with delimited format":
+
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: "warnings"
+      reason: deprecation logging for delimited format was introduced in 5.4.0
 
   - do:
       warnings:
@@ -1471,10 +1360,6 @@
 
 ---
 "Test jobs with named and custom categorization_analyzer":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 # Check named and custom configs can share the same index & mappings
   - do:
       ml.put_job:
@@ -1518,10 +1403,6 @@
 
 ---
 "Test job with categorization_analyzer and categorization_filters":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /categorization_filters cannot be used with categorization_analyzer - instead specify them as pattern_replace char_filters in the analyzer/
       ml.put_job:
@@ -1545,10 +1426,6 @@
 
 ---
 "Test job with rules":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.put_job:
@@ -1615,10 +1492,6 @@
 
 ---
 "Test function shortcut expansion":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: jobs-function-shortcut-expansion
@@ -1636,8 +1509,6 @@
 ---
 "Test open job when persistent task allocation disabled":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -1686,10 +1557,6 @@
 
 ---
 "Test reopen job resets the finished time":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_job:
         job_id: jobs-crud-reset-finished-time
@@ -1733,8 +1600,6 @@
 ---
 "Test close job with body params":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
        - "warnings"
 

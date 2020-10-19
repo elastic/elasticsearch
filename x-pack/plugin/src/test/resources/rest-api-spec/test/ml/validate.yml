@@ -1,9 +1,5 @@
 ---
 "Test valid job config":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.validate:
         body:  >
@@ -23,10 +19,6 @@
 
 ---
 "Test invalid job config":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /.data_description. failed to parse field .format./
       ml.validate:
@@ -46,10 +38,6 @@
 
 ---
 "Test valid job config with job ID":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.validate:
         body:  >
@@ -70,10 +58,6 @@
 
 ---
 "Test job config that is invalid only because of the job ID":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /Invalid job_id; '_' can contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
       ml.validate:
@@ -94,10 +78,6 @@
 
 ---
 "Test job config is invalid because model snapshot id set":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: /illegal_argument_exception/
@@ -129,10 +109,6 @@
 
 ---
 "Test job config with duplicate detector configurations":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: /illegal_argument_exception.*Duplicate detectors are not allowed/

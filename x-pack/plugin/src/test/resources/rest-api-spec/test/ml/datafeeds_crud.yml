@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       headers:
@@ -41,10 +39,6 @@ setup:
 
 ---
 "Test get all datafeeds and stats given no datafeed exists":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       ml.get_datafeeds:
@@ -61,8 +55,6 @@ setup:
 ---
 "Test get datafeed with expression that does not match and allow_no_match":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
         - "warnings"
 
@@ -85,8 +77,6 @@ setup:
 ---
 "Test get datafeed with expression that does not match and not allow_no_match":
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features:
         - "warnings"
 
@@ -106,10 +96,6 @@ setup:
 
 ---
 "Test put datafeed referring to missing job_id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /resource_not_found_exception/
       ml.put_datafeed:
@@ -122,10 +108,6 @@ setup:
 
 ---
 "Test put datafeed with security headers in the body":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /unknown field \[headers\]/
       ml.put_datafeed:
@@ -139,10 +121,6 @@ setup:
 
 ---
 "Test put datafeed referring to existing job_id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -160,10 +138,6 @@ setup:
 
 ---
 "Test put datafeed whose id is already taken":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -186,10 +160,6 @@ setup:
 
 ---
 "Test put datafeed with job_id that is already used by another datafeed":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -212,10 +182,6 @@ setup:
 
 ---
 "Test put datafeed with invalid query":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /failed\sto\sparse\sfield\s\[query\]/
       ml.put_datafeed:
@@ -229,10 +195,6 @@ setup:
 
 ---
 "Test update datafeed":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -268,10 +230,6 @@ setup:
 
 ---
 "Test update datafeed to point to different job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -303,10 +261,6 @@ setup:
 
 ---
 "Test update datafeed with missing id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       catch: /resource_not_found_exception/
@@ -317,10 +271,6 @@ setup:
 
 ---
 "Test update datafeed to point to missing job":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -342,10 +292,6 @@ setup:
 
 ---
 "Test update datafeed to point to job already attached to another datafeed":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -375,10 +321,6 @@ setup:
 
 ---
 "Test delete datafeed with missing id":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       catch: /resource_not_found_exception/
       ml.delete_datafeed:
@@ -386,10 +328,6 @@ setup:
 
 ---
 "Test put datafeed with chunking_config":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -405,10 +343,6 @@ setup:
 
 ---
 "Test put datafeed with aggregations":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-aggs-1
@@ -465,10 +399,6 @@ setup:
 
 ---
 "Test delete datafeed":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -486,10 +416,6 @@ setup:
 
 ---
 "Test force delete datafeed":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -507,10 +433,6 @@ setup:
   - match: { acknowledged: true }
 ---
 "Test put and update datafeed with indices options":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-indices-options-1
@@ -551,10 +473,6 @@ setup:
   - match: { datafeeds.0.indices_options.ignore_throttled: true }
 ---
 "Test put and update datafeed with indices options in params":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-indices-options-params-1
@@ -590,10 +508,6 @@ setup:
   - match: { datafeeds.0.indices_options.allow_no_indices: false }
 ---
 "Test get datafeed for export":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
   - do:
       ml.put_datafeed:
         datafeed_id: test-for-export

@@ -1,7 +1,5 @@
 setup:
   - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
       features: headers
   - do:
       indices.create:
@@ -82,10 +80,6 @@ setup:
 
 ---
 "Test cat datafeeds":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/pull/63542"
-      version: all
-
 
   - do:
       cat.ml_datafeeds:

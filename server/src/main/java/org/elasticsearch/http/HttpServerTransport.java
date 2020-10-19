@@ -24,6 +24,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
@@ -61,6 +62,12 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
          * @param cause         the cause of the bad request
          */
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
+
+
+        default RestHandler getRestHandler(HttpRequest request){
+            //TODO: fix me
+            throw new UnsupportedOperationException();
+        }
 
     }
 }

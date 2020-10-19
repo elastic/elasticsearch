@@ -41,7 +41,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
@@ -54,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -333,6 +336,29 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         Exception badRequestCause = exception;
 
+
+        try {
+            ParsedMediaType parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
+            ParsedMediaType parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
+            if (parsedContentType != null) {
+                //here i would like to know where I am going to end up , so i can make a decision ! ... however, i don't really know that
+                //until later when I dispatch ... i need to split up the dispatch request so that we know where we are going to dispatch
+                //once we know that then we can compare this against were it is going and validate
+                //we want this to happen even before we creating the rest request
+                // actually we want to know 3 things
+                // 1. is there an end point we can route to based on VERB and PATH
+                // 2. if there is an end point we can route to, does it support the content type and accept type ? set the xContentType for
+                //    content-type on the request so it can create the XContentTypeParser for the incoming bytes.
+                // 3. we want to apply to some custom rules per endpoint to see if it is valid .. e.g. endpoint.validateMediaTypes(
+
+                RestHandler restHandler = dispatcher.getRestHandler(httpRequest);
+
+
+            }
+        }catch (Exception e){
+            //handle as bad request like below
+        }
+
         /*
          * We want to create a REST request from the incoming request from Netty. However, creating this request could fail if there
          * are incorrectly encoded parameters, or the Content-Type header is invalid. If one of these specific failures occurs, we
@@ -382,6 +408,22 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
 
         dispatchRequest(restRequest, channel, badRequestCause);
+    }
+
+    private static ParsedMediaType parsedMediaType(Map<String, List<String>> headers, String headerName) {
+        //TOOD: shouldn't this be case insensitive ?
+        List<String> header = headers.get(headerName);
+        if (header == null || header.isEmpty()) {
+            return null;
+        } else if (header.size() > 1) {
+            throw new IllegalArgumentException("only one value for the  header should be provided");
+        }
+        String rawContentType = header.get(0);
+        if (Strings.hasText(rawContentType)) {
+            return ParsedMediaType.parseMediaType(rawContentType);
+        } else {
+            return null;
+        }
     }
 
     private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {

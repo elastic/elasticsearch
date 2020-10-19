@@ -135,7 +135,7 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
-    private static Map<String, String> params(final String uri) {
+    public static Map<String, String> params(final String uri) {
         final Map<String, String> params = new HashMap<>();
         int index = uri.indexOf('?');
         if (index >= 0) {
@@ -148,7 +148,7 @@ public class RestRequest implements ToXContent.Params {
         return params;
     }
 
-    private static String path(final String uri) {
+    public static String path(final String uri) {
         final int index = uri.indexOf('?');
         if (index >= 0) {
             return uri.substring(0, index);

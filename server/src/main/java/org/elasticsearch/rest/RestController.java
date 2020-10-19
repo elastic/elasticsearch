@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.usage.UsageService;
@@ -87,12 +88,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final CircuitBreakerService circuitBreakerService;
 
-    /** Rest headers that are copied to internal requests made during a rest request. */
+    /**
+     * Rest headers that are copied to internal requests made during a rest request.
+     */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
@@ -102,15 +105,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", (request, channel, clnt) ->
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
     }
 
     /**
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
      *
-     * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
-     * @param handler The handler to actually execute
+     * @param method             GET, POST, etc.
+     * @param path               Path to handle (e.g., "/{index}/{type}/_bulk")
+     * @param handler            The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
      */
     protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler, String deprecationMessage) {
@@ -137,14 +140,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Deprecated REST handlers without a direct replacement should be deprecated directly using {@link #registerAsDeprecatedHandler}
      * and a specific message.
      *
-     * @param method GET, POST, etc.
-     * @param path Path to handle (e.g., "/_forcemerge")
-     * @param handler The handler to actually execute
+     * @param method           GET, POST, etc.
+     * @param path             Path to handle (e.g., "/_forcemerge")
+     * @param handler          The handler to actually execute
      * @param deprecatedMethod GET, POST, etc.
-     * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
+     * @param deprecatedPath   <em>Deprecated</em> path to handle (e.g., "/_optimize")
      */
     protected void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
-                                              RestRequest.Method deprecatedMethod, String deprecatedPath) {
+                                                 RestRequest.Method deprecatedMethod, String deprecatedPath) {
         // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
         final String deprecationMessage =
             "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
@@ -156,9 +159,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /**
      * Registers a REST handler to be executed when one of the provided methods and path match the request.
      *
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
+     * @param path    Path to handle (e.g., "/{index}/{type}/_bulk")
      * @param handler The handler to actually execute
-     * @param method GET, POST, etc.
+     * @param method  GET, POST, etc.
      */
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
@@ -291,6 +294,42 @@ public class RestController implements HttpServerTransport.Dispatcher {
         channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, NOT_ACCEPTABLE, errorMessage));
     }
 
+    /**
+     * Determine which {@link RestHandler} will handle this {@link HttpRequest}
+     * @return the {@link RestHandler} which will handle this request, null if no handler can be found
+     */
+    public RestHandler getRestHandler(HttpRequest request) {
+        final String uri = request.uri();
+        final String rawPath = RestRequest.path(uri);
+        final Map<String, String> params = RestRequest.params(uri);
+        final RestRequest.Method requestMethod;
+        try {
+            requestMethod = request.method();
+            Iterator<MethodHandlers> allHandlers = getAllHandlers(params, rawPath);
+            while (allHandlers.hasNext()) {
+                final RestHandler handler;
+                final MethodHandlers handlers = allHandlers.next();
+                if (handlers == null) {
+                    handler = null;
+                } else {
+                    handler = handlers.getHandler(requestMethod);
+                }
+                if (handler == null) {
+                    final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
+                    if (validMethodSet.contains(requestMethod) == false &&
+                        (requestMethod == RestRequest.Method.OPTIONS || validMethodSet.isEmpty() == false)) {
+                            break;
+                    }
+                } else {
+                    return handler;
+                }
+            }
+        } catch (final IllegalArgumentException e) {
+            return null;
+        }
+        return null;
+    }
+
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
@@ -311,7 +350,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
             channel.sendResponse(
-                    BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
+                BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
             return;
         }
 
@@ -332,9 +371,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     handler = handlers.getHandler(requestMethod);
                 }
                 if (handler == null) {
-                  if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
-                      return;
-                  }
+                    if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
+                        return;
+                    }
                 } else {
                     dispatchRequest(request, channel, handler);
                     return;
@@ -479,7 +518,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
-                throws IOException {
+            throws IOException {
             return delegate.newBuilder(xContentType, responseContentType, useFiltering);
         }
 

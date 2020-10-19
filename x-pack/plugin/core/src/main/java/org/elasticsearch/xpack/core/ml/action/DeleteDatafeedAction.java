@@ -26,7 +26,7 @@ public class DeleteDatafeedAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/delete";
 
     private DeleteDatafeedAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentFragment {

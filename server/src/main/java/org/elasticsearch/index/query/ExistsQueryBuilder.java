@@ -165,7 +165,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     private static Query newFieldExistsQuery(QueryShardContext context, String field) {
         if (context.isFieldMapped(field)) {
-            Query filter = context.fieldMapper(field).existsQuery(context);
+            Query filter = context.getFieldType(field).existsQuery(context);
             return new ConstantScoreQuery(filter);
         } else {
             // The field does not exist as a leaf but could be an object so
@@ -181,7 +181,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
         Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
         for (String field : fields) {
-            Query existsQuery = context.fieldMapper(field).existsQuery(context);
+            Query existsQuery = context.getFieldType(field).existsQuery(context);
             booleanQuery.add(existsQuery, Occur.SHOULD);
         }
         return new ConstantScoreQuery(booleanQuery.build());

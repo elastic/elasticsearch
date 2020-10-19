@@ -39,17 +39,16 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
+import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -281,18 +280,16 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
         when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
-        MappingLookup fieldMappers = new MappingLookup(Collections.singleton(joinFieldMapper),
-            Collections.emptyList(), Collections.emptyList(), 0, null);
-        DocumentMapper mockMapper = mock(DocumentMapper.class);
-        when(mockMapper.mappers()).thenReturn(fieldMappers);
-        when(mapperService.documentMapper()).thenReturn(mockMapper);
+        when(mapperService.fieldType("join_field")).thenReturn(joinFieldMapper.fieldType());
+        when(mapperService.fieldType("join_field#" + PARENT_TYPE))
+            .thenReturn(new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false));
         return mapperService;
     }
 
     private static ParentJoinFieldMapper createJoinFieldMapper() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         return new ParentJoinFieldMapper.Builder("join_field")
-                .addParent(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
+                .addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
                 .build(new Mapper.BuilderContext(settings, new ContentPath(0)));
     }
 

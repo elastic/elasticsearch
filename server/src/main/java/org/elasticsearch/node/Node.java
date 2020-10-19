@@ -543,7 +543,9 @@ public class Node implements Closeable {
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(settings, xContentRegistry,
                 indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), systemIndices, scriptService);
-            clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
+            if (DiscoveryNode.isMasterNode(settings)) {
+                clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
+            }
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
@@ -554,14 +556,14 @@ public class Node implements Closeable {
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-            final SearchTransportService searchTransportService =  new SearchTransportService(transportService,
+            final SearchTransportService searchTransportService = new SearchTransportService(transportService, client,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment,
-                pluginsService.filterPlugins(RepositoryPlugin.class), transportService, clusterService, threadPool, xContentRegistry,
+                pluginsService.filterPlugins(RepositoryPlugin.class), transportService, clusterService, bigArrays, xContentRegistry,
                 recoverySettings);
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
@@ -1137,10 +1139,11 @@ public class Node implements Closeable {
     /** Constructs a ClusterInfoService which may be mocked for tests. */
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
                                                        ThreadPool threadPool, NodeClient client) {
-        final InternalClusterInfoService service =
-            new InternalClusterInfoService(settings, clusterService, threadPool, client);
-        // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
-        clusterService.addListener(service);
+        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        if (DiscoveryNode.isMasterNode(settings)) {
+            // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
+            clusterService.addListener(service);
+        }
         return service;
     }
 

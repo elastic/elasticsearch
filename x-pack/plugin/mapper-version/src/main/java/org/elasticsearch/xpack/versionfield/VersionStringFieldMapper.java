@@ -134,16 +134,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-            }
-
-            return new SourceValueFetcher(name(), mapperService, null) {
-                @Override
-                protected String parseSourceValue(Object value) {
-                    return value.toString();
-                }
-            };
+            return SourceValueFetcher.toString(name(), mapperService, format);
         }
 
         @Override

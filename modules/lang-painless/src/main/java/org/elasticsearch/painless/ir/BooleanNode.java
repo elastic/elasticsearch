@@ -19,14 +19,9 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 public class BooleanNode extends BinaryNode {
 
@@ -61,43 +56,4 @@ public class BooleanNode extends BinaryNode {
         super(location);
     }
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(getLocation());
-
-        if (operation == Operation.AND) {
-            Label fals = new Label();
-            Label end = new Label();
-
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            getRightNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else if (operation == Operation.OR) {
-            Label tru = new Label();
-            Label fals = new Label();
-            Label end = new Label();
-
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            getRightNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.mark(tru);
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else {
-            throw new IllegalStateException("unexpected boolean operation [" + operation + "] " +
-                    "for type [" + getExpressionCanonicalTypeName() + "]");
-        }
-    }
 }

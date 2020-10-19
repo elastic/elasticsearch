@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
@@ -506,7 +505,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_model_memory_limit_lower_than_estimated_memory_usage";
-        ByteSizeValue modelMemoryLimit = new ByteSizeValue(1, ByteSizeUnit.MB);
+        ByteSizeValue modelMemoryLimit = ByteSizeValue.ofMb(1);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null))
@@ -543,7 +542,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         String id = "test_lazy_assign_model_memory_limit_too_high";
         // Assuming a 1TB job will never fit on the test machine - increase this when machines get really big!
-        ByteSizeValue modelMemoryLimit = new ByteSizeValue(1, ByteSizeUnit.TB);
+        ByteSizeValue modelMemoryLimit = ByteSizeValue.ofTb(1);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null))

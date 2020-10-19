@@ -7,11 +7,11 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
-In {es}, EQL assumes each document in a data stream or index corresponds to an
+EQL assumes each document in a data stream or index corresponds to an
 event.
 
 [source,console]
@@ -64,7 +64,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`ignore_unavailable`::
+(Optional, boolean) If `true`, missing or closed indices are not included in the
+response. Defaults to `true`.
 
 `keep_alive`::
 +
@@ -210,9 +212,6 @@ If both parameters are specified, only the query parameter is used.
 `query`::
 (Required, string)
 <<eql-syntax,EQL>> query you wish to run.
-+
-IMPORTANT: This parameter supports a subset of EQL syntax. See
-<<eql-unsupported-syntax>>.
 
 `size`::
 (Optional, integer or float)

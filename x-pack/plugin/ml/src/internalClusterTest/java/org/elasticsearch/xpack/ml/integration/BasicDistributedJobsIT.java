@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -66,7 +65,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);
 
-        Job.Builder job = createJob("fail-over-basics-job", new ByteSizeValue(2, ByteSizeUnit.MB));
+        Job.Builder job = createJob("fail-over-basics-job", ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         ensureYellow(); // at least the primary shards of the indices a job uses should be started
@@ -209,7 +208,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(3);
 
         String jobId = "dedicated-ml-node-job";
-        Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.MB));
+        Job.Builder job = createJob(jobId, ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
@@ -287,7 +286,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureYellow(); // at least the primary shards of the indices a job uses should be started
         int numJobs = numMlNodes * 10;
         for (int i = 0; i < numJobs; i++) {
-            Job.Builder job = createJob(Integer.toString(i), new ByteSizeValue(2, ByteSizeUnit.MB));
+            Job.Builder job = createJob(Integer.toString(i), ByteSizeValue.ofMb(2));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
@@ -426,7 +425,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         String jobId = "test-lazy-stop";
         String datafeedId = jobId + "-datafeed";
         // Assume the test machine won't have space to assign a 2TB job
-        Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.TB), true);
+        Job.Builder job = createJob(jobId, ByteSizeValue.ofTb(2), true);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 

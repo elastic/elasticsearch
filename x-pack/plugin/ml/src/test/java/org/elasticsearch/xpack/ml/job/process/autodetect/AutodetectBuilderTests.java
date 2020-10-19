@@ -27,8 +27,10 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -146,7 +148,6 @@ public class AutodetectBuilderTests extends ESTestCase {
         verifyNoMoreInteractions(nativeController);
 
         List<String> command = commandCaptor.getValue();
-        String commandString = command.toString();
-        assertTrue(commandString.contains(" --config="));
+        assertThat(command, hasItem(matchesPattern("--config=.*\\.json")));
     }
 }

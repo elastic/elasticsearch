@@ -177,13 +177,20 @@ public class AutodetectBuilder {
     public void build() throws IOException, InterruptedException {
 
         List<String> command = buildAutodetectCommand();
+
+        // While it may appear that the JSON formatted job config file contains data that
+        // is duplicated in the existing limits, modelPlot and field config files, over time
+        // the C++ backend will retrieve all its required configuration data from the new
+        // JSON config file and the old-style configuration files will be removed.
+        buildJobConfig(command);
+
+        // Per the comment above, these three lines will eventually be removed once migration
+        // to the new JSON formatted configuration file has been completed.
         buildLimits(command);
         buildModelPlotConfig(command);
-
-        buildQuantiles(command);
         buildFieldConfig(command);
 
-        buildJobConfig(command);
+        buildQuantiles(command);
 
         processPipes.addArgs(command);
         controller.startProcess(command);
@@ -362,7 +369,7 @@ public class AutodetectBuilder {
         Path configFile = Files.createTempFile(env.tmpFile(), "config", JSON_EXTENSION);
         filesToDelete.add(configFile);
         try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile),StandardCharsets.UTF_8);
-             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
 
             job.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             osw.write(Strings.toString(jsonBuilder));

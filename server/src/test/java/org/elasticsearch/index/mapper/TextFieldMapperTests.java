@@ -83,8 +83,8 @@ import static org.hamcrest.core.Is.is;
 public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(1234);
+    protected Object getSampleValueForDocument() {
+        return "value";
     }
 
     public final void testExistsQueryIndexDisabled() throws IOException {

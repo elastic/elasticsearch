@@ -24,7 +24,7 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/filters/delete";
 
     private DeleteFilterAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

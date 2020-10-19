@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -145,7 +144,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
         long jobLimitMegaBytes = job.getAnalysisLimits() == null || job.getAnalysisLimits().getModelMemoryLimit() == null ?
             AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB :
             job.getAnalysisLimits().getModelMemoryLimit();
-        long allowedMax = (long)(new ByteSizeValue(jobLimitMegaBytes, ByteSizeUnit.MB).getBytes() * 0.40);
+        long allowedMax = (long)(ByteSizeValue.ofMb(jobLimitMegaBytes).getBytes() * 0.40);
         long adjustedMax = Math.min(requestedLimit, allowedMax - 1);
         if (adjustedMax != requestedLimit) {
             String msg = "requested forecast memory limit [" +

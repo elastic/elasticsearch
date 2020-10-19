@@ -132,8 +132,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public static class Builder<T extends Builder> extends Mapper.Builder<T> {
+    public static class Builder extends Mapper.Builder {
 
         protected Explicit<Boolean> enabled = new Explicit<>(true, false);
 
@@ -143,30 +142,28 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
-        @SuppressWarnings("unchecked")
         public Builder(String name) {
             super(name);
-            this.builder = (T) this;
         }
 
-        public T enabled(boolean enabled) {
+        public Builder enabled(boolean enabled) {
             this.enabled = new Explicit<>(enabled, true);
-            return builder;
+            return this;
         }
 
-        public T dynamic(Dynamic dynamic) {
+        public Builder dynamic(Dynamic dynamic) {
             this.dynamic = dynamic;
-            return builder;
+            return this;
         }
 
-        public T nested(Nested nested) {
+        public Builder nested(Nested nested) {
             this.nested = nested;
-            return builder;
+            return this;
         }
 
-        public T add(Mapper.Builder builder) {
+        public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
-            return this.builder;
+            return this;
         }
 
         @Override
@@ -317,9 +314,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
                     String[] fieldNameParts = fieldName.split("\\.");
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-                    Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                    Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
+                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
                         intermediate.add(fieldBuilder);
                         fieldBuilder = intermediate;
                     }

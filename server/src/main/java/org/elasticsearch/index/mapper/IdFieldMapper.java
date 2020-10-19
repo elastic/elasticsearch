@@ -95,7 +95,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(() -> c.mapperService().isIdFieldDataEnabled()));
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c::isIdFieldDataEnabled));
 
     static final class IdFieldType extends TermBasedFieldType {
 

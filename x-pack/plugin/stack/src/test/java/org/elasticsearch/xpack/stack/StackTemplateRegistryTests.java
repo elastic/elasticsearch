@@ -105,7 +105,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testDisabledDoesNotAddTemplates() {
-        Settings settings = Settings.builder().put(StackPlugin.STACK_TEMPLATES_ENABLED.getKey(), false).build();
+        Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
         StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
         assertThat(disabledRegistry.getComponentTemplateConfigs(), hasSize(0));
         assertThat(disabledRegistry.getComposableTemplateConfigs(), hasSize(0));
@@ -163,7 +163,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 return new StackTemplateRegistryTests.TestPutIndexTemplateResponse(true);
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
-                return new AcknowledgedResponse(true);
+                return AcknowledgedResponse.TRUE;
             } else {
                 fail("client called with unexpected request: " + request.toString());
                 return null;
@@ -190,7 +190,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
-                return new AcknowledgedResponse(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
                 fail("if the policy already exists it should be re-put");
             } else {
@@ -219,7 +219,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
-                return new AcknowledgedResponse(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
                 fail("if the policy already exists it should be re-put");
             } else {
@@ -292,7 +292,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 return new PutLifecycleAction.Response(true);
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
-                return new AcknowledgedResponse(true);
+                return AcknowledgedResponse.TRUE;
             } else {
                 fail("client called with unexpected request:" + request.toString());
                 return null;
@@ -400,7 +400,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             return new PutLifecycleAction.Response(true);
         } else if (action instanceof PutComposableIndexTemplateAction) {
             // Ignore this, it's verified in another test
-            return new AcknowledgedResponse(true);
+            return AcknowledgedResponse.TRUE;
         } else {
             fail("client called with unexpected request:" + request.toString());
             return null;

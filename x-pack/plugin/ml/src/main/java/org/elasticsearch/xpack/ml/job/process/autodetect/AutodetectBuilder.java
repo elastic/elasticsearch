@@ -9,6 +9,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -63,7 +66,9 @@ public class AutodetectBuilder {
     public static final String QUANTILES_STATE_PATH_ARG = "--quantilesState=";
 
     private static final String CONF_EXTENSION = ".conf";
+    private static final String JSON_EXTENSION = ".json";
     static final String JOB_ID_ARG = "--jobid=";
+    private static final String CONFIG_ARG = "--config=";
     private static final String LIMIT_CONFIG_ARG = "--limitconfig=";
     private static final String MODEL_PLOT_CONFIG_ARG = "--modelplotconfig=";
     private static final String FIELD_CONFIG_ARG = "--fieldconfig=";
@@ -172,12 +177,14 @@ public class AutodetectBuilder {
     public void build() throws IOException, InterruptedException {
 
         List<String> command = buildAutodetectCommand();
-
         buildLimits(command);
         buildModelPlotConfig(command);
 
         buildQuantiles(command);
         buildFieldConfig(command);
+
+        buildJobConfig(command);
+
         processPipes.addArgs(command);
         controller.startProcess(command);
     }
@@ -349,5 +356,18 @@ public class AutodetectBuilder {
             String fieldConfig = FIELD_CONFIG_ARG + fieldConfigFile.toString();
             command.add(fieldConfig);
         }
+    }
+
+    private void buildJobConfig(List<String> command) throws IOException {
+        Path configFile = Files.createTempFile(env.tmpFile(), "config", JSON_EXTENSION);
+        filesToDelete.add(configFile);
+        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile),StandardCharsets.UTF_8);
+             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+
+            job.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+            osw.write(Strings.toString(jsonBuilder));
+        }
+
+        command.add(CONFIG_ARG + configFile.toString());
     }
 }

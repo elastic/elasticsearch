@@ -285,8 +285,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         out.writeVInt(roles.size());
         for (final DiscoveryNodeRole role : roles) {
-            out.writeString(role.roleName());
-            out.writeString(role.roleNameAbbreviation());
+            final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
+            out.writeString(compatibleRole.roleName());
+            out.writeString(compatibleRole.roleNameAbbreviation());
         }
         Version.writeVersion(version, out);
     }

@@ -69,8 +69,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(1234);
+    protected Object getSampleValueForDocument() {
+        return 1234;
     }
 
     public void testDefaults() throws Exception {

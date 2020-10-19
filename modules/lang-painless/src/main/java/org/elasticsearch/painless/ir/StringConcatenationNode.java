@@ -19,11 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
 
 public class StringConcatenationNode extends ArgumentsNode {
 
@@ -45,16 +42,4 @@ public class StringConcatenationNode extends ArgumentsNode {
         super(location);
     }
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(getLocation());
-        methodWriter.writeNewStrings();
-
-        for (ExpressionNode argumentNode : getArgumentNodes()) {
-            argumentNode.write(classWriter, methodWriter, writeScope);
-            methodWriter.writeAppendStrings(argumentNode.getExpressionType());
-        }
-
-        methodWriter.writeToStrings();
-    }
 }

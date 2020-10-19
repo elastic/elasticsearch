@@ -56,7 +56,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -250,35 +249,6 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Gets the search analyzer for the given field, or the default if there is none present for the field
-     * TODO: remove this by moving defaults into mappers themselves
-     */
-    public Analyzer getSearchAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.getTextSearchInfo().getSearchAnalyzer() != null) {
-            return fieldType.getTextSearchInfo().getSearchAnalyzer();
-        }
-        return mapperService.searchAnalyzer();
-    }
-
-    /**
-     * Returns the default search analyzer
-     */
-    public Analyzer getSearchAnalyzer() {
-        return this.mapperService.searchAnalyzer();
-    }
-
-    /**
-     * Gets the search quote analyzer for the given field, or the default if there is none present for the field
-     * TODO: remove this by moving defaults into mappers themselves
-     */
-    public Analyzer getSearchQuoteAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.getTextSearchInfo().getSearchQuoteAnalyzer() != null) {
-            return fieldType.getTextSearchInfo().getSearchQuoteAnalyzer();
-        }
-        return mapperService.searchQuoteAnalyzer();
-    }
-
-    /**
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.
      */
@@ -288,7 +258,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
-        final Mapper.Builder<?> builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
+        final Mapper.Builder builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1));
         Mapper mapper = builder.build(builderContext);
         if (mapper instanceof FieldMapper) {
@@ -299,6 +269,10 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public IndexAnalyzers getIndexAnalyzers() {
         return mapperService.getIndexAnalyzers();
+    }
+
+    public Analyzer getIndexAnalyzer() {
+        return mapperService.indexAnalyzer();
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
@@ -532,9 +506,5 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public BitsetFilterCache getBitsetFilterCache() {
         return bitsetFilterCache;
-    }
-
-    public AggregationUsageService getUsageService() {
-        return valuesSourceRegistry.getUsageService();
     }
 }

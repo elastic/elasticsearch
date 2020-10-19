@@ -42,17 +42,17 @@ public final class CreateTokenResponse {
     private final String scope;
     private final String refreshToken;
     private final String kerberosAuthenticationResponseToken;
-    private final AuthenticateResponse authenticationResponse;
+    private final AuthenticateResponse authentication;
 
     public CreateTokenResponse(String accessToken, String type, TimeValue expiresIn, String scope, String refreshToken,
-                               String kerberosAuthenticationResponseToken, AuthenticateResponse authenticationResponse) {
+                               String kerberosAuthenticationResponseToken, AuthenticateResponse authentication) {
         this.accessToken = accessToken;
         this.type = type;
         this.expiresIn = expiresIn;
         this.scope = scope;
         this.refreshToken = refreshToken;
         this.kerberosAuthenticationResponseToken = kerberosAuthenticationResponseToken;
-        this.authenticationResponse = authenticationResponse;
+        this.authentication = authentication;
     }
 
     public String getAccessToken() {
@@ -79,7 +79,7 @@ public final class CreateTokenResponse {
         return kerberosAuthenticationResponseToken;
     }
 
-    public AuthenticateResponse getAuthenticationResponse() { return authenticationResponse; }
+    public AuthenticateResponse getAuthentication() { return authentication; }
 
     @Override
     public boolean equals(Object o) {
@@ -96,12 +96,12 @@ public final class CreateTokenResponse {
             Objects.equals(scope, that.scope) &&
             Objects.equals(refreshToken, that.refreshToken) &&
             Objects.equals(kerberosAuthenticationResponseToken, that.kerberosAuthenticationResponseToken)&&
-            Objects.equals(authenticationResponse, that.authenticationResponse);
+            Objects.equals(authentication, that.authentication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(accessToken, type, expiresIn, scope, refreshToken, kerberosAuthenticationResponseToken, authenticationResponse);
+        return Objects.hash(accessToken, type, expiresIn, scope, refreshToken, kerberosAuthenticationResponseToken, authentication);
     }
 
     private static final ConstructingObjectParser<CreateTokenResponse, Void> PARSER = new ConstructingObjectParser<>(

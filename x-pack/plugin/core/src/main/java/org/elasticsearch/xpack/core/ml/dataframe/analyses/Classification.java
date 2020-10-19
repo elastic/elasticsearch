@@ -55,7 +55,7 @@ public class Classification implements DataFrameAnalysis {
     public static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
     public static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
 
-    private static final String STATE_DOC_ID_SUFFIX = "_classification_state#1";
+    private static final String STATE_DOC_ID_INFIX = "_classification_state#";
 
     private static final String NUM_CLASSES = "num_classes";
 
@@ -167,8 +167,9 @@ public class Classification implements DataFrameAnalysis {
                           @Nullable Double trainingPercent,
                           @Nullable Long randomizeSeed,
                           @Nullable List<PreProcessor> featureProcessors) {
-        if (numTopClasses != null && (numTopClasses < 0 || numTopClasses > 1000)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be an integer in [0, 1000]", NUM_TOP_CLASSES.getPreferredName());
+        if (numTopClasses != null && (numTopClasses < -1 || numTopClasses > 1000)) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be an integer in [0, 1000] or a special value -1", NUM_TOP_CLASSES.getPreferredName());
         }
         if (trainingPercent != null && (trainingPercent <= 0.0 || trainingPercent > 100.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a positive double in (0, 100]", TRAINING_PERCENT.getPreferredName());
@@ -231,6 +232,7 @@ public class Classification implements DataFrameAnalysis {
         return numTopClasses;
     }
 
+    @Override
     public double getTrainingPercent() {
         return trainingPercent;
     }
@@ -391,7 +393,16 @@ public class Classification implements DataFrameAnalysis {
             return additionalProperties;
         }
         additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
-        additionalProperties.put(resultsFieldName + ".top_classes.class_name", dependentVariableMapping);
+
+        Map<String, Object> topClassesProperties = new HashMap<>();
+        topClassesProperties.put("class_name", dependentVariableMapping);
+        topClassesProperties.put("class_probability", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+
+        Map<String, Object> topClassesMapping = new HashMap<>();
+        topClassesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        topClassesMapping.put("properties", topClassesProperties);
+
+        additionalProperties.put(resultsFieldName + ".top_classes", topClassesMapping);
         return additionalProperties;
     }
 
@@ -410,8 +421,8 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public String getStateDocId(String jobId) {
-        return jobId + STATE_DOC_ID_SUFFIX;
+    public String getStateDocIdPrefix(String jobId) {
+        return jobId + STATE_DOC_ID_INFIX;
     }
 
     @Override
@@ -436,7 +447,7 @@ public class Classification implements DataFrameAnalysis {
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {
-        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
+        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_INFIX);
         return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);
     }
 

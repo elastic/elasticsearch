@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -131,7 +132,6 @@ public class RestoreService implements ClusterStateApplier {
             SETTING_VERSION_CREATED,
             SETTING_INDEX_UUID,
             SETTING_CREATION_DATE,
-            IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
             SETTING_HISTORY_UUID));
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
@@ -160,7 +160,7 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterSettings clusterSettings;
 
-    private final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor;
+    private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
     public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
                           AllocationService allocationService, MetadataCreateIndexService createIndexService,
@@ -171,9 +171,10 @@ public class RestoreService implements ClusterStateApplier {
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.metadataIndexUpgradeService = metadataIndexUpgradeService;
-        clusterService.addStateApplier(this);
-        this.clusterSettings = clusterSettings;
-        this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+            clusterService.addStateApplier(this);
+        }
+        this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
     }
 
@@ -524,6 +525,12 @@ public class RestoreService implements ClusterStateApplier {
                             .put(changeSettings)
                             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
                             .build();
+                        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings()) &&
+                            IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(changeSettings) &&
+                            IndexSettings.INDEX_SOFT_DELETES_SETTING.get(changeSettings) == false) {
+                            throw new SnapshotRestoreException(snapshot,
+                                "cannot disable setting [" + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey() + "] on restore");
+                        }
                         IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
                         Settings settings = indexMetadata.getSettings();
                         Set<String> keyFilters = new HashSet<>();
@@ -910,7 +917,7 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
-    private static boolean failed(SnapshotInfo snapshot, String index) {
+    public static boolean failed(SnapshotInfo snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {
             if (index.equals(failure.index())) {
                 return true;

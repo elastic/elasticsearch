@@ -34,11 +34,11 @@ public final class BitArray implements Releasable {
 
     /**
      * Create the {@linkplain BitArray}.
-     * @param initialSize the initial size of underlying storage.
+     * @param initialSize the initial size of underlying storage expressed in bits.
      */
     public BitArray(long initialSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-        this.bits = bigArrays.newLongArray(initialSize, true);
+        this.bits = bigArrays.newLongArray(wordNum(initialSize) + 1, true);
     }
 
     /**
@@ -48,6 +48,48 @@ public final class BitArray implements Releasable {
         long wordNum = wordNum(index);
         bits = bigArrays.grow(bits, wordNum + 1);
         bits.set(wordNum, bits.get(wordNum) | bitmask(index));
+    }
+
+    /** this = this OR other */
+    public void or(BitArray other) {
+        or(other.bits);
+    }
+
+    private void or(final LongArray otherArr) {
+        long pos = otherArr.size();
+        bits = bigArrays.grow(bits, pos + 1);
+        final LongArray thisArr = this.bits;
+        while (--pos >= 0) {
+            thisArr.set(pos, thisArr.get(pos) | otherArr.get(pos));
+        }
+    }
+
+    public long nextSetBit(long index) {
+        long wordNum = wordNum(index);
+        if (wordNum >= bits.size()) {
+            return Long.MAX_VALUE;
+        }
+        long word = bits.get(wordNum) >> index;  // skip all the bits to the right of index
+
+        if (word!=0) {
+            return index + Long.numberOfTrailingZeros(word);
+        }
+
+        while (++wordNum < bits.size()) {
+            word = bits.get(wordNum);
+            if (word != 0) {
+                return (wordNum << 6) + Long.numberOfTrailingZeros(word);
+            }
+        }
+        return Long.MAX_VALUE;
+    }
+
+    public long cardinality() {
+        long cardinality = 0;
+        for (int i = 0; i < bits.size(); ++i) {
+            cardinality += Long.bitCount(bits.get(i));
+        }
+        return cardinality;
     }
 
     /**

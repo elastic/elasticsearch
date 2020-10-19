@@ -29,8 +29,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
@@ -62,23 +63,25 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         FIELD_TYPE.freeze();
     }
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldType> {
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder {
 
         public Builder(String name) {
             super(name, FIELD_TYPE);
             hasDocValues = true;
-            builder = this;
         }
 
         @Override
         public GeoPointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
                                          MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                          Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-            GeoPointFieldType ft = new GeoPointFieldType(buildFullName(context), indexed, hasDocValues, meta);
-            ft.setGeometryParser(new PointParser<>());
-            ft.setGeometryIndexer(new GeoPointIndexer(ft));
-            ft.setGeometryQueryBuilder(new VectorGeoPointShapeQueryProcessor());
-            return new GeoPointFieldMapper(name, fieldType, ft, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
+            Parser<List<ParsedGeoPoint>> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
+                GeoUtils.parseGeoPoint(parser, point, ignoreZValue().value());
+                return point;
+            }, (ParsedGeoPoint) nullValue, ignoreZValue.value(), ignoreMalformed.value());
+            GeoPointFieldType ft
+                = new GeoPointFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, geoParser, meta);
+            return new GeoPointFieldMapper(name, fieldType, ft, multiFields,
+                ignoreMalformed, ignoreZValue, nullValue, copyTo, new GeoPointIndexer(ft), geoParser);
         }
     }
 
@@ -105,19 +108,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
     }
 
-    /**
-     * Parses geopoint represented as an object or an array, ignores malformed geopoints if needed
-     */
-    @Override
-    protected void parsePointIgnoringMalformed(XContentParser parser, ParsedPoint point) throws IOException {
-        GeoUtils.parseGeoPoint(parser, (GeoPoint)point, ignoreZValue().value());
-        super.parsePointIgnoringMalformed(parser, point);
-    }
-
     public GeoPointFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                               Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
+                               Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo,
+                               Indexer<List<ParsedGeoPoint>, List<? extends GeoPoint>> indexer,
+                               Parser<List<ParsedGeoPoint>> parser) {
+        super(simpleName, fieldType, mappedFieldType, multiFields,
+            ignoreMalformed, ignoreZValue, nullValue, copyTo, indexer, parser);
     }
 
     @Override
@@ -166,23 +163,28 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         return (GeoPointFieldType)mappedFieldType;
     }
 
-    @Override
-    protected ParsedPoint newParsedPoint() {
-        return new ParsedGeoPoint();
-    }
+    public static class GeoPointFieldType extends AbstractPointGeometryFieldType implements GeoShapeQueryable {
 
-    public static class GeoPointFieldType extends AbstractPointGeometryFieldType<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
-        public GeoPointFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        private final VectorGeoPointShapeQueryProcessor queryProcessor;
+
+        private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                  Parser<?> parser, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, parser, meta);
+            this.queryProcessor = new VectorGeoPointShapeQueryProcessor();
         }
 
         public GeoPointFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this(name, true, false, true, null, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            return queryProcessor.geoShapeQuery(shape, fieldName, relation, context);
         }
 
         @Override
@@ -251,12 +253,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
                 GeoPoint o = (GeoPoint)other;
                 oLat = o.lat();
                 oLon = o.lon();
-            } else if (other instanceof ParsedGeoPoint == false) {
-                return false;
             } else {
-                ParsedGeoPoint o = (ParsedGeoPoint)other;
-                oLat = o.lat();
-                oLon = o.lon();
+                return false;
             }
             if (Double.compare(oLat, lat) != 0) return false;
             if (Double.compare(oLon, lon) != 0) return false;

@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -43,11 +44,8 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -115,9 +113,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Path repositoryLocation = randomRepoPath();
-        createFsRepository(repositoryName, repositoryLocation);
+        createRepository(repositoryName, "fs", repositoryLocation);
 
-        final SnapshotId snapshot = createSnapshot(repositoryName, List.of(indexName));
+        final SnapshotId snapshot = createSnapshot(repositoryName, "test-snapshot", List.of(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         // extract the list of blobs per shard from the snapshot directory on disk
@@ -214,12 +212,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                final boolean mayReadMoreThanHeader
                 // we read the header of each file contained within the .cfs file, which could be anywhere
-                    = indexInputStats.getFileName().endsWith(".cfs")
-                        // we read a couple of longs at the end of the .fdt file (see https://issues.apache.org/jira/browse/LUCENE-9456)
-                        // TODO revisit this when this issue is addressed in Lucene
-                        || indexInputStats.getFileName().endsWith(".fdt");
+                final boolean mayReadMoreThanHeader = indexInputStats.getFileName().endsWith(".cfs");
                 if (indexInputStats.getFileLength() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2
                     || mayReadMoreThanHeader == false) {
                     assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
@@ -328,24 +322,20 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
      */
     private Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot(Path repositoryLocation, String snapshotId) throws IOException {
         final Map<String, BlobStoreIndexShardSnapshot> blobsPerShard = new HashMap<>();
-        Files.walkFileTree(repositoryLocation.resolve("indices"), new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                final String fileName = file.getFileName().toString();
-                if (fileName.equals("snap-" + snapshotId + ".dat")) {
-                    blobsPerShard.put(
-                        String.join(
-                            "/",
-                            snapshotId,
-                            file.getParent().getParent().getFileName().toString(),
-                            file.getParent().getFileName().toString()
-                        ),
-                        INDEX_SHARD_SNAPSHOT_FORMAT.deserialize(fileName, xContentRegistry(), Streams.readFully(Files.newInputStream(file)))
-                    );
-                }
-                return FileVisitResult.CONTINUE;
+        forEachFileRecursively(repositoryLocation.resolve("indices"), ((file, basicFileAttributes) -> {
+            final String fileName = file.getFileName().toString();
+            if (fileName.equals(BlobStoreRepository.SNAPSHOT_FORMAT.blobName(snapshotId))) {
+                blobsPerShard.put(
+                    String.join(
+                        "/",
+                        snapshotId,
+                        file.getParent().getParent().getFileName().toString(),
+                        file.getParent().getFileName().toString()
+                    ),
+                    INDEX_SHARD_SNAPSHOT_FORMAT.deserialize(fileName, xContentRegistry(), Streams.readFully(Files.newInputStream(file)))
+                );
             }
-        });
+        }));
         return Map.copyOf(blobsPerShard);
     }
 

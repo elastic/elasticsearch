@@ -113,7 +113,8 @@ public class DiffableTests extends ESTestCase {
             @Override
             protected MapDiff readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
+                        ? DiffableUtils.readImmutableOpenMapDiff(in, keySerializer,
+                        new DiffableUtils.DiffableValueReader<>(TestDiffable::readFrom, TestDiffable::readDiffFrom))
                         : DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();

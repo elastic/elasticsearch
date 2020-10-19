@@ -85,6 +85,11 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/indices\n");
         sb.append("/_cat/indices/{index}\n");

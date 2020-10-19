@@ -4,6 +4,10 @@
 <titleabbrev>Scroll</titleabbrev>
 ++++
 
+IMPORTANT: We no longer recommend using the scroll API for deep pagination. If
+you need to preserve the index state while paging through more than 10,000 hits,
+use the <<search-after,`search_after`>> parameter with a point in time (PIT).
+
 Retrieves the next batch of results for a <<scroll-search-results,scrolling
 search>>.
 

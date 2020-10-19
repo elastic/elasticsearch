@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.not;
 
 public class TextLogFileStructureFinderTests extends FileStructureTestCase {
 
-    private FileStructureFinderFactory factory = new TextLogFileStructureFinderFactory();
+    private final FileStructureFinderFactory factory = new TextLogFileStructureFinderFactory();
 
     public void testCreateConfigsGivenLowLineMergeSizeLimit() {
 
@@ -74,6 +74,7 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         for (String statMessage : messageFieldStats.getTopHits().stream().map(m -> (String) m.get("value")).collect(Collectors.toList())) {
             assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
         }
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndTimestampFormatOverride() throws Exception {
@@ -115,6 +116,7 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         for (String statMessage : messageFieldStats.getTopHits().stream().map(m -> (String) m.get("value")).collect(Collectors.toList())) {
             assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
         }
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndTimestampFieldOverride() throws Exception {
@@ -151,6 +153,7 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         for (String statMessage : messageFieldStats.getTopHits().stream().map(m -> (String) m.get("value")).collect(Collectors.toList())) {
             assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
         }
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndGrokPatternOverride() throws Exception {
@@ -191,6 +194,7 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
             // at the end of the processing will _not_ contain a complete sample message
             assertThat(structureFinder.getSampleMessages(), not(hasItem(statMessage)));
         }
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndImpossibleGrokPatternOverride() {

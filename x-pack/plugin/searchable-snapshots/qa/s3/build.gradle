@@ -51,10 +51,6 @@ testClusters.integTest {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
 
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
-
   keystore 's3.client.searchable_snapshots.access_key', s3AccessKey
   keystore 's3.client.searchable_snapshots.secret_key', s3SecretKey
   setting 'xpack.license.self_generated.type', 'trial'

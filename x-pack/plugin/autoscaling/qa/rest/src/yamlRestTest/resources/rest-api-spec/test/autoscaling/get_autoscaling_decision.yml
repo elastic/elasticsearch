@@ -6,24 +6,34 @@
   - match: { "decisions": [] }
 
 ---
-"Test get always autoscaling decision":
+"Test get fixed autoscaling decision":
   - do:
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
         body:
           policy:
             deciders:
-              always: {}
+              fixed:
+                storage: 1337b
+                memory: 7331b
+                nodes: 10
 
   - match: { "acknowledged": true }
 
   - do:
       autoscaling.get_autoscaling_decision: {}
 
-  - match: { decisions.0.my_autoscaling_policy.decision: scale_up }
-  - match: { decisions.0.my_autoscaling_policy.decisions.0.name: always }
-  - match: { decisions.0.my_autoscaling_policy.decisions.0.type: scale_up }
-  - match: { decisions.0.my_autoscaling_policy.decisions.0.reason: always }
+  - match: { decisions.0.tier: my_autoscaling_policy }
+  - match: { decisions.0.required_capacity.tier.storage: 13370b }
+  - match: { decisions.0.required_capacity.tier.memory: 73310b }
+  - match: { decisions.0.required_capacity.node.storage: 1337b }
+  - match: { decisions.0.required_capacity.node.memory: 7331b }
+  - match: { decisions.0.decisions.0.name: fixed }
+  - match: { decisions.0.decisions.0.required_capacity.tier.storage: 13370b }
+  - match: { decisions.0.decisions.0.required_capacity.tier.memory: 73310b }
+  - match: { decisions.0.decisions.0.required_capacity.node.storage: 1337b }
+  - match: { decisions.0.decisions.0.required_capacity.node.memory: 7331b }
+  - match: { decisions.0.decisions.0.reason_summary: "fixed storage [1.3kb] memory [7.1kb] nodes [10]" }
 
   # test cleanup
   - do:

@@ -2857,7 +2857,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         assertThat(requestedMappingUpdates, hasKey("_doc"));
-        assertThat(requestedMappingUpdates.get("_doc").get().source().string(),
+        assertThat(requestedMappingUpdates.get("_doc").source().string(),
             equalTo("{\"properties\":{\"foo\":{\"type\":\"text\"}}}"));
 
         closeShards(sourceShard, targetShard);
@@ -4096,7 +4096,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     throw new AssertionError(e);
                 }
             };
-            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),

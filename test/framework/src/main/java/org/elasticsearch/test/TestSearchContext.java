@@ -28,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -306,11 +305,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public BitsetFilterCache bitsetFilterCache() {
         return fixedBitSetFilterCache;
-    }
-
-    @Override
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return queryShardContext.getForField(fieldType);
     }
 
     @Override

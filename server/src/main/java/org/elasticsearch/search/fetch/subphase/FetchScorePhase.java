@@ -25,19 +25,17 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 public class FetchScorePhase implements FetchSubPhase {
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext context) throws IOException {
-        if (context.trackScores() == false || context.docIdsToLoadSize() == 0 ||
-            // scores were already computed since they are needed on the coordinated node to merge top hits
-            context.sort() == null) {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
+        if (context.fetchScores() == false) {
             return null;
         }
         final IndexSearcher searcher = context.searcher();

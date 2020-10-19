@@ -57,7 +57,7 @@ public class RootObjectMapper extends ObjectMapper {
         public static final boolean NUMERIC_DETECTION = false;
     }
 
-    public static class Builder extends ObjectMapper.Builder<Builder> {
+    public static class Builder extends ObjectMapper.Builder {
 
         protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
         protected Explicit<DateFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
@@ -66,7 +66,6 @@ public class RootObjectMapper extends ObjectMapper {
 
         public Builder(String name) {
             super(name);
-            this.builder = this;
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -76,6 +75,12 @@ public class RootObjectMapper extends ObjectMapper {
 
         public Builder dynamicTemplates(Collection<DynamicTemplate> templates) {
             this.dynamicTemplates = new Explicit<>(templates.toArray(new DynamicTemplate[0]), true);
+            return this;
+        }
+
+        @Override
+        public RootObjectMapper.Builder add(Mapper.Builder builder) {
+            super.add(builder);
             return this;
         }
 
@@ -126,9 +131,7 @@ public class RootObjectMapper extends ObjectMapper {
     public static class TypeParser extends ObjectMapper.TypeParser {
 
         @Override
-        @SuppressWarnings("rawtypes")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-
             RootObjectMapper.Builder builder = new Builder(name);
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -273,7 +276,7 @@ public class RootObjectMapper extends ObjectMapper {
             return null;
         }
         String dynamicType = matchType.defaultMappingType();
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(dateFormat);
+        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormat);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
@@ -391,10 +394,10 @@ public class RootObjectMapper extends ObjectMapper {
             String templateName = "__dynamic__" + dynamicTemplate.name();
             Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, defaultDynamicType);
             try {
-                Mapper.Builder<?> dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
+                Mapper.Builder dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
                 fieldTypeConfig.remove("type");
                 if (fieldTypeConfig.isEmpty()) {
-                    Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
+                    Settings indexSettings = parserContext.getSettings();
                     BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
                     dummyBuilder.build(builderContext);
                     dynamicTemplateInvalid = false;

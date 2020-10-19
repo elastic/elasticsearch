@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -22,12 +23,14 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -213,6 +216,41 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);
+    }
+
+    public void testProducesStoredFieldsReader() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        iwc.setMaxBufferedDocs(100);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        // add two docs, id:0 and id:1
+        Document doc = new Document();
+        Field idField = new StringField("id", "", Field.Store.NO);
+        doc.add(idField);
+        idField.setStringValue("0");
+        iw.addDocument(doc);
+        iw.commit();
+
+        idField.setStringValue("1");
+        iw.addDocument(doc);
+        iw.commit();
+
+        // open reader
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), new ShardId("_index", "_na_", 0));
+        reader = DocumentSubsetReader.wrap(reader, bitsetCache, new MatchAllDocsQuery());
+        assertEquals(2, reader.numDocs());
+        assertEquals(2, reader.leaves().size());
+
+        TestUtil.checkReader(reader);
+        assertThat(reader.leaves().size(), Matchers.greaterThanOrEqualTo(1));
+        for (LeafReaderContext context: reader.leaves()) {
+            assertThat(context.reader(), Matchers.instanceOf(SequentialStoredFieldsLeafReader.class));
+            SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+            assertNotNull(lf.getSequentialStoredFieldsReader());
+        }
+        IOUtils.close(reader, iw, dir);
     }
 
     private void openDirectoryReader() throws IOException {

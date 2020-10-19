@@ -513,8 +513,21 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                         continue;
                     }
-                    long bucketOrd = bucketOrds.find(owningBucketOrd, globalOrd);
-                    long docCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
+                    /*
+                     * Use `add` instead of `find` here to assign an ordinal
+                     * even if the global ord wasn't found so we can build
+                     * sub-aggregations without trouble even though we haven't
+                     * hit any documents for them. This is wasteful, but
+                     * settings minDocCount == 0 is wasteful in general.....
+                     */
+                    long bucketOrd = bucketOrds.add(owningBucketOrd, globalOrd);
+                    long docCount;
+                    if (bucketOrd < 0) {
+                        bucketOrd = -1 - bucketOrd;
+                        docCount = bucketDocCount(bucketOrd);
+                    } else {
+                        docCount = 0;
+                    }
                     consumer.accept(globalOrd, bucketOrd, docCount);
                 }
             } else {

@@ -6,73 +6,101 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.decision.AutoscalingCapacity;
+import org.elasticsearch.xpack.autoscaling.decision.FixedAutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecision;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisionType;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisions;
+import org.elasticsearch.xpack.autoscaling.decision.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static AutoscalingDecision randomAutoscalingDecision() {
-        return randomAutoscalingDecisionOfType(randomFrom(AutoscalingDecisionType.values()));
+        AutoscalingCapacity capacity = randomNullableAutoscalingCapacity();
+        return randomAutoscalingDecisionWithCapacity(capacity);
     }
 
-    public static AutoscalingDecision randomAutoscalingDecisionOfType(final AutoscalingDecisionType type) {
-        return new AutoscalingDecision(randomAlphaOfLength(8), type, randomAlphaOfLength(8));
+    protected static AutoscalingDecision randomAutoscalingDecisionWithCapacity(AutoscalingCapacity capacity) {
+        return new AutoscalingDecision(
+            capacity,
+            new FixedAutoscalingDeciderService.FixedReason(randomNullableByteSizeValue(), randomNullableByteSizeValue(), randomInt(1000))
+        );
     }
 
     public static AutoscalingDecisions randomAutoscalingDecisions() {
-        final int numberOfDecisions = 1 + randomIntBetween(1, 8);
-        final List<AutoscalingDecision> decisions = new ArrayList<>(numberOfDecisions);
-        for (int i = 0; i < numberOfDecisions; i++) {
-            decisions.add(randomAutoscalingDecisionOfType(AutoscalingDecisionType.SCALE_DOWN));
-        }
-        final int numberOfDownDecisions = randomIntBetween(0, 8);
-        final int numberOfNoDecisions = randomIntBetween(0, 8);
-        final int numberOfUpDecisions = randomIntBetween(numberOfDownDecisions + numberOfNoDecisions == 0 ? 1 : 0, 8);
-        return randomAutoscalingDecisions(numberOfDownDecisions, numberOfNoDecisions, numberOfUpDecisions);
+        final SortedMap<String, AutoscalingDecision> decisions = IntStream.range(0, randomIntBetween(1, 10))
+            .mapToObj(i -> Tuple.tuple(Integer.toString(i), randomAutoscalingDecision()))
+            .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new IllegalStateException(); }, TreeMap::new));
+        AutoscalingCapacity capacity = new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources());
+        return new AutoscalingDecisions(randomAlphaOfLength(10), capacity, decisions);
     }
 
-    public static AutoscalingDecisions randomAutoscalingDecisions(
-        final int numberOfDownDecisions,
-        final int numberOfNoDecisions,
-        final int numberOfUpDecisions
-    ) {
-        final List<AutoscalingDecision> decisions = new ArrayList<>(numberOfDownDecisions + numberOfNoDecisions + numberOfUpDecisions);
-        for (int i = 0; i < numberOfDownDecisions; i++) {
-            decisions.add(randomAutoscalingDecisionOfType(AutoscalingDecisionType.SCALE_DOWN));
-        }
-        for (int i = 0; i < numberOfNoDecisions; i++) {
-            decisions.add(randomAutoscalingDecisionOfType(AutoscalingDecisionType.NO_SCALE));
-        }
-        for (int i = 0; i < numberOfUpDecisions; i++) {
-            decisions.add(randomAutoscalingDecisionOfType(AutoscalingDecisionType.SCALE_UP));
-        }
-        Randomness.shuffle(decisions);
-        return new AutoscalingDecisions(decisions);
+    public static AutoscalingCapacity randomAutoscalingCapacity() {
+        AutoscalingCapacity.AutoscalingResources tier = randomNullValueAutoscalingResources();
+        return new AutoscalingCapacity(
+            tier,
+            randomBoolean() ? randomNullValueAutoscalingResources(tier.storage() != null, tier.memory() != null) : null
+        );
+    }
+
+    protected static AutoscalingCapacity randomNullableAutoscalingCapacity() {
+        return randomBoolean() ? randomAutoscalingCapacity() : null;
+    }
+
+    protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
+        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue());
+    }
+
+    private static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources() {
+        return randomNullValueAutoscalingResources(true, true);
+    }
+
+    public static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources(boolean allowStorage, boolean allowMemory) {
+        assert allowMemory || allowStorage;
+        boolean addStorage = (allowStorage && randomBoolean()) || allowMemory == false;
+        boolean addMemory = (allowMemory && randomBoolean()) || addStorage == false;
+        return new AutoscalingCapacity.AutoscalingResources(
+            addStorage ? randomByteSizeValue() : null,
+            addMemory ? randomByteSizeValue() : null
+        );
+    }
+
+    public static ByteSizeValue randomByteSizeValue() {
+        // do not want to test any overflow.
+        return new ByteSizeValue(randomLongBetween(0, Long.MAX_VALUE >> 16));
+    }
+
+    public static ByteSizeValue randomNullableByteSizeValue() {
+        return randomBoolean() ? randomByteSizeValue() : null;
     }
 
     public static SortedMap<String, AutoscalingDeciderConfiguration> randomAutoscalingDeciders() {
         return new TreeMap<>(
-            List.of(new AlwaysAutoscalingDeciderConfiguration())
-                .stream()
-                .collect(Collectors.toMap(AutoscalingDeciderConfiguration::name, Function.identity()))
+            List.of(randomFixedDecider()).stream().collect(Collectors.toMap(AutoscalingDeciderConfiguration::name, Function.identity()))
+        );
+    }
+
+    public static FixedAutoscalingDeciderConfiguration randomFixedDecider() {
+        return new FixedAutoscalingDeciderConfiguration(
+            randomNullableByteSizeValue(),
+            randomNullableByteSizeValue(),
+            randomFrom(randomInt(1000), null)
         );
     }
 
@@ -130,5 +158,4 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     public static NamedXContentRegistry getAutoscalingXContentRegistry() {
         return new NamedXContentRegistry(new Autoscaling(Settings.EMPTY).getNamedXContent());
     }
-
 }

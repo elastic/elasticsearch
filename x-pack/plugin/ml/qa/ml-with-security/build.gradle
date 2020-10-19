@@ -1,8 +1,8 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   yamlRestTestImplementation project(path: xpackModule('core'))
+  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   yamlRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
@@ -92,7 +92,7 @@ yamlRestTest {
     'ml/data_frame_analytics_crud/Test put classification given max_trees is greater than 2k',
     'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is negative',
     'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is greater than one',
-    'ml/data_frame_analytics_crud/Test put classification given num_top_classes is less than zero',
+    'ml/data_frame_analytics_crud/Test put classification given num_top_classes is less than minus one',
     'ml/data_frame_analytics_crud/Test put classification given num_top_classes is greater than 1k',
     'ml/data_frame_analytics_crud/Test put classification given training_percent is less than zero',
     'ml/data_frame_analytics_crud/Test put classification given training_percent is greater than hundred',
@@ -115,6 +115,11 @@ yamlRestTest {
     'ml/evaluate_data_frame/Test classification given evaluation with empty metrics',
     'ml/evaluate_data_frame/Test classification given missing actual_field',
     'ml/evaluate_data_frame/Test classification given missing predicted_field',
+    'ml/evaluate_data_frame/Test classification given missing top_classes_field',
+    'ml/evaluate_data_frame/Test classification auc_roc given actual_field is never equal to fish',
+    'ml/evaluate_data_frame/Test classification auc_roc given predicted_class_field is never equal to mouse',
+    'ml/evaluate_data_frame/Test classification auc_roc with missing class_name',
+    'ml/evaluate_data_frame/Test classification accuracy with missing predicted_field',
     'ml/evaluate_data_frame/Test regression given evaluation with empty metrics',
     'ml/evaluate_data_frame/Test regression given missing actual_field',
     'ml/evaluate_data_frame/Test regression given missing predicted_field',

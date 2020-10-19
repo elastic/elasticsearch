@@ -20,13 +20,13 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,10 +38,10 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
     private final ObjectMapper parentObjectMapper;
 
     public ReverseNestedAggregatorFactory(String name, boolean unmapped, ObjectMapper parentObjectMapper,
-                                          QueryShardContext queryShardContext, AggregatorFactory parent,
+                                          AggregationContext context, AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactories,
                                           Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+        super(name, context, parent, subFactories, metadata);
         this.unmapped = unmapped;
         this.parentObjectMapper = parentObjectMapper;
     }

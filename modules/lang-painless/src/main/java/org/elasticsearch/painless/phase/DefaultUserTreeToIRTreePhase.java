@@ -211,6 +211,7 @@ import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope> {
@@ -220,7 +221,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     /**
      * This injects additional ir nodes required for resolving the def type at runtime.
      * This includes injection of ir nodes to add a function to call
-     * {@link DefBootstrap#bootstrap(PainlessLookup, FunctionTable, Lookup, String, MethodType, int, int, Object...)}
+     * {@link DefBootstrap#bootstrap(PainlessLookup, FunctionTable, Map, Lookup, String, MethodType, int, int, Object...)}
      * to do the runtime resolution, and several supporting static fields.
      */
     protected void injectBootstrapMethod(ScriptScope scriptScope) {
@@ -239,6 +240,13 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         irFieldNode.setModifiers(modifiers);
         irFieldNode.setFieldType(FunctionTable.class);
         irFieldNode.setName("$FUNCTIONS");
+
+        irClassNode.addFieldNode(irFieldNode);
+
+        irFieldNode = new FieldNode(internalLocation);
+        irFieldNode.setModifiers(modifiers);
+        irFieldNode.setFieldType(Map.class);
+        irFieldNode.setName("$COMPILERSETTINGS");
 
         irClassNode.addFieldNode(irFieldNode);
 
@@ -285,6 +293,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                             DefBootstrap.class.getMethod("bootstrap",
                                     PainlessLookup.class,
                                     FunctionTable.class,
+                                    Map.class,
                                     Lookup.class,
                                     String.class,
                                     MethodType.class,
@@ -296,6 +305,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                             Arrays.asList(
                                     PainlessLookup.class,
                                     FunctionTable.class,
+                                    Map.class,
                                     Lookup.class,
                                     String.class,
                                     MethodType.class,
@@ -321,6 +331,13 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irLoadFieldMemberNode = new LoadFieldMemberNode(internalLocation);
             irLoadFieldMemberNode.attachDecoration(new IRDExpressionType(FunctionTable.class));
             irLoadFieldMemberNode.setName("$FUNCTIONS");
+            irLoadFieldMemberNode.setStatic(true);
+
+            invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
+
+            irLoadFieldMemberNode = new LoadFieldMemberNode(internalLocation);
+            irLoadFieldMemberNode.attachDecoration(new IRDExpressionType(Map.class));
+            irLoadFieldMemberNode.setName("$COMPILERSETTINGS");
             irLoadFieldMemberNode.setStatic(true);
 
             invokeCallNode.addArgumentNode(irLoadFieldMemberNode);
@@ -420,15 +437,16 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             if (irIndexNode != null) {
                 // this load/store requires an index
                 BinaryImplNode binaryImplNode = new BinaryImplNode(location);
-                binaryImplNode.attachDecoration(new IRDExpressionType(void.class));
 
                 if (isNullSafe) {
                     // the null-safe structure is slightly different from the standard structure since
                     // both the index and expression are not written to the stack if the prefix is null
+                    binaryImplNode.copyDecorationFrom(irExpressionNode, IRDExpressionType.class);
                     binaryImplNode.setLeftNode(irIndexNode);
                     binaryImplNode.setRightNode(irExpressionNode);
                     irExpressionNode = binaryImplNode;
                 } else {
+                    binaryImplNode.attachDecoration(new IRDExpressionType(void.class));
                     binaryImplNode.setLeftNode(irPrefixNode);
                     binaryImplNode.setRightNode(irIndexNode);
                     irPrefixNode = binaryImplNode;
@@ -941,6 +959,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             BinaryMathNode irBinaryMathNode = new BinaryMathNode(userBinaryNode.getLocation());
 
+            if (operation == Operation.MATCH || operation == Operation.FIND) {
+                irBinaryMathNode.setRegexLimit(scriptScope.getCompilerSettings().getRegexLimitFactor());
+            }
             irBinaryMathNode.setBinaryType(scriptScope.getDecoration(userBinaryNode, BinaryType.class).getBinaryType());
             irBinaryMathNode.setShiftType(shiftType);
             irBinaryMathNode.setOperation(operation);
@@ -1724,9 +1745,27 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             }
 
             InvokeCallNode irInvokeCallNode = new InvokeCallNode(userCallNode.getLocation());
+            PainlessMethod method = scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).getStandardPainlessMethod();
+            Object[] injections = PainlessLookupUtility.buildInjections(method, scriptScope.getCompilerSettings().asMap());
+            Class<?>[] parameterTypes = method.javaMethod.getParameterTypes();
+            int augmentedOffset = method.javaMethod.getDeclaringClass() == method.targetClass ? 0 : 1;
 
-            for (AExpression userArgumentNode : userCallNode.getArgumentNodes()) {
-                irInvokeCallNode.addArgumentNode(injectCast(userArgumentNode, scriptScope));
+            for (int i = 0; i < injections.length; i++) {
+                Object injection = injections[i];
+                Class<?> parameterType = parameterTypes[i + augmentedOffset];
+
+                if (parameterType != PainlessLookupUtility.typeToUnboxedType(injection.getClass())) {
+                    throw new IllegalStateException("illegal tree structure");
+                }
+
+                ConstantNode constantNode = new ConstantNode(userCallNode.getLocation());
+                constantNode.attachDecoration(new IRDExpressionType(parameterType));
+                constantNode.setConstant(injection);
+                irInvokeCallNode.addArgumentNode(constantNode);
+            }
+
+            for (AExpression userCallArgumentNode : userCallNode.getArgumentNodes()) {
+                irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNode, scriptScope));
             }
 
             irInvokeCallNode.attachDecoration(

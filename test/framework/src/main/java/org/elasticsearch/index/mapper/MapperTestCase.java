@@ -31,6 +31,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -43,20 +44,20 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Base class for testing {@link Mapper}s.
@@ -71,13 +72,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected void writeField(XContentBuilder builder) throws IOException {
         builder.field("field");
-        writeFieldValue(builder);
+        builder.value(getSampleValueForDocument());
     }
 
     /**
-     * Writes a sample value for the field to the provided {@link XContentBuilder}.
+     * Returns a sample value for the field, to be used in a document
      */
-    protected abstract void writeFieldValue(XContentBuilder builder) throws IOException;
+    protected abstract Object getSampleValueForDocument();
+
+    /**
+     * Returns a sample value for the field, to be used when querying the field. Normally this is the same format as
+     * what is indexed as part of a document, and returned by {@link #getSampleValueForDocument()}, but there
+     * are cases where fields are queried differently frow how they are indexed e.g. token_count or runtime fields
+     */
+    protected Object getSampleValueForQuery() {
+        return getSampleValueForDocument();
+    }
 
     /**
      * This test verifies that the exists query created is the appropriate one, and aligns with the data structures
@@ -102,7 +112,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
         if (fieldType.hasDocValues()) {
             assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
-            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery)query;
+            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
             assertEquals("field", fieldExistsQuery.getField());
             assertDocValuesField(fields, "field");
             assertNoFieldNamesField(fields);
@@ -253,17 +263,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.field("boost", 2.0);
             }));
             assertWarnings("Parameter [boost] on field [field] is deprecated and has no effect");
-        }
-        catch (MapperParsingException e) {
+        } catch (MapperParsingException e) {
             assertThat(e.getMessage(), anyOf(
                 containsString("Unknown parameter [boost]"),
                 containsString("[boost : 2.0]")));
         }
 
         MapperParsingException e
-            = expectThrows(MapperParsingException.class, () -> createMapperService(Version.V_8_0_0, fieldMapping(b-> {
-                minimalMapping(b);
-                b.field("boost", 2.0);
+            = expectThrows(MapperParsingException.class, () -> createMapperService(Version.V_8_0_0, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("boost", 2.0);
         })));
         assertThat(e.getMessage(), anyOf(
             containsString("Unknown parameter [boost]"),
@@ -272,31 +281,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
     }
 
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) throws IOException {
-        return fetchSourceValue(mapper, sourceValue, null);
-    }
-
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) throws IOException {
-        String field = mapper.name();
-
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
-
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup);
-    }
-
     /**
-     * Use a {@linkplain FieldMapper} to extract values from doc values.
+     * Use a {@linkplain ValueFetcher} to extract values from doc values.
      */
     protected final List<?> fetchFromDocValues(MapperService mapperService, MappedFieldType ft, DocValueFormat format, Object sourceValue)
         throws IOException {
 
         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
-            .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
+            .fielddataBuilder("test", () -> {
+                throw new UnsupportedOperationException();
+            })
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         SetOnce<List<?>> result = new SetOnce<>();
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
@@ -310,5 +305,144 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             result.set(valueFetcher.fetchValues(lookup.source()));
         });
         return result.get();
+    }
+
+    private class UpdateCheck {
+        final XContentBuilder init;
+        final XContentBuilder update;
+        final Consumer<FieldMapper> check;
+
+        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> update,
+                            Consumer<FieldMapper> check) throws IOException {
+            this.init = fieldMapping(MapperTestCase.this::minimalMapping);
+            this.update = fieldMapping(b -> {
+                minimalMapping(b);
+                update.accept(b);
+            });
+            this.check = check;
+        }
+
+        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> init,
+                            CheckedConsumer<XContentBuilder, IOException> update,
+                            Consumer<FieldMapper> check) throws IOException {
+            this.init = fieldMapping(init);
+            this.update = fieldMapping(update);
+            this.check = check;
+        }
+    }
+
+    private static class ConflictCheck {
+        final XContentBuilder init;
+        final XContentBuilder update;
+
+        private ConflictCheck(XContentBuilder init, XContentBuilder update) {
+            this.init = init;
+            this.update = update;
+        }
+    }
+
+    public class ParameterChecker {
+
+        List<UpdateCheck> updateChecks = new ArrayList<>();
+        Map<String, ConflictCheck> conflictChecks = new HashMap<>();
+
+        /**
+         * Register a check that a parameter can be updated, using the minimal mapping as a base
+         *
+         * @param update a field builder applied on top of the minimal mapping
+         * @param check  a check that the updated parameter has been applied to the FieldMapper
+         */
+        public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> update,
+                                        Consumer<FieldMapper> check) throws IOException {
+            updateChecks.add(new UpdateCheck(update, check));
+        }
+
+        /**
+         * Register a check that a parameter can be updated
+         *
+         * @param init   the initial mapping
+         * @param update the updated mapping
+         * @param check  a check that the updated parameter has been applied to the FieldMapper
+         */
+        public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> init,
+                                        CheckedConsumer<XContentBuilder, IOException> update,
+                                        Consumer<FieldMapper> check) throws IOException {
+            updateChecks.add(new UpdateCheck(init, update, check));
+        }
+
+        /**
+         * Register a check that a parameter update will cause a conflict, using the minimal mapping as a base
+         *
+         * @param param  the parameter name, expected to appear in the error message
+         * @param update a field builder applied on top of the minimal mapping
+         */
+        public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
+            conflictChecks.put(param, new ConflictCheck(
+                fieldMapping(MapperTestCase.this::minimalMapping),
+                fieldMapping(b -> {
+                    minimalMapping(b);
+                    update.accept(b);
+                })
+            ));
+        }
+
+        /**
+         * Register a check that a parameter update will cause a conflict
+         *
+         * @param param  the parameter name, expected to appear in the error message
+         * @param init   the initial mapping
+         * @param update the updated mapping
+         */
+        public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update) {
+            conflictChecks.put(param, new ConflictCheck(init, update));
+        }
+    }
+
+    protected abstract void registerParameters(ParameterChecker checker) throws IOException;
+
+    public void testUpdates() throws IOException {
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        for (UpdateCheck updateCheck : checker.updateChecks) {
+            MapperService mapperService = createMapperService(updateCheck.init);
+            merge(mapperService, updateCheck.update);
+            FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            updateCheck.check.accept(mapper);
+            // do it again to ensure that we don't get conflicts the second time
+            merge(mapperService, updateCheck.update);
+            mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            updateCheck.check.accept(mapper);
+
+        }
+        for (String param : checker.conflictChecks.keySet()) {
+            MapperService mapperService = createMapperService(checker.conflictChecks.get(param).init);
+            // merging the same change is fine
+            merge(mapperService, checker.conflictChecks.get(param).init);
+            // merging the conflicting update should throw an exception
+            Exception e = expectThrows(IllegalArgumentException.class,
+                "No conflict when updating parameter [" + param + "]",
+                () -> merge(mapperService, checker.conflictChecks.get(param).update));
+            assertThat(e.getMessage(), anyOf(
+                containsString("Cannot update parameter [" + param + "]"),
+                containsString("different [" + param + "]")));
+        }
+        assertParseMaximalWarnings();
+    }
+
+    public final void testTextSearchInfoConsistency() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+            expectThrows(IllegalArgumentException.class, () -> fieldType.termQuery(null, null));
+        } else {
+            QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+            assertNotNull(fieldType.termQuery(getSampleValueForQuery(), queryShardContext));
+        }
+        assertSearchable(fieldType);
+        assertParseMinimalWarnings();
+    }
+
+    protected void assertSearchable(MappedFieldType fieldType) {
+        assertEquals(fieldType.isSearchable(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
     }
 }

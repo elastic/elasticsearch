@@ -7,8 +7,14 @@
 package org.elasticsearch.xpack.transform.notifications;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.common.notifications.Level;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -16,6 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /*
  * Test mock auditor to verify audit expectations.
@@ -26,10 +33,26 @@ import static org.mockito.Mockito.mock;
  */
 public class MockTransformAuditor extends TransformAuditor {
 
-    private List<AuditExpectation> expectations;
+    private static final String MOCK_NODE_NAME = "mock_node_name";
 
-    public MockTransformAuditor() {
-        super(mock(Client.class), "mock_node_name");
+    @SuppressWarnings("unchecked")
+    public static MockTransformAuditor createMockAuditor() {
+        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
+        templates.put(TransformInternalIndexConstants.AUDIT_INDEX, mock(IndexTemplateMetadata.class));
+        Metadata metadata = mock(Metadata.class);
+        when(metadata.getTemplates()).thenReturn(templates.build());
+        ClusterState state = mock(ClusterState.class);
+        when(state.getMetadata()).thenReturn(metadata);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+
+        return new MockTransformAuditor(clusterService);
+    }
+
+    private final List<AuditExpectation> expectations;
+
+    public MockTransformAuditor(ClusterService clusterService) {
+        super(mock(Client.class), MOCK_NODE_NAME, clusterService);
         expectations = new CopyOnWriteArrayList<>();
     }
 

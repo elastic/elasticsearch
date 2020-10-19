@@ -28,7 +28,7 @@ public class PutMappingAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/mapping/put";
 
     private PutMappingAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

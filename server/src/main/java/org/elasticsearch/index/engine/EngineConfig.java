@@ -55,7 +55,6 @@ import java.util.function.Supplier;
  */
 public final class EngineConfig {
     private final ShardId shardId;
-    private final String allocationId;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
     private volatile boolean enableGcDeletes = true;
@@ -121,7 +120,7 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, String allocationId, ThreadPool threadPool,
+    public EngineConfig(ShardId shardId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store,
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
@@ -134,7 +133,6 @@ public final class EngineConfig {
                         LongSupplier primaryTermSupplier,
                         TombstoneDocSupplier tombstoneDocSupplier) {
         this.shardId = shardId;
-        this.allocationId = allocationId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.warmer = warmer == null ? (a) -> {} : warmer;
@@ -275,15 +273,6 @@ public final class EngineConfig {
      * Returns the engines shard ID
      */
     public ShardId getShardId() { return shardId; }
-
-    /**
-     * Returns the allocation ID for the shard.
-     *
-     * @return the allocation ID
-     */
-    public String getAllocationId() {
-        return allocationId;
-    }
 
     /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}

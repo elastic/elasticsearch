@@ -32,6 +32,7 @@ public class BinaryMathNode extends BinaryNode {
     private Class<?> binaryType;
     private Class<?> shiftType;
     private int flags;
+    private int regexLimit;
 
     public void setOperation(Operation operation) {
         this.operation = operation;
@@ -71,6 +72,14 @@ public class BinaryMathNode extends BinaryNode {
 
     public int getFlags() {
         return flags;
+    }
+
+    public void setRegexLimit(int regexLimit) {
+        this.regexLimit = regexLimit;
+    }
+
+    public int getRegexLimit() {
+        return regexLimit;
     }
 
     /* ---- end node data, begin visitor ---- */

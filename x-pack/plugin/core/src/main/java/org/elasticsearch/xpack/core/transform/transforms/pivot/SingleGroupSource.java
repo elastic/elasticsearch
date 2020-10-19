@@ -140,8 +140,6 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
     public abstract Type getType();
 
-    public abstract boolean supportsIncrementalBucketUpdate();
-
     public String getField() {
         return field;
     }

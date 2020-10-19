@@ -35,8 +35,8 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
 
     private void verify(FixedAutoscalingDeciderConfiguration configuration, AutoscalingCapacity expected) {
         FixedAutoscalingDeciderService service = new FixedAutoscalingDeciderService();
-        AutoscalingDeciderResult decision = service.scale(configuration, null);
-        assertThat(decision.requiredCapacity(), Matchers.equalTo(expected));
+        AutoscalingDeciderResult result = service.scale(configuration, null);
+        assertThat(result.requiredCapacity(), Matchers.equalTo(expected));
     }
 
     private ByteSizeValue multiply(ByteSizeValue bytes, int nodes) {

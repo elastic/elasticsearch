@@ -34,11 +34,11 @@ public class GetAutoscalingCapacityActionResponseWireSerializingTests extends Ab
     @Override
     protected GetAutoscalingCapacityAction.Response createTestInstance() {
         final int numberOfPolicies = randomIntBetween(1, 8);
-        final SortedMap<String, AutoscalingDeciderResults> decisions = new TreeMap<>();
+        final SortedMap<String, AutoscalingDeciderResults> results = new TreeMap<>();
         for (int i = 0; i < numberOfPolicies; i++) {
-            decisions.put(randomAlphaOfLength(8), randomAutoscalingDeciderResults());
+            results.put(randomAlphaOfLength(8), randomAutoscalingDeciderResults());
         }
-        return new GetAutoscalingCapacityAction.Response(Collections.unmodifiableSortedMap(decisions));
+        return new GetAutoscalingCapacityAction.Response(Collections.unmodifiableSortedMap(results));
     }
 
 }

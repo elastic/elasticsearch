@@ -29,11 +29,11 @@ public class GetAutoscalingCapacityActionResponseTests extends AutoscalingTestCa
             .mapToObj(i -> randomAlphaOfLength(10))
             .collect(Collectors.toSet());
 
-        SortedMap<String, AutoscalingDeciderResults> decisions = new TreeMap<>(
+        SortedMap<String, AutoscalingDeciderResults> results = new TreeMap<>(
             policyNames.stream().map(s -> Tuple.tuple(s, randomAutoscalingDeciderResults())).collect(Collectors.toMap(Tuple::v1, Tuple::v2))
         );
 
-        GetAutoscalingCapacityAction.Response response = new GetAutoscalingCapacityAction.Response(decisions);
+        GetAutoscalingCapacityAction.Response response = new GetAutoscalingCapacityAction.Response(results);
         XContentType xContentType = randomFrom(XContentType.values());
 
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
@@ -43,7 +43,7 @@ public class GetAutoscalingCapacityActionResponseTests extends AutoscalingTestCa
         XContentBuilder expected = XContentBuilder.builder(xContentType.xContent());
         expected.startObject();
         expected.startObject("policies");
-        for (Map.Entry<String, AutoscalingDeciderResults> entry : decisions.entrySet()) {
+        for (Map.Entry<String, AutoscalingDeciderResults> entry : results.entrySet()) {
             expected.field(entry.getKey(), entry.getValue());
         }
         expected.endObject();

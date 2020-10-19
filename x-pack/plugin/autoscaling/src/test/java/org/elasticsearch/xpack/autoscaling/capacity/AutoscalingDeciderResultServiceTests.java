@@ -32,7 +32,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AutoscalingDeciderResultServiceTests extends AutoscalingTestCase {
-    public void testMultiplePoliciesFixedDecision() {
+    public void testMultiplePoliciesFixedCapacity() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         Set<String> policyNames = IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(i -> "test_ " + randomAlphaOfLength(10))
@@ -46,31 +46,31 @@ public class AutoscalingDeciderResultServiceTests extends AutoscalingTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().putCustom(AutoscalingMetadata.NAME, new AutoscalingMetadata(policies)))
             .build();
-        SortedMap<String, AutoscalingDeciderResults> decisions = service.calculate(state, new ClusterInfo() {
+        SortedMap<String, AutoscalingDeciderResults> resultsMap = service.calculate(state, new ClusterInfo() {
         });
-        assertThat(decisions.keySet(), equalTo(policyNames));
-        for (Map.Entry<String, AutoscalingDeciderResults> entry : decisions.entrySet()) {
-            AutoscalingDeciderResults decision = entry.getValue();
+        assertThat(resultsMap.keySet(), equalTo(policyNames));
+        for (Map.Entry<String, AutoscalingDeciderResults> entry : resultsMap.entrySet()) {
+            AutoscalingDeciderResults results = entry.getValue();
             SortedMap<String, AutoscalingDeciderConfiguration> deciders = policies.get(entry.getKey()).policy().deciders();
             assertThat(deciders.size(), equalTo(1));
             FixedAutoscalingDeciderConfiguration configuration = (FixedAutoscalingDeciderConfiguration) deciders.values().iterator().next();
-            AutoscalingCapacity requiredCapacity = calculateFixedDecisionCapacity(configuration);
-            assertThat(decision.requiredCapacity(), equalTo(requiredCapacity));
-            assertThat(decision.results().size(), equalTo(1));
-            AutoscalingDeciderResult deciderDecision = decision.results().get(deciders.firstKey());
-            assertNotNull(deciderDecision);
-            assertThat(deciderDecision.requiredCapacity(), equalTo(requiredCapacity));
+            AutoscalingCapacity requiredCapacity = calculateFixedDeciderCapacity(configuration);
+            assertThat(results.requiredCapacity(), equalTo(requiredCapacity));
+            assertThat(results.results().size(), equalTo(1));
+            AutoscalingDeciderResult deciderResult = results.results().get(deciders.firstKey());
+            assertNotNull(deciderResult);
+            assertThat(deciderResult.requiredCapacity(), equalTo(requiredCapacity));
             ByteSizeValue storage = configuration.storage();
             ByteSizeValue memory = configuration.memory();
             int nodes = configuration.nodes();
-            assertThat(deciderDecision.reason(), equalTo(new FixedAutoscalingDeciderService.FixedReason(storage, memory, nodes)));
+            assertThat(deciderResult.reason(), equalTo(new FixedAutoscalingDeciderService.FixedReason(storage, memory, nodes)));
             assertThat(
-                deciderDecision.reason().summary(),
+                deciderResult.reason().summary(),
                 equalTo("fixed storage [" + storage + "] memory [" + memory + "] nodes [" + nodes + "]")
             );
 
             // there is no nodes in any tier.
-            assertThat(decision.currentCapacity(), equalTo(AutoscalingCapacity.ZERO));
+            assertThat(results.currentCapacity(), equalTo(AutoscalingCapacity.ZERO));
         }
     }
 
@@ -87,7 +87,7 @@ public class AutoscalingDeciderResultServiceTests extends AutoscalingTestCase {
         );
     }
 
-    private AutoscalingCapacity calculateFixedDecisionCapacity(FixedAutoscalingDeciderConfiguration configuration) {
+    private AutoscalingCapacity calculateFixedDeciderCapacity(FixedAutoscalingDeciderConfiguration configuration) {
         ByteSizeValue totalStorage = configuration.storage() != null
             ? new ByteSizeValue(configuration.storage().getBytes() * configuration.nodes())
             : null;

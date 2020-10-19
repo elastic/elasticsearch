@@ -37,7 +37,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
     public void testRequiredCapacity() {
         AutoscalingCapacity single = randomBoolean() ? randomAutoscalingCapacity() : null;
         verifyRequiredCapacity(single, single);
-        // any undecided decider nulls out any decision making
+        // any undecided decider nulls out any required capacities
         verifyRequiredCapacity(null, single, null);
         verifyRequiredCapacity(null, null, single);
 
@@ -81,7 +81,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
 
     private void verifyRequiredCapacity(AutoscalingCapacity expected, AutoscalingCapacity... capacities) {
         AtomicInteger uniqueGenerator = new AtomicInteger();
-        SortedMap<String, AutoscalingDeciderResult> decisions = Arrays.stream(capacities)
+        SortedMap<String, AutoscalingDeciderResult> results = Arrays.stream(capacities)
             .map(AutoscalingDeciderResultsTests::randomAutoscalingDeciderResultWithCapacity)
             .collect(
                 Collectors.toMap(
@@ -91,7 +91,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
                     TreeMap::new
                 )
             );
-        assertThat(new AutoscalingDeciderResults(randomAutoscalingCapacity(), decisions).requiredCapacity(), equalTo(expected));
+        assertThat(new AutoscalingDeciderResults(randomAutoscalingCapacity(), results).requiredCapacity(), equalTo(expected));
     }
 
     private AutoscalingCapacity randomCapacity(boolean node, boolean storage, boolean memory, int lower, int upper) {

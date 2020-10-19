@@ -19,7 +19,8 @@
 
 package org.elasticsearch.fs.quotaaware;
 
-import java.io.Closeable;
+import org.apache.lucene.util.IOUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -411,37 +412,7 @@ public class QuotaAwareFileSystemProvider extends FileSystemProvider implements 
             }
 
             try {
-                // Inlined org.apache.lucene.util.IOUtils.close(...) to
-                // avoid depending on a specific lucene version in main scope
-                Throwable th = null;
-                for (Closeable object : systemsCache.values()) {
-                    try {
-                        if (object != null) {
-                            object.close();
-                        }
-                    } catch (Throwable t) {
-                        if (th != null && t != null) {
-                            th.addSuppressed(t);
-                        }
-                        if (th == null) {
-                            th = t;
-                        }
-                    }
-                }
-                if (th != null) {
-                    if (th instanceof IOException) {
-                        throw (IOException) th;
-                    }
-                    if (th != null) {
-                        if (th instanceof RuntimeException) {
-                            throw (RuntimeException) th;
-                        }
-                        if (th instanceof Error) {
-                            throw (Error) th;
-                        }
-                        throw new RuntimeException(th);
-                    }
-                }
+                IOUtils.close(systemsCache.values());
             } finally {
                 storesCache.clear();
             }

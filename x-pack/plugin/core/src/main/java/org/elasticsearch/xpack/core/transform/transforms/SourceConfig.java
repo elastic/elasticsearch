@@ -114,7 +114,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.array(INDEX.getPreferredName(), index);
-        if (params.paramAsBoolean(TransformField.FOR_EXPORT, false) == false) {
+        if (params.paramAsBoolean(TransformField.EXCLUDE_GENERATED, false) == false) {
             builder.field(QUERY.getPreferredName(), queryConfig);
         } else if(queryConfig.equals(QueryConfig.matchAll()) == false) {
             builder.field(QUERY.getPreferredName(), queryConfig);

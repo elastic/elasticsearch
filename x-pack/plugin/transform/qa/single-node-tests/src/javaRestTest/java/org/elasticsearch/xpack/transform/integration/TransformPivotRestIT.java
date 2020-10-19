@@ -1696,11 +1696,12 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         createPivotReviewsTransform(transformId, transformIndex, null, null, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         Response response = adminClient().performRequest(new Request("GET",
-            getTransformEndpoint() + transformId + "?for_export=true"));
+            getTransformEndpoint() + transformId + "?exclude_generated=true"));
         Map<String, Object> storedConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
             "transforms",
             entityAsMap(response)))
             .get(0);
+        storedConfig.remove("id");
         try (XContentBuilder builder = jsonBuilder()) {
             builder.map(storedConfig);
             Request putTransform = new Request("PUT", getTransformEndpoint() + transformId + "-import");
@@ -1709,11 +1710,12 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         }
 
         response = adminClient().performRequest(new Request("GET",
-            getTransformEndpoint() + transformId + "-import" + "?for_export=true"));
+            getTransformEndpoint() + transformId + "-import" + "?exclude_generated=true"));
         Map<String, Object> importConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
             "transforms",
             entityAsMap(response)))
             .get(0);
+        importConfig.remove("id");
         assertThat(storedConfig, equalTo(importConfig));
     }
 

@@ -20,7 +20,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
-import static org.elasticsearch.xpack.core.transform.TransformField.FOR_EXPORT;
+import static org.elasticsearch.xpack.core.transform.TransformField.EXCLUDE_GENERATED;
 
 public class RestGetTransformAction extends BaseRestHandler {
 
@@ -53,6 +53,6 @@ public class RestGetTransformAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Collections.singleton(FOR_EXPORT);
+        return Collections.singleton(EXCLUDE_GENERATED);
     }
 }

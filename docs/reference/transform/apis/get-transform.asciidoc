@@ -65,7 +65,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
-`for_export`::
+`exclude_generated`::
 (Optional, boolean)
 Indicates if certain fields should be removed from the configuration on
 retrieval. This allows the configuration to be in an acceptable format to be retrieved

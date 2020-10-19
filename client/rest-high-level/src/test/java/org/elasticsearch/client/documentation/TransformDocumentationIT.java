@@ -687,7 +687,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-transform-request-options
             request.setPageParams(new PageParams(0, 100)); // <1>
             request.setAllowNoMatch(true); // <2>
-            request.setForExport(false); // <3>
+            request.setExcludeGenerated(false); // <3>
             // end::get-transform-request-options
 
             // tag::get-transform-execute

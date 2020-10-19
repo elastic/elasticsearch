@@ -79,11 +79,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         this.shards = shards;
         List<ShardRouting> allActiveShards = new ArrayList<>();
         for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
-            for (ShardRouting shardRouting : cursor.value) {
-                if (shardRouting.active()) {
-                    allActiveShards.add(shardRouting);
-                }
-            }
+            allActiveShards.addAll(cursor.value.activeShards());
         }
         this.allActiveShards = Collections.unmodifiableList(allActiveShards);
     }

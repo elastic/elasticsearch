@@ -34,14 +34,14 @@ public final class DelegatePkiAuthenticationResponse {
     private final String accessToken;
     private final String type;
     private final TimeValue expiresIn;
-    private final AuthenticateResponse authenticationResponse;
+    private final AuthenticateResponse authentication;
 
     public DelegatePkiAuthenticationResponse(String accessToken, String type, TimeValue expiresIn,
-                                             AuthenticateResponse authenticationResponse) {
+                                             AuthenticateResponse authentication) {
         this.accessToken = accessToken;
         this.type = type;
         this.expiresIn = expiresIn;
-        this.authenticationResponse = authenticationResponse;
+        this.authentication = authentication;
     }
 
     public String getAccessToken() {
@@ -56,7 +56,7 @@ public final class DelegatePkiAuthenticationResponse {
         return expiresIn;
     }
 
-    public AuthenticateResponse getAuthenticationResponse() { return authenticationResponse; }
+    public AuthenticateResponse getAuthentication() { return authentication; }
 
     @Override
     public boolean equals(Object o) {
@@ -70,12 +70,12 @@ public final class DelegatePkiAuthenticationResponse {
         return Objects.equals(accessToken, that.accessToken) &&
             Objects.equals(type, that.type) &&
             Objects.equals(expiresIn, that.expiresIn) &&
-            Objects.equals(authenticationResponse, that.authenticationResponse);
+            Objects.equals(authentication, that.authentication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(accessToken, type, expiresIn, authenticationResponse);
+        return Objects.hash(accessToken, type, expiresIn, authentication);
     }
 
     @SuppressWarnings("unchecked")

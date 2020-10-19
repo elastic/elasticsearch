@@ -224,6 +224,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setReason, new ParseField(REASON));
         SNAPSHOT_INFO_PARSER.declareStringArray(SnapshotInfoBuilder::setIndices, new ParseField(INDICES));
         SNAPSHOT_INFO_PARSER.declareStringArray(SnapshotInfoBuilder::setDataStreams, new ParseField(DATA_STREAMS));
+        SNAPSHOT_INFO_PARSER.declareObjectArray(SnapshotInfoBuilder::setFeatureStates, SnapshotFeatureInfo.SNAPSHOT_FEATURE_INFO_PARSER,
+            new ParseField(FEATURE_STATES));
         SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::setStartTime, new ParseField(START_TIME_IN_MILLIS));
         SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::setEndTime, new ParseField(END_TIME_IN_MILLIS));
         SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setShardStatsBuilder, SHARD_STATS_PARSER, new ParseField(SHARDS));

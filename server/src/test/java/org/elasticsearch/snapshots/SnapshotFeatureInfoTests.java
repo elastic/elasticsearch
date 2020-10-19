@@ -39,6 +39,10 @@ public class SnapshotFeatureInfoTests extends AbstractSerializingTestCase<Snapsh
 
     @Override
     protected SnapshotFeatureInfo createTestInstance() {
+        return randomSnapshotFeatureInfo();
+    }
+
+    public static SnapshotFeatureInfo randomSnapshotFeatureInfo() {
         String feature = randomAlphaOfLengthBetween(5,20);
         List<String> indices = randomList(1, 10, () -> randomAlphaOfLengthBetween(5, 20));
         return new SnapshotFeatureInfo(feature, indices);

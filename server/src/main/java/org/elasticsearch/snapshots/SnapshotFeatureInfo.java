@@ -33,11 +33,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-class SnapshotFeatureInfo implements Writeable, ToXContentObject {
+public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
     final String pluginName;
     final List<String> indices;
 
-    static final ConstructingObjectParser<SnapshotFeatureInfo, Void> SNAPSHOT_PLUGIN_INFO_PARSER =
+    static final ConstructingObjectParser<SnapshotFeatureInfo, Void> SNAPSHOT_FEATURE_INFO_PARSER =
         new ConstructingObjectParser<>("plugin_info", true, (a, name) -> {
             String pluginName = (String) a[0];
             List<String> indices = (List<String>) a[1];
@@ -45,8 +45,8 @@ class SnapshotFeatureInfo implements Writeable, ToXContentObject {
         });
 
     static {
-        SNAPSHOT_PLUGIN_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("plugin_name"));
-        SNAPSHOT_PLUGIN_INFO_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), new ParseField("indices"));
+        SNAPSHOT_FEATURE_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("plugin_name"));
+        SNAPSHOT_FEATURE_INFO_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), new ParseField("indices"));
     }
 
     SnapshotFeatureInfo(String pluginName, List<String> indices) {
@@ -66,7 +66,7 @@ class SnapshotFeatureInfo implements Writeable, ToXContentObject {
     }
 
     public static SnapshotFeatureInfo fromXContent(XContentParser parser) throws IOException {
-        return SNAPSHOT_PLUGIN_INFO_PARSER.parse(parser, null);
+        return SNAPSHOT_FEATURE_INFO_PARSER.parse(parser, null);
     }
 
     public String getPluginName() {

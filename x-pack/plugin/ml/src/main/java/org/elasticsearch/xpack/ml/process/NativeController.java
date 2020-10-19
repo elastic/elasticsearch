@@ -7,18 +7,24 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
 
 
@@ -44,20 +50,34 @@ public class NativeController implements MlController {
     private final String localNodeName;
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream commandStream;
+    private final InputStream responseStream;
+    private final NamedXContentRegistry xContentRegistry;
+    private final Map<Integer, ResponseTracker> responseTrackers = new ConcurrentHashMap<>();
+    // The response iterator cannot be constructed until something is expected to be in the stream it's reading from,
+    // otherwise it will block while it tries to read a few bytes to determine the character set.  It could be created
+    // immediately in a dedicated thread, but that's wasteful as we can reuse the threads that are sending the commands
+    // to the controller to read the responses.  So we create it in the first thread that wants to know the response to
+    // a command.
+    private final SetOnce<Iterator<ControllerResponse>> responseIteratorHolder = new SetOnce<>();
+    private int nextCommandId = 1; // synchronized on commandStream so doesn't need to be volatile
 
-    public static NativeController makeNativeController(String localNodeName, Environment env) throws IOException {
-        return new NativeController(localNodeName, env, new NamedPipeHelper());
+    public static NativeController makeNativeController(String localNodeName, Environment env, NamedXContentRegistry xContentRegistry)
+        throws IOException {
+        return new NativeController(localNodeName, env, new NamedPipeHelper(), xContentRegistry);
     }
 
-    NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
-        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER_CONNECT_TIMEOUT, CONTROLLER, null,
-                true, false, false, false, false);
-        processPipes.connectLogStream();
-        tailLogsInThread(processPipes.getLogStreamHandler());
-        processPipes.connectOtherStreams();
+    NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper, NamedXContentRegistry xContentRegistry)
+        throws IOException {
         this.localNodeName = localNodeName;
+        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER_CONNECT_TIMEOUT, CONTROLLER, null,
+                true, false, true, false, false);
+        processPipes.connectLogStream();
         this.cppLogHandler = processPipes.getLogStreamHandler();
+        tailLogsInThread(cppLogHandler);
+        processPipes.connectOtherStreams();
         this.commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
+        this.responseStream = processPipes.getProcessOutStream().get();
+        this.xContentRegistry = xContentRegistry;
     }
 
     static void tailLogsInThread(CppLogMessageHandler cppLogHandler) {
@@ -88,7 +108,7 @@ public class NativeController implements MlController {
         return cppLogHandler.getNativeCodeInfo(CONTROLLER_CONNECT_TIMEOUT);
     }
 
-    public void startProcess(List<String> command) throws IOException {
+    public void startProcess(List<String> command) throws IOException, InterruptedException {
         if (command.isEmpty()) {
             throw new IllegalArgumentException("Cannot start process: no command supplied");
         }
@@ -110,19 +130,29 @@ public class NativeController implements MlController {
             throw new ElasticsearchException(msg);
         }
 
-        synchronized (commandStream) {
-            LOGGER.debug("Starting process with command: " + command);
-            commandStream.write(START_COMMAND.getBytes(StandardCharsets.UTF_8));
-            for (String arg : command) {
+        int commandId = -1;
+        try {
+            synchronized (commandStream) {
+                commandId = nextCommandId++;
+                setupResponseTracker(commandId);
+                LOGGER.debug("Command [{}]: starting process with command {}", commandId, command);
+                commandStream.write(Integer.toString(commandId).getBytes(StandardCharsets.UTF_8));
                 commandStream.write('\t');
-                commandStream.write(arg.getBytes(StandardCharsets.UTF_8));
+                commandStream.write(START_COMMAND.getBytes(StandardCharsets.UTF_8));
+                for (String arg : command) {
+                    commandStream.write('\t');
+                    commandStream.write(arg.getBytes(StandardCharsets.UTF_8));
+                }
+                commandStream.write('\n');
+                commandStream.flush();
             }
-            commandStream.write('\n');
-            commandStream.flush();
+            awaitCompletion(commandId);
+        } finally {
+            removeResponseTracker(commandId);
         }
     }
 
-    public void killProcess(long pid) throws TimeoutException, IOException {
+    public void killProcess(long pid, boolean awaitCompletion) throws TimeoutException, IOException, InterruptedException {
         if (pid <= 0) {
             throw new IllegalArgumentException("invalid PID to kill: " + pid);
         }
@@ -137,13 +167,29 @@ public class NativeController implements MlController {
             throw new ElasticsearchException(msg);
         }
 
-        synchronized (commandStream) {
-            LOGGER.debug("Killing process with PID: " + pid);
-            commandStream.write(KILL_COMMAND.getBytes(StandardCharsets.UTF_8));
-            commandStream.write('\t');
-            commandStream.write(Long.toString(pid).getBytes(StandardCharsets.UTF_8));
-            commandStream.write('\n');
-            commandStream.flush();
+        int commandId = -1;
+        try {
+            synchronized (commandStream) {
+                commandId = nextCommandId++;
+                if (awaitCompletion) {
+                    setupResponseTracker(commandId);
+                }
+                LOGGER.debug("Command [{}]: killing process with PID [{}]", commandId, pid);
+                commandStream.write(Integer.toString(commandId).getBytes(StandardCharsets.UTF_8));
+                commandStream.write('\t');
+                commandStream.write(KILL_COMMAND.getBytes(StandardCharsets.UTF_8));
+                commandStream.write('\t');
+                commandStream.write(Long.toString(pid).getBytes(StandardCharsets.UTF_8));
+                commandStream.write('\n');
+                commandStream.flush();
+            }
+            if (awaitCompletion) {
+                awaitCompletion(commandId);
+            }
+        } finally {
+            if (awaitCompletion) {
+                removeResponseTracker(commandId);
+            }
         }
     }
 
@@ -151,5 +197,76 @@ public class NativeController implements MlController {
     public void stop() throws IOException {
         // The C++ process will exit when it gets EOF on the command stream
         commandStream.close();
+    }
+
+    private void setupResponseTracker(int commandId) {
+        ResponseTracker tracker = new ResponseTracker();
+        ResponseTracker previous = responseTrackers.put(commandId, tracker);
+        assert previous == null;
+    }
+
+    private void removeResponseTracker(int commandId) {
+        responseTrackers.remove(commandId);
+    }
+
+    private void awaitCompletion(int commandId) throws IOException, InterruptedException {
+
+        ResponseTracker ourResponseTracker = responseTrackers.get(commandId);
+        assert ourResponseTracker != null;
+
+        // If our response has not been seen already (by another thread), parse messages under lock until it is seen.
+        // This approach means that of all the threads waiting for controller responses, one is parsing the messages
+        // on behalf of all of them, and the others are blocked.  When the thread that is parsing gets the response
+        // it needs another thread will pick up the parsing.
+        if (ourResponseTracker.hasResponded() == false) {
+            synchronized (responseIteratorHolder) {
+                Iterator<ControllerResponse> responseIterator = responseIteratorHolder.get();
+                if (responseIterator == null) {
+                    responseIterator = new ProcessResultsParser<ControllerResponse>(ControllerResponse.PARSER, xContentRegistry)
+                        .parseResults(this.responseStream);
+                    responseIteratorHolder.set(responseIterator);
+                }
+                while (ourResponseTracker.hasResponded() == false) {
+                    if (responseIterator.hasNext() == false) {
+                        throw new IOException("ML controller response stream ended while awaiting response for command [" +
+                            commandId + "]");
+                    }
+                    ControllerResponse response = responseIterator.next();
+                    ResponseTracker respondedTracker = responseTrackers.get(response.getCommandId());
+                    // It is not compulsory to track all responses, hence legitimate not to find every ID in the map
+                    if (respondedTracker != null) {
+                        respondedTracker.setResponse(response);
+                    }
+                }
+            }
+        }
+
+        ControllerResponse ourResponse = ourResponseTracker.getResponse();
+        assert ourResponse.getCommandId() == commandId;
+        if (ourResponse.isSuccess()) {
+            LOGGER.debug("ML controller successfully executed command [" + commandId + "]: [" + ourResponse.getReason() + "]");
+        } else {
+            throw new IOException("ML controller failed to execute command [" + commandId + "]: [" + ourResponse.getReason() + "]");
+        }
+    }
+
+    private static class ResponseTracker {
+
+        private final CountDownLatch latch = new CountDownLatch(1);
+        private final SetOnce<ControllerResponse> responseHolder = new SetOnce<>();
+
+        boolean hasResponded() {
+            return latch.getCount() < 1;
+        }
+
+        void setResponse(ControllerResponse response) {
+            responseHolder.set(response);
+            latch.countDown();
+        }
+
+        ControllerResponse getResponse() throws InterruptedException {
+            latch.await();
+            return responseHolder.get();
+        }
     }
 }

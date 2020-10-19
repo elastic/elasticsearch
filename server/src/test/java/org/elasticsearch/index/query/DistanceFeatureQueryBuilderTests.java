@@ -77,12 +77,11 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         String fieldName = expectedFieldName(queryBuilder.fieldName());
         Object origin = queryBuilder.origin().origin();
         String pivot = queryBuilder.pivot();
-        float boost = queryBuilder.boost;
         final Query expectedQuery;
         if (fieldName.equals(GEO_POINT_FIELD_NAME)) {
             GeoPoint originGeoPoint = (origin instanceof GeoPoint)? (GeoPoint) origin : GeoUtils.parseFromString((String) origin);
             double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
-            expectedQuery = LatLonPoint.newDistanceFeatureQuery(fieldName, boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
+            expectedQuery = LatLonPoint.newDistanceFeatureQuery(fieldName, 1.0f, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
         } else { // if (fieldName.equals(DATE_FIELD_NAME))
             DateFieldType fieldType = (DateFieldType) context.getFieldType(fieldName);
             long originLong = fieldType.parseToLong(origin, true, null, null, context::nowInMillis);
@@ -93,7 +92,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             } else { // NANOSECONDS
                 pivotLong = pivotVal.getNanos();
             }
-            expectedQuery = LongPoint.newDistanceFeatureQuery(fieldName, boost, originLong, pivotLong);
+            expectedQuery = LongPoint.newDistanceFeatureQuery(fieldName, 1.0f, originLong, pivotLong);
         }
         assertEquals(expectedQuery, query);
     }

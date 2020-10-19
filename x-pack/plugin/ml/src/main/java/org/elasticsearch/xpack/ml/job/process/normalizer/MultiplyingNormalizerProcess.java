@@ -90,7 +90,7 @@ public class MultiplyingNormalizerProcess implements NormalizerProcess {
     }
 
     @Override
-    public void kill() {
+    public void kill(boolean awaitCompletion) {
         // Nothing to do
     }
 

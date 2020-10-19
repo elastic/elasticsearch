@@ -47,13 +47,14 @@ public class AbstractNativeProcessTests extends ESTestCase {
     // 1) After close() for jobs that stop gracefully
     // 2) After kill() for jobs that are forcefully terminated
     // 3) After a simulated crash when we test simulated crash
-    private CountDownLatch mockNativeProcessLoggingStreamEnds = new CountDownLatch(1);
+    private CountDownLatch mockNativeProcessLoggingStreamEnds;
 
     @Before
     @SuppressWarnings("unchecked")
     public void initialize() throws IOException {
         nativeController = mock(NativeController.class);
         cppLogHandler = mock(CppLogMessageHandler.class);
+        mockNativeProcessLoggingStreamEnds = new CountDownLatch(1);
         // This answer blocks the thread on the executor service.
         // In order to unblock it, the test needs to call mockNativeProcessLoggingStreamEnds.countDown().
         doAnswer(
@@ -105,7 +106,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
         AbstractNativeProcess process = new TestNativeProcess();
         try {
             process.start(executorService);
-            process.kill();
+            process.kill(randomBoolean());
         } finally {
             // It is critical that this comes after kill() but before close(), otherwise we
             // would not be accurately simulating a kill().  This is why try-with-resources

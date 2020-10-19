@@ -128,11 +128,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService, indexAnalyzers, indexSettings,
                 idFieldDataEnabled);
         this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
-        this.parserContextSupplier = () -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity,
-            mapperRegistry.getMapperParsers()::get, indexVersionCreated,
-            queryShardContextSupplier, null, scriptService, indexAnalyzers, indexSettings, idFieldDataEnabled);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
+        this.parserContextSupplier = () -> parserContextFunction.apply(null);
         this.documentMapperParser = new DocumentMapperParser(indexSettings, indexAnalyzers, this::resolveDocumentType, documentParser,
             this::getMetadataMappers, parserContextSupplier, metadataMapperParsers);
     }

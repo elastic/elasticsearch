@@ -161,25 +161,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
         final DocumentMapper existingMapper = mapper;
         final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
-        for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
-            final String name = entry.getKey();
-            final MetadataFieldMapper existingMetadataMapper = existingMapper == null
-                ? null
-                : (MetadataFieldMapper) existingMapper.mappers().getMapper(name);
-            final MetadataFieldMapper metadataMapper;
-            if (existingMetadataMapper == null) {
-                final MetadataFieldMapper.TypeParser parser = entry.getValue();
-                metadataMapper = parser.getDefault(parserContext());
-            } else {
-                metadataMapper = existingMetadataMapper;
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
+        if (existingMapper == null) {
+            for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+                MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
+                metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
             }
-            metadataMappers.put(metadataMapper.getClass(), metadataMapper);
+            return metadataMappers;
         }
-        return metadataMappers;
+        return existingMapper.mapping().metadataMappersMap;
     }
 
     /**

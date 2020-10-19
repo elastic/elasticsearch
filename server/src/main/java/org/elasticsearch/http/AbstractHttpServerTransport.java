@@ -360,9 +360,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     Set<MediaType> validAccepts = restHandler.validAcceptMediaTypes();
                     for (MediaType validAccept : validAccepts) {
                         if (validAccept.mimeTypes().contains(parsedAccept.mimeTypeWithoutParams())) {
+                            //TODO: also validate the set of parameters
                             isHeaderAcceptValid = true;
                             break;
                         }
+
                     }
                 }
 

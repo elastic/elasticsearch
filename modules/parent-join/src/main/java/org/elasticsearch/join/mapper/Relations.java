@@ -62,7 +62,7 @@ class Relations {
         return parent + "->" + children;
     }
 
-    public static List<Relations> parse(Object fieldNode) {
+    static List<Relations> parse(Object fieldNode) {
         List<Relations> parsed = new ArrayList<>();
         Map<String, Object> relations = XContentMapValues.nodeMapValue(fieldNode, "relations");
         for (Map.Entry<String, Object> relation : relations.entrySet()) {

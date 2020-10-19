@@ -34,7 +34,7 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
-import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
+import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.FOR_EXPORT;
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 

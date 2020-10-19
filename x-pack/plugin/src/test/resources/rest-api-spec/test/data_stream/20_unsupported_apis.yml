@@ -200,8 +200,8 @@
 ---
 "Non append-only writes into a data stream":
   - skip:
-      version: " - 7.99.99"
-      reason: "set to 7.9.3 after backporting #62766"
+      version: " - 7.9.3"
+      reason: "validation bug only backported to 7.9.3"
       features: allowed_warnings
 
   - do:

@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -41,18 +40,13 @@ final class TransportSearchHelper {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
-        boolean includeContextUUID = version.onOrAfter(Version.V_7_7_0);
+    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) {
         try (RAMOutputStream out = new RAMOutputStream()) {
-            if (includeContextUUID) {
-                out.writeString(INCLUDE_CONTEXT_UUID);
-            }
+            out.writeString(INCLUDE_CONTEXT_UUID);
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
             out.writeVInt(searchPhaseResults.asList().size());
             for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
-                if (includeContextUUID) {
-                    out.writeString(searchPhaseResult.getContextId().getSessionId());
-                }
+                out.writeString(searchPhaseResult.getContextId().getSessionId());
                 out.writeLong(searchPhaseResult.getContextId().getId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {

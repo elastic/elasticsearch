@@ -451,7 +451,7 @@ subprojects {
     tasks.register('checkExtraction', LoggedExec) {
       dependsOn buildDist
       doFirst {
-        project.delete(extractionDir)
+        delete(extractionDir)
         extractionDir.mkdirs()
       }
     }

@@ -10,17 +10,19 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.ParsedCartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,29 +36,32 @@ import java.util.Map;
 public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
     public static final String CONTENT_TYPE = "point";
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, PointFieldType> {
+    public static class CartesianPointParser extends PointParser<ParsedCartesianPoint> {
+
+        public CartesianPointParser(String name, ParsedPoint nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+            super(name, ParsedCartesianPoint::new, (parser, point) -> {
+                ParsedCartesianPoint.parsePoint(parser, point, ignoreZValue);
+                return point;
+            }, (ParsedCartesianPoint) nullValue, ignoreZValue, ignoreMalformed);
+        }
+    }
+
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder {
+
         public Builder(String name) {
             super(name, new FieldType());
-            builder = this;
         }
 
         @Override
         public PointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                       Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-            PointFieldType ft = new PointFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, meta);
-            ft.setGeometryParser(new PointParser<>());
-            ft.setGeometryIndexer(new PointIndexer(ft));
-            ft.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
+            CartesianPointParser parser = new CartesianPointParser(name, nullValue, ignoreZValue.value(), ignoreMalformed.value());
+            PointFieldType ft = new PointFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, parser, meta);
             return new PointFieldMapper(simpleName, fieldType, ft, multiFields,
-                ignoreMalformed, ignoreZValue(context), nullValue, copyTo);
+                ignoreMalformed, ignoreZValue(context), nullValue, copyTo, new PointIndexer(ft), parser);
         }
 
-    }
-
-    @Override
-    protected ParsedPoint newParsedPoint() {
-        return new ParsedCartesianPoint();
     }
 
     public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<Builder> {
@@ -81,19 +86,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         }
     }
 
-    /**
-     * Parses geopoint represented as an object or an array, ignores malformed geopoints if needed
-     */
-    @Override
-    protected void parsePointIgnoringMalformed(XContentParser parser, ParsedPoint point) throws IOException {
-        super.parsePointIgnoringMalformed(parser, point);
-        CartesianPoint.parsePoint(parser, (CartesianPoint)point, ignoreZValue().value());
-    }
-
     public PointFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                             MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                            Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
+                            Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo,
+                            PointIndexer pointIndexer, CartesianPointParser parser) {
+        super(simpleName, fieldType, mappedFieldType, multiFields,
+            ignoreMalformed, ignoreZValue, nullValue, copyTo, pointIndexer, parser);
     }
 
     @Override
@@ -126,14 +124,24 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         return (PointFieldType) mappedFieldType;
     }
 
-    public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<? extends CartesianPoint>> {
-        private PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, meta);
+    public static class PointFieldType extends AbstractPointGeometryFieldType implements ShapeQueryable {
+
+        private final ShapeQueryPointProcessor queryProcessor;
+
+        private PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                               CartesianPointParser parser, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, parser, meta);
+            this.queryProcessor = new ShapeQueryPointProcessor();
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            return queryProcessor.shapeQuery(shape, fieldName, relation, context);
         }
     }
 

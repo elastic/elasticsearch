@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * A {@link LifecycleAction} which enables or disables the automatic migration of data between
@@ -30,6 +31,9 @@ import java.util.Objects;
 public class MigrateAction implements LifecycleAction {
     public static final String NAME = "migrate";
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
+
+    // Represents an ordered list of data tiers from cold to hot (or slow to fast)
+    private static final List<String> COLD_TO_HOT_TIERS = List.of(DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
 
     private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new MigrateAction(a[0] == null ? true : (boolean) a[0]));
@@ -92,7 +96,7 @@ public class MigrateAction implements LifecycleAction {
             Settings.Builder migrationSettings = Settings.builder();
             String dataTierName = "data_" + phase;
             assert DataTier.validTierName(dataTierName) : "invalid data tier name:" + dataTierName;
-            migrationSettings.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, dataTierName);
+            migrationSettings.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getPreferredTiersConfiguration(dataTierName));
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
                 migrationSettings.build());
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
@@ -100,6 +104,19 @@ public class MigrateAction implements LifecycleAction {
         } else {
             return List.of();
         }
+    }
+
+    /**
+     * Based on the provided target tier it will return a comma separated list of preferred tiers.
+     * ie. if `data_cold` is the target tier, it will return `data_cold,data_warm,data_hot`
+     * This is usually used in conjunction with {@link DataTierAllocationDecider#INDEX_ROUTING_PREFER_SETTING}
+     */
+    static String getPreferredTiersConfiguration(String targetTier) {
+        int indexOfTargetTier = COLD_TO_HOT_TIERS.indexOf(targetTier);
+        if (indexOfTargetTier == -1) {
+            throw new IllegalArgumentException("invalid data tier [" + targetTier + "]");
+        }
+        return COLD_TO_HOT_TIERS.stream().skip(indexOfTargetTier).collect(Collectors.joining(","));
     }
 
     @Override

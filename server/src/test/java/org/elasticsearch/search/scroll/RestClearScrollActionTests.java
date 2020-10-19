@@ -19,26 +19,24 @@
 
 package org.elasticsearch.search.scroll;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.hamcrest.Matchers.hasSize;
 
 public class RestClearScrollActionTests extends ESTestCase {
 
@@ -51,21 +49,23 @@ public class RestClearScrollActionTests extends ESTestCase {
     }
 
     public void testBodyParamsOverrideQueryStringParams() throws Exception {
-        NodeClient nodeClient = mock(NodeClient.class);
-        doNothing().when(nodeClient).searchScroll(any(), any());
-
-        RestClearScrollAction action = new RestClearScrollAction();
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+        SetOnce<Boolean> scrollCalled = new SetOnce<>();
+        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
+            @Override
+            public void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener) {
+                scrollCalled.set(true);
+                assertThat(request.getScrollIds(), hasSize(1));
+                assertThat(request.getScrollIds().get(0), equalTo("BODY"));
+            }
+        }) {
+            RestClearScrollAction action = new RestClearScrollAction();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                 .withParams(Collections.singletonMap("scroll_id", "QUERY_STRING"))
                 .withContent(new BytesArray("{\"scroll_id\": [\"BODY\"]}"), XContentType.JSON).build();
-        FakeRestChannel channel = new FakeRestChannel(request, false, 0);
-        action.handleRequest(request, channel, nodeClient);
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+            action.handleRequest(request, channel, nodeClient);
 
-        ArgumentCaptor<ClearScrollRequest> argument = ArgumentCaptor.forClass(ClearScrollRequest.class);
-        verify(nodeClient).clearScroll(argument.capture(), anyObject());
-        ClearScrollRequest clearScrollRequest = argument.getValue();
-        List<String> scrollIds = clearScrollRequest.getScrollIds();
-        assertEquals(1, scrollIds.size());
-        assertEquals("BODY", scrollIds.get(0));
+            assertThat(scrollCalled.get(), equalTo(true));
+        }
     }
 }

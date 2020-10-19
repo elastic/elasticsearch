@@ -82,7 +82,6 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             (n, c, o) -> o == null ? null : XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue)
             .acceptsNull();
 
-        private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -91,14 +90,13 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(meta, boost, docValues, indexed, nullValue, stored);
+            return List.of(meta, docValues, indexed, nullValue, stored);
         }
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
             MappedFieldType ft = new BooleanFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
-                docValues.getValue(), meta.getValue());
-            ft.setBoost(boost.getValue());
+                docValues.getValue(), nullValue.getValue(), meta.getValue());
             return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -107,18 +105,44 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
+        private final Boolean nullValue;
+
         public BooleanFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                Map<String, String> meta) {
+                                Boolean nullValue, Map<String, String> meta) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.nullValue = nullValue;
         }
 
         public BooleanFieldType(String name) {
-            this(name, true, false, true, Collections.emptyMap());
+            this(name, true, false, true, false, Collections.emptyMap());
+        }
+
+        public BooleanFieldType(String name, boolean searchable) {
+            this(name, searchable, false, true, false, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), mapperService, nullValue) {
+                @Override
+                protected Boolean parseSourceValue(Object value) {
+                    if (value instanceof Boolean) {
+                        return (Boolean) value;
+                    } else {
+                        String textValue = value.toString();
+                        return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                    }
+                }
+            };
         }
 
         @Override
@@ -240,25 +264,6 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         } else {
             createFieldNamesField(context);
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected Boolean parseSourceValue(Object value) {
-                if (value instanceof Boolean) {
-                    return (Boolean) value;
-                } else {
-                    String textValue = value.toString();
-                    return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
-                }
-            }
-        };
     }
 
     @Override

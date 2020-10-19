@@ -171,7 +171,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         ActionFuture<CreateSnapshotResponse> future = client(masterNode).admin().cluster()
                 .prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute();
 
-        waitForBlockOnAnyDataNode(repoName, TimeValue.timeValueSeconds(10L));
+        waitForBlockOnAnyDataNode(repoName);
 
         NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
@@ -197,7 +197,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture =
                 client(masterNode).admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2").setWaitForCompletion(true).execute();
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(10L));
+        waitForBlock(masterNode, repoName);
         unblockNode(repoName, masterNode);
         assertFutureThrows(snapshotFuture, SnapshotException.class);
 
@@ -228,7 +228,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient().admin().cluster()
                 .prepareCreateSnapshot(repoName, "test-snap").setWaitForCompletion(true).execute();
 
-        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(dataNode, repoName);
 
         final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);

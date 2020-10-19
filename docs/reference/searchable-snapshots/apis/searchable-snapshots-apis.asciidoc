@@ -3,7 +3,7 @@
 [[searchable-snapshots-apis]]
 == Searchable snapshots APIs
 
-experimental[]
+beta::[]
 
 You can use the following APIs to perform searchable snapshots operations.
 

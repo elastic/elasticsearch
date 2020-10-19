@@ -23,12 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -43,11 +37,8 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -68,36 +59,27 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder> {
-        private final String parent;
-        private final Set<String> children;
+    static class Builder extends FieldMapper.Builder {
 
-        Builder(String name, String parent, Set<String> children) {
+        Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
-            builder = this;
-            this.parent = parent;
-            this.children = children;
-        }
-
-        public Set<String> getChildren() {
-            return children;
         }
 
         public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            return builder;
+            return this;
         }
 
         @Override
         public ParentIdFieldMapper build(BuilderContext context) {
-            return new ParentIdFieldMapper(name, parent, children, fieldType,
-                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta));
+            return new ParentIdFieldMapper(name, fieldType,
+                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals));
         }
     }
 
     public static final class ParentIdFieldType extends StringFieldType {
-        private ParentIdFieldType(String name, boolean eagerGlobalOrdinals, Map<String, String> meta) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public ParentIdFieldType(String name, boolean eagerGlobalOrdinals) {
+            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
         }
@@ -114,6 +96,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
+        }
+
+        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
@@ -123,17 +110,10 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
     }
 
-    private final String parentName;
-    private Set<String> children;
-
     protected ParentIdFieldMapper(String simpleName,
-                                  String parentName,
-                                  Set<String> children,
                                   FieldType fieldType,
                                   MappedFieldType mappedFieldType) {
         super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
-        this.parentName = parentName;
-        this.children = children;
     }
 
     @Override
@@ -141,37 +121,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
         return (ParentIdFieldMapper) super.clone();
     }
 
-    /**
-     * Returns the parent name associated with this mapper.
-     */
-    public String getParentName() {
-        return parentName;
-    }
-
-    public Query getParentFilter() {
-        return new TermQuery(new Term(name().substring(0, name().indexOf('#')), parentName));
-    }
-    /**
-     * Returns the children names associated with this mapper.
-     */
-    public Collection<String> getChildren() {
-        return children;
-    }
-
-    public Query getChildFilter(String type) {
-        return new TermQuery(new Term(name().substring(0, name().indexOf('#')), type));
-    }
-
-    public Query getChildrenFilter() {
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (String child : children) {
-            builder.add(getChildFilter(child), BooleanClause.Occur.SHOULD);
-        }
-        return new ConstantScoreQuery(builder.build());
-    }
-
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context) {
         if (context.externalValueSet() == false) {
             throw new IllegalStateException("external value not set");
         }
@@ -183,14 +134,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
-    }
-
-    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) other;
-        this.children = parentMergeWith.children;
+
     }
 
     @Override

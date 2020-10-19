@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -50,19 +48,9 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
                                        IndexNameExpressionResolver indexNameExpressionResolver,
                                        Client client, NamedXContentRegistry xContentRegistry) {
             super(GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    GetDatafeedsAction.Request::new, indexNameExpressionResolver);
+                    GetDatafeedsAction.Request::new, indexNameExpressionResolver, GetDatafeedsAction.Response::new, ThreadPool.Names.SAME);
 
         datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetDatafeedsAction.Response read(StreamInput in) throws IOException {
-        return new GetDatafeedsAction.Response(in);
     }
 
     @Override

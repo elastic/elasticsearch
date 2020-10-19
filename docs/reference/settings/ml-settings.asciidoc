@@ -25,7 +25,7 @@ hardware, you must disable {ml} (by setting `xpack.ml.enabled` to `false`).
 the node as a _{ml} node_ that is capable of running jobs. Every node is a {ml}
 node by default.
 +
-If you use the `node.roles` setting, then all required roles must be explicitly  
+If you use the `node.roles` setting, then all required roles must be explicitly
 set. Consult <<modules-node>> to learn more.
 +
 IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, do not set
@@ -44,9 +44,9 @@ from clients (including {kib}) also fail. For more information about disabling
 {kibana-ref}/ml-settings-kb.html[{kib} {ml} settings].
 +
 IMPORTANT: If you want to use {ml-features} in your cluster, it is recommended
-that you set `xpack.ml.enabled` to `true` on all nodes. This is the default 
-behavior. At a minimum, it must be enabled on all master-eligible nodes. If you 
-want to use {ml-features} in clients or {kib}, it must also be enabled on all 
+that you set `xpack.ml.enabled` to `true` on all nodes. This is the default
+behavior. At a minimum, it must be enabled on all master-eligible nodes. If you
+want to use {ml-features} in clients or {kib}, it must also be enabled on all
 coordinating nodes.
 
 `xpack.ml.inference_model.cache_size`::
@@ -90,7 +90,7 @@ For more information about the `model_memory_limit` property, see
 
 [[xpack.ml.max_open_jobs]]
 `xpack.ml.max_open_jobs`::
-(<<cluster-update-settings,Dynamic>>) The maximum number of jobs that can run 
+(<<cluster-update-settings,Dynamic>>) The maximum number of jobs that can run
 simultaneously on a node. Defaults to `20`. In this context, jobs include both
 {anomaly-jobs} and {dfanalytics-jobs}. The maximum number of jobs is also
 constrained by memory usage. Thus if the estimated memory usage of the jobs
@@ -99,6 +99,14 @@ would be higher than allowed, fewer jobs will run on a node. Prior to version
 dynamic setting in version 7.1. As a result, changes to its value after node
 startup are used only after every node in the cluster is running version 7.1 or
 higher. The maximum permitted value is `512`.
+
+`xpack.ml.nightly_maintenance_requests_per_second`::
+(<<cluster-update-settings,Dynamic>>) The rate at which the nightly maintenance task
+deletes expired model snapshots and results. The setting is a proxy to the
+[requests_per_second](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html#_throttling_delete_requests)
+parameter used in the Delete by query requests and controls throttling.
+Valid values must be greater than `0.0` or equal to `-1.0` where `-1.0` means a default value
+is used. Defaults to `-1.0`
 
 `xpack.ml.node_concurrent_job_allocations`::
 (<<cluster-update-settings,Dynamic>>) The maximum number of jobs that can

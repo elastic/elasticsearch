@@ -110,7 +110,8 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
             .startObject()
             .array("index_patterns", "recipe*")
             .field("allow_auto_create", allowAutoCreate)
-            .startObject("data_stream").endObject()
+            .startObject("data_stream")
+            .endObject()
             .endObject();
 
         final Request createTemplateRequest = new Request("PUT", "_index_template/recipe_template");

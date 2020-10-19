@@ -260,6 +260,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             new Script("test"),
             null
         );
+        original.mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
         InternalScriptedMetric roundTripped = (InternalScriptedMetric) copyNamedWriteable(
             original,
             getNamedWriteableRegistry(),
@@ -275,6 +276,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             new Script("test"),
             null
         );
+        unreduced.mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyNamedWriteable(
             unreduced,
             getNamedWriteableRegistry(),

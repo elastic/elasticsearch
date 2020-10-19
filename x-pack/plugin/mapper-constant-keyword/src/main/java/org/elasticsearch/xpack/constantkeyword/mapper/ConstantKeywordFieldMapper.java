@@ -80,7 +80,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         public Builder(String name) {
             super(name);
             value.setSerializerCheck((id, ic, v) -> v != null);
-            value.setMergeValidator((previous, current) -> previous == null || Objects.equals(previous, current));
+            value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         }
 
         @Override

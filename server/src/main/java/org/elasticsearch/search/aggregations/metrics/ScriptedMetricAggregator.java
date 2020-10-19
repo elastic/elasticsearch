@@ -41,6 +41,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
+
 class ScriptedMetricAggregator extends MetricsAggregator {
     /**
      * Estimated cost to maintain a bucket. Since this aggregator uses
@@ -139,7 +141,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         Object result = aggStateForResult(owningBucketOrdinal).combine();
         StreamOutput.checkWriteable(result);
-        return new InternalScriptedMetric(name, result, reduceScript, metadata());
+        return new InternalScriptedMetric(name, singletonList(result), reduceScript, metadata());
     }
 
     private State aggStateForResult(long owningBucketOrdinal) {
@@ -157,7 +159,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalScriptedMetric(name, null, reduceScript, metadata());
+        return new InternalScriptedMetric(name, singletonList(null), reduceScript, metadata());
     }
 
     @Override

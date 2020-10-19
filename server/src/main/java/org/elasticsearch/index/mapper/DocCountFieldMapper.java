@@ -23,6 +23,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -88,19 +89,15 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        if (context.parser().currentToken() == XContentParser.Token.VALUE_NUMBER) {
-            Long value = context.parser().longValue(false);
+        XContentParser parser = context.parser();
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.currentToken(), parser);
 
-            if (value != null) {
-                if (value.longValue() <= 0) {
-                    throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer.");
-                }
-                final Field docCount = new NumericDocValuesField(NAME, value.longValue());
-                context.doc().add(docCount);
-            }
-        } else {
+        long value = parser.longValue(false);
+        if (value <= 0) {
             throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer.");
         }
+        final Field docCount = new NumericDocValuesField(NAME, value);
+        context.doc().add(docCount);
     }
 
     @Override

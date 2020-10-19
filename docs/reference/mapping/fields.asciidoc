@@ -65,6 +65,8 @@ some of these metadata fields can be customized when a mapping type is created.
 
     A custom field used for storing doc counts when a document represents pre-aggregated data.
 
+include::fields/doc-count-field.asciidoc[]
+
 include::fields/field-names-field.asciidoc[]
 
 include::fields/ignored-field.asciidoc[]
@@ -80,5 +82,3 @@ include::fields/routing-field.asciidoc[]
 include::fields/source-field.asciidoc[]
 
 include::fields/type-field.asciidoc[]
-
-include::fields/doc-count-field.asciidoc[]

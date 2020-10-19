@@ -42,11 +42,11 @@ public class FieldBasedDocCountProvider {
         this.docCountFieldName = DocCountFieldMapper.NAME;
     }
 
-    public int getDocCount(int doc) throws IOException {
+    public long getDocCount(int doc) throws IOException {
         if (docCountValues != null && docCountValues.advanceExact(doc)) {
-            return (int) docCountValues.longValue();
+            return docCountValues.longValue();
         } else {
-            return 1;
+            return 1L;
         }
     }
 

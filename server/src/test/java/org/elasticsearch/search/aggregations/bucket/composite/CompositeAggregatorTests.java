@@ -2254,22 +2254,24 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 Document document = new Document();
                 int id = 0;
                 for (Map<String, List<Object>> fields : dataset) {
+                    document.clear();
                     addToDocument(id, document, fields);
                     indexWriter.addDocument(document);
-                    if (randomBoolean()) {
-                        document.clear();
-                        indexWriter.deleteDocuments(new Term("id", Integer.toString(id)));
-                        id++;
-                        addToDocument(id, document, fields);
-                        indexWriter.addDocument(document);
-                    }
-                    document.clear();
                     id++;
                 }
                 if (rarely()) {
                     indexWriter.forceMerge(1);
                 }
-
+                if (dataset.size() > 0) {
+                    int numDeletes = randomIntBetween(1, 25);
+                    for (int i = 0; i < numDeletes; i++) {
+                        id = randomIntBetween(0, dataset.size() - 1);
+                        indexWriter.deleteDocuments(new Term("id", Integer.toString(id)));
+                        document.clear();
+                        addToDocument(id, document, dataset.get(id));
+                        indexWriter.addDocument(document);
+                    }
+                }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);

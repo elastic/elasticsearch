@@ -116,7 +116,17 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
+                    final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+
+                    // This will throw an exception if the index or data stream does not exist and creating it is prohibited.
+                    final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
+
+                    if (shouldAutoCreate == false) {
+                        // The index or data stream already exists.
+                        return currentState;
+                    }
+
+                    final DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
                     if (dataStreamTemplate != null) {
                         CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
                             request.index(), request.masterNodeTimeout(), request.timeout());
@@ -124,17 +134,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
                         return clusterState;
                     } else {
-                        String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
                         indexNameRef.set(indexName);
-
-                        // This will throw an exception if the index does not exist and creating it is prohibited
-                        final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
-
-                        if (shouldAutoCreate == false) {
-                            // The index already exists.
-                            return currentState;
-                        }
-
                         CreateIndexClusterStateUpdateRequest updateRequest =
                             new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
                                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());

@@ -61,7 +61,7 @@ public class DelegatePkiAuthenticationResponseTests extends
         assertThat(clientInstance.getType(), is("Bearer"));
         AuthenticateResponse serverAuthenticationResponse = createServerAuthenticationResponse(serverTestInstance.getAuthentication());
         User user = serverTestInstance.getAuthentication().getUser();
-        assertThat(serverAuthenticationResponse, equalTo(clientInstance.getAuthenticationResponse()));
+        assertThat(serverAuthenticationResponse, equalTo(clientInstance.getAuthentication()));
     }
 
     protected Authentication createAuthentication() {

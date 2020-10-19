@@ -582,7 +582,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
         this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
-        new MlIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+        MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+        registry.initialize();
 
         AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(client, clusterService);
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService);
@@ -624,7 +625,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         AnalyticsProcessFactory<MemoryUsageEstimationResult> memoryEstimationProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
             try {
-                NativeController nativeController = NativeController.makeNativeController(clusterService.getNodeName(), environment);
+                NativeController nativeController =
+                    NativeController.makeNativeController(clusterService.getNodeName(), environment, xContentRegistry);
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(
                     environment,
                     settings,

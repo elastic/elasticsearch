@@ -106,7 +106,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
         type = PluginType.valueOf(in.readString());
-        javaOpts = in.readString();
+        javaOpts = in.readOptionalString();
     }
 
     @Override
@@ -120,7 +120,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
         out.writeString(type.name());
-        out.writeString(javaOpts);
+        out.writeOptionalString(javaOpts);
     }
 
     /**

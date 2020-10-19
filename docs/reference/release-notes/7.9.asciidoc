@@ -35,7 +35,7 @@ Engine::
 * Fix to actually throttle indexing on getting activated {es-pull}61768[#61768]
 
 Features/Data streams::
-* Fix querying a data stream name in _index field. {es-pull}63170[#63170]
+* Fix querying a data stream name in index field {es-pull}63170[#63170]
 
 Features/Ingest::
 * Handle error conditions when simulating ingest pipelines with verbosity enabled {es-pull}63327[#63327] (issue: {es-issue}63199[#63199])
@@ -62,7 +62,7 @@ Transform::
 === Upgrades
 
 Infra/Packaging::
-* Switch bundled jdk back to Oracle JDK {es-pull}63288[#63288] (issue: {es-issue}62709[#62709])
+* Switch bundled JDK back to Oracle JDK {es-pull}63288[#63288] (issue: {es-issue}62709[#62709])
 
 
 [[release-notes-7.9.2]]

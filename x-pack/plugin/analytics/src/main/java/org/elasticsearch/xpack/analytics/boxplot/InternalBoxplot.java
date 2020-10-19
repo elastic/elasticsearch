@@ -149,6 +149,9 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
             prev = c;
         }
+        if (Double.isNaN(results[1])) {
+            results[1] = state.getMax();
+        }
         return results;
     }
 

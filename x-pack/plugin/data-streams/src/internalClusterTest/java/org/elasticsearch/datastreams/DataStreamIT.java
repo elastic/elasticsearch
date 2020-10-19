@@ -1169,17 +1169,23 @@ public class DataStreamIT extends ESIntegTestCase {
         client().admin().indices().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 
-    static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
+    static void verifyDocs(String dataStream, long expectedNumHits, List<String> expectedIndices) {
         SearchRequest searchRequest = new SearchRequest(dataStream);
         searchRequest.source().size((int) expectedNumHits);
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(expectedNumHits));
 
+        Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> {
+            assertTrue(expectedIndices.contains(hit.getIndex()));
+        });
+    }
+
+    static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
         List<String> expectedIndices = new ArrayList<>();
         for (long k = minGeneration; k <= maxGeneration; k++) {
             expectedIndices.add(DataStream.getDefaultBackingIndexName(dataStream, k));
         }
-        Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> { assertTrue(expectedIndices.contains(hit.getIndex())); });
+        verifyDocs(dataStream, expectedNumHits, expectedIndices);
     }
 
     public static void putComposableIndexTemplate(String id, List<String> patterns) throws IOException {

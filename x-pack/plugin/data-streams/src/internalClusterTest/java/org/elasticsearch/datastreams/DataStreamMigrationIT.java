@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -66,10 +67,10 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         admin().indices().create(new CreateIndexRequest("index1")).get();
         admin().indices().create(new CreateIndexRequest("index2")).get();
 
-        int numDocs = randomIntBetween(2, 16);
-        indexDocs("index1", numDocs);
-        numDocs = randomIntBetween(2, 16);
-        indexDocs("index2", numDocs);
+        int numDocs1 = randomIntBetween(2, 16);
+        indexDocs("index1", numDocs1);
+        int numDocs2 = randomIntBetween(2, 16);
+        indexDocs("index2", numDocs2);
 
         String alias = "migrate-to-data-stream";
         IndicesAliasesRequest request = new IndicesAliasesRequest();
@@ -77,123 +78,23 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
         assertAcked(admin().indices().aliases(request).get());
 
-        ResolveIndexAction.Response resolveResponse =
-            admin().indices().resolveIndex(new ResolveIndexAction.Request(new String[]{"*"})).get();
+        ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(new String[]{"*"},
+            IndicesOptions.fromOptions(true, true, true, true, true));
+        ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(0));
-        //assertThat(resolveResponse.getIndices().toArray(new ResolveIndexAction.ResolvedIndex[0]), arrayContaining());
-
+        assertThat(resolveResponse.getIndices().size(), equalTo(2));
 
         client().execute(MigrateToDataStreamAction.INSTANCE, new MigrateToDataStreamAction.Request(alias)).get();
 
+        resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
+        assertThat(resolveResponse.getAliases().size(), equalTo(0));
+        assertThat(resolveResponse.getDataStreams().size(), equalTo(1));
+        assertThat(resolveResponse.getIndices().size(), equalTo(2));
 
-
-        /*
-        putComposableIndexTemplate("id2", List.of("metrics-bar*"));
-        createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
-        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
-        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-            .actionGet();
-        getDataStreamResponse.getDataStreams().sort(Comparator.comparing(dataStreamInfo -> dataStreamInfo.getDataStream().getName()));
-        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(2));
-        DataStream firstDataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
-        assertThat(firstDataStream.getName(), equalTo("metrics-bar"));
-        assertThat(firstDataStream.getTimeStampField().getName(), equalTo("@timestamp"));
-        assertThat(firstDataStream.getIndices().size(), equalTo(1));
-        assertThat(firstDataStream.getIndices().get(0).getName(), equalTo(DataStream.getDefaultBackingIndexName("metrics-bar", 1)));
-        DataStream dataStream = getDataStreamResponse.getDataStreams().get(1).getDataStream();
-        assertThat(dataStream.getName(), equalTo("metrics-foo"));
-        assertThat(dataStream.getTimeStampField().getName(), equalTo("@timestamp"));
-        assertThat(dataStream.getIndices().size(), equalTo(1));
-        assertThat(dataStream.getIndices().get(0).getName(), equalTo(DataStream.getDefaultBackingIndexName("metrics-foo", 1)));
-
-        String backingIndex = DataStream.getDefaultBackingIndexName("metrics-bar", 1);
-        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
-        assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
-        assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
-        Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
-        assertThat(ObjectPath.eval("properties.@timestamp.type", mappings), is("date"));
-
-        backingIndex = DataStream.getDefaultBackingIndexName("metrics-foo", 1);
-        getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
-        assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
-        assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
-        mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
-        assertThat(ObjectPath.eval("properties.@timestamp.type", mappings), is("date"));
-
-        int numDocsFoo = randomIntBetween(2, 16);
-        indexDocs("metrics-foo", numDocsFoo);
-
-        verifyDocs("metrics-bar", numDocsBar, 1, 1);
-        verifyDocs("metrics-foo", numDocsFoo, 1, 1);
-
-        RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("metrics-foo", null)).get();
-        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("metrics-foo", 2)));
-        assertTrue(rolloverResponse.isRolledOver());
-
-        rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("metrics-bar", null)).get();
-        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("metrics-bar", 2)));
-        assertTrue(rolloverResponse.isRolledOver());
-
-        backingIndex = DataStream.getDefaultBackingIndexName("metrics-foo", 2);
-        getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
-        assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
-        assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
-        mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
-        assertThat(ObjectPath.eval("properties.@timestamp.type", mappings), is("date"));
-
-        backingIndex = DataStream.getDefaultBackingIndexName("metrics-bar", 2);
-        getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
-        assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
-        assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
-        mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
-        assertThat(ObjectPath.eval("properties.@timestamp.type", mappings), is("date"));
-
-        int numDocsBar2 = randomIntBetween(2, 16);
-        indexDocs("metrics-bar", numDocsBar2);
-        int numDocsFoo2 = randomIntBetween(2, 16);
-        indexDocs("metrics-foo", numDocsFoo2);
-
-        verifyDocs("metrics-bar", numDocsBar + numDocsBar2, 1, 2);
-        verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2, 1, 2);
-
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[] { "metrics-*" });
-        client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest).actionGet();
-        getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
-        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(0));
-
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName("metrics-bar", 1)))
-                .actionGet()
-        );
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName("metrics-bar", 2)))
-                .actionGet()
-        );
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName("metrics-foo", 1)))
-                .actionGet()
-        );
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName("metrics-foo", 2)))
-                .actionGet()
-        );
-
-         */
+        int numDocsDs = randomIntBetween(2, 16);
+        //DataStreamIT.indexDocs(alias, numDocsDs);
+        //DataStreamIT.verifyDocs(alias, numDocs1 + numDocs2 + numDocsDs, List.of("index1", "index2"));
     }
 
     static void indexDocs(String index, int numDocs) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
@@ -39,12 +40,14 @@ public enum XContentType implements MediaType {
     JSON(0) {
         @Override
         public Set<String> mimeTypes() {
+            //TODO: add test for each of these these are defined in lowercase
             return Set.of(
                 "application/json",
                 "application/vnd.elasticsearch+json",
                 "application/x-ndjson",
                 "application/vnd.elasticsearch+x-ndjson",
-                "application/*"
+                "application/*",
+                "*/*"
             );
         }
 
@@ -130,18 +133,15 @@ public enum XContentType implements MediaType {
      * also supports a wildcard accept for {@code application/*}. This method can be used to parse the {@code Accept} HTTP header or a
      * format query string parameter. This method will return {@code null} if no match is found
      */
-    public static XContentType fromMediaTypeOrFormat(String mediaType) {
-        if (mediaType == null) {
-            return null;
-        }
-        for (XContentType type : values()) {
-            if (isSameMediaTypeOrFormatAs(mediaType, type)) {
-                return type;
-            }
+    public static XContentType fromMediaTypeOrFormat(@Nullable String mediaType) {
+        if(mediaType == null){
+            return JSON;
         }
         final String lowercaseMediaType = mediaType.toLowerCase(Locale.ROOT);
-        if (lowercaseMediaType.startsWith("application/*")) {
-            return JSON;
+        for (XContentType type : values()) {
+            if (type.mimeTypes().contains(lowercaseMediaType) || type.shortName().equalsIgnoreCase(lowercaseMediaType)) {
+                return type;
+            }
         }
 
         return null;
@@ -152,23 +152,18 @@ public enum XContentType implements MediaType {
      * The provided media type should not include any parameters. This method is suitable for parsing part of the {@code Content-Type}
      * HTTP header. This method will return {@code null} if no match is found
      */
-    public static XContentType fromMediaType(String mediaType) {
-        final String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
+    public static XContentType fromMediaType(@Nullable String mediaType) {
+        if(mediaType == null){
+            return JSON;
+        }
+        final String lowercaseMediaType = mediaType.toLowerCase(Locale.ROOT);
         for (XContentType type : values()) {
             if (type.mimeTypes().contains(lowercaseMediaType)) {
                 return type;
             }
         }
-        //TODO: don't allow null return type
-        return null;
-    }
 
-    private static boolean isSameMediaTypeOrFormatAs(String stringType, XContentType type) {
-   //TODO: fixme
-        return false;
-//        return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType) ||
-//                stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";") ||
-//                type.shortName().equalsIgnoreCase(stringType);
+        return null;
     }
 
     private int index;

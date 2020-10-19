@@ -42,6 +42,9 @@ public class ParsedMediaType {
         this.parameters = Collections.unmodifiableMap(parameters);
     }
 
+    /**
+     * The parsed mime type without the associated parameters. Will always return lowercase.
+     */
     public String mimeTypeWithoutParams() {
         return type + "/" + subType;
     }
@@ -83,7 +86,8 @@ public class ParsedMediaType {
                         throw new IllegalArgumentException("invalid parameters for header [" + headerValue + "]");
                     }
                 }
-                return new ParsedMediaType(splitMediaType[0].trim(), splitMediaType[1].trim(), parameters);
+                return new ParsedMediaType(splitMediaType[0].trim().toLowerCase(Locale.ROOT),
+                    splitMediaType[1].trim().toLowerCase(Locale.ROOT), parameters);
             }
         }
         return null;

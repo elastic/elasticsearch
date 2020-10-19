@@ -23,13 +23,21 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.action.cat.RestTable.buildHelpWidths;
 import static org.elasticsearch.rest.action.cat.RestTable.pad;
@@ -75,4 +83,25 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         return RESPONSE_PARAMS;
     }
 
+    @Override
+    public Set<MediaType> validAcceptMediaTypes() {
+        //TODO: clean this up and actually use these values
+        Set<MediaType> validAcceptMediaTypes = new HashSet<>();
+        validAcceptMediaTypes.addAll(EnumSet.allOf(XContentType.class));
+        validAcceptMediaTypes.add(new MediaType() {
+            @Override
+            public Set<String> mimeTypes() {
+                return Set.of("application/text");
+            }
+
+            @Override
+            public String shortName() {
+                return "txt";
+            }
+        });
+
+
+        return validAcceptMediaTypes;
+
+    }
 }

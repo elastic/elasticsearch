@@ -31,6 +31,7 @@ public interface MediaType {
     /**
      * The headers that can represent this MediaType, does not include the optional parameters
      * i.e. "application/json", "application/vnd.elasticsearch+json"
+     * MUST be represented in all lowercase.
      */
     Set<String> mimeTypes();
 

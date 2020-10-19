@@ -64,6 +64,7 @@ class HttpTracer {
      */
     @Nullable
     HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
+        //TODO: trace the parsed accept and content type header ... nothing sensitive there.
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
             logger.trace(new ParameterizedMessage("[{}][{}][{}][{}] received request from [{}]", restRequest.getRequestId(),
                 restRequest.header(Task.X_OPAQUE_ID), restRequest.method(), restRequest.uri(), restRequest.getHttpChannel()), e);

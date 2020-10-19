@@ -29,7 +29,6 @@ import org.elasticsearch.rest.RestRequest.Method;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Handler for REST requests
@@ -37,7 +36,7 @@ import java.util.stream.Collectors;
 @FunctionalInterface
 public interface RestHandler {
 
-    Set<MediaType> defaultMediaTypes = Set.of(XContentType.values());
+    Set<MediaType> defaultAcceptTypes = Set.of(XContentType.values());
 
     /**
      * Handles a rest request.
@@ -98,11 +97,7 @@ public interface RestHandler {
     }
 
     default Set<MediaType> validAcceptMediaTypes(){
-        return defaultMediaTypes;
-    }
-
-    default Set<MediaType> validContentTypeMediaType(){
-        return defaultMediaTypes;
+        return defaultAcceptTypes;
     }
 
     default void validateMediaTypes(ParsedMediaType acceptMediaType, ParsedMediaType contentTypeMediaType){

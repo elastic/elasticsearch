@@ -282,6 +282,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return false;
     }
 
+    //TODO: handle this error upstream, or
     private void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
         final String errorMessage;
         if (contentTypeHeader == null) {

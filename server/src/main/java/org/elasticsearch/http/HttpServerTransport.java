@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,10 +65,11 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
 
 
-        default RestHandler getRestHandler(HttpRequest request){
-            //TODO: fix me ?
+        /**
+         * Get the associated {@link RestHandler}. This method may be called before dispatching the request.
+         */
+        default @Nullable RestHandler getRestHandler(HttpRequest request){
             throw new UnsupportedOperationException();
         }
-
     }
 }

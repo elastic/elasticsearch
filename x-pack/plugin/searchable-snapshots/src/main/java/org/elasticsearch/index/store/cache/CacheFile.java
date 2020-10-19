@@ -19,14 +19,13 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class CacheFile {
@@ -42,37 +41,60 @@ public class CacheFile {
         StandardOpenOption.CREATE,
         StandardOpenOption.SPARSE };
 
+    /**
+     * Reference counter that counts the number of eviction listeners referencing to this cache file. Once this instance has been evicted
+     * and all listeners notified it makes sure to delete the physical file backing this cache.
+     */
     private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
         @Override
         protected void closeInternal() {
-            CacheFile.this.finishEviction();
+            assert assertNoPendingListeners();
+            try {
+                Files.deleteIfExists(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     };
-
-    private final ReentrantReadWriteLock.WriteLock evictionLock;
-    private final ReentrantReadWriteLock.ReadLock readLock;
 
     private final SparseFileTracker tracker;
     private final String description;
     private final Path file;
 
-    private volatile Set<EvictionListener> listeners;
-    private volatile boolean evicted;
+    private final Set<EvictionListener> listeners = new HashSet<>();
 
-    @Nullable // if evicted, or there are no listeners
-    private volatile FileChannel channel;
+    /**
+     * A reference counted holder for the current channel to the physical file backing this cache file instance.
+     */
+    private static final class FileChannelReference extends AbstractRefCounted {
+
+        private final FileChannel fileChannel;
+
+        FileChannelReference(Path file) throws IOException {
+            super("FileChannel");
+            this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
+        }
+
+        @Override
+        protected void closeInternal() {
+            try {
+                fileChannel.close();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    // If true this file has been evicted from the cache and should not be used any more
+    private final AtomicBoolean evicted = new AtomicBoolean(false);
+
+    @Nullable
+    private volatile FileChannelReference channelRef;
 
     public CacheFile(String description, long length, Path file) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
-        this.listeners = new HashSet<>();
-        this.evicted = false;
-
-        final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
-        this.evictionLock = cacheLock.writeLock();
-        this.readLock = cacheLock.readLock();
-
         assert invariant();
     }
 
@@ -84,27 +106,23 @@ public class CacheFile {
         return file;
     }
 
+    /**
+     * Increment the reference count for the underlying file by one and return a {@link Releasable} that will decrement by one when closed.
+     * TODO: Do we actually need this? Forcefully not evicting this cache file for a period of time seems pointless and in opposition to
+     *       limiting the size of the cache overall.
+     */
     Releasable fileLock() {
-        boolean success = false;
-        readLock.lock();
-        try {
-            ensureOpen();
-            // check if we have a channel while holding the read lock
-            if (channel == null) {
-                throw new AlreadyClosedException("Cache file channel has been released and closed");
-            }
-            success = true;
-            return readLock::unlock;
-        } finally {
-            if (success == false) {
-                readLock.unlock();
-            }
+        final FileChannelReference reference = channelRef;
+        if (reference == null || reference.tryIncRef() == false) {
+            throw new AlreadyClosedException("Cache file channel has been released and closed");
         }
+        return channelRef::decRef;
     }
 
     @Nullable
     public FileChannel getChannel() {
-        return channel;
+        final FileChannelReference reference = channelRef;
+        return reference == null ? null : reference.fileChannel;
     }
 
     public boolean acquire(final EvictionListener listener) throws IOException {
@@ -113,22 +131,20 @@ public class CacheFile {
         ensureOpen();
         boolean success = false;
         if (refCounter.tryIncRef()) {
-            evictionLock.lock();
             try {
-                ensureOpen();
-                final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                final boolean added = newListeners.add(listener);
-                assert added : "listener already exists " + listener;
-                maybeOpenFileChannel(newListeners);
-                listeners = Collections.unmodifiableSet(newListeners);
+                synchronized (listeners) {
+                    ensureOpen();
+                    final boolean added = listeners.add(listener);
+                    assert added : "listener already exists " + listener;
+                    if (listeners.size() == 1) {
+                        assert channelRef == null;
+                        channelRef = new FileChannelReference(file);
+                    }
+                }
                 success = true;
             } finally {
-                try {
-                    if (success == false) {
-                        refCounter.decRef();
-                    }
-                } finally {
-                    evictionLock.unlock();
+                if (success == false) {
+                    refCounter.decRef();
                 }
             }
         }
@@ -140,96 +156,63 @@ public class CacheFile {
         assert listener != null;
 
         boolean success = false;
-        evictionLock.lock();
         try {
-            try {
-                final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                final boolean removed = newListeners.remove(Objects.requireNonNull(listener));
+            synchronized (listeners) {
+                final boolean removed = listeners.remove(Objects.requireNonNull(listener));
                 assert removed : "listener does not exist " + listener;
                 if (removed == false) {
                     throw new IllegalStateException("Cannot remove an unknown listener");
                 }
-                maybeCloseFileChannel(newListeners);
-                listeners = Collections.unmodifiableSet(newListeners);
-                success = true;
-            } finally {
-                if (success) {
-                    refCounter.decRef();
+                if (listeners.isEmpty()) {
+                    // nobody is using this file so we close the channel
+                    channelRef.decRef();
+                    channelRef = null;
                 }
             }
+            success = true;
         } finally {
-            evictionLock.unlock();
+            if (success) {
+                refCounter.decRef();
+            }
         }
         assert invariant();
         return success;
     }
 
-    private void finishEviction() {
-        assert evictionLock.isHeldByCurrentThread();
-        assert listeners.isEmpty();
-        assert channel == null;
-        try {
-            Files.deleteIfExists(file);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    private boolean assertNoPendingListeners() {
+        synchronized (listeners) {
+            assert listeners.isEmpty();
+            assert channelRef == null;
         }
+        return true;
     }
 
+    /**
+     * Evicts this file from the cache. Once this method has been called, subsequent use of this class with throw exceptions.
+     */
     public void startEviction() {
-        if (evicted == false) {
-            final Set<EvictionListener> evictionListeners = new HashSet<>();
-            evictionLock.lock();
-            try {
-                if (evicted == false) {
-                    evicted = true;
-                    evictionListeners.addAll(listeners);
-                    refCounter.decRef();
-                }
-            } finally {
-                evictionLock.unlock();
+        if (evicted.compareAndSet(false, true)) {
+            final Set<EvictionListener> evictionListeners;
+            synchronized (listeners) {
+                evictionListeners = new HashSet<>(listeners);
+                refCounter.decRef();
             }
             evictionListeners.forEach(listener -> listener.onEviction(this));
         }
         assert invariant();
     }
 
-    private void maybeOpenFileChannel(Set<EvictionListener> listeners) throws IOException {
-        assert evictionLock.isHeldByCurrentThread();
-        if (listeners.size() == 1) {
-            assert channel == null;
-            channel = FileChannel.open(file, OPEN_OPTIONS);
-        }
-    }
-
-    private void maybeCloseFileChannel(Set<EvictionListener> listeners) {
-        assert evictionLock.isHeldByCurrentThread();
-        if (listeners.size() == 0) {
-            assert channel != null;
-            try {
-                channel.close();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Exception when closing channel", e);
-            } finally {
-                channel = null;
-            }
-        }
-    }
-
     private boolean invariant() {
-        readLock.lock();
-        try {
-            assert listeners != null;
+        synchronized (listeners) {
             if (listeners.isEmpty()) {
-                assert channel == null;
-                assert evicted == false || refCounter.refCount() != 0 || Files.notExists(file);
+                assert channelRef == null;
+                assert evicted.get() == false || refCounter.refCount() != 0 || Files.notExists(file);
             } else {
-                assert channel != null;
+                assert channelRef != null;
                 assert refCounter.refCount() > 0;
-                assert channel.isOpen();
+                assert channelRef.refCount() > 0;
                 assert Files.exists(file);
             }
-        } finally {
-            readLock.unlock();
         }
         return true;
     }
@@ -244,7 +227,7 @@ public class CacheFile {
             + ", length="
             + tracker.getLength()
             + ", channel="
-            + (channel != null ? "yes" : "no")
+            + (channelRef != null ? "yes" : "no")
             + ", listeners="
             + listeners.size()
             + ", evicted="
@@ -255,7 +238,7 @@ public class CacheFile {
     }
 
     private void ensureOpen() {
-        if (evicted) {
+        if (evicted.get()) {
             throw new AlreadyClosedException("Cache file is evicted");
         }
     }
@@ -285,11 +268,12 @@ public class CacheFile {
         final RangeMissingHandler writer,
         final Executor executor
     ) {
+        ensureOpen();
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
-            ensureOpen();
+            final FileChannelReference reference = getFileChannelReference(future);
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, ActionListener.wrap(success -> {
-                final int read = reader.onRangeAvailable(channel);
+                final int read = reader.onRangeAvailable(reference.fileChannel);
                 assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
                     + read
                     + "] does not match the range to read ["
@@ -306,21 +290,18 @@ public class CacheFile {
                     @Override
                     protected void doRun() {
                         for (SparseFileTracker.Gap gap : gaps) {
+                            ensureOpen();
                             try {
-                                ensureOpen();
-                                if (readLock.tryLock() == false) {
-                                    throw new AlreadyClosedException("Cache file channel is being evicted, writing attempt cancelled");
+                                if (reference.tryIncRef() == false) {
+                                    throw new AlreadyClosedException("Cache file channel has been released and closed");
                                 }
                                 try {
                                     ensureOpen();
-                                    if (channel == null) {
-                                        throw new AlreadyClosedException("Cache file channel has been released and closed");
-                                    }
-                                    writer.fillCacheRange(channel, gap.start(), gap.end(), gap::onProgress);
-                                    gap.onCompletion();
+                                    writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
                                 } finally {
-                                    readLock.unlock();
+                                    reference.decRef();
                                 }
+                                gap.onCompletion();
                             } catch (Exception e) {
                                 gap.onFailure(e);
                             }
@@ -352,9 +333,9 @@ public class CacheFile {
     CompletableFuture<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
-            ensureOpen();
+            final FileChannelReference reference = getFileChannelReference(future);
             if (tracker.waitForRangeIfPending(rangeToRead, ActionListener.wrap(success -> {
-                final int read = reader.onRangeAvailable(channel);
+                final int read = reader.onRangeAvailable(reference.fileChannel);
                 assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
                     + read
                     + "] does not match the range to read ["
@@ -366,12 +347,35 @@ public class CacheFile {
             }, future::completeExceptionally))) {
                 return future;
             } else {
+                future.complete(0);
                 return null;
             }
         } catch (Exception e) {
             future.completeExceptionally(e);
             return future;
         }
+    }
+
+    /**
+     * Get the reference to the currently open file channel for this cache file for a read operation
+     *
+     * @param future completable future to complete after the read operation finished
+     * @return file channel reference
+     */
+    private FileChannelReference getFileChannelReference(CompletableFuture<Integer> future) {
+        final FileChannelReference reference;
+        synchronized (listeners) {
+            ensureOpen();
+            reference = channelRef;
+            if (reference.tryIncRef() == false) {
+                throw new AlreadyClosedException("Cache file channel is being evicted, writing attempt cancelled");
+            }
+            future.handle((res, t) -> {
+                reference.decRef();
+                return null;
+            });
+        }
+        return reference;
     }
 
     public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {

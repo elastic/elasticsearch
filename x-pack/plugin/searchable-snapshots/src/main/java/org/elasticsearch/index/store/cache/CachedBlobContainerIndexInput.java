@@ -498,34 +498,19 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     // We do not actually read anything, but we want to wait for the write to complete before proceeding.
                     // noinspection UnnecessaryLocalVariable
                     final Tuple<Long, Long> rangeToRead = rangeToWrite;
-
-                    try (Releasable ignored = cacheFile.fileLock()) {
-                        assert assertFileChannelOpen(cacheFile.getChannel());
-
-                        cacheFile.populateAndRead(
-                            rangeToWrite,
-                            rangeToRead,
-                            (channel) -> bytesRead,
-                            (channel, start, end, progressUpdater) -> {
-                                final ByteBuffer byteBuffer = ByteBuffer.wrap(
-                                    copyBuffer,
-                                    toIntBytes(start - readStart),
-                                    toIntBytes(end - start)
-                                );
-                                final int writtenBytes = positionalWrite(channel, start, byteBuffer);
-                                logger.trace(
-                                    "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
-                                    start,
-                                    end,
-                                    fileInfo.physicalName(),
-                                    writtenBytes
-                                );
-                                totalBytesWritten.addAndGet(writtenBytes);
-                                progressUpdater.accept(start + writtenBytes);
-                            },
-                            directory.cacheFetchAsyncExecutor()
-                        ).get();
-                    }
+                    cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel) -> bytesRead, (channel, start, end, progressUpdater) -> {
+                        final ByteBuffer byteBuffer = ByteBuffer.wrap(copyBuffer, toIntBytes(start - readStart), toIntBytes(end - start));
+                        final int writtenBytes = positionalWrite(channel, start, byteBuffer);
+                        logger.trace(
+                            "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
+                            start,
+                            end,
+                            fileInfo.physicalName(),
+                            writtenBytes
+                        );
+                        totalBytesWritten.addAndGet(writtenBytes);
+                        progressUpdater.accept(start + writtenBytes);
+                    }, directory.cacheFetchAsyncExecutor()).get();
                     totalBytesRead += bytesRead;
                     remainingBytes -= bytesRead;
                 }

@@ -188,7 +188,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
 
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                   Parser<?> parser, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, false, parser, meta);
+            super(name, indexed, stored, hasDocValues, true, parser, meta);
             this.queryProcessor = new VectorGeoPointShapeQueryProcessor();
         }
 

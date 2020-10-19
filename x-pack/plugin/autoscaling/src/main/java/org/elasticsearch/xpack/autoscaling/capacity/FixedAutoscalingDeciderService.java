@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,19 +26,19 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
     }
 
     @Override
-    public AutoscalingDecision scale(FixedAutoscalingDeciderConfiguration configuration, AutoscalingDeciderContext context) {
+    public AutoscalingDeciderResult scale(FixedAutoscalingDeciderConfiguration configuration, AutoscalingDeciderContext context) {
         int nodes = configuration.nodes() != null ? configuration.nodes() : 1;
         AutoscalingCapacity requiredCapacity;
         if (configuration.storage() != null || configuration.memory() != null) {
             requiredCapacity = AutoscalingCapacity.builder()
-                .tier(tierCapacity(configuration.storage(), nodes), tierCapacity(configuration.memory(), nodes))
+                .total(tierCapacity(configuration.storage(), nodes), tierCapacity(configuration.memory(), nodes))
                 .node(configuration.storage(), configuration.memory())
                 .build();
         } else {
             requiredCapacity = null;
         }
 
-        return new AutoscalingDecision(requiredCapacity, new FixedReason(configuration.storage(), configuration.memory(), nodes));
+        return new AutoscalingDeciderResult(requiredCapacity, new FixedReason(configuration.storage(), configuration.memory(), nodes));
     }
 
     private static ByteSizeValue tierCapacity(ByteSizeValue nodeCapacity, int nodes) {
@@ -49,7 +49,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         }
     }
 
-    public static class FixedReason implements AutoscalingDecision.Reason {
+    public static class FixedReason implements AutoscalingDeciderResult.Reason {
 
         private final ByteSizeValue storage;
         private final ByteSizeValue memory;

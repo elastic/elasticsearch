@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -28,35 +28,35 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class AutoscalingDecisionService {
+public class AutoscalingCalculateCapacityService {
     private Map<String, AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciderByName;
 
-    public AutoscalingDecisionService(Set<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders) {
+    public AutoscalingCalculateCapacityService(Set<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders) {
         assert deciders.size() >= 1; // always have fixed
         this.deciderByName = deciders.stream().collect(Collectors.toMap(AutoscalingDeciderService::name, Function.identity()));
     }
 
     public static class Holder {
         private final Autoscaling autoscaling;
-        private final SetOnce<AutoscalingDecisionService> servicesSetOnce = new SetOnce<>();
+        private final SetOnce<AutoscalingCalculateCapacityService> servicesSetOnce = new SetOnce<>();
 
         public Holder(Autoscaling autoscaling) {
             this.autoscaling = autoscaling;
         }
 
-        public AutoscalingDecisionService get() {
+        public AutoscalingCalculateCapacityService get() {
             // defer constructing services until transport action creation time.
-            AutoscalingDecisionService autoscalingDecisionService = servicesSetOnce.get();
-            if (autoscalingDecisionService == null) {
-                autoscalingDecisionService = new AutoscalingDecisionService(autoscaling.createDeciderServices());
-                servicesSetOnce.set(autoscalingDecisionService);
+            AutoscalingCalculateCapacityService autoscalingCalculateCapacityService = servicesSetOnce.get();
+            if (autoscalingCalculateCapacityService == null) {
+                autoscalingCalculateCapacityService = new AutoscalingCalculateCapacityService(autoscaling.createDeciderServices());
+                servicesSetOnce.set(autoscalingCalculateCapacityService);
             }
 
-            return autoscalingDecisionService;
+            return autoscalingCalculateCapacityService;
         }
     }
 
-    public SortedMap<String, AutoscalingDecisions> decide(ClusterState state, ClusterInfo clusterInfo) {
+    public SortedMap<String, AutoscalingDeciderResults> calculate(ClusterState state, ClusterInfo clusterInfo) {
 
         AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
         if (autoscalingMetadata != null) {
@@ -64,7 +64,7 @@ public class AutoscalingDecisionService {
                 autoscalingMetadata.policies()
                     .entrySet()
                     .stream()
-                    .map(e -> Tuple.tuple(e.getKey(), getDecision(e.getValue().policy(), state, clusterInfo)))
+                    .map(e -> Tuple.tuple(e.getKey(), calculateForPolicy(e.getValue().policy(), state, clusterInfo)))
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2))
             );
         } else {
@@ -72,24 +72,27 @@ public class AutoscalingDecisionService {
         }
     }
 
-    private AutoscalingDecisions getDecision(AutoscalingPolicy policy, ClusterState state, ClusterInfo clusterInfo) {
-        DecisionAutoscalingDeciderContext context = new DecisionAutoscalingDeciderContext(policy.name(), state, clusterInfo);
-        SortedMap<String, AutoscalingDecision> decisions = policy.deciders()
+    private AutoscalingDeciderResults calculateForPolicy(AutoscalingPolicy policy, ClusterState state, ClusterInfo clusterInfo) {
+        DefaultAutoscalingDeciderContext context = new DefaultAutoscalingDeciderContext(policy.name(), state, clusterInfo);
+        SortedMap<String, AutoscalingDeciderResult> results = policy.deciders()
             .entrySet()
             .stream()
-            .map(entry -> Tuple.tuple(entry.getKey(), getDecision(entry.getValue(), context)))
+            .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getValue(), context)))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
-        return new AutoscalingDecisions(context.tier, context.currentCapacity, decisions);
+        return new AutoscalingDeciderResults(context.currentCapacity, results);
     }
 
-    private <T extends AutoscalingDeciderConfiguration> AutoscalingDecision getDecision(T decider, AutoscalingDeciderContext context) {
+    private <T extends AutoscalingDeciderConfiguration> AutoscalingDeciderResult calculateForDecider(
+        T decider,
+        AutoscalingDeciderContext context
+    ) {
         assert deciderByName.containsKey(decider.name());
         @SuppressWarnings("unchecked")
         AutoscalingDeciderService<T> service = (AutoscalingDeciderService<T>) deciderByName.get(decider.name());
         return service.scale(decider, context);
     }
 
-    static class DecisionAutoscalingDeciderContext implements AutoscalingDeciderContext {
+    static class DefaultAutoscalingDeciderContext implements AutoscalingDeciderContext {
 
         private final String tier;
         private final ClusterState state;
@@ -97,7 +100,7 @@ public class AutoscalingDecisionService {
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
 
-        DecisionAutoscalingDeciderContext(String tier, ClusterState state, ClusterInfo clusterInfo) {
+        DefaultAutoscalingDeciderContext(String tier, ClusterState state, ClusterInfo clusterInfo) {
             this.tier = tier;
             Objects.requireNonNull(state);
             Objects.requireNonNull(clusterInfo);

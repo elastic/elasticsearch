@@ -323,7 +323,6 @@ public class ClusterHealthIT extends ESIntegTestCase {
                     // avoid full recoveries of index, just wait for replica to reappear
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "5m")
                 .build());
-            ensureGreen("test");
         }
         final List<ActionFuture<ClusterHealthResponse>> responseFutures = new ArrayList<>();
         // Run a few health requests concurrent to master fail-overs against a data-node to make sure master failover is handled

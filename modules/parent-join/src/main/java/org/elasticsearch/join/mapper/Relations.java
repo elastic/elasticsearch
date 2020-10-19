@@ -19,6 +19,14 @@
 
 package org.elasticsearch.join.mapper;
 
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -52,5 +60,21 @@ class Relations {
     @Override
     public String toString() {
         return parent + "->" + children;
+    }
+
+    static List<Relations> parse(Object fieldNode) {
+        List<Relations> parsed = new ArrayList<>();
+        Map<String, Object> relations = XContentMapValues.nodeMapValue(fieldNode, "relations");
+        for (Map.Entry<String, Object> relation : relations.entrySet()) {
+            final String parent = relation.getKey();
+            Set<String> children;
+            if (XContentMapValues.isArray(relation.getValue())) {
+                children = new HashSet<>(Arrays.asList(XContentMapValues.nodeStringArrayValue(relation.getValue())));
+            } else {
+                children = Collections.singleton(relation.getValue().toString());
+            }
+            parsed.add(new Relations(parent, children));
+        }
+        return parsed;
     }
 }

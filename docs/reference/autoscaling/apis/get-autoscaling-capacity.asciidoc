@@ -28,8 +28,8 @@ GET /_autoscaling/capacity/
 ==== {api-description-title}
 
 This API gets the current autoscaling capacity based on the configured
-autoscaling policy. This API will return whether or not autoscaling is
-needed.
+autoscaling policy. This API will return information to size the cluster
+appropriately to the current workload.
 
 [[autoscaling-get-autoscaling-capacity-examples]]
 ==== {api-examples-title}

@@ -42,7 +42,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -131,6 +130,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         void serialize(XContentBuilder builder, String name, T value) throws IOException;
     }
 
+    protected interface MergeValidator<T> {
+        boolean canMerge(T previous, T current, Conflicts conflicts);
+    }
+
     /**
      * Check on whether or not a parameter should be serialized
      */
@@ -161,7 +164,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private Serializer<T> serializer = XContentBuilder::field;
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private Function<T, String> conflictSerializer = Objects::toString;
-        private BiPredicate<T, T> mergeValidator;
+        private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
 
@@ -180,7 +183,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             this.value = null;
             this.parser = parser;
             this.initializer = initializer;
-            this.mergeValidator = (previous, toMerge) -> updateable || Objects.equals(previous, toMerge);
+            this.mergeValidator = (previous, toMerge, conflicts) -> updateable || Objects.equals(previous, toMerge);
         }
 
         /**
@@ -278,7 +281,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * Sets a custom merge validator.  By default, merges are accepted if the
          * parameter is updateable, or if the previous and new values are equal
          */
-        public Parameter<T> setMergeValidator(BiPredicate<T, T> mergeValidator) {
+        public Parameter<T> setMergeValidator(MergeValidator<T> mergeValidator) {
             this.mergeValidator = mergeValidator;
             return this;
         }
@@ -300,7 +303,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
             T value = initializer.apply(toMerge);
             T current = getValue();
-            if (mergeValidator.test(current, value)) {
+            if (mergeValidator.canMerge(current, value, conflicts)) {
                 setValue(value);
             } else {
                 conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(value));
@@ -469,13 +472,17 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     }
 
-    private static final class Conflicts {
+    public static final class Conflicts {
 
         private final String mapperName;
         private final List<String> conflicts = new ArrayList<>();
 
         Conflicts(String mapperName) {
             this.mapperName = mapperName;
+        }
+
+        public void addConflict(String parameter, String conflict) {
+            conflicts.add("Conflict in parameter [" + parameter + "]: " + conflict);
         }
 
         void addConflict(String parameter, String existing, String toMerge) {

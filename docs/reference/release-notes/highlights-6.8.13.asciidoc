@@ -1,0 +1,13 @@
+[[release-highlights-6.8.13]]
+== 6.8.13 release highlights
+++++
+<titleabbrev>6.8.13</titleabbrev>
+++++
+
+See also <<release-notes-6.8.13,{es} 6.8.13 release notes>>.
+
+[float]
+==== Fixed a retry logic for {ccr} when encountering exceptions
+
+A {ccr} will automatically retry when facing transient errors caused by circuit breaker or
+when a node with no seed left.

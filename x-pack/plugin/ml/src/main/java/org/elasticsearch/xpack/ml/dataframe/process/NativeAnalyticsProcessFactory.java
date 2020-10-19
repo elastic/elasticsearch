@@ -73,7 +73,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         String jobId = config.getId();
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AnalyticsBuilder.ANALYTICS, jobId,
-                false, true, true, hasState, config.getAnalysis().persistsState());
+            null, false, true, true, hasState, config.getAnalysis().persistsState());
 
         // The extra 2 are for the checksum and the control field
         int numberOfFields = analyticsProcessConfig.cols() + 2;

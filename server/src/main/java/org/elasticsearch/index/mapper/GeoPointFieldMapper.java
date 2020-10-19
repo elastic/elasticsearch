@@ -65,6 +65,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         final Parameter<Explicit<Boolean>> ignoreMalformed;
         final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
         final Parameter<ParsedPoint> nullValue;
+        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
         final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -80,7 +81,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(hasDocValues, stored, ignoreMalformed, ignoreZValue, nullValue, meta);
+            return Arrays.asList(hasDocValues, indexed, stored, ignoreMalformed, ignoreZValue, nullValue, meta);
         }
 
         public Builder docValues(boolean hasDocValues) {
@@ -114,7 +115,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
                 return point;
             }, (ParsedGeoPoint) nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             GeoPointFieldType ft
-                = new GeoPointFieldType(buildFullName(context), true, stored.get(), hasDocValues.get(), geoParser, meta.get());
+                = new GeoPointFieldType(buildFullName(context), indexed.get(), stored.get(), hasDocValues.get(), geoParser, meta.get());
             return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), new GeoPointIndexer(ft), geoParser, this);
         }

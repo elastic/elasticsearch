@@ -63,7 +63,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             this.docsStats = docsStats(reader);
             final DirectoryReader wrappedReader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
-                new RewriteCachingDirectoryReader(directory, wrappedReader.leaves()), config.getShardId());
+                new RewriteCachingDirectoryReader(directory, wrappedReader.leaves()), config.getShardId(), r -> getSearcherId());
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -178,7 +178,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         final Store store = this.store;
         store.incRef();
-        return new SearcherSupplier(wrapper) {
+        return new SearcherSupplier(getSearcherId(), wrapper) {
             @Override
             @SuppressForbidden(reason = "we manage references explicitly here")
             public Searcher acquireSearcherInternal(String source) {

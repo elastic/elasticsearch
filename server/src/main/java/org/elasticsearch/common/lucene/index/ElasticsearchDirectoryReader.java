@@ -22,10 +22,17 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.util.function.BooleanSupplier;
 
 /**
  * A {@link org.apache.lucene.index.FilterDirectoryReader} that exposes
@@ -35,12 +42,48 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     private final ShardId shardId;
     private final FilterDirectoryReader.SubReaderWrapper wrapper;
+    private final CheckedFunction<DirectoryReader, String, IOException> readerIdGenerator;
+    private final String readerId;
 
-    private ElasticsearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper,
-            ShardId shardId) throws IOException {
+    private ElasticsearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper, ShardId shardId,
+                                         CheckedFunction<DirectoryReader, String, IOException> readerIdGenerator) throws IOException {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
+        this.readerIdGenerator = readerIdGenerator;
+        this.readerId = readerIdGenerator.apply(in);
+    }
+
+    /**
+     * If two readers have the same reader id, then their underlying reader must consist of the same list of segments.
+     */
+    @Nullable
+    public String getReaderId() {
+        return readerId;
+    }
+
+    public static String getReaderIdFromSegmentInfos(SegmentInfos segmentInfos, BooleanSupplier fullyCommitted) {
+        // Here we prefer using an id composed of the ids of the underlying segments instead of the id of the commit because
+        // the commit id changes whenever IndexWriter#commit is called although the segment files stay unchanged. A file-based
+        // recovery creates a new commit to associate the new translog uuid. Hence, the commit ids of the primary and replicas
+        // are always different although they can have the identical segment files.
+        final MessageDigest md = MessageDigests.sha256();
+        for (SegmentCommitInfo sci : segmentInfos) {
+            final byte[] segmentId = sci.getId();
+            if (segmentId != null) {
+                md.update(segmentId);
+            } else {
+                // old segment
+                if (fullyCommitted.getAsBoolean()) {
+                    md.reset();
+                    md.update(segmentInfos.getId());
+                    break;
+                } else {
+                    return null;
+                }
+            }
+        }
+        return MessageDigests.toHexString(md.digest());
     }
 
     /**
@@ -58,7 +101,12 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-        return new ElasticsearchDirectoryReader(in, wrapper, shardId);
+        return new ElasticsearchDirectoryReader(in, wrapper, shardId, readerIdGenerator);
+    }
+
+    // Remove this helpers
+    public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId) throws IOException {
+        return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId, r -> null);
     }
 
     /**
@@ -66,11 +114,14 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
      * well as all it's sub-readers in {@link ElasticsearchLeafReader} to
      * expose the given shard Id.
      *
-     * @param reader the reader to wrap
-     * @param shardId the shard ID to expose via the elasticsearch internal reader wrappers.
+     * @param reader            the reader to wrap
+     * @param shardId           the shard ID to expose via the elasticsearch internal reader wrappers
+     * @param readerIdGenerator a function that returns the id of the reader to wrap
      */
-    public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId) throws IOException {
-        return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId);
+    public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId,
+                                                    CheckedFunction<DirectoryReader, String, IOException> readerIdGenerator)
+        throws IOException {
+        return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId, readerIdGenerator);
     }
 
     private static final class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {

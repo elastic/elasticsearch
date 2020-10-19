@@ -76,6 +76,7 @@ public class ReadOnlyEngine extends Engine {
     private final boolean requireCompleteHistory;
 
     protected volatile TranslogStats translogStats;
+    private final String searcherId;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -107,6 +108,7 @@ public class ReadOnlyEngine extends Engine {
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                this.searcherId = ElasticsearchDirectoryReader.getReaderIdFromSegmentInfos(lastCommittedSegmentInfos, () -> true);
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
@@ -170,10 +172,14 @@ public class ReadOnlyEngine extends Engine {
         // reopened as an internal engine, which would be the path to fix the issue.
     }
 
+    protected String getSearcherId() {
+        return searcherId;
+    }
+
     protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
         reader = readerWrapperFunction.apply(reader);
-        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
+        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId(), r -> searcherId);
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {

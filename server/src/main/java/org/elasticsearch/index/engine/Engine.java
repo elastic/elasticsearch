@@ -617,7 +617,7 @@ public abstract class Engine implements Closeable {
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
-            SearcherSupplier reader = new SearcherSupplier(wrapper) {
+            SearcherSupplier reader = new SearcherSupplier(acquire.getReaderId(), wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
                     assert assertSearcherIsWarmedUp(source, scope);
@@ -1178,11 +1178,23 @@ public abstract class Engine implements Closeable {
     }
 
     public abstract static class SearcherSupplier implements Releasable {
+        private final String searcherId;
         private final Function<Searcher, Searcher> wrapper;
         private final AtomicBoolean released = new AtomicBoolean(false);
 
-        public SearcherSupplier(Function<Searcher, Searcher> wrapper) {
+        public SearcherSupplier(String searcherId, Function<Searcher, Searcher> wrapper) {
+            this.searcherId = searcherId;
             this.wrapper = wrapper;
+        }
+
+        /**
+         * If two searcher suppliers have the same id, then they will provide searchers that consist of the same underlying segment files.
+         * The search layer can use this search id to retry the query or fetch phase on another copy if the "snapshot" of that copy
+         * has the same underlying segment files.
+         */
+        @Nullable
+        public final String getSearcherId() {
+            return searcherId;
         }
 
         public final Searcher acquireSearcher(String source) {
@@ -1190,7 +1202,16 @@ public abstract class Engine implements Closeable {
                 throw new AlreadyClosedException("SearcherSupplier was closed");
             }
             final Searcher searcher = acquireSearcherInternal(source);
+            assert assertSameSearcherId(searcher);
             return CAN_MATCH_SEARCH_SOURCE.equals(source) ? searcher : wrapper.apply(searcher);
+        }
+
+        private boolean assertSameSearcherId(Searcher searcher) {
+            final ElasticsearchDirectoryReader reader =
+                ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader());
+            assert Objects.equals(reader.getReaderId(), getSearcherId()) :
+                reader.getReaderId() + " != " + getSearcherId();
+            return true;
         }
 
         @Override

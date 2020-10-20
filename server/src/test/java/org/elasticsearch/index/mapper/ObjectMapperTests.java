@@ -204,7 +204,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
 
-        ObjectMapper objectMapper = mapper.objectMappers().get("object");
+        ObjectMapper objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
 
@@ -218,7 +218,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
 
-        objectMapper = mapper.objectMappers().get("object");
+        objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
         assertTrue(objectMapper.isEnabled());
     }

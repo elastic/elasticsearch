@@ -3727,7 +3727,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDecompressDefinition(false) // <6>
                 .setAllowNoMatch(true) // <7>
                 .setTags("regression") // <8>
-                .setForExport(false); // <9>
+                .setExcludeGenerated(false); // <9>
             // end::get-trained-models-request
             request.setTags((List<String>)null);
 

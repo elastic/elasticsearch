@@ -795,8 +795,8 @@ final class MLRequestConverters {
         if (getTrainedModelsRequest.getTags() != null) {
             params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
         }
-        if (getTrainedModelsRequest.getForExport() != null) {
-            params.putParam(GetTrainedModelsRequest.FOR_EXPORT, Boolean.toString(getTrainedModelsRequest.getForExport()));
+        if (getTrainedModelsRequest.getExcludeGenerated() != null) {
+            params.putParam(GetTrainedModelsRequest.EXCLUDE_GENERATED, Boolean.toString(getTrainedModelsRequest.getExcludeGenerated()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());

@@ -333,6 +333,7 @@ public class CacheFile {
             }, future::completeExceptionally))) {
                 return future;
             } else {
+                // complete the future to release the channel reference
                 future.complete(0);
                 return null;
             }

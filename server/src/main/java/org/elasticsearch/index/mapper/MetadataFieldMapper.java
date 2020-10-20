@@ -41,13 +41,9 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
 
         /**
          * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
-         * @param fieldType      the existing field type for this meta mapper on the current index
-         *                       or null if this is the first type being introduced
          * @param parserContext context that may be useful to build the field like analyzers
          */
-        // TODO: remove the fieldType parameter which is only used for bw compat with pre-2.0
-        // since settings could be modified
-        MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext);
+        MetadataFieldMapper getDefault(ParserContext parserContext);
     }
 
     /**
@@ -86,7 +82,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType defaultFieldType, ParserContext parserContext) {
+        public MetadataFieldMapper getDefault(ParserContext parserContext) {
             return mapperParser.apply(parserContext);
         }
     }
@@ -110,7 +106,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType defaultFieldType, ParserContext parserContext) {
+        public MetadataFieldMapper getDefault(ParserContext parserContext) {
             return defaultMapperParser.apply(parserContext);
         }
     }

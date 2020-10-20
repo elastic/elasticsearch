@@ -287,7 +287,7 @@ public class QueryShardContext extends QueryRewriteContext {
                 "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
             type = "keyword";
         }
-        final Mapper.TypeParser.ParserContext parserContext = mapperService.documentMapperParser().parserContext();
+        final Mapper.TypeParser.ParserContext parserContext = mapperService.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");

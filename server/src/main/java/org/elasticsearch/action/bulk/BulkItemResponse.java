@@ -242,11 +242,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
             seqNo = in.readZLong();
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-                term = in.readVLong();
-            } else {
-                term = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-            }
+            term = in.readVLong();
             aborted = in.readBoolean();
         }
 
@@ -259,9 +255,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             out.writeOptionalString(id);
             out.writeException(cause);
             out.writeZLong(seqNo);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-                out.writeVLong(term);
-            }
+            out.writeVLong(term);
             out.writeBoolean(aborted);
         }
 

@@ -250,9 +250,12 @@ public abstract class AggregatorBase extends Aggregator {
 
     /**
      * Called after collection of all document is done.
+     * <p>
+     * Warning: this is not final only to allow the parent join aggregator
+     * to delay this until building buckets.
      */
     @Override
-    public final void postCollection() throws IOException {
+    public void postCollection() throws IOException {
         // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
         doPostCollection();
         collectableSubAggregators.postCollection();

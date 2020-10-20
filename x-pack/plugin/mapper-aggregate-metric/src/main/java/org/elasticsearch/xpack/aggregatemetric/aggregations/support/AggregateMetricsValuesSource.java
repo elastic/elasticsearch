@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.support;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.DocValueBits;
@@ -49,7 +48,7 @@ public class AggregateMetricsValuesSource {
             }
 
             @Override
-            public Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
+            protected Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
                 throw new AggregationExecutionException("Can't round an [" + AggregateDoubleMetricFieldMapper.CONTENT_TYPE + "]");
             }
 

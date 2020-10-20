@@ -122,6 +122,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
+
+        @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             long v = parse(value);
             return LongPoint.newExactQuery(name(), v);
@@ -174,7 +179,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
         // see InternalEngine.innerIndex to see where the real version value is set
         // also see ParsedDocument.updateSeqID (called by innerIndex)
         SequenceIDFields seqID = SequenceIDFields.emptySeqID();

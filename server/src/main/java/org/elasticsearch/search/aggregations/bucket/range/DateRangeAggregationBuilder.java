@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -301,7 +301,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     @Override
-    protected DateRangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+    protected DateRangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                     AggregatorFactory parent,
                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
@@ -314,23 +314,23 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             String fromAsString = range.getFromAsString();
             String toAsString = range.getToAsString();
             if (fromAsString != null) {
-                from = parser.parseDouble(fromAsString, false, queryShardContext::nowInMillis);
+                from = parser.parseDouble(fromAsString, false, context::nowInMillis);
             } else if (Double.isFinite(from)) {
                 // from/to provided as double should be converted to string and parsed regardless to support
                 // different formats like `epoch_millis` vs. `epoch_second` with numeric input
-                from = parser.parseDouble(Long.toString((long) from), false, queryShardContext::nowInMillis);
+                from = parser.parseDouble(Long.toString((long) from), false, context::nowInMillis);
             }
             if (toAsString != null) {
-                to = parser.parseDouble(toAsString, false, queryShardContext::nowInMillis);
+                to = parser.parseDouble(toAsString, false, context::nowInMillis);
             } else if (Double.isFinite(to)) {
-                to = parser.parseDouble(Long.toString((long) to), false, queryShardContext::nowInMillis);
+                to = parser.parseDouble(Long.toString((long) to), false, context::nowInMillis);
             }
             return new RangeAggregator.Range(range.getKey(), from, fromAsString, to, toAsString);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-        return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
+        return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metadata);
     }
 }

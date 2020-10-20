@@ -24,28 +24,22 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
@@ -57,11 +51,12 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("deprecation")
 public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyGeoShapeFieldMapper.Builder> {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("POINT (14.0 15.0)");
+    protected Object getSampleValueForDocument() {
+        return "POINT (14.0 15.0)";
     }
 
     @Override
@@ -74,42 +69,47 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         return Set.of("analyzer", "similarity", "doc_values", "store");
     }
 
-    @Before
-    public void addModifiers() {
-        addModifier("tree", false, (a, b) -> {
-            a.deprecatedParameters.tree = "geohash";
-            b.deprecatedParameters.tree = "quadtree";
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "geo_shape").field("strategy", "recursive");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+
+        checker.registerConflictCheck("strategy",
+            fieldMapping(this::minimalMapping),
+            fieldMapping(b -> {
+                b.field("type", "geo_shape");
+                b.field("strategy", "term");
+            }));
+
+        checker.registerConflictCheck("tree", b -> b.field("tree", "geohash"));
+        checker.registerConflictCheck("tree_levels", b -> b.field("tree_levels", 5));
+        checker.registerConflictCheck("precision", b -> b.field("precision", 10));
+        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+            LegacyGeoShapeFieldMapper gsfm = (LegacyGeoShapeFieldMapper) m;
+            assertEquals(ShapeBuilder.Orientation.RIGHT, gsfm.orientation());
         });
-        addModifier("strategy", false, (a, b) -> {
-            a.deprecatedParameters.strategy = SpatialStrategy.TERM;
-            b.deprecatedParameters.strategy = SpatialStrategy.RECURSIVE;
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
+            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
+            assertTrue(gpfm.ignoreMalformed.value());
         });
-        addModifier("tree_levels", false, (a, b) -> {
-            a.deprecatedParameters.treeLevels = 2;
-            b.deprecatedParameters.treeLevels = 3;
+        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
+            assertFalse(gpfm.ignoreZValue.value());
         });
-        addModifier("precision", false, (a, b) -> {
-            a.deprecatedParameters.precision = "10";
-            b.deprecatedParameters.precision = "20";
+        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
+            assertTrue(gpfm.coerce.value());
         });
-        addModifier("distance_error_pct", true, (a, b) -> {
-            a.deprecatedParameters.distanceErrorPct = 0.5;
-            b.deprecatedParameters.distanceErrorPct = 0.6;
-        });
-        addModifier("orientation", true, (a, b) -> {
-            a.orientation = ShapeBuilder.Orientation.RIGHT;
-            b.orientation = ShapeBuilder.Orientation.LEFT;
-        });
+        // TODO - distance_error_pct ends up being subsumed into a calculated value, how to test
+        checker.registerUpdateCheck(b -> b.field("distance_error_pct", 0.8), m -> {});
     }
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new TestGeoShapeFieldMapperPlugin());
-    }
-
-    @Override
-    protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "geo_shape").field("strategy", "recursive");
     }
 
     @Override
@@ -589,7 +589,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> geoShapeFieldMapper.fieldType().geometryQueryBuilder().process(
+                () -> geoShapeFieldMapper.fieldType().geoShapeQuery(
                         new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, queryShardContext));
         assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
                         "'search.allow_expensive_queries' is set to false.", e.getMessage());
@@ -602,13 +602,18 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
     }
 
     @Override
-    protected void assertSerializationWarnings() {
+    protected void assertParseMaximalWarnings() {
         assertWarnings("Field parameter [strategy] is deprecated and will be removed in a future version.",
             "Field parameter [tree] is deprecated and will be removed in a future version.",
             "Field parameter [tree_levels] is deprecated and will be removed in a future version.",
             "Field parameter [precision] is deprecated and will be removed in a future version.",
             "Field parameter [distance_error_pct] is deprecated and will be removed in a future version."
-            );
+        );
+    }
+
+    @Override
+    protected void assertSerializationWarnings() {
+        assertParseMinimalWarnings();
     }
 
     public void testGeoShapeArrayParsing() throws Exception {
@@ -627,37 +632,8 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         assertFieldWarnings("tree", "strategy");
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        LegacyGeoShapeFieldMapper mapper = new LegacyGeoShapeFieldMapper.Builder("field").build(context);
-        SourceLookup sourceLookup = new SourceLookup();
-
-        Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
-            List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
-        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
-        String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
-        String wktPoint = "POINT (14.0 15.0)";
-
-        // Test a single shape in geojson format.
-        Object sourceValue = jsonLineString;
-        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a list of shapes in geojson format.
-        sourceValue = List.of(jsonLineString, jsonPoint);
-        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a single shape in wkt format.
-        sourceValue = wktLineString;
-        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a list of shapes in wkt format.
-        sourceValue = List.of(wktLineString, wktPoint);
-        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 }

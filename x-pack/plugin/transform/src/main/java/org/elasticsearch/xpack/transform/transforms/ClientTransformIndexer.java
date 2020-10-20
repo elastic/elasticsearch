@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -95,34 +96,6 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // TODO: move into context constructor
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-    }
-
-    void persistShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
-        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint
-            || getState() == IndexerState.STOPPED
-            || getState() == IndexerState.STOPPING) {
-            shouldStopAtCheckpointListener.onResponse(null);
-            return;
-        }
-        TransformState state = new TransformState(
-            context.getTaskState(),
-            getState(),
-            getPosition(),
-            context.getCheckpoint(),
-            context.getStateReason(),
-            getProgress(),
-            null, // Node attributes
-            shouldStopAtCheckpoint
-        );
-        doSaveState(state, ActionListener.wrap(r -> {
-            // We only want to update this internal value if it is persisted as such
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-            logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]", getJobId(), shouldStopAtCheckpoint);
-            shouldStopAtCheckpointListener.onResponse(null);
-        }, statsExc -> {
-            logger.warn("[{}] failed to persist should_stop_at_checkpoint update [{}]", getJobId(), shouldStopAtCheckpoint);
-            shouldStopAtCheckpointListener.onFailure(statsExc);
-        }));
     }
 
     @Override
@@ -249,6 +222,9 @@ class ClientTransformIndexer extends TransformIndexer {
             return;
         }
 
+        // getting the listeners that registered till now, in theory a new listener could sneak in between this line
+        // and the next, however this is benign: we would store `shouldStopAtCheckpoint = true` twice which is ok
+        Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.getAndSet(null);
         boolean shouldStopAtCheckpoint = context.shouldStopAtCheckpoint();
 
         // If we should stop at the next checkpoint, are STARTED, and with `initialRun()` we are in one of two states
@@ -267,6 +243,9 @@ class ClientTransformIndexer extends TransformIndexer {
         // If the state is `STOPPED` this means that TransformTask#stop was called while we were checking for changes.
         // Allow the stop call path to continue
         if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
+            if (saveStateListenersAtTheMomentOfCalling != null) {
+                ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, null);
+            }
             next.run();
             return;
         }
@@ -308,11 +287,33 @@ class ClientTransformIndexer extends TransformIndexer {
         );
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
-        doSaveState(state, ActionListener.wrap(r -> next.run(), e -> next.run()));
+        // we might need to call the save state listeners, but do not want to stop rolling
+        doSaveState(state, ActionListener.wrap(r -> {
+            try {
+                if (saveStateListenersAtTheMomentOfCalling != null) {
+                    ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, r);
+                }
+            } catch (Exception onResponseException) {
+                String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
+                logger.warn(msg, onResponseException);
+            } finally {
+                next.run();
+            }
+        }, e -> {
+            try {
+                if (saveStateListenersAtTheMomentOfCalling != null) {
+                    ActionListener.onFailure(saveStateListenersAtTheMomentOfCalling, e);
+                }
+            } catch (Exception onFailureException) {
+                String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
+                logger.warn(msg, onFailureException);
+            } finally {
+                next.run();
+            }
+        }));
     }
 
     private void doSaveState(TransformState state, ActionListener<Void> listener) {
-
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = getSeqNoPrimaryTermAndIndex();
 
@@ -328,6 +329,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
                     context.shutdown();
                 }
+
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
                     transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {

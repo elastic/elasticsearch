@@ -506,3 +506,23 @@ setup:
 
   - match: { datafeeds.0.indices_options.ignore_throttled: false }
   - match: { datafeeds.0.indices_options.allow_no_indices: false }
+---
+"Test get datafeed for export":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-for-export
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-for-export
+        for_export: true
+  - match: { datafeeds.0.indices.0: "index-foo"}
+  - is_false: datafeeds.0.datafeed_id
+  - is_false: datafeeds.0.job_id
+  - is_false: datafeeds.0.create_time
+  - is_false: datafeeds.0.query_delay
+  - is_false: datafeeds.0.chunking_config

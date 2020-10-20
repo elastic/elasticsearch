@@ -86,16 +86,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             if (source.length() == 0) {
                 source = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                documentFields = readFields(in);
-                metaFields = readFields(in);
-            } else {
-                Map<String, DocumentField> fields = readFields(in);
-                documentFields = new HashMap<>();
-                metaFields = new HashMap<>();
-                fields.forEach((fieldName, docField) ->
-                    (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(fieldName, docField));
-            }
+            documentFields = readFields(in);
+            metaFields = readFields(in);
         } else {
             metaFields = Collections.emptyMap();
             documentFields = Collections.emptyMap();
@@ -414,12 +406,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         out.writeBoolean(exists);
         if (exists) {
             out.writeBytesReference(source);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                writeFields(out, documentFields);
-                writeFields(out, metaFields);
-            } else {
-                writeFields(out, this.getFields());
-            }
+            writeFields(out, documentFields);
+            writeFields(out, metaFields);
         }
     }
 

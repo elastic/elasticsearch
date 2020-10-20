@@ -23,7 +23,7 @@ public class DeleteAutoFollowPatternAction extends ActionType<AcknowledgedRespon
     public static final DeleteAutoFollowPatternAction INSTANCE = new DeleteAutoFollowPatternAction();
 
     private DeleteAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

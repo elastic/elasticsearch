@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.lookup.SearchLookup;
-
 import java.util.List;
 
 /**
@@ -33,12 +30,7 @@ public class FetchFieldsContext {
         this.fields = fields;
     }
 
-    public FieldValueRetriever fieldValueRetriever(String indexName, MapperService mapperService, SearchLookup searchLookup) {
-        if (mapperService.documentMapper().sourceMapper().enabled() == false) {
-            throw new IllegalArgumentException(
-                "Unable to retrieve the requested [fields] since _source is disabled in the mappings for index [" + indexName + "]"
-            );
-        }
-        return FieldValueRetriever.create(mapperService, searchLookup, fields);
+    public List<FieldAndFormat> fields() {
+        return fields;
     }
 }

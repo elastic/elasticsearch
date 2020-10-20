@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -69,7 +71,8 @@ public class ResolveIndexTests extends ESTestCase {
     };
 
     private Metadata metadata = buildMetadata(dataStreams, indices);
-    private IndexAbstractionResolver resolver = new IndexAbstractionResolver(new IndexNameExpressionResolver());
+    private IndexAbstractionResolver resolver = new IndexAbstractionResolver(
+        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
     public void testResolveStarWithDefaultOptions() {
         String[] names = new String[] {"*"};
@@ -165,6 +168,29 @@ public class ResolveIndexTests extends ESTestCase {
         validateIndices(indices, ".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");
+    }
+
+    public void testResolvePreservesBackingIndexOrdering() {
+        Metadata.Builder builder = Metadata.builder();
+        String dataStreamName = "my-data-stream";
+        String[] names = {"not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3)};
+        List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).collect(Collectors.toList());
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
+
+        DataStream ds = new DataStream(dataStreamName, createTimestampField("@timestamp"),
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+        builder.put(ds);
+
+        IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
+        List<ResolvedIndex> indices = new ArrayList<>();
+        List<ResolvedAlias> aliases = new ArrayList<>();
+        List<ResolvedDataStream> dataStreams = new ArrayList<>();
+        TransportAction.resolveIndices(new String[]{"*"}, indicesOptions, builder.build(), resolver, indices, aliases, dataStreams, true);
+
+        assertThat(dataStreams.size(), equalTo(1));
+        assertThat(dataStreams.get(0).getBackingIndices(), arrayContaining(names));
     }
 
     private void validateIndices(List<ResolvedIndex> resolvedIndices, String... expectedIndices) {

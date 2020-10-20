@@ -19,55 +19,54 @@
 
 package org.elasticsearch.grok;
 
+import org.elasticsearch.grok.GrokCaptureConfig.NativeExtracterMap;
+import org.joni.Region;
+
+import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
+
 /**
  * The type defined for the field in the pattern.
  */
-public enum GrokCaptureType {
+enum GrokCaptureType {
     STRING {
         @Override
-        protected Object parseValue(String str) {
-            return str;
+        <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map) {
+            return map.forString(emit -> rawExtracter(backRefs, emit));
         }
     },
     INTEGER {
         @Override
-        protected Object parseValue(String str) {
-            return Integer.parseInt(str);
+        <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map) {
+            return map.forInt(emit -> rawExtracter(backRefs, str -> emit.accept(Integer.parseInt(str))));
         }
     },
     LONG {
         @Override
-        protected Object parseValue(String str) {
-            return Long.parseLong(str);
-        }
-    },
-    DOUBLE {
-        @Override
-        protected Object parseValue(String str) {
-            return Double.parseDouble(str);
+        <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map) {
+            return map.forLong(emit -> rawExtracter(backRefs, str -> emit.accept(Long.parseLong(str))));
         }
     },
     FLOAT {
         @Override
-        protected Object parseValue(String str) {
-            return Float.parseFloat(str);
+        <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map) {
+            return map.forFloat(emit -> rawExtracter(backRefs, str -> emit.accept(Float.parseFloat(str))));
+        }
+    },
+    DOUBLE {
+        @Override
+        <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map) {
+            return map.forDouble(emit -> rawExtracter(backRefs, str -> emit.accept(Double.parseDouble(str))));
         }
     },
     BOOLEAN {
         @Override
-        protected Object parseValue(String str) {
-            return Boolean.parseBoolean(str);
+        <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map) {
+            return map.forBoolean(emit -> rawExtracter(backRefs, str -> emit.accept(Boolean.parseBoolean(str))));
         }
     };
 
-    final Object parse(String str) {
-        if (str == null) {
-            return null;
-        }
-        return parseValue(str);
-    }
-
-    protected abstract Object parseValue(String str);
+    abstract <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map);
 
     static GrokCaptureType fromString(String str) {
         switch (str) {
@@ -77,14 +76,30 @@ public enum GrokCaptureType {
                 return INTEGER;
             case "long":
                 return LONG;
-            case "double":
-                return DOUBLE;
             case "float":
                 return FLOAT;
+            case "double":
+                return DOUBLE;
             case "boolean":
                 return BOOLEAN;
             default:
                 return STRING;
         }
+    }
+
+    protected final GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
+        return new GrokCaptureExtracter() {
+            @Override
+            void extract(byte[] utf8Bytes, int offset, Region region) {
+                for (int number : backRefs) {
+                    if (region.beg[number] >= 0) {
+                        int matchOffset = offset + region.beg[number];
+                        int matchLength = region.end[number] - region.beg[number];
+                        emit.accept(new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8));
+                        return; // Capture only the first value.
+                    }
+                }
+            }
+        };
     }
 }

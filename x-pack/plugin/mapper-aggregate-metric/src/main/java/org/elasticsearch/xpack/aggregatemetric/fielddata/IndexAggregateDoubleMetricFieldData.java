@@ -6,24 +6,29 @@
 
 package org.elasticsearch.xpack.aggregatemetric.fielddata;
 
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 /**
  * Specialization of {@link IndexFieldData} for aggregate_metric.
  */
 public abstract class IndexAggregateDoubleMetricFieldData implements IndexFieldData<LeafAggregateDoubleMetricFieldData> {
 
-    protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
-    public IndexAggregateDoubleMetricFieldData(Index index, String fieldName) {
-        this.index = index;
+    public IndexAggregateDoubleMetricFieldData(String fieldName, ValuesSourceType valuesSourceType) {
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
     }
 
     @Override
     public final String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 }

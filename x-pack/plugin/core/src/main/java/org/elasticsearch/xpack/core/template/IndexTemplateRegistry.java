@@ -60,6 +60,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final Client client;
     protected final ThreadPool threadPool;
     protected final NamedXContentRegistry xContentRegistry;
+    protected final ClusterService clusterService;
     protected final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> policyCreationsInProgress = new ConcurrentHashMap<>();
 
@@ -69,6 +70,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
+        this.clusterService = clusterService;
+    }
+
+    /**
+     * Initialize the template registry, adding it as a listener so templates will be installed as necessary
+     */
+    public void initialize() {
         clusterService.addListener(this);
     }
 

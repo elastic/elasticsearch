@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +41,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 /**
  * This class represents a configured and created Job. The creation time is set
@@ -550,22 +553,41 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final String humanReadableSuffix = "_string";
-
         builder.field(ID.getPreferredName(), jobId);
-        builder.field(JOB_TYPE.getPreferredName(), jobType);
-        if (jobVersion != null) {
-            builder.field(JOB_VERSION.getPreferredName(), jobVersion);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
+            builder.field(JOB_TYPE.getPreferredName(), jobType);
+            if (jobVersion != null) {
+                builder.field(JOB_VERSION.getPreferredName(), jobVersion);
+            }
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
+            if (finishedTime != null) {
+                builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
+                    finishedTime.getTime());
+            }
+            if (modelSnapshotId != null) {
+                builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
+            }
+            if (deleting) {
+                builder.field(DELETING.getPreferredName(), deleting);
+            }
+            if (modelSnapshotMinVersion != null) {
+                builder.field(MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
+            }
+            if (customSettings != null) {
+                builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
+            }
+        } else {
+            if (customSettings != null) {
+                HashMap<String, Object> newCustomSettings = new HashMap<>(customSettings);
+                newCustomSettings.remove("created_by");
+                builder.field(CUSTOM_SETTINGS.getPreferredName(), newCustomSettings);
+            }
         }
         if (groups.isEmpty() == false) {
             builder.field(GROUPS.getPreferredName(), groups);
         }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
-        }
-        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
-        if (finishedTime != null) {
-            builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
-                    finishedTime.getTime());
         }
         builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
         if (analysisLimits != null) {
@@ -592,19 +614,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (resultsRetentionDays != null) {
             builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
         }
-        if (customSettings != null) {
-            builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
-        }
-        if (modelSnapshotId != null) {
-            builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
-        }
-        if (modelSnapshotMinVersion != null) {
-            builder.field(MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
-        }
         builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
-        if (deleting) {
-            builder.field(DELETING.getPreferredName(), deleting);
-        }
         builder.field(ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
         return builder;
     }

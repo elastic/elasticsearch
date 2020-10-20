@@ -121,7 +121,10 @@ final class MLRequestConverters {
 
         RequestConverters.Params params = new RequestConverters.Params();
         if (getJobRequest.getAllowNoMatch() != null) {
-            params.putParam("allow_no_match", Boolean.toString(getJobRequest.getAllowNoMatch()));
+            params.putParam(GetJobRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getJobRequest.getAllowNoMatch()));
+        }
+        if (getJobRequest.getExcludeGenerated() != null) {
+            params.putParam(GetJobRequest.EXCLUDE_GENERATED, Boolean.toString(getJobRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -269,6 +272,9 @@ final class MLRequestConverters {
         if (getDatafeedRequest.getAllowNoMatch() != null) {
             params.putParam(GetDatafeedRequest.ALLOW_NO_MATCH.getPreferredName(),
                     Boolean.toString(getDatafeedRequest.getAllowNoMatch()));
+        }
+        if (getDatafeedRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDatafeedRequest.EXCLUDE_GENERATED, Boolean.toString(getDatafeedRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -645,7 +651,10 @@ final class MLRequestConverters {
             }
         }
         if (getRequest.getAllowNoMatch() != null) {
-            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getRequest.getAllowNoMatch()));
+            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH, Boolean.toString(getRequest.getAllowNoMatch()));
+        }
+        if (getRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDataFrameAnalyticsRequest.EXCLUDE_GENERATED, Boolean.toString(getRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -786,8 +795,8 @@ final class MLRequestConverters {
         if (getTrainedModelsRequest.getTags() != null) {
             params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
         }
-        if (getTrainedModelsRequest.getForExport() != null) {
-            params.putParam(GetTrainedModelsRequest.FOR_EXPORT, Boolean.toString(getTrainedModelsRequest.getForExport()));
+        if (getTrainedModelsRequest.getExcludeGenerated() != null) {
+            params.putParam(GetTrainedModelsRequest.EXCLUDE_GENERATED, Boolean.toString(getTrainedModelsRequest.getExcludeGenerated()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());

@@ -342,9 +342,31 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        final boolean excludeGenerated = params.paramAsBoolean(TransformField.EXCLUDE_GENERATED, false);
+        final boolean forInternalStorage = params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false);
+        assert (forInternalStorage && excludeGenerated) == false:
+            "unsupported behavior, exclude_generated is true and for_internal_storage is true";
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
-        builder.field(TransformField.SOURCE.getPreferredName(), source);
+        if (excludeGenerated == false) {
+            if (headers.isEmpty() == false && forInternalStorage) {
+                builder.field(HEADERS.getPreferredName(), headers);
+            }
+            if (transformVersion != null) {
+                builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
+            }
+            if (createTime != null) {
+                builder.timeField(
+                    TransformField.CREATE_TIME.getPreferredName(),
+                    TransformField.CREATE_TIME.getPreferredName() + "_string",
+                    createTime.toEpochMilli()
+                );
+            }
+            if (forInternalStorage) {
+                builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
+            }
+        }
+        builder.field(TransformField.SOURCE.getPreferredName(), source, params);
         builder.field(TransformField.DESTINATION.getPreferredName(), dest);
         if (frequency != null) {
             builder.field(TransformField.FREQUENCY.getPreferredName(), frequency.getStringRep());
@@ -357,26 +379,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
         }
-        if (params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
-        }
-        if (headers.isEmpty() == false && params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(HEADERS.getPreferredName(), headers);
-        }
         if (description != null) {
             builder.field(TransformField.DESCRIPTION.getPreferredName(), description);
         }
         builder.field(TransformField.SETTINGS.getPreferredName(), settings);
-        if (transformVersion != null) {
-            builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
-        }
-        if (createTime != null) {
-            builder.timeField(
-                TransformField.CREATE_TIME.getPreferredName(),
-                TransformField.CREATE_TIME.getPreferredName() + "_string",
-                createTime.toEpochMilli()
-            );
-        }
         builder.endObject();
         return builder;
     }

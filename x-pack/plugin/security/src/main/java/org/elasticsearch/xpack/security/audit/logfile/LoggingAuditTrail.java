@@ -69,7 +69,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -859,15 +860,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .startObject("user")
                     .field("name", putUserRequest.username())
                     .field("realm", inferRealmNameFromUsername.apply(putUserRequest.username()))
-                    .array("roles", putUserRequest.roles())
+                    .field("enabled", putUserRequest.enabled())
+                    .array("role_names", putUserRequest.roles())
                     .field("full_name", putUserRequest.fullName())
                     .field("email", putUserRequest.email())
-                    .field("enabled", putUserRequest.enabled())
-                    .field("has_password", putUserRequest.passwordHash() != null)
-                    // TODO metadata can fail because it might contain unknown class types
-                    // ensure toXContent on such maps is a superset of the metadata maps role mapping can manage
-                    .field("metadata", putUserRequest.metadata())
-                    .endObject() // user
+                    // password and password hashes are not exposed in the audit log
+                    .field("has_password", putUserRequest.passwordHash() != null);
+                    if (putUserRequest.metadata() != null && false == putUserRequest.metadata().isEmpty()) {
+                        // JSON building for the metadata might fail when encountering unknown class types.
+                        // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
+                        // cause troubles in downstream code (eg storing the metadata), so this simply introduces a new failure mode.
+                        // Also the malevolent metadata can only be produced by the transport client.
+                        builder.field("metadata", putUserRequest.metadata());
+                    }
+                    builder.endObject() // user
                     .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
@@ -879,6 +885,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject()
                     .startObject("user")
                     .field("name", changePasswordRequest.username())
+                    // it's nice for consistency to show the name of the realm, when possible
                     .field("realm", inferRealmNameFromUsername.apply(changePasswordRequest.username()))
                     .endObject() // user
                     .endObject();
@@ -890,19 +897,33 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "put_role");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
-                    .startObject("role")
-                    .field("name", putRoleRequest.name())
-                    .array("cluster_privileges", putRoleRequest.cluster())
-                    .array("run_as", putRoleRequest.runAs())
-                    .array("indices_privileges", (Object[]) putRoleRequest.indices())
-                    .field("application_privileges", putRoleRequest.applicationPrivileges())
-                    .field("metadata", putRoleRequest.metadata());
-            builder.startObject("conditional_cluster_privileges");
-            for (ConfigurableClusterPrivilege conditionalClusterPrivilege : putRoleRequest.conditionalClusterPrivileges()) {
-                conditionalClusterPrivilege.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            }
-            builder.endObject() // configurable_cluster_privileges
-                    .endObject() // role
+                        .startObject("role")
+                        .field("name", putRoleRequest.name())
+                        // the "privilege" nested structure, where the "name" is left out, is closer to the event structure
+                        // for creating API Keys
+                        .startObject("privilege")
+                            // toXContent of {@code RoleDescriptor.IndicesPrivileges} does a good job
+                            .array("index", putRoleRequest.indices())
+                            .array("cluster", putRoleRequest.cluster())
+                            .array("run_as", putRoleRequest.runAs())
+                            // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
+                            .field("application", putRoleRequest.applicationPrivileges())
+                            .startObject("cluster_conditional");
+                            // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}
+                            // Again, only the transport client can produce this, and this only introduces a different failure mode and
+                            // not a new one (without auditing it would fail differently, but it would still fail)
+                            ConfigurableClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS,
+                                    Arrays.asList(putRoleRequest.conditionalClusterPrivileges()));
+                            builder.endObject(); // cluster_conditional
+                            if (putRoleRequest.metadata() != null && false == putRoleRequest.metadata().isEmpty()) {
+                                // JSON building for the metadata might fail when encountering unknown class types.
+                                // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
+                                // cause troubles in downstream code (eg storing the metadata), so this simply introduces a new failure mode.
+                                // Also the malevolent metadata can only be produced by the transport client.
+                                builder.field("metadata", putRoleRequest.metadata());
+                            }
+                        builder.endObject() // privilege
+                        .endObject() // role
                     .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
@@ -915,11 +936,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .startObject("role_mapping")
                     .field("name", putRoleMappingRequest.getName())
                     .field("role_names", putRoleMappingRequest.getRoles())
+                    // the toXContent method of the {@code TemplateRoleName} does a good job
                     .field("role_templates", putRoleMappingRequest.getRoleTemplates())
-                    .field("rules", putRoleMappingRequest.getRules())
-                    .field("enabled", putRoleMappingRequest.isEnabled())
-                    .field("metadata", putRoleMappingRequest.getMetadata())
-                    .endObject() // role_mapping
+                    // the toXContent methods of the {@code RoleMapperExpression} instances do a good job
+                    .field("rule", putRoleMappingRequest.getRules())
+                    .field("enabled", putRoleMappingRequest.isEnabled());
+                    if (putRoleMappingRequest.getMetadata() != null && false == putRoleMappingRequest.getMetadata().isEmpty()) {
+                        builder.field("metadata", putRoleMappingRequest.getMetadata());
+                    }
+                    builder.endObject() // role_mapping
                     .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
@@ -947,6 +972,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "put_privileges");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
+                    // toXContent of {@code ApplicationPrivilegeDescriptor} does a good job
                     .field("privileges", putPrivilegesRequest.getPrivileges())
                     .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
@@ -956,12 +982,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withRequestBody(CreateApiKeyRequest createApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "create_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            TimeValue expiration = createApiKeyRequest.getExpiration();
-            builder.startObject()
-                    .field("name", createApiKeyRequest.getName())
-                    .field("expiration", expiration != null ? expiration.toString() : null)
-                    .field("role_descriptors", createApiKeyRequest.getRoleDescriptors())
-                    .endObject();
+            builder.startObject();
+            withRequestBody(builder, createApiKeyRequest);
+            builder.endObject();
             logEntry.with(CREATE_API_KEY_FIELD_NAME, Strings.toString(builder));
             return this;
         }
@@ -969,24 +992,53 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withRequestBody(GrantApiKeyRequest grantApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "create_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            TimeValue expiration = grantApiKeyRequest.getApiKeyRequest().getExpiration();
+            builder.startObject();
+            withRequestBody(builder, grantApiKeyRequest.getApiKeyRequest());
             GrantApiKeyRequest.Grant grant = grantApiKeyRequest.getGrant();
-            builder.startObject()
-                    .field("name", grantApiKeyRequest.getApiKeyRequest().getName())
-                    .field("expiration", expiration != null ? expiration.toString() : null)
-                    .field("role_descriptors", grantApiKeyRequest.getApiKeyRequest().getRoleDescriptors())
-                    .startObject("grant")
+            builder.startObject("grant")
                         .field("type", grant.getType())
                         .startObject("user")
                             .field("name", grant.getUsername())
-                            // realm unknown
+                            // unknown realm
                             .field("has_password", grant.getPassword() != null)
                             .field("has_access_token", grant.getAccessToken() != null)
-                    .endObject() // user
-                    .endObject() // grant
-                    .endObject();
+                        .endObject() // user
+                    .endObject(); // grant
+            builder.endObject();
             logEntry.with(CREATE_API_KEY_FIELD_NAME, Strings.toString(builder));
             return this;
+        }
+
+        private void withRequestBody(XContentBuilder builder, CreateApiKeyRequest createApiKeyRequest) throws IOException {
+            TimeValue expiration = createApiKeyRequest.getExpiration();
+            builder.field("name", createApiKeyRequest.getName())
+                    .field("expiration", expiration != null ? expiration.toString() : null)
+                    .startArray("privileges");
+            for (RoleDescriptor roleDescriptor : createApiKeyRequest.getRoleDescriptors()) {
+                builder.startObject()
+                        // toXContent of {@code RoleDescriptor.IndicesPrivileges} does a good job
+                        .array("index", roleDescriptor.getIndicesPrivileges())
+                        .array("cluster", roleDescriptor.getClusterPrivileges())
+                        .array("run_as", roleDescriptor.getRunAs())
+                        // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
+                        .array("application", roleDescriptor.getApplicationPrivileges())
+                        .startObject("cluster_conditional");
+                // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}
+                // Again, only the transport client can produce this, and this only introduces a different failure mode and
+                // not a new one (without auditing it would fail differently, but it would still fail)
+                ConfigurableClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS,
+                        Arrays.asList(roleDescriptor.getConditionalClusterPrivileges()));
+                builder.endObject(); // cluster_conditional
+                if (roleDescriptor.getMetadata() != null && false == roleDescriptor.getMetadata().isEmpty()) {
+                    // JSON building for the metadata might fail when encountering unknown class types.
+                    // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
+                    // cause troubles in downstream code (eg storing the metadata), so this simply introduces a new failure mode.
+                    // Also the malevolent metadata can only be produced by the transport client.
+                    builder.field("metadata", roleDescriptor.getMetadata());
+                }
+                builder.endObject(); // privilege
+            }
+            builder.endArray(); // privileges
         }
 
         LogEntryBuilder withRequestBody(DeleteUserRequest deleteUserRequest) throws IOException {

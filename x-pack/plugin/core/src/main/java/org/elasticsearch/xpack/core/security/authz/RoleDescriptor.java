@@ -764,7 +764,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 builder.endObject();
             }
             if (query != null) {
-                builder.field("query", query.utf8ToString());
+                // "query_string" conveys that the value is not a nested query object but a string with possible quotes escaped, etc
+                builder.field("query_string", query.utf8ToString());
             }
             builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
             return builder.endObject();

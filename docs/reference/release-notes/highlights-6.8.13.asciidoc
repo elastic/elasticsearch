@@ -7,7 +7,7 @@
 See also <<release-notes-6.8.13,{es} 6.8.13 release notes>>.
 
 [float]
-==== Fixed a retry logic for {ccr} when encountering exceptions
+==== Fixed retries for {ccr}
 
-A {ccr} will automatically retry when facing transient errors caused by circuit breaker or
-inability to connect to remote cluster.
+{ccr-cap} now retries operations that failed due to a circuit breaker or a lost
+remote cluster connection.

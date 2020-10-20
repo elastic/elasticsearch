@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -95,13 +96,13 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c::isIdFieldDataEnabled));
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        private final Supplier<Boolean> fieldDataEnabled;
+        private final BooleanSupplier fieldDataEnabled;
 
-        IdFieldType(Supplier<Boolean> fieldDataEnabled) {
+        IdFieldType(BooleanSupplier fieldDataEnabled) {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.fieldDataEnabled = fieldDataEnabled;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -149,7 +150,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            if (fieldDataEnabled.get() == false) {
+            if (fieldDataEnabled.getAsBoolean() == false) {
                 throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
                     + "you can re-enable it by updating the dynamic cluster setting: "
                     + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
@@ -256,7 +257,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(Supplier<Boolean> fieldDataEnabled) {
+    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
         super(new IdFieldType(fieldDataEnabled));
     }
 

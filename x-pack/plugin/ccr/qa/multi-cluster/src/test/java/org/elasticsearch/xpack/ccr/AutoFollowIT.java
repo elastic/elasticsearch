@@ -365,7 +365,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         assertThat(index, numDocs, equalTo(expectedNumDocs));
     }
 
-    private static void verifyDataStream(final RestClient client,
+    static void verifyDataStream(final RestClient client,
                                          final String name,
                                          final String... expectedBackingIndices) throws IOException {
         Request request = new Request("GET", "/_data_stream/" + name);

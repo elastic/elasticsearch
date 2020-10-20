@@ -132,7 +132,19 @@ public class CcrLicenseChecker {
                     ClusterState remoteClusterState = remoteClusterStateResponse.getState();
                     final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
                     if (leaderIndexMetadata == null) {
-                        onFailure.accept(new IndexNotFoundException(leaderIndex));
+                        final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                        final Exception failure;
+                        if (indexAbstraction == null) {
+                            failure = new IndexNotFoundException(leaderIndex);
+                        } else {
+                            // provided name may be an alias or data stream and in that case throw a specific error:
+                            String message = String.format(Locale.ROOT,
+                                "cannot follow [%s], because it is a %s",
+                                leaderIndex, indexAbstraction.getType()
+                            );
+                            failure = new IllegalArgumentException(message);
+                        }
+                        onFailure.accept(failure);
                         return;
                     }
                     if (leaderIndexMetadata.getState() == IndexMetadata.State.CLOSE) {

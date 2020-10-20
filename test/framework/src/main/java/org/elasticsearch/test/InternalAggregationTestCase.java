@@ -441,7 +441,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createUnmappedInstance(name, metadata);
     }
 
-    protected T createTestInstanceForXContent() {
+    public T createTestInstanceForXContent() {
         return createTestInstance();
     }
 

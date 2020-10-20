@@ -160,7 +160,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     }
 
     @Override
-    protected InternalScriptedMetric createTestInstanceForXContent() {
+    public InternalScriptedMetric createTestInstanceForXContent() {
         InternalScriptedMetric aggregation = createTestInstance();
         return (InternalScriptedMetric) aggregation.reduce(
             singletonList(aggregation),

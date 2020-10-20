@@ -84,7 +84,9 @@ public class TypeParsersTests extends ESTestCase {
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(null, type -> typeParser, olderVersion, null,
-            null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), mapperService::isIdFieldDataEnabled);
+            null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+            throw new UnsupportedOperationException();
+        });
 
         builder.parse("some-field", olderContext, fieldNode);
         assertWarnings("At least one multi-field, [sub-field], " +
@@ -99,7 +101,9 @@ public class TypeParsersTests extends ESTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
         Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(null, type -> typeParser, version, null, null,
-            null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), mapperService::isIdFieldDataEnabled);
+            null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+            throw new UnsupportedOperationException();
+        });
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             TextFieldMapper.Builder bad = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);

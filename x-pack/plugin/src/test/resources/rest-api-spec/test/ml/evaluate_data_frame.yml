@@ -206,7 +206,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.score: 0.9899 }
+  - match: { outlier_detection.auc_roc.value: 0.9899 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -226,7 +226,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.score: 0.9899 }
+  - match: { outlier_detection.auc_roc.value: 0.9899 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -246,7 +246,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.score: 0.9899 }
+  - match: { outlier_detection.auc_roc.value: 0.9899 }
   - is_true: outlier_detection.auc_roc.curve
 
 ---
@@ -411,7 +411,7 @@ setup:
               }
             }
           }
-  - is_true: outlier_detection.auc_roc.score
+  - is_true: outlier_detection.auc_roc.value
   - is_true: outlier_detection.precision.0\.25
   - is_true: outlier_detection.precision.0\.5
   - is_true: outlier_detection.precision.0\.75
@@ -721,7 +721,7 @@ setup:
               }
             }
           }
-  - match: { classification.auc_roc.score: 0.8050111095212122 }
+  - match: { classification.auc_roc.value: 0.8050111095212122 }
   - is_false: classification.auc_roc.curve
 ---
 "Test classification auc_roc with default top_classes_field":
@@ -741,7 +741,7 @@ setup:
               }
             }
           }
-  - match: { classification.auc_roc.score: 0.8050111095212122 }
+  - match: { classification.auc_roc.value: 0.8050111095212122 }
   - is_false: classification.auc_roc.curve
 ---
 "Test classification accuracy with missing predicted_field":
@@ -778,11 +778,11 @@ setup:
       classification.accuracy:
         classes:
           - class_name: "cat"
-            accuracy: 0.625  # 5 out of 8
+            value: 0.625  # 5 out of 8
           - class_name: "dog"
-            accuracy: 0.75  # 6 out of 8
+            value: 0.75  # 6 out of 8
           - class_name: "mouse"
-            accuracy: 0.875  # 7 out of 8
+            value: 0.875  # 7 out of 8
         overall_accuracy: 0.625  # 5 out of 8
 ---
 "Test classification precision":
@@ -804,11 +804,11 @@ setup:
       classification.precision:
         classes:
           - class_name: "cat"
-            precision: 0.5  # 2 out of 4
+            value: 0.5  # 2 out of 4
           - class_name: "dog"
-            precision: 0.6666666666666666  # 2 out of 3
+            value: 0.6666666666666666  # 2 out of 3
           - class_name: "mouse"
-            precision: 1.0  # 1 out of 1
+            value: 1.0  # 1 out of 1
         avg_precision: 0.7222222222222222
 ---
 "Test classification recall":
@@ -830,11 +830,11 @@ setup:
       classification.recall:
         classes:
           - class_name: "cat"
-            recall: 0.6666666666666666  # 2 out of 3
+            value: 0.6666666666666666  # 2 out of 3
           - class_name: "dog"
-            recall: 0.6666666666666666  # 2 out of 3
+            value: 0.6666666666666666  # 2 out of 3
           - class_name: "mouse"
-            recall: 0.5  # 1 out of 2
+            value: 0.5  # 1 out of 2
         avg_recall: 0.611111111111111
 ---
 "Test classification multiclass_confusion_matrix":

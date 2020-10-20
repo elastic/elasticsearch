@@ -112,7 +112,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
         };
     }
 
-    private static double convertUnsignedLongToDouble(long value) {
+    static double convertUnsignedLongToDouble(long value) {
         if (value < 0L) {
             return sortableSignedLongToUnsigned(value); // add 2 ^ 63
         } else {

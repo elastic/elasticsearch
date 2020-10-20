@@ -293,42 +293,58 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(e, hasToString(containsString("invalid pattern [/no-inspiration]")));
     }
 
-    public void testSecurityConfigChangeFormatting() {
-        Map<RoleDescriptor.IndicesPrivileges, String> testIndicesPrivilegesMap = new HashMap<>();
-        testIndicesPrivilegesMap.put(RoleDescriptor.IndicesPrivileges.builder()
-                .indices("test*")
-                .privileges("read", "create_index")
-                .grantedFields("grantedField1")
-                .query("{match_all:{}}")
-                .allowRestrictedIndices(true)
-                .build(), "{\"names\":[\"test*\"],\"privileges\":[\"read\",\"create_index\"]," +
-                "\"field_security\":{\"grant\":[\"grantedField1\"]},\"query\":\"{match_all:{}}\",\"allow_restricted_indices\":true}");
-        testIndicesPrivilegesMap.put(RoleDescriptor.IndicesPrivileges.builder()
-                .indices("/regex/", "?|smth")
-                .privileges("write")
-                .deniedFields("denied*")
-                .query(QueryBuilders.termQuery("foo", "bar").toString())
-                .build(), "{\"names\":[\"/regex/\",\"?|smth\"],\"privileges\":[\"write\"],\"field_security\":{\"except\":[\"denied*\"]}," +
-                "\"query\":\"{\\n  \\\"term\\\" : {\\n    \\\"foo\\\" : {\\n      \\\"value\\\" : \\\"bar\\\",\\n      \\\"boost\\\" : 1" +
-                ".0\\n    }\\n  }\\n}\",\"allow_restricted_indices\":false}");
-        List<RoleDescriptor.IndicesPrivileges> testIndicesPrivilegesList = new ArrayList<>();
-        StringBuilder testIndicesPrivilegesString = new StringBuilder();
-        testIndicesPrivilegesString.append("\"indices\":[");
-        randomSubsetOf(2, testIndicesPrivilegesMap.entrySet()).stream().forEach(indicesPrivileges -> {
-            testIndicesPrivilegesList.add(indicesPrivileges.getKey());
-            testIndicesPrivilegesString.append(indicesPrivileges.getValue());
-            testIndicesPrivilegesString.append(",");
-        });
-        if (false == testIndicesPrivilegesList.isEmpty()) {
-            // delete last comma
-            testIndicesPrivilegesString.deleteCharAt(testIndicesPrivilegesString.length() - 1);
-        }
-        testIndicesPrivilegesString.append("]");
+    public void testSecurityConfigChangeEventFormatting() {
+        RoleDescriptor nullRoleDescriptor = new RoleDescriptor("name \n not \f printed", null, null, null, null, null, null, null);
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key\nname", List.of(nullRoleDescriptor),
+                TimeValue.timeValueHours(2));
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+        auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
 
-        RoleDescriptor roleDescriptor = new RoleDescriptor("name not printed", null,
-                testIndicesPrivilegesList.toArray(new RoleDescriptor.IndicesPrivileges[0]), null, null, null, null, null);
-        String roleDescriptorString = "{\"cluster\":[]," + testIndicesPrivilegesString.toString() +
-                ",\"applications\":[],\"run_as\":[],\"metadata\":{},\"transient_metadata\":{\"enabled\":true}}";
+        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        assertThat(output.get(1), containsString("\"create.apikey\":{\"name\":\"key\\nname\",\"expiration\":\"2h\"," +
+                "\"privileges\":[{\"index\":[],\"cluster\":[],\"run_as\":[],\"application\":[]," +
+                "\"cluster_conditional\":{\"application\":{}}}]}"));
+
+//        final String requestId = randomRequestId();
+//        Map<RoleDescriptor.IndicesPrivileges, String> testIndicesPrivilegesMap = new HashMap<>();
+//        testIndicesPrivilegesMap.put(RoleDescriptor.IndicesPrivileges.builder()
+//                .indices("test*")
+//                .privileges("read", "create_index")
+//                .grantedFields("grantedField1")
+//                .query("{match_all:{}}")
+//                .allowRestrictedIndices(true)
+//                .build(), "{\"names\":[\"test*\"],\"privileges\":[\"read\",\"create_index\"]," +
+//                "\"field_security\":{\"grant\":[\"grantedField1\"]},\"query\":\"{match_all:{}}\",\"allow_restricted_indices\":true}");
+//        testIndicesPrivilegesMap.put(RoleDescriptor.IndicesPrivileges.builder()
+//                .indices("/regex/", "?|smth")
+//                .privileges("write")
+//                .deniedFields("denied*")
+//                .query(QueryBuilders.termQuery("foo", "bar").toString())
+//                .build(), "{\"names\":[\"/regex/\",\"?|smth\"],\"privileges\":[\"write\"],\"field_security\":{\"except\":[\"denied*\"]}," +
+//                "\"query\":\"{\\n  \\\"term\\\" : {\\n    \\\"foo\\\" : {\\n      \\\"value\\\" : \\\"bar\\\",\\n      \\\"boost\\\" : 1" +
+//                ".0\\n    }\\n  }\\n}\",\"allow_restricted_indices\":false}");
+//        List<RoleDescriptor.IndicesPrivileges> testIndicesPrivilegesList = new ArrayList<>();
+//        StringBuilder testIndicesPrivilegesString = new StringBuilder();
+//        testIndicesPrivilegesString.append("\"indices\":[");
+//        randomSubsetOf(2, testIndicesPrivilegesMap.entrySet()).stream().forEach(indicesPrivileges -> {
+//            testIndicesPrivilegesList.add(indicesPrivileges.getKey());
+//            testIndicesPrivilegesString.append(indicesPrivileges.getValue());
+//            testIndicesPrivilegesString.append(",");
+//        });
+//        if (false == testIndicesPrivilegesList.isEmpty()) {
+//            // delete last comma
+//            testIndicesPrivilegesString.deleteCharAt(testIndicesPrivilegesString.length() - 1);
+//        }
+//        testIndicesPrivilegesString.append("]");
+//
+//        RoleDescriptor roleDescriptor = new RoleDescriptor("name \n not \f printed", null,
+//                testIndicesPrivilegesList.toArray(new RoleDescriptor.IndicesPrivileges[0]), null, null, null, null, null);
+//        String roleDescriptorString = "{\"cluster\":[]," + testIndicesPrivilegesString.toString() +
+//                ",\"applications\":[],\"run_as\":[],\"metadata\":{},\"transient_metadata\":{\"enabled\":true}}";
 
 //        Map<ConfigurableClusterPrivileges.ManageApplicationPrivileges, String> testConfigurableClusterPrivilegesMap = new HashMap<>();
 //        testConfigurableClusterPrivilegesMap.put(new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("app1")),
@@ -347,17 +363,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
 //                new RoleDescriptor.ApplicationResourcePrivileges[] {randomFrom(testApplicationResourcePrivilegesMap.entrySet()).getKey()},
 //                new ConfigurableClusterPrivilege[] {randomFrom(testConfigurableClusterPrivilegesMap.entrySet()).getKey()},
 //                new String[] {"minnie"}, testMetadata, null);
-        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("\\bkey\\\n-\bname", List.of(roleDescriptor),
-                TimeValue.timeValueHours(2));
-        final String requestId = randomRequestId();
-        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
-        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-        final Authentication authentication = createAuthentication();
-        auditTrail.accessGranted("\\ \\ \\ \n\t\b", authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
-
-        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
-        assertThat(output.size(), is(2));
-        assertThat(output.get(1), containsString(roleDescriptorString));
+//        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key\nname", List.of(roleDescriptor),
+//                TimeValue.timeValueHours(2));
+//        final String requestId = randomRequestId();
+//        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+//        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+//        final Authentication authentication = createAuthentication();
+//        auditTrail.accessGranted("\\ \\ \\ \n\t\b", authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
+//
+//        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+//        assertThat(output.size(), is(2));
+//        assertThat(output.get(1), containsString(roleDescriptorString));
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

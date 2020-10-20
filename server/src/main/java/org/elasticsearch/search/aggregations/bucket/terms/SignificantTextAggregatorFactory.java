@@ -86,8 +86,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         // and just use the given field name as a placeholder.
         this.fieldType = context.getFieldType(fieldName);
         if (fieldType != null && supportsAgg(fieldType) == false) {
-            throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
-                "requires an analyzed field");
+            throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type ["
+                + fieldType.typeName() + "] does not support significant text aggregations");
         }
         this.indexedFieldName = fieldType != null ? fieldType.name() : fieldName;
         this.sourceFieldNames = sourceFieldNames == null ? new String[] { indexedFieldName } : sourceFieldNames;

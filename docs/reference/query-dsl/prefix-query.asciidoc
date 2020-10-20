@@ -43,7 +43,7 @@ information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
 `case_insensitive`::
 (Optional, boolean) allows ASCII case insensitive matching of the
-value with the indexed field values when set to true. Setting to false is disallowed.
+value with the indexed field values when set to true.
 
 [[prefix-query-notes]]
 ==== Notes

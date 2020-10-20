@@ -71,7 +71,7 @@ increases the relevance score.
 
 `case_insensitive`::
 (Optional, boolean) allows case insensitive matching of the
-pattern with the indexed field values when set to true. Setting to false is disallowed.
+pattern with the indexed field values when set to true.
 
 [[wildcard-query-notes]]
 ==== Notes

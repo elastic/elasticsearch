@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,27 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.classification;
+package org.elasticsearch.client.ml.dataframe.evaluation.common;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class AucRocMetricAucRocPointTests extends AbstractXContentTestCase<AucRocMetric.AucRocPoint> {
+public class AucRocPointTests extends AbstractXContentTestCase<AucRocPoint> {
 
-    static AucRocMetric.AucRocPoint randomPoint() {
-        return new AucRocMetric.AucRocPoint(randomDouble(), randomDouble(), randomDouble());
+    static AucRocPoint randomPoint() {
+        return new AucRocPoint(randomDouble(), randomDouble(), randomDouble());
     }
 
     @Override
-    protected AucRocMetric.AucRocPoint createTestInstance() {
+    protected AucRocPoint createTestInstance() {
         return randomPoint();
     }
 
     @Override
-    protected AucRocMetric.AucRocPoint doParseInstance(XContentParser parser) throws IOException {
-        return AucRocMetric.AucRocPoint.fromXContent(parser);
+    protected AucRocPoint doParseInstance(XContentParser parser) throws IOException {
+        return AucRocPoint.fromXContent(parser);
     }
 
     @Override

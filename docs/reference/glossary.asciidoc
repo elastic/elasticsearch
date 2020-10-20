@@ -39,12 +39,6 @@ An <<glossary-index-pattern,index pattern>> that automatically configures new in
 For more information, see {ref}/ccr-auto-follow.html[Managing auto follow patterns].
 // end::auto-follow-pattern-def[]
 
-[[glossary-backup-snapshot]] backup snapshot ::
-// tag::backup-snapshot-def[]
-A snapshot of a cluster, data stream, or index that resides in a remote data store such as S3 
-and is used for backup and recovery.
-// end::backup-snapshot-def[]
-
 [[glossary-cluster]] cluster ::
 // tag::cluster-def[]
 One or more <<glossary-node,nodes>> that share the
@@ -458,9 +452,19 @@ in the <<glossary-mapping,mapping>>.
 
 [[glossary-searchable-snapshot]] searchable snapshot ::
 // tag::searchable-snapshot-def[]
-A <<glossary-snapshot, snapshot>> of an index or data stream that resides in a remote data store 
-such as S3 and can be accessed dynamically at query time.
+An index in a <<glossary-snapshot, snapshot>> that is mounted as a
+<<glossary-searchable-snapshot-index,searchable snapshot index>> and can be
+searched as if it were a regular index.
 // end::searchable-snapshot-def[]
+
+[[glossary-searchable-snapshot-index]] searchable snapshot index ::
+// tag::searchable-snapshot-index-def[]
+An <<glossary-index, index>> whose data is stored in a <<glossary-snapshot,
+snapshot>> that resides in a separate <<glossary-snapshot-repository,snapshot
+repository>> such as AWS S3. Searchable snapshot indices do not need
+<<glossary-replica-shard,replica>> shards for resilience, since their data is
+reliably stored outside the cluster.
+// end::searchable-snapshot-index-def[]
 
 [[glossary-shard]] shard ::
 +
@@ -498,14 +502,12 @@ See the {ref}/indices-shrink-index.html[shrink index API].
 
 [[glossary-snapshot]] snapshot ::
 // tag::snapshot-def[]
-Captures the state of a cluster, index, or data stream at a particular point in time. 
-See <<glossary-backup-snapshot, backup snapshot>> and <<glossary-searchable-snapshot, searchable snapshot>>.
+Captures the state of the whole cluster, or of some of its indices or data
+streams, at a particular point in time.  Snapshots are useful for backups since
+you can restore the cluster to its state at the time the snapshot was taken.
+You can also mount snapshots as <<glossary-searchable-snapshot-index,
+searchable snapshot indices>>.
 // end::snapshot-def[]
-
-[[glossary-snapshot-backed-index]] snapshot-backed index ::
-// tag::snapshot-backed-index-def[]
-A read-only index that relies on a <<glossary-searchable-snapshot, searchable snapshot>> for redundancy.
-// end::snapshot-backed-index-def[]
 
 [[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::
 // tag::snapshot-lifecycle-policy-def[]

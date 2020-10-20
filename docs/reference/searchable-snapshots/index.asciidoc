@@ -74,8 +74,8 @@ more concurrent searches of these shards.
 
 If a node fails while holding some zero-replica searchable snapshot then there
 will be a brief window of time before {es} allocates these shards elsewhere.
-During this window of time the cluster health will be `red` and searches that
-hit these shards will fail or return partial results.
+During this window of time the cluster health will not be `green` and searches
+that hit these shards will fail or return partial results.
 
 [TIP]
 ====

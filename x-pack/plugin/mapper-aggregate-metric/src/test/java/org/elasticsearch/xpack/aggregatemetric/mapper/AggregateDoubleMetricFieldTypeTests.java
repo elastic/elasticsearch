@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -58,5 +59,11 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
         Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, null);
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap());
+        Map<String, Object> metric = Collections.singletonMap("min", 14.2);
+        assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
     }
 }

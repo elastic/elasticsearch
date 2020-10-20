@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.rest.RestRequest;
@@ -50,8 +51,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -295,37 +294,70 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testSecurityConfigChangeFormatting() {
-        RoleDescriptor.IndicesPrivileges testIndicesPrivileges =
-                RoleDescriptor.IndicesPrivileges.builder()
-                        .indices("test*")
-                        .privileges("read", "create_index")
-                        .grantedFields("grantedField1")
-                        .query("{match_all:{}}")
-                        .allowRestrictedIndices(true)
-                        .build();
-        ConfigurableClusterPrivilege testConfigurableClusterPrivilege =
-                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("app1"));
-        RoleDescriptor.ApplicationResourcePrivileges testApplicationResourcePrivileges =
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                        .privileges("app_read_priv", "app_write_priv").resources("res2").application("app2").build();
-        Map<String, Object> testMetadata = new HashMap<>();
-        testMetadata.put("string_meta", "test");
-        testMetadata.put("list_meta", List.of("one", "two"));
-        RoleDescriptor roleDescriptor = new RoleDescriptor("full_test_role", new String[] {"manage_ilm", "manage_security"},
-                new RoleDescriptor.IndicesPrivileges[] {testIndicesPrivileges},
-                new RoleDescriptor.ApplicationResourcePrivileges[] {testApplicationResourcePrivileges},
-                new ConfigurableClusterPrivilege[] {testConfigurableClusterPrivilege},
-                new String[] {"minnie"}, testMetadata, null);
-        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-name", List.of(roleDescriptor), TimeValue.timeValueHours(2));
+        Map<RoleDescriptor.IndicesPrivileges, String> testIndicesPrivilegesMap = new HashMap<>();
+        testIndicesPrivilegesMap.put(RoleDescriptor.IndicesPrivileges.builder()
+                .indices("test*")
+                .privileges("read", "create_index")
+                .grantedFields("grantedField1")
+                .query("{match_all:{}}")
+                .allowRestrictedIndices(true)
+                .build(), "{\"names\":[\"test*\"],\"privileges\":[\"read\",\"create_index\"]," +
+                "\"field_security\":{\"grant\":[\"grantedField1\"]},\"query\":\"{match_all:{}}\",\"allow_restricted_indices\":true}");
+        testIndicesPrivilegesMap.put(RoleDescriptor.IndicesPrivileges.builder()
+                .indices("/regex/", "?|smth")
+                .privileges("write")
+                .deniedFields("denied*")
+                .query(QueryBuilders.termQuery("foo", "bar").toString())
+                .build(), "{\"names\":[\"/regex/\",\"?|smth\"],\"privileges\":[\"write\"],\"field_security\":{\"except\":[\"denied*\"]}," +
+                "\"query\":\"{\\n  \\\"term\\\" : {\\n    \\\"foo\\\" : {\\n      \\\"value\\\" : \\\"bar\\\",\\n      \\\"boost\\\" : 1" +
+                ".0\\n    }\\n  }\\n}\",\"allow_restricted_indices\":false}");
+        List<RoleDescriptor.IndicesPrivileges> testIndicesPrivilegesList = new ArrayList<>();
+        StringBuilder testIndicesPrivilegesString = new StringBuilder();
+        testIndicesPrivilegesString.append("\"indices\":[");
+        randomSubsetOf(2, testIndicesPrivilegesMap.entrySet()).stream().forEach(indicesPrivileges -> {
+            testIndicesPrivilegesList.add(indicesPrivileges.getKey());
+            testIndicesPrivilegesString.append(indicesPrivileges.getValue());
+            testIndicesPrivilegesString.append(",");
+        });
+        if (false == testIndicesPrivilegesList.isEmpty()) {
+            // delete last comma
+            testIndicesPrivilegesString.deleteCharAt(testIndicesPrivilegesString.length() - 1);
+        }
+        testIndicesPrivilegesString.append("]");
+
+        RoleDescriptor roleDescriptor = new RoleDescriptor("name not printed", null,
+                testIndicesPrivilegesList.toArray(new RoleDescriptor.IndicesPrivileges[0]), null, null, null, null, null);
+        String roleDescriptorString = "{\"cluster\":[]," + testIndicesPrivilegesString.toString() +
+                ",\"applications\":[],\"run_as\":[],\"metadata\":{},\"transient_metadata\":{\"enabled\":true}}";
+
+//        Map<ConfigurableClusterPrivileges.ManageApplicationPrivileges, String> testConfigurableClusterPrivilegesMap = new HashMap<>();
+//        testConfigurableClusterPrivilegesMap.put(new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("app1")),
+//                "\"manage\":{\"applications\":[\"app1\"]}");
+//        Map<RoleDescriptor.ApplicationResourcePrivileges, String> testApplicationResourcePrivilegesMap = new HashMap<>();
+//        testApplicationResourcePrivilegesMap.put(RoleDescriptor.ApplicationResourcePrivileges.builder()
+//                .privileges("app_read_priv", "app_write_priv").resources("res2").application("app2").build(),
+//                "{\"application\":\"app2\",\"privileges\":[\"app_read_priv\",\"app_write_priv\"],\"resources\":[\"res2\"]}");
+//        Map<String, Object> testMetadataMap = new HashMap<>();
+//        testMetadataMap.put("string_meta", "test");
+//        testMetadataMap.put("list_meta", List.of("one", "two"));
+//        randomSubsetOf(1, testMetadataMap.entrySet());
+
+//        RoleDescriptor roleDescriptor = new RoleDescriptor("full_test_role", new String[] {"manage_ilm", "manage_security"},
+//                new RoleDescriptor.IndicesPrivileges[] {randomFrom(testIndicesPrivilegesMap.entrySet()).getKey()},
+//                new RoleDescriptor.ApplicationResourcePrivileges[] {randomFrom(testApplicationResourcePrivilegesMap.entrySet()).getKey()},
+//                new ConfigurableClusterPrivilege[] {randomFrom(testConfigurableClusterPrivilegesMap.entrySet()).getKey()},
+//                new String[] {"minnie"}, testMetadata, null);
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("\\bkey\\\n-\bname", List.of(roleDescriptor),
+                TimeValue.timeValueHours(2));
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = createAuthentication();
-        auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
+        auditTrail.accessGranted("\\ \\ \\ \n\t\b", authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
 
         final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
-        //assertMsg(output.get(1), Map.of(), Map.of(), Map.of());
+        assertThat(output.get(1), containsString(roleDescriptorString));
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

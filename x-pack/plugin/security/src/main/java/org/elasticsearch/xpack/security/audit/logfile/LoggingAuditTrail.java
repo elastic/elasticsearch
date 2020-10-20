@@ -861,11 +861,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .field("name", putUserRequest.username())
                     .field("realm", inferRealmNameFromUsername.apply(putUserRequest.username()))
                     .field("enabled", putUserRequest.enabled())
-                    .array("role_names", putUserRequest.roles())
-                    .field("full_name", putUserRequest.fullName())
-                    .field("email", putUserRequest.email())
+                    .array("role_names", putUserRequest.roles());
+                    if (Strings.hasLength(putUserRequest.fullName())) {
+                        builder.field("full_name", putUserRequest.fullName());
+                    }
+                    if (Strings.hasLength(putUserRequest.email())) {
+                        builder.field("email", putUserRequest.email());
+                    }
                     // password and password hashes are not exposed in the audit log
-                    .field("has_password", putUserRequest.passwordHash() != null);
+                    builder.field("has_password", putUserRequest.passwordHash() != null);
                     if (putUserRequest.metadata() != null && false == putUserRequest.metadata().isEmpty()) {
                         // JSON building for the metadata might fail when encountering unknown class types.
                         // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
@@ -903,7 +907,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         // for creating API Keys
                         .startObject("privilege")
                             // toXContent of {@code RoleDescriptor.IndicesPrivileges} does a good job
-                            .array("index", putRoleRequest.indices())
+                            .array("index", (Object[]) putRoleRequest.indices())
                             .array("cluster", putRoleRequest.cluster())
                             .array("run_as", putRoleRequest.runAs())
                             // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
@@ -934,12 +938,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
                     .startObject("role_mapping")
-                    .field("name", putRoleMappingRequest.getName())
-                    .field("role_names", putRoleMappingRequest.getRoles())
-                    // the toXContent method of the {@code TemplateRoleName} does a good job
-                    .field("role_templates", putRoleMappingRequest.getRoleTemplates())
+                    .field("name", putRoleMappingRequest.getName());
+                    if (putRoleMappingRequest.getRoles() != null && false == putRoleMappingRequest.getRoles().isEmpty()) {
+                        builder.field("role_names", putRoleMappingRequest.getRoles());
+                    }
+                    if (putRoleMappingRequest.getRoleTemplates() != null && false == putRoleMappingRequest.getRoleTemplates().isEmpty()) {
+                        // the toXContent method of the {@code TemplateRoleName} does a good job
+                        builder.field("role_templates", putRoleMappingRequest.getRoleTemplates());
+                    }
                     // the toXContent methods of the {@code RoleMapperExpression} instances do a good job
-                    .field("rule", putRoleMappingRequest.getRules())
+                    builder.field("rule", putRoleMappingRequest.getRules())
                     .field("enabled", putRoleMappingRequest.isEnabled());
                     if (putRoleMappingRequest.getMetadata() != null && false == putRoleMappingRequest.getMetadata().isEmpty()) {
                         builder.field("metadata", putRoleMappingRequest.getMetadata());
@@ -1017,11 +1025,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             for (RoleDescriptor roleDescriptor : createApiKeyRequest.getRoleDescriptors()) {
                 builder.startObject()
                         // toXContent of {@code RoleDescriptor.IndicesPrivileges} does a good job
-                        .array("index", roleDescriptor.getIndicesPrivileges())
+                        .array("index", (Object[]) roleDescriptor.getIndicesPrivileges())
                         .array("cluster", roleDescriptor.getClusterPrivileges())
                         .array("run_as", roleDescriptor.getRunAs())
                         // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
-                        .array("application", roleDescriptor.getApplicationPrivileges())
+                        .array("application", (Object[]) roleDescriptor.getApplicationPrivileges())
                         .startObject("cluster_conditional");
                 // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}
                 // Again, only the transport client can produce this, and this only introduces a different failure mode and
@@ -1081,15 +1089,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withRequestBody(InvalidateApiKeyRequest invalidateApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "invalidate_apikeys");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject()
-                    .array("ids", invalidateApiKeyRequest.getIds())
-                    .field("name", invalidateApiKeyRequest.getName())
-                    .field("owned_by_authenticated_user", invalidateApiKeyRequest.ownedByAuthenticatedUser())
-                    .startObject("user")
-                        .field("name", invalidateApiKeyRequest.getUserName())
-                        .field("realm", invalidateApiKeyRequest.getRealmName())
-                    .endObject() // user
-                    .endObject();
+            builder.startObject();
+                if (invalidateApiKeyRequest.getIds() != null && invalidateApiKeyRequest.getIds().length > 0) {
+                    builder.array("ids", invalidateApiKeyRequest.getIds());
+                }
+                if (Strings.hasLength(invalidateApiKeyRequest.getName())) {
+                    builder.field("name", invalidateApiKeyRequest.getName());
+                }
+                builder.field("owned_by_authenticated_user", invalidateApiKeyRequest.ownedByAuthenticatedUser());
+                if (Strings.hasLength(invalidateApiKeyRequest.getUserName()) || Strings.hasLength(invalidateApiKeyRequest.getRealmName())) {
+                    builder.startObject("user")
+                            .field("name", invalidateApiKeyRequest.getUserName())
+                            .field("realm", invalidateApiKeyRequest.getRealmName())
+                            .endObject(); // user
+                }
+            builder.endObject();
             logEntry.with(INVALIDATE_API_KEYS_FIELD_NAME, Strings.toString(builder));
             return this;
         }

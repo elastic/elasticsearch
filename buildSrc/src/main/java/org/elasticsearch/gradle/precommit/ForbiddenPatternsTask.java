@@ -26,14 +26,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.ListProperty;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputDirectory;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Internal;
-import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.SkipWhenEmpty;
-import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.*;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 
@@ -96,6 +89,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     }
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getFiles() {
         return getSourceFolders().get()
@@ -178,6 +172,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     abstract ListProperty<FileTree> getSourceFolders();
 
     @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
     @Optional
     abstract DirectoryProperty getRootDir();
 }

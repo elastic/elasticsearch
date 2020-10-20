@@ -318,10 +318,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
              * the filters. That is, if the input data type is a `long` in
              * the first place. If it isn't then 
              */
-            if (wholeNumbersOnly && ranges[i].from != Double.NEGATIVE_INFINITY && Math.abs(ranges[i].from) > 1 << 53) {
+            if (wholeNumbersOnly && ranges[i].from != Double.NEGATIVE_INFINITY && Math.abs(ranges[i].from) > 1L << 53) {
                 return null;
             }
-            if (wholeNumbersOnly && ranges[i].to != Double.POSITIVE_INFINITY && Math.abs(ranges[i].to) > 1 << 53) {
+            if (wholeNumbersOnly && ranges[i].to != Double.POSITIVE_INFINITY && Math.abs(ranges[i].to) > 1L << 53) {
                 return null;
             }
             keys[i] = Integer.toString(i);

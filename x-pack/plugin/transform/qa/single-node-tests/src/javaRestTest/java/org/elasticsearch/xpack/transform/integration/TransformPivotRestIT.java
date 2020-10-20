@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -1684,6 +1685,38 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             0
         );
         assertEquals(3, actual.longValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExportAndImport() throws Exception {
+        String transformId = "export-transform";
+        String transformIndex = "export_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        createPivotReviewsTransform(transformId, transformIndex, null, null, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        Response response = adminClient().performRequest(new Request("GET",
+            getTransformEndpoint() + transformId + "?exclude_generated=true"));
+        Map<String, Object> storedConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
+            "transforms",
+            entityAsMap(response)))
+            .get(0);
+        storedConfig.remove("id");
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.map(storedConfig);
+            Request putTransform = new Request("PUT", getTransformEndpoint() + transformId + "-import");
+            putTransform.setJsonEntity(Strings.toString(builder));
+            adminClient().performRequest(putTransform);
+        }
+
+        response = adminClient().performRequest(new Request("GET",
+            getTransformEndpoint() + transformId + "-import" + "?exclude_generated=true"));
+        Map<String, Object> importConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
+            "transforms",
+            entityAsMap(response)))
+            .get(0);
+        importConfig.remove("id");
+        assertThat(storedConfig, equalTo(importConfig));
     }
 
     private void createDateNanoIndex(String indexName, int numDocs) throws IOException {

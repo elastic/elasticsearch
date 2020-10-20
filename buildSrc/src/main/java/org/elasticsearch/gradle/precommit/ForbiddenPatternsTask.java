@@ -26,6 +26,8 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.*;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
@@ -115,7 +117,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
                 .boxed()
                 .collect(Collectors.toList());
 
-            URI baseUri = getRootDir().orElse(projectLayout.getProjectDirectory()).get().getAsFile().toURI();
+            URI baseUri = getRootDir().orElse(projectLayout.getProjectDirectory().getAsFile()).get().toURI();
             String path = baseUri.relativize(f.toURI()).toString();
             failures.addAll(
                 invalidLines.stream()
@@ -171,8 +173,13 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     @Internal
     abstract ListProperty<FileTree> getSourceFolders();
 
-    @InputDirectory
-    @PathSensitive(PathSensitivity.RELATIVE)
+    @Internal
+    abstract Property<File> getRootDir();
+
+    @Input
     @Optional
-    abstract DirectoryProperty getRootDir();
+    Provider<String> getRootDirPath() {
+        return getRootDir().map(t -> t.toPath().relativize(projectLayout.getProjectDirectory().getAsFile().toPath()).toString());
+    }
+
 }

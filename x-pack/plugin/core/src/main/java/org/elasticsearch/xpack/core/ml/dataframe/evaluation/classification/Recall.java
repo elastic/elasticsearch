@@ -10,11 +10,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -128,11 +126,11 @@ public class Recall implements EvaluationMetric {
                     "Cannot calculate average recall. Cardinality of field [{}] is too high", actualField.get());
             }
             NumericMetricsAggregation.SingleValue avgRecallAgg = aggs.get(AVG_RECALL_AGG_NAME);
-            List<PerClassResult> classes = new ArrayList<>(byActualClassAgg.getBuckets().size());
+            List<PerClassSingleValue> classes = new ArrayList<>(byActualClassAgg.getBuckets().size());
             for (Terms.Bucket bucket : byActualClassAgg.getBuckets()) {
                 String className = bucket.getKeyAsString();
                 NumericMetricsAggregation.SingleValue recallAgg = bucket.getAggregations().get(PER_ACTUAL_CLASS_RECALL_AGG_NAME);
-                classes.add(new PerClassResult(className, recallAgg.value()));
+                classes.add(new PerClassSingleValue(className, recallAgg.value()));
             }
             result.set(new Result(classes, avgRecallAgg.value()));
         }
@@ -173,10 +171,10 @@ public class Recall implements EvaluationMetric {
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("recall_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
+            new ConstructingObjectParser<>("recall_result", true, a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1]));
 
         static {
-            PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
+            PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
             PARSER.declareDouble(constructorArg(), AVG_RECALL);
         }
 
@@ -185,17 +183,17 @@ public class Recall implements EvaluationMetric {
         }
 
         /** List of per-class results. */
-        private final List<PerClassResult> classes;
+        private final List<PerClassSingleValue> classes;
         /** Average of per-class recalls. */
         private final double avgRecall;
 
-        public Result(List<PerClassResult> classes, double avgRecall) {
+        public Result(List<PerClassSingleValue> classes, double avgRecall) {
             this.classes = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(classes, CLASSES));
             this.avgRecall = avgRecall;
         }
 
         public Result(StreamInput in) throws IOException {
-            this.classes = Collections.unmodifiableList(in.readList(PerClassResult::new));
+            this.classes = Collections.unmodifiableList(in.readList(PerClassSingleValue::new));
             this.avgRecall = in.readDouble();
         }
 
@@ -209,7 +207,7 @@ public class Recall implements EvaluationMetric {
             return NAME.getPreferredName();
         }
 
-        public List<PerClassResult> getClasses() {
+        public List<PerClassSingleValue> getClasses() {
             return classes;
         }
 
@@ -244,73 +242,6 @@ public class Recall implements EvaluationMetric {
         @Override
         public int hashCode() {
             return Objects.hash(classes, avgRecall);
-        }
-    }
-
-    public static class PerClassResult implements ToXContentObject, Writeable {
-
-        private static final ParseField CLASS_NAME = new ParseField("class_name");
-        private static final ParseField RECALL = new ParseField("recall");
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<PerClassResult, Void> PARSER =
-            new ConstructingObjectParser<>("recall_per_class_result", true, a -> new PerClassResult((String) a[0], (double) a[1]));
-
-        static {
-            PARSER.declareString(constructorArg(), CLASS_NAME);
-            PARSER.declareDouble(constructorArg(), RECALL);
-        }
-
-        /** Name of the class. */
-        private final String className;
-        /** Fraction of documents actually belonging to the {@code actualClass} class predicted correctly. */
-        private final double recall;
-
-        public PerClassResult(String className, double recall) {
-            this.className = ExceptionsHelper.requireNonNull(className, CLASS_NAME);
-            this.recall = recall;
-        }
-
-        public PerClassResult(StreamInput in) throws IOException {
-            this.className = in.readString();
-            this.recall = in.readDouble();
-        }
-
-        public String getClassName() {
-            return className;
-        }
-
-        public double getRecall() {
-            return recall;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(className);
-            out.writeDouble(recall);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CLASS_NAME.getPreferredName(), className);
-            builder.field(RECALL.getPreferredName(), recall);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            PerClassResult that = (PerClassResult) o;
-            return Objects.equals(this.className, that.className)
-                && this.recall == that.recall;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(className, recall);
         }
     }
 }

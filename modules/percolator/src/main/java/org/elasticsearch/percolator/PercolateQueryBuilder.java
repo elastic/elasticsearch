@@ -470,7 +470,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         for (BytesReference document : documents) {
             docs.add(docMapper.parse(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
         }
-
+        
         FieldNameAnalyzer fieldNameAnalyzer = docMapper.mappers().indexAnalyzer();
         // Need to this custom impl because FieldNameAnalyzer is strict and the percolator sometimes isn't when
         // 'index.percolator.map_unmapped_fields_as_string' is enabled:

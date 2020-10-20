@@ -563,6 +563,9 @@
           "dynamic": true
         }
       }
+    },
+    "aliases": {
+      ".watcher-history-${xpack.watcher.template.version}": { }
     }
   },
   "_meta": {

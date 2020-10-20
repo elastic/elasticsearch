@@ -211,7 +211,7 @@ public class MetadataCreateDataStreamService {
     }
 
     private static void prepareBackingIndex(Metadata.Builder b, IndexMetadata im, String dataStreamName) {
-        // hides the index, removes any aliases, and adds data stream timestamp field mapper
+        // hides the index, removes the original alias, and adds data stream timestamp field mapper
         MappingMetadata mm = im.mapping();
         Map<String, Object> mapping = mm == null ? new HashMap<>() : mm.sourceAsMap();
         mapping.put("_data_stream_timestamp", Map.of("enabled", true));

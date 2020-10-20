@@ -83,6 +83,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
+        assertThat(resolveResponse.getAliases().get(0).getName(), equalTo(alias));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(0));
         assertThat(resolveResponse.getIndices().size(), equalTo(2));
 
@@ -91,13 +92,33 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(0));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(1));
+        assertThat(resolveResponse.getDataStreams().get(0).getName(), equalTo(alias));
         assertThat(resolveResponse.getDataStreams().get(0).getBackingIndices(), arrayContaining("index2", "index1"));
         assertThat(resolveResponse.getIndices().size(), equalTo(2));
 
         int numDocsDs = randomIntBetween(2, 16);
-        // DataStreamIT.indexDocs(alias, numDocsDs);
-        // DataStreamIT.verifyDocs(alias, numDocs1 + numDocs2 + numDocsDs, List.of("index1", "index2"));
+        indexDocs(alias, numDocsDs);
+        DataStreamIT.verifyDocs(alias, numDocs1 + numDocs2 + numDocsDs, List.of("index1", "index2"));
     }
+
+    /*
+    public void testMigrationWithoutTemplate() {
+
+    }
+
+    public void testMigrationWithoutIndexMappings() {
+
+    }
+
+    public void testMigrationWithoutWriteIndex() {
+
+    }
+
+     */
+
+    // missing alias
+    // filtered alias
+    // routed alias
 
     static void indexDocs(String index, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();

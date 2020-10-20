@@ -88,7 +88,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          * if a shard was moved to a different node or for administrative
          * purposes.
          */
-        MAPPING_RECOVERY;
+        MAPPING_RECOVERY
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
@@ -411,7 +411,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (fullName.equals(TypeFieldType.NAME)) {
             return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
         }
-        return this.mapper == null ? null : this.mapper.fieldTypes().get(fullName);
+        return this.mapper == null ? null : this.mapper.mappers().fieldTypes().get(fullName);
     }
 
     /**
@@ -423,7 +423,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // no wildcards
             return Collections.singleton(pattern);
         }
-        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes().simpleMatchToFullName(pattern);
+        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().simpleMatchToFullName(pattern);
     }
 
     /**
@@ -431,18 +431,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * the 'source path' for a multi-field is the path to its parent field.
      */
     public Set<String> sourcePath(String fullName) {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes().sourcePaths(fullName);
+        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().sourcePaths(fullName);
     }
 
     /**
      * Returns all mapped field types.
      */
     public Iterable<MappedFieldType> fieldTypes() {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes();
+        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes();
     }
 
     public ObjectMapper getObjectMapper(String name) {
-        return this.mapper == null ? null : this.mapper.objectMappers().get(name);
+        return this.mapper == null ? null : this.mapper.mappers().objectMappers().get(name);
     }
 
     public Analyzer indexAnalyzer() {

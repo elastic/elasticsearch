@@ -93,7 +93,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
-        ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
+        ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
 
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference
@@ -145,11 +145,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
-        ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
+        ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(false));
         assertThat(nested1Mapper.nested().isIncludeInRoot(), equalTo(false));
-        ObjectMapper nested2Mapper = docMapper.objectMappers().get("nested1.nested2");
+        ObjectMapper nested2Mapper = docMapper.mappers().objectMappers().get("nested1.nested2");
         assertThat(nested2Mapper.nested().isNested(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(false));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
@@ -206,11 +206,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
-        ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
+        ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(false));
         assertThat(nested1Mapper.nested().isIncludeInRoot(), equalTo(false));
-        ObjectMapper nested2Mapper = docMapper.objectMappers().get("nested1.nested2");
+        ObjectMapper nested2Mapper = docMapper.mappers().objectMappers().get("nested1.nested2");
         assertThat(nested2Mapper.nested().isNested(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
@@ -269,11 +269,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
-        ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
+        ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(true));
         assertThat(nested1Mapper.nested().isIncludeInRoot(), equalTo(false));
-        ObjectMapper nested2Mapper = docMapper.objectMappers().get("nested1.nested2");
+        ObjectMapper nested2Mapper = docMapper.mappers().objectMappers().get("nested1.nested2");
         assertThat(nested2Mapper.nested().isNested(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
@@ -330,11 +330,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
-        ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
+        ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(false));
         assertThat(nested1Mapper.nested().isIncludeInRoot(), equalTo(false));
-        ObjectMapper nested2Mapper = docMapper.objectMappers().get("nested1.nested2");
+        ObjectMapper nested2Mapper = docMapper.mappers().objectMappers().get("nested1.nested2");
         assertThat(nested2Mapper.nested().isNested(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(false));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(true));
@@ -524,7 +524,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
-        ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
+        ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.dynamic(), equalTo(Dynamic.STRICT));
 
@@ -778,7 +778,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
-        ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
+        ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
 
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1",

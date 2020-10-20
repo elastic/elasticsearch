@@ -354,9 +354,8 @@ public class CacheFile {
         synchronized (listeners) {
             ensureOpen();
             reference = channelRef;
-            if (reference.tryIncRef() == false) {
-                throw new AlreadyClosedException("Cache file channel is being evicted, writing attempt cancelled");
-            }
+            assert reference.refCount() > 0 : "impossible to run into a fully released channel reference under the listeners mutex";
+            reference.incRef();
             future.handle((res, t) -> {
                 reference.decRef();
                 return null;

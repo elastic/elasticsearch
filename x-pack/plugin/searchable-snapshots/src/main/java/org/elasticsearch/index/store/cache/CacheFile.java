@@ -64,13 +64,19 @@ public class CacheFile {
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
+     * By guarding access to the file channel by ref-counting and giving the channel its own life-cycle we remove all need for
+     * locking when dealing with file-channel closing and opening as this file is referenced and de-referenced via {@link #acquire}
+     * and {@link #release}.
+     * Background operations running for index inputs that get closed concurrently are tied to a specific instance of this reference and
+     * will simply fail once all references to the channel have been released since they won't be able to acquire a reference to the
+     * channel again.
      */
     private static final class FileChannelReference extends AbstractRefCounted {
 
         private final FileChannel fileChannel;
 
         FileChannelReference(Path file) throws IOException {
-            super("FileChannel");
+            super("FileChannel[" + file + "]");
             this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
         }
 
@@ -105,8 +111,9 @@ public class CacheFile {
         return file;
     }
 
+    // Only used in tests
     @Nullable
-    public FileChannel getChannel() {
+    FileChannel getChannel() {
         final FileChannelReference reference = channelRef;
         return reference == null ? null : reference.fileChannel;
     }
@@ -276,7 +283,6 @@ public class CacheFile {
                     @Override
                     protected void doRun() {
                         for (SparseFileTracker.Gap gap : gaps) {
-                            ensureOpen();
                             try {
                                 if (reference.tryIncRef() == false) {
                                     throw new AlreadyClosedException("Cache file channel has been released and closed");

@@ -453,7 +453,7 @@ in the <<glossary-mapping,mapping>>.
 [[glossary-searchable-snapshot]] searchable snapshot ::
 // tag::searchable-snapshot-def[]
 An index in a <<glossary-snapshot, snapshot>> that is mounted as a
-<<glossary-searchable-snapshot-index,searchable snapshot index>> and can be
+<<glossary-searchable-snapshot-index, searchable snapshot index>> and can be
 searched as if it were a regular index.
 // end::searchable-snapshot-def[]
 

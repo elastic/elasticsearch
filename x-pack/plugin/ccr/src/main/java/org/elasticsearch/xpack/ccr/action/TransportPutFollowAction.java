@@ -44,10 +44,13 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
@@ -244,7 +247,15 @@ public final class TransportPutFollowAction
         } else {
             List<Index> backingIndices = new ArrayList<>(localDataStream.getIndices());
             backingIndices.add(backingIndexToFollow);
-            return new DataStream(localDataStream.getName(), localDataStream.getTimeStampField(), backingIndices);
+
+            // When following an older backing index it should be positioned before the newer backing indices.
+            // Currently the assumption is that the newest index (highest generation) is the write index.
+            // (just appending an older backing index to the list of backing indices would break that assumption)
+            // (string sorting works because of the naming backing index naming scheme)
+            backingIndices.sort(Comparator.comparing(Index::getName));
+
+            return new DataStream(localDataStream.getName(), localDataStream.getTimeStampField(), backingIndices,
+                remoteDataStream.getGeneration());
         }
     }
 

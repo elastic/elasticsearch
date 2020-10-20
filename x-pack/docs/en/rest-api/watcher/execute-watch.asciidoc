@@ -270,11 +270,13 @@ This is an example of the output:
         }
       ]
     },
-    "user": "test_admin" <4>
+    "user": "test_admin", <4>
+    "@timestamp": "2015-06-02T23:17:55.124Z",
   }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/my_watch_0-2015-06-02T23:17:55.124Z/$body._id/]
+// TESTRESPONSE[s/"@timestamp": "2015-06-02T23:17:55.124Z"/"@timestamp": "$body.watch_record.trigger_event.triggered_time"/]
 // TESTRESPONSE[s/"triggered_time": "2015-06-02T23:17:55.124Z"/"triggered_time": "$body.watch_record.trigger_event.triggered_time"/]
 // TESTRESPONSE[s/"scheduled_time": "2015-06-02T23:17:55.124Z"/"scheduled_time": "$body.watch_record.trigger_event.manual.schedule.scheduled_time"/]
 // TESTRESPONSE[s/"execution_time": "2015-06-02T23:17:55.124Z"/"execution_time": "$body.watch_record.result.execution_time"/]

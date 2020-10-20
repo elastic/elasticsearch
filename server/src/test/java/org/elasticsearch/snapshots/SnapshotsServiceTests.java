@@ -391,7 +391,7 @@ public class SnapshotsServiceTests extends ESTestCase {
     private static SnapshotsInProgress.Entry snapshotEntry(Snapshot snapshot, List<IndexId> indexIds,
                                                            ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
         return SnapshotsInProgress.startedEntry(snapshot, randomBoolean(), randomBoolean(), indexIds, Collections.emptyList(),
-                1L, randomNonNegativeLong(), shards, Collections.emptyMap(), Version.CURRENT);
+            Collections.emptyList(), randomNonNegativeLong(), shards, Collections.emptyMap(), Version.CURRENT, 1L);
     }
 
     private static SnapshotsInProgress.Entry cloneEntry(

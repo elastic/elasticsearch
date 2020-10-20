@@ -49,12 +49,12 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
         SNAPSHOT_FEATURE_INFO_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), new ParseField("indices"));
     }
 
-    SnapshotFeatureInfo(String pluginName, List<String> indices) {
+    public SnapshotFeatureInfo(String pluginName, List<String> indices) {
         this.pluginName = pluginName;
         this.indices = indices;
     }
 
-    SnapshotFeatureInfo(final StreamInput in) throws IOException {
+    public SnapshotFeatureInfo(final StreamInput in) throws IOException {
         this.pluginName = in.readString();
         this.indices = in.readStringList();
     }

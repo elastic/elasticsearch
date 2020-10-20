@@ -115,13 +115,13 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             SnapshotsInProgress.State.SUCCESS,
             Collections.emptyList(),
             List.of(dataStreamName),
-            0,
+            Collections.emptyList(),
             1,
             ImmutableOpenMap.of(),
             null,
             null,
-            null
-        );
+            null,
+            0);
     }
 
     public void testDeleteNonexistentDataStream() {

@@ -37,6 +37,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -79,9 +80,10 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                                         shardState.failed() ? randomAlphaOfLength(10) : null, "1"));
             }
         }
+        //GWB-> actually generate featureStates here
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
-        return new Entry(snapshot, includeGlobalState, partial, randomState(shards), indices, dataStreams,
-                startTime, repositoryStateId, shards, null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
+        return new Entry(snapshot, includeGlobalState, partial, randomState(shards), indices, dataStreams, Collections.emptyList(),
+                repositoryStateId, shards, null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()), startTime);
     }
 
     @Override

@@ -117,6 +117,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -257,6 +258,24 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
+                List<SnapshotFeatureInfo> featureStates = Collections.emptyList();
+                if (request.includeGlobalState() || request.featureStates().length > 0) {
+                    Set<String> featureStatesSet = new HashSet<>(Arrays.asList(request.featureStates()));
+                    featureStates = systemIndexDescriptorMap.keySet().stream()
+                        .filter(feature -> featureStatesSet.contains(feature)
+                            || (featureStatesSet.isEmpty() && request.includeGlobalState()))
+                        .map(feature -> new SnapshotFeatureInfo(feature, systemIndexDescriptorMap.get(feature).stream()
+                            .map(descriptor -> descriptor.getIndexPattern())
+                            .flatMap(pattern -> Arrays.stream(indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState, LENIENT_EXPAND_OPEN_CLOSED, pattern)))
+                            .collect(Collectors.toList())))
+                        .collect(Collectors.toList());
+
+                    indices = Stream.concat(featureStates.stream().flatMap(state -> state.getIndices().stream()), indices.stream())
+                        .distinct()
+                        .collect(Collectors.toList());
+
+                } // GWB-> Refactor this awful mess
+
                 final List<String> dataStreams =
                         indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
 
@@ -281,7 +300,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 newEntry = SnapshotsInProgress.startedEntry(
                         new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
-                        indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards, userMeta, version);
+                        indexIds, dataStreams, featureStates, repositoryData.getGenId(), shards, userMeta, version,
+                    threadPool.absoluteTimeInMillis());
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
                 newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
@@ -1155,7 +1175,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
                 shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
                 entry.dataStreams(),
-                Collections.emptyList(), failure, threadPool.absoluteTimeInMillis(),
+                Collections.emptyList(), failure, threadPool.absoluteTimeInMillis(), //GWB-> Once Entry has featureStates, include here
                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
                 shardFailures, entry.includeGlobalState(), entry.userMetadata(), entry.startTime()
             );

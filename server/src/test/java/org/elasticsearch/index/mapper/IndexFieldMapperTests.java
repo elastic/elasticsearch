@@ -44,8 +44,7 @@ public class IndexFieldMapperTests extends ESSingleNodeTestCase {
     public void testDefaultDisabledIndexMapper() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -62,9 +61,9 @@ public class IndexFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").endObject()
                 .endObject().endObject());
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
         MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> parser.parse("type", new CompressedXContent(mapping)));
+                () -> mapperService.parse("type", new CompressedXContent(mapping)));
         assertEquals("_index is not configurable", e.getMessage());
     }
 

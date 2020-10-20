@@ -436,14 +436,18 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createUnmappedInstance(name, metadata);
     }
 
+    protected T createTestInstanceForXContent() {
+        return createTestInstance();
+    }
+
     public final void testFromXContent() throws IOException {
-        final T aggregation = createTestInstance();
+        final T aggregation = createTestInstanceForXContent();
         final ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), false);
         assertFromXContent(aggregation, parsedAggregation);
     }
 
     public final void testFromXContentWithRandomFields() throws IOException {
-        final T aggregation = createTestInstance();
+        final T aggregation = createTestInstanceForXContent();
         final ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), true);
         assertFromXContent(aggregation, parsedAggregation);
     }

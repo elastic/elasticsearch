@@ -3,9 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
+package org.elasticsearch.xpack.core.ml.dataframe.evaluation.common;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 
 import java.util.Arrays;
 import java.util.List;
@@ -20,7 +21,7 @@ public class AbstractAucRocTests extends ESTestCase {
         double[] tpPercentiles = zeroPercentiles();
         double[] fpPercentiles = zeroPercentiles();
 
-        List<AucRoc.AucRocPoint> curve = AucRoc.buildAucRocCurve(tpPercentiles, fpPercentiles);
+        List<AbstractAucRoc.AucRocPoint> curve = AucRoc.buildAucRocCurve(tpPercentiles, fpPercentiles);
         double aucRocScore = AucRoc.calculateAucScore(curve);
 
         assertThat(aucRocScore, closeTo(0.5, 0.01));

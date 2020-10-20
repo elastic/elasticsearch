@@ -32,6 +32,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -56,6 +57,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -107,8 +109,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
     private final MapperAnalyzerWrapper indexAnalyzer;
-    final MapperRegistry mapperRegistry;
-    private final BooleanSupplier idFieldDataEnabled;
+    private final MapperRegistry mapperRegistry;
+    private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
 
     private volatile DocumentMapper mapper;
 
@@ -119,12 +121,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
-        this.documentParser = new DocumentParser(xContentRegistry);
-        this.documentMapperParser = new DocumentMapperParser(indexSettings, this, similarityService, mapperRegistry,
-                queryShardContextSupplier, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
         this.mapperRegistry = mapperRegistry;
-        this.idFieldDataEnabled = idFieldDataEnabled;
+        Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
+            dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
+                indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService, indexAnalyzers, indexSettings,
+                idFieldDataEnabled);
+        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
+            mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
+        this.parserContextSupplier = () -> parserContextFunction.apply(null);
+        this.documentMapperParser = new DocumentMapperParser(indexSettings, indexAnalyzers, this::resolveDocumentType, documentParser,
+            this::getMetadataMappers, parserContextSupplier, metadataMapperParsers);
     }
 
     public boolean hasNested() {
@@ -139,12 +147,34 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzers.get(analyzerName);
     }
 
+    //TODO This is only used in tests, we may want to look into replacing those usages?
     public DocumentMapperParser documentMapperParser() {
         return this.documentMapperParser;
     }
 
+    public Mapper.TypeParser.ParserContext parserContext() {
+        return parserContextSupplier.get();
+    }
+
     DocumentParser documentParser() {
         return this.documentParser;
+    }
+
+    Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
+        final DocumentMapper existingMapper = mapper;
+        final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
+            mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
+        if (existingMapper == null) {
+            for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+                MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
+                metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
+            }
+
+        } else {
+            metadataMappers.putAll(existingMapper.mapping().metadataMappersMap);
+        }
+        return metadataMappers;
     }
 
     /**
@@ -207,8 +237,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             requireRefresh = true;
         }
-
-
         return requireRefresh;
     }
 
@@ -354,7 +382,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * being used in the mappings. This allows typeless APIs such as 'index' or 'put mappings'
      * to work against indices with a custom type name.
      */
-    public String resolveDocumentType(String type) {
+    private String resolveDocumentType(String type) {
         if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
             if (mapper != null) {
                 return mapper.type();
@@ -419,13 +447,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
-    }
-
-    /**
-     * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
-     */
-    public boolean isIdFieldDataEnabled() {
-        return idFieldDataEnabled.getAsBoolean();
     }
 
     @Override

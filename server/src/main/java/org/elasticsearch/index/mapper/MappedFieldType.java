@@ -406,9 +406,11 @@ public abstract class MappedFieldType {
      * Returns information on how any text in this field is indexed
      *
      * Fields that do not support any text-based queries should return
-     * {@link TextSearchInfo#NONE}.  Some fields (eg numeric) may support
+     * {@link TextSearchInfo#NONE}.  Some fields (eg keyword) may support
      * only simple match queries, and can return
-     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}
+     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}; other fields may support
+     * simple match queries without using the terms index, and can return
+     * {@link TextSearchInfo#SIMPLE_MATCH_WITHOUT_TERMS}
      */
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;

@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -84,7 +85,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         // Note that if the field is unmapped (its field type is null), we don't fail,
         // and just use the given field name as a placeholder.
         this.fieldType = context.getFieldType(fieldName);
-        if (fieldType != null && fieldType.indexAnalyzer() == null) {
+        if (fieldType != null && supportsAgg(fieldType) == false) {
             throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
                 "requires an analyzed field");
         }
@@ -96,6 +97,13 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         this.filterDuplicateText = filterDuplicateText;
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
+    }
+
+    private static boolean supportsAgg(MappedFieldType ft) {
+        if (ft.getTextSearchInfo() == TextSearchInfo.NONE) {
+            return false;
+        }
+        return ft.getTextSearchInfo() != TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
     }
 
     @Override

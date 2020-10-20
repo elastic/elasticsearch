@@ -273,7 +273,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public DateFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
                              DateFormatter dateTimeFormatter, Resolution resolution, String nullValue,
                              Map<String, String> meta) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;

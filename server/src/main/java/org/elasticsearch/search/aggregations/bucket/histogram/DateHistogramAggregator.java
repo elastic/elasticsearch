@@ -56,10 +56,13 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * An aggregator for date values. Every date is rounded down using a configured
- * {@link Rounding}.
- *
- * @see Rounding
+ * Aggregator for {@code date_histogram} that rounds values using
+ * {@link Rounding}. See {@link FromDateRange} which also aggregates for
+ * {@code date_histogram} but does so by running a {@code range} aggregation
+ * over the date and transforming the results. In general
+ * {@link FromDateRange} is faster than {@link DateHistogramAggregator}
+ * but {@linkplain DateHistogramAggregator} works when we can't precalculate
+ * all of the {@link Rounding.Prepared#fixedRoundingPoints() fixed rounding points}.
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
     /**

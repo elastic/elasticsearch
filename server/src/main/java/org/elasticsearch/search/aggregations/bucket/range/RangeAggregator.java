@@ -63,6 +63,15 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Aggregator for {@code range}. There are two known subclasses,
+ * {@link NoOverlap} which is fast but only compatible with ranges that
+ * don't have overlaps and {@link Overlap} which handles overlapping
+ * ranges. There is also {@link FromFilters} which isn't a subclass
+ * but is also a functional aggregator for {@code range}.
+ * {@link RangeAggregator#build} will build the fastest of the three
+ * that is compatible with the requested configuration.
+ */
 public abstract class RangeAggregator extends BucketsAggregator {
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");

@@ -60,6 +60,13 @@ import java.util.function.BiConsumer;
 
 import static java.util.Arrays.compareUnsigned;
 
+/**
+ * Aggregator for {@code filters}. There are two known subclasses,
+ * {@link FilterByFilter} which is fast but only works in some cases and
+ * {@link Compatible} which works in all cases.
+ * {@link FiltersAggregator#build} will build the fastest version that
+ * works with the configuration.
+ */
 public abstract class FiltersAggregator extends BucketsAggregator {
 
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
@@ -220,7 +227,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     private final boolean keyed;
     protected final String otherBucketKey;
 
-    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, boolean keyed,
+    private FiltersAggregator(String name, AggregatorFactories factories, String[] keys, boolean keyed,
             String otherBucketKey, SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);

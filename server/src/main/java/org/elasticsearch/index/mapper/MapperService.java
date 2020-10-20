@@ -60,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
@@ -86,7 +85,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          * if a shard was moved to a different node or for administrative
          * purposes.
          */
-        MAPPING_RECOVERY;
+        MAPPING_RECOVERY
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
@@ -122,7 +121,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.documentParser = new DocumentParser(xContentRegistry);
         this.documentMapperParser = new DocumentMapperParser(indexSettings, this, similarityService, mapperRegistry,
                 queryShardContextSupplier, scriptService);
-        this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
+        this.indexAnalyzer = new MapperAnalyzerWrapper();
         this.mapperRegistry = mapperRegistry;
         this.idFieldDataEnabled = idFieldDataEnabled;
     }
@@ -421,6 +420,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzer;
     }
 
+    public boolean containsBrokenAnalysis(String field) {
+        return this.indexAnalyzer.containsBrokenAnalysis(field);
+    }
+
     /**
      * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
      */
@@ -460,25 +463,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /** An analyzer wrapper that can lookup fields within the index mappings */
     final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {
 
-        private final Analyzer defaultAnalyzer;
-        private final Function<MappedFieldType, Analyzer> extractAnalyzer;
-
-        MapperAnalyzerWrapper(Analyzer defaultAnalyzer, Function<MappedFieldType, Analyzer> extractAnalyzer) {
+        MapperAnalyzerWrapper() {
             super(Analyzer.PER_FIELD_REUSE_STRATEGY);
-            this.defaultAnalyzer = defaultAnalyzer;
-            this.extractAnalyzer = extractAnalyzer;
         }
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            MappedFieldType fieldType = fieldType(fieldName);
-            if (fieldType != null) {
-                Analyzer analyzer = extractAnalyzer.apply(fieldType);
-                if (analyzer != null) {
-                    return analyzer;
-                }
-            }
-            return defaultAnalyzer;
+            return mapper.mappers().indexAnalyzer();
+        }
+
+        boolean containsBrokenAnalysis(String field) {
+            return mapper.mappers().indexAnalyzer().containsBrokenAnalysis(field);
         }
     }
 

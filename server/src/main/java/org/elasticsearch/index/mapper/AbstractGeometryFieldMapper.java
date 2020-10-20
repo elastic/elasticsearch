@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -44,6 +45,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -287,6 +289,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     @Override
     public AbstractGeometryFieldType fieldType() {
         return (AbstractGeometryFieldType) mappedFieldType;
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+
     }
 
     @Override

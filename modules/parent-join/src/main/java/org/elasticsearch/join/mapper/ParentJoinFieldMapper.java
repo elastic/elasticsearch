@@ -19,6 +19,7 @@
 
 package org.elasticsearch.join.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -53,6 +54,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -145,7 +147,6 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
 
         private JoinFieldType(String name, Joiner joiner, Map<String, String> meta) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.joiner = joiner;
         }
 
@@ -205,6 +206,11 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+        analyzerRegistry.accept(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

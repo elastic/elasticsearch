@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
@@ -32,6 +33,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -69,7 +71,6 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
         public RankFeaturesFieldType(String name, Map<String, String> meta) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -159,6 +160,11 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+        analyzerRegistry.accept(name(), Lucene.KEYWORD_ANALYZER);
     }
 
 }

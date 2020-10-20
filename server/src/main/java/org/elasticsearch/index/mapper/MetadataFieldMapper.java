@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 
@@ -156,6 +158,11 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new MapperParsingException("Field [" + name() + "] is a metadata field and cannot be added inside"
             + " a document. Use the index API request parameters.");
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+        // no analyzers to register
     }
 
     /**

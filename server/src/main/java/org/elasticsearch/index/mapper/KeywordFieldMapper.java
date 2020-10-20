@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -178,6 +180,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         private final int ignoreAbove;
         private final String nullValue;
+        private final NamedAnalyzer normalizer;
 
         public KeywordFieldType(String name, FieldType fieldType,
                                 NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
@@ -188,14 +191,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, searchAnalyzer),
                 builder.meta.getValue());
             setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
-            setIndexAnalyzer(normalizer);
+            this.normalizer = normalizer;
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
             super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
@@ -209,12 +212,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 false, false,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Collections.emptyMap());
+            this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+            this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
@@ -225,7 +230,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         NamedAnalyzer normalizer() {
-            return indexAnalyzer();
+            return normalizer;
         }
 
         @Override
@@ -343,6 +348,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     @Override
     public KeywordFieldType fieldType() {
         return (KeywordFieldType) super.fieldType();
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+        analyzerRegistry.accept(name(), fieldType().normalizer());
     }
 
     @Override

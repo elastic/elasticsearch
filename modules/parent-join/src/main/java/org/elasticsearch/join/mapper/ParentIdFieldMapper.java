@@ -19,6 +19,7 @@
 
 package org.elasticsearch.join.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -60,7 +62,6 @@ public final class ParentIdFieldMapper extends ParametrizedFieldMapper {
     public static final class ParentIdFieldType extends StringFieldType {
         public ParentIdFieldType(String name, boolean eagerGlobalOrdinals) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
         }
 
@@ -114,6 +115,11 @@ public final class ParentIdFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+        analyzerRegistry.accept(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

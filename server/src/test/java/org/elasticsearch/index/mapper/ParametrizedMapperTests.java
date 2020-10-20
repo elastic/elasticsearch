@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -188,6 +190,11 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         @Override
         protected void parseCreateField(ParseContext context) {
+
+        }
+
+        @Override
+        public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
 
         }
 

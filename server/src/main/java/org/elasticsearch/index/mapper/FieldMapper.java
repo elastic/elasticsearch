@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
@@ -400,17 +402,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         if (fieldType.storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
             conflicts.add("mapper [" + name() + "] has different [store_term_vector_payloads] values");
         }
-
-        // null and "default"-named index analyzers both mean the default is used
-        if (mappedFieldType.indexAnalyzer() == null || "default".equals(mappedFieldType.indexAnalyzer().name())) {
-            if (otherm.indexAnalyzer() != null && "default".equals(otherm.indexAnalyzer().name()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [analyzer]");
-            }
-        } else if (otherm.indexAnalyzer() == null || "default".equals(otherm.indexAnalyzer().name())) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        } else if (mappedFieldType.indexAnalyzer().name().equals(otherm.indexAnalyzer().name()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        }
     }
 
     /**
@@ -460,35 +451,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    protected final void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
-        if (fieldType.tokenized() == false) {
-            return;
-        }
-        if (fieldType().indexAnalyzer() == null) {
-            if (includeDefaults) {
-                builder.field("analyzer", "default");
-            }
-        } else {
-            boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
-            final String searchAnalyzerName = fieldType().getTextSearchInfo().getSearchAnalyzer() == null
-                ? "default" : fieldType().getTextSearchInfo().getSearchAnalyzer().name();
-            final String searchQuoteAnalyzerName = fieldType().getTextSearchInfo().getSearchQuoteAnalyzer() == null
-                ? searchAnalyzerName : fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name();
-            boolean hasDifferentSearchAnalyzer = searchAnalyzerName.equals(fieldType().indexAnalyzer().name()) == false;
-            boolean hasDifferentSearchQuoteAnalyzer
-                = Objects.equals(searchAnalyzerName, searchQuoteAnalyzerName) == false;
-            if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
-                builder.field("analyzer", fieldType().indexAnalyzer().name());
-                if (includeDefaults || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
-                    builder.field("search_analyzer", searchAnalyzerName);
-                    if (includeDefaults || hasDifferentSearchQuoteAnalyzer) {
-                        builder.field("search_quote_analyzer", searchQuoteAnalyzerName);
-                    }
-                }
-            }
-        }
-    }
-
     protected static String indexOptionToString(IndexOptions indexOption) {
         switch (indexOption) {
             case DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS:
@@ -505,6 +467,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected abstract String contentType();
+
+    public abstract void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry);
 
     public static class MultiFields implements Iterable<Mapper> {
 

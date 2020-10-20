@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -84,7 +85,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         // Note that if the field is unmapped (its field type is null), we don't fail,
         // and just use the given field name as a placeholder.
         this.fieldType = context.getFieldType(fieldName);
-        if (fieldType != null && fieldType.indexAnalyzer() == null) {
+        if (fieldType != null && fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
                 "requires an analyzed field");
         }
@@ -124,6 +125,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.lookup().source(),
             context.bigArrays(),
             fieldType,
+            searchContext.mapperService().indexAnalyzer(),
             sourceFieldNames,
             filterDuplicateText
         );
@@ -150,6 +152,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private final SourceLookup sourceLookup;
         private final BigArrays bigArrays;
         private final MappedFieldType fieldType;
+        private final Analyzer analyzer;
         private final String[] sourceFieldNames;
         private ObjectArray<DuplicateByteSequenceSpotter> dupSequenceSpotters;
 
@@ -157,12 +160,14 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             SourceLookup sourceLookup,
             BigArrays bigArrays,
             MappedFieldType fieldType,
+            Analyzer analyzer,
             String[] sourceFieldNames,
             boolean filterDuplicateText
         ) {
             this.sourceLookup = sourceLookup;
             this.bigArrays = bigArrays;
             this.fieldType = fieldType;
+            this.analyzer = analyzer;
             this.sourceFieldNames = sourceFieldNames;
             dupSequenceSpotters = filterDuplicateText ? bigArrays.newObjectArray(1) : null;
         }
@@ -216,7 +221,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                                     return obj.toString();
                                 })
                                 .iterator();
-                            Analyzer analyzer = fieldType.indexAnalyzer();
                             while (itr.hasNext()) {
                                 TokenStream ts = analyzer.tokenStream(fieldType.name(), itr.next());
                                 processTokenStream(doc, owningBucketOrd, ts, inDocTerms, spotter);

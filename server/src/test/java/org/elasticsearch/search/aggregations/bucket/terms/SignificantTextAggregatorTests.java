@@ -34,8 +34,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -80,7 +78,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         // TODO it is likely accidental that SigText supports anything other than Bytes, and then only text fields
         return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BOOLEAN,
             CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.IP,
             CoreValuesSourceType.RANGE,
             CoreValuesSourceType.GEOPOINT);
     }
@@ -98,9 +99,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      */
     public void testSignificance() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -146,9 +146,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     public void testFieldAlias() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -197,9 +196,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     public void testInsideTermsAgg() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -256,9 +254,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      */
     public void testSignificanceOnTextArrays() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -564,7 +563,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             when(mockedTimestampField.copyTo()).thenReturn(FieldMapper.CopyTo.empty());
             when(mockedTimestampField.multiFields()).thenReturn(FieldMapper.MultiFields.empty());
             MappingLookup mappingLookup =
-                new MappingLookup(List.of(mockedTimestampField, dateFieldMapper), List.of(), List.of(), 0, new StandardAnalyzer());
+                new MappingLookup(List.of(mockedTimestampField, dateFieldMapper), List.of(), List.of(), 0);
 
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);

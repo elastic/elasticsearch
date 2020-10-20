@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends ParametrizedFieldMapper {
@@ -78,6 +80,11 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return null;
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+
     }
 
     @Override

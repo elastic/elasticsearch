@@ -126,17 +126,22 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
-        assertThat(indexAnalyzer.name(), equalTo("simple"));
-        assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
-        CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
-        assertThat(analyzer.preservePositionIncrements(), equalTo(true));
-        assertThat(analyzer.preserveSep(), equalTo(true));
+        boolean[] registered = new boolean[1];
+        ((CompletionFieldMapper) fieldMapper).registerIndexAnalyzer((n, a) -> {
+            NamedAnalyzer indexAnalyzer = (NamedAnalyzer) a;
+            assertThat(indexAnalyzer.name(), equalTo("simple"));
+            assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
+            CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
+            assertThat(analyzer.preservePositionIncrements(), equalTo(true));
+            assertThat(analyzer.preserveSep(), equalTo(true));
+            registered[0] = true;
+        });
+        assertTrue("Analyzer not registered", registered[0]);
 
         NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("simple"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
-        analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
+        CompletionAnalyzer analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
     }
@@ -155,17 +160,22 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
-        assertThat(indexAnalyzer.name(), equalTo("simple"));
-        assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
-        CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
-        assertThat(analyzer.preservePositionIncrements(), equalTo(true));
-        assertThat(analyzer.preserveSep(), equalTo(false));
+        boolean[] registered = new boolean[1];
+        ((CompletionFieldMapper) fieldMapper).registerIndexAnalyzer((n, a) -> {
+            NamedAnalyzer indexAnalyzer = (NamedAnalyzer) a;
+            assertThat(indexAnalyzer.name(), equalTo("simple"));
+            assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
+            CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
+            assertThat(analyzer.preservePositionIncrements(), equalTo(true));
+            assertThat(analyzer.preserveSep(), equalTo(false));
+            registered[0] = true;
+        });
+        assertTrue("Analyzer not registered", registered[0]);
 
         NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("standard"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
-        analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
+        CompletionAnalyzer analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.flattened.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
@@ -54,6 +55,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -167,7 +169,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
         }
 
@@ -379,7 +380,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -450,6 +450,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public String keyedFieldName() {
         return mappedFieldType.name() + KEYED_FIELD_SUFFIX;
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+        analyzerRegistry.accept(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

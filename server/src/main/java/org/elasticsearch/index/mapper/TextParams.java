@@ -35,16 +35,20 @@ import java.util.function.Supplier;
  */
 public final class TextParams {
 
+    public static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
+
     private TextParams() {}
 
     public static final class Analyzers {
         public final Parameter<NamedAnalyzer> indexAnalyzer;
         public final Parameter<NamedAnalyzer> searchAnalyzer;
         public final Parameter<NamedAnalyzer> searchQuoteAnalyzer;
+        public final Parameter<Integer> positionIncrementGap;
 
-        public Analyzers(Supplier<NamedAnalyzer> defaultAnalyzer) {
+        public Analyzers(Supplier<NamedAnalyzer> defaultAnalyzer,
+                         Function<FieldMapper, Analyzers> analyzerInitFunction) {
             this.indexAnalyzer = Parameter.analyzerParam("analyzer", false,
-                m -> m.fieldType().indexAnalyzer(), defaultAnalyzer)
+                m -> analyzerInitFunction.apply(m).indexAnalyzer.get(), defaultAnalyzer)
                 .setSerializerCheck((id, ic, a) -> id || ic ||
                     Objects.equals(a, getSearchAnalyzer()) == false || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
                 .setValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
@@ -57,18 +61,32 @@ public final class TextParams {
                 = Parameter.analyzerParam("search_quote_analyzer", true,
                 m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), searchAnalyzer::getValue)
                 .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+            this.positionIncrementGap = Parameter.intParam("position_increment_gap", false,
+                m -> analyzerInitFunction.apply(m).positionIncrementGap.get(), POSITION_INCREMENT_GAP_USE_ANALYZER)
+                .setValidator(v -> {
+                    if (v != POSITION_INCREMENT_GAP_USE_ANALYZER && v < 0) {
+                        throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
+                    }
+                });
         }
 
         public NamedAnalyzer getIndexAnalyzer() {
-            return indexAnalyzer.getValue();
+            return wrapAnalyzer(indexAnalyzer.getValue());
         }
 
         public NamedAnalyzer getSearchAnalyzer() {
-            return searchAnalyzer.getValue();
+            return wrapAnalyzer(searchAnalyzer.getValue());
         }
 
         public NamedAnalyzer getSearchQuoteAnalyzer() {
-            return searchQuoteAnalyzer.getValue();
+            return wrapAnalyzer(searchQuoteAnalyzer.getValue());
+        }
+
+        private NamedAnalyzer wrapAnalyzer(NamedAnalyzer a) {
+            if (positionIncrementGap.get() == POSITION_INCREMENT_GAP_USE_ANALYZER) {
+                return a;
+            }
+            return new NamedAnalyzer(a, positionIncrementGap.get());
         }
     }
 

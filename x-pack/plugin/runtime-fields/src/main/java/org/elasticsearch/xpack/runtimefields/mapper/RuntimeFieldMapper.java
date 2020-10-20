@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -24,6 +25,7 @@ import org.elasticsearch.script.ScriptType;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
@@ -59,6 +61,11 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new RuntimeFieldMapper.Builder(simpleName(), scriptCompiler).init(this);
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+
     }
 
     @Override

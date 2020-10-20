@@ -23,6 +23,7 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -48,6 +49,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
@@ -62,7 +64,6 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
         public CollationFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
                                   Collator collator, String nullValue, int ignoreAbove, Map<String, String> meta) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.collator = collator;
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
@@ -433,6 +434,11 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
     @Override
     public CollationFieldType fieldType() {
         return (CollationFieldType) super.fieldType();
+    }
+
+    @Override
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
+        analyzerRegistry.accept(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

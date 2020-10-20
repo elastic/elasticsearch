@@ -602,9 +602,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                                                        PrefixFieldType prefixFieldType) {
 
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize - 1));
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
-            assertThat(analyzer.name(), equalTo(analyzerName));
-        }
+        assertThat(fieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo(analyzerName));
         int shingleSize = 2;
         for (ShingleFieldType shingleField : fieldType.shingleFields) {
             assertShingleFieldType(shingleField, shingleSize++, analyzerName, prefixFieldType);
@@ -620,13 +618,12 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         assertThat(fieldType.shingleSize, equalTo(shingleSize));
 
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
-            assertThat(analyzer.name(), equalTo(analyzerName));
-            if (shingleSize > 1) {
-                final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
-                assertThat(wrappedAnalyzer.shingleSize(), equalTo(shingleSize));
-                assertThat(wrappedAnalyzer.indexPrefixes(), equalTo(false));
-            }
+        NamedAnalyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+        assertThat(analyzer.name(), equalTo(analyzerName));
+        if (shingleSize > 1) {
+            final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
+            assertThat(wrappedAnalyzer.shingleSize(), equalTo(shingleSize));
+            assertThat(wrappedAnalyzer.indexPrefixes(), equalTo(false));
         }
 
         assertThat(fieldType.prefixFieldType, equalTo(prefixFieldType));
@@ -634,17 +631,10 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     private static void assertPrefixFieldType(PrefixFieldType fieldType, int shingleSize, String analyzerName) {
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
-            assertThat(analyzer.name(), equalTo(analyzerName));
-        }
-
-        final SearchAsYouTypeAnalyzer wrappedIndexAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.indexAnalyzer().analyzer();
+        assertThat(fieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo(analyzerName));
         final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer
             = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo().getSearchAnalyzer().analyzer();
-        for (SearchAsYouTypeAnalyzer analyzer : asList(wrappedIndexAnalyzer, wrappedSearchAnalyzer)) {
-            assertThat(analyzer.shingleSize(), equalTo(shingleSize));
-        }
-        assertThat(wrappedIndexAnalyzer.indexPrefixes(), equalTo(true));
+        assertThat(wrappedSearchAnalyzer.shingleSize(), equalTo(shingleSize));
         assertThat(wrappedSearchAnalyzer.indexPrefixes(), equalTo(false));
     }
 

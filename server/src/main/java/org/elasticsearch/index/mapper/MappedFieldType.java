@@ -123,14 +123,6 @@ public abstract class MappedFieldType {
         return docValues;
     }
 
-    public NamedAnalyzer indexAnalyzer() {
-        return indexAnalyzer;
-    }
-
-    public void setIndexAnalyzer(NamedAnalyzer analyzer) {
-        this.indexAnalyzer = analyzer;
-    }
-
     /**
      * Returns the collapse type of the field
      * CollapseType.NONE means the field can'be used for collapsing.

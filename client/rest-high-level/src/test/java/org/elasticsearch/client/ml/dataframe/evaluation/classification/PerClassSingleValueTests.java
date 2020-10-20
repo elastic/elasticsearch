@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,45 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetric.Result> {
+public class PerClassSingleValueTests extends AbstractXContentTestCase<PerClassSingleValue> {
 
-    public static AucRocMetric.Result randomResult() {
-        return new AucRocMetric.Result(
-            randomDouble(),
-            Stream
-                .generate(AucRocMetricAucRocPointTests::randomPoint)
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList()));
+    @Override
+    protected PerClassSingleValue createTestInstance() {
+        return new PerClassSingleValue(randomAlphaOfLength(10), randomDouble());
     }
 
     @Override
-    protected AucRocMetric.Result createTestInstance() {
-        return randomResult();
-    }
-
-    @Override
-    protected AucRocMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return AucRocMetric.Result.fromXContent(parser);
+    protected PerClassSingleValue doParseInstance(XContentParser parser) throws IOException {
+        return PerClassSingleValue.PARSER.apply(parser, null);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
     }
 }

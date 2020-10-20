@@ -16,7 +16,7 @@ full list, see <<es-release-notes>> and <<breaking-changes>>.
 * <<release-highlights-6.3.0>>
 
 --
-
+include::highlights-6.8.13.asciidoc[]
 include::highlights-6.8.11.asciidoc[]
 include::highlights-6.8.0.asciidoc[]
 include::highlights-6.7.0.asciidoc[]

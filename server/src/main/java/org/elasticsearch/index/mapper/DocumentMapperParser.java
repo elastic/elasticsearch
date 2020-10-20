@@ -61,7 +61,7 @@ public class DocumentMapperParser {
     }
 
     @SuppressWarnings("unchecked")
-    public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+    DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
             mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();

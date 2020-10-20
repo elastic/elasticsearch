@@ -26,11 +26,12 @@ public class NumericRateAggregator extends AbstractRateAggregator {
         String name,
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
+        RateMode rateMode,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, valuesSourceConfig, rateUnit, context, parent, metadata);
+        super(name, valuesSourceConfig, rateUnit, rateMode, context, parent, metadata);
     }
 
     @Override
@@ -51,10 +52,17 @@ public class NumericRateAggregator extends AbstractRateAggregator {
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
-
-                    for (int i = 0; i < valuesCount; i++) {
-                        double value = values.nextValue();
-                        kahanSummation.add(value);
+                    switch (rateMode) {
+                        case SUM:
+                            for (int i = 0; i < valuesCount; i++) {
+                                kahanSummation.add(values.nextValue());
+                            }
+                            break;
+                        case VALUE_COUNT:
+                            kahanSummation.add(valuesCount);
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported rate mode " + rateMode);
                     }
 
                     compensations.set(bucket, kahanSummation.delta());

@@ -505,8 +505,9 @@ See the {ref}/indices-shrink-index.html[shrink index API].
 Captures the state of the whole cluster, or of some of its indices or data
 streams, at a particular point in time.  Snapshots are useful for backups since
 you can restore the cluster to its state at the time the snapshot was taken.
-You can also mount snapshots as <<glossary-searchable-snapshot-index,
-searchable snapshot indices>>.
+You can also mount snapshots as
+{ref}/glossary.html#glossary-searchable-snapshot-index[searchable snapshot
+indices].
 // end::snapshot-def[]
 
 [[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::

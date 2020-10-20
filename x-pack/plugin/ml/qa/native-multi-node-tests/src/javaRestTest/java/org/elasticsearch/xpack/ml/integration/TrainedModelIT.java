@@ -209,6 +209,7 @@ public class TrainedModelIT extends ESRestTestCase {
 
         Map<String, Object> exportedModel = entityAsMap(getModel);
         Map<String, Object> modelDefinition = ((List<Map<String, Object>>)exportedModel.get("trained_model_configs")).get(0);
+        modelDefinition.remove("model_id");
 
         String importedModelId = "regression_model_to_import";
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

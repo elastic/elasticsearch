@@ -50,6 +50,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
+    private static final Version QUOTA_FS_PLUGIN_SUPPORT = Version.CURRENT;
+
     private final String name;
     private final String description;
     private final String version;
@@ -105,8 +107,14 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.classname = in.readString();
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
-        type = PluginType.valueOf(in.readString());
-        javaOpts = in.readOptionalString();
+
+        if (in.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+            type = PluginType.valueOf(in.readString());
+            javaOpts = in.readOptionalString();
+        } else {
+            type = PluginType.ISOLATED;
+            javaOpts = null;
+        }
     }
 
     @Override
@@ -119,8 +127,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(classname);
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
-        out.writeString(type.name());
-        out.writeOptionalString(javaOpts);
+
+        if (out.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+            out.writeString(type.name());
+            out.writeOptionalString(javaOpts);
+        }
     }
 
     /**

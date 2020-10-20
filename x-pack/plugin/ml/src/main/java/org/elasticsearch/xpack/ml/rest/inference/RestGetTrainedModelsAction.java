@@ -35,7 +35,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
-import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
@@ -100,7 +100,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return org.elasticsearch.common.collect.Set.of(TrainedModelConfig.DECOMPRESS_DEFINITION, FOR_EXPORT);
+        return org.elasticsearch.common.collect.Set.of(TrainedModelConfig.DECOMPRESS_DEFINITION, EXCLUDE_GENERATED);
     }
 
     private static class RestToXContentListenerWithDefaultValues<T extends ToXContentObject> extends RestToXContentListener<T> {

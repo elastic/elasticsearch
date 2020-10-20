@@ -678,11 +678,11 @@ The number of individual forecasts currently available for the job. A value of
 `1` or more indicates that forecasts exist.
 end::forecast-total[]
 
-tag::for-export[]
+tag::exclude-generated[]
 Indicates if certain fields should be removed from the configuration on
 retrieval. This allows the configuration to be in an acceptable format to be retrieved
 and then added to another cluster. Default is false.
-end::for-export[]
+end::exclude-generated[]
 
 tag::frequency[]
 The interval at which scheduled queries are made while the {dfeed} runs in real

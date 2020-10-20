@@ -134,6 +134,16 @@ public final class TransportPutFollowAction
             return;
         }
 
+        if (remoteDataStream != null) {
+            // when following a backing index then the names of the backing index must be remain the same in the local
+            // and remote cluster.
+            if (request.getLeaderIndex().equals(request.getFollowerIndex()) == false) {
+                listener.onFailure(
+                    new IllegalArgumentException("a backing index name in the local and remote cluster must remain the same"));
+                return;
+            }
+        }
+
         final Settings overrideSettings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)

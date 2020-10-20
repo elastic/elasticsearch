@@ -26,9 +26,9 @@ mechanisms have different, but complementary, performance characteristics:
 
 {search-snaps-cap} let you reduce your operating costs by treating the snapshot
 as the authoritative copy of some of your indices. The high reliability of the
-snapshot repository removes the need to keep multiple copies of their data in
+snapshot repository removes the need to keep multiple copies of each shard in
 your cluster purely for resiliency. {es} makes a copy of a searchable snapshot
-on the nodes in the cluster to reduce the performance impact and costs of
+onto the nodes in the cluster to reduce the performance impact and costs of
 accessing the snapshot repository.
 
 With {search-snaps-cap} you may be able to halve your cluster size without

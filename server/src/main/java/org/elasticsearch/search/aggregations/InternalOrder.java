@@ -156,6 +156,9 @@ public abstract class InternalOrder extends BucketOrder {
                 // if all user provided comparators return 0.
                 this.orderElements.add(KEY_ASC);
             }
+            if (this.orderElements.isEmpty()) {
+                throw new IllegalArgumentException("empty compound order not supported");
+            }
         }
 
         @Override

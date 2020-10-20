@@ -49,8 +49,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {

@@ -62,7 +62,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     public static final Setting<List<String>> KIBANA_INDEX_NAMES_SETTING = Setting.listSetting(
         "kibana.system_indices",
-        List.of(".kibana*", ".reporting"),
+        List.of(".kibana*", ".reporting", ".apm-agent-configuration"),
         Function.identity(),
         Property.NodeScope
     );

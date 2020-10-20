@@ -26,12 +26,12 @@ Retrieves configuration information for {transforms}.
 [[get-transform-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
+If the {es} {security-features} are enabled, you must have the following
 privileges:
 
-* `monitor_transform` 
+* `monitor_transform`
 
-The built-in `transform_user` role has this privilege. 
+The built-in `transform_user` role has this privilege.
 
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
@@ -49,7 +49,7 @@ specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`.
 `<transform_id>`::
 (Optional, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
-  
+
 [[get-transform-query-parms]]
 == {api-query-parms-title}
 
@@ -65,6 +65,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
+`exclude_generated`::
+(Optional, boolean)
+Excludes fields that were automatically added when creating the transform.
+This allows the configuration to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
+
 [[get-transform-response]]
 == {api-response-body-title}
 
@@ -79,13 +85,13 @@ This property is informational; you cannot change its value.
 `version`::
 (string) The version of {es} that existed on the node when the {transform} was
 created.
-  
+
 [[get-transform-response-codes]]
 == {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
-  resources that match the request or only partial matches for the request.  
+  resources that match the request or only partial matches for the request.
 
 [[get-transform-example]]
 == {api-examples-title}

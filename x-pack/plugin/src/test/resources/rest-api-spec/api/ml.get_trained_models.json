@@ -69,7 +69,7 @@
         "type":"list",
         "description":"A comma-separated list of tags that the model must have."
       },
-      "for_export": {
+      "exclude_generated": {
         "required": false,
         "type": "boolean",
         "default": false,

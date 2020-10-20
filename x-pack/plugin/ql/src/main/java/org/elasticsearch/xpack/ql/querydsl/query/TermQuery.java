@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
+import org.elasticsearch.index.query.CaseSensitivityMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -45,8 +46,10 @@ public class TermQuery extends LeafQuery {
     @Override
     public QueryBuilder asBuilder() {
         TermQueryBuilder qb = termQuery(term, value);
-        // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
-        return caseInsensitive == false ? qb : qb.caseInsensitive(caseInsensitive);
+        if (caseInsensitive) {
+            qb.caseSensitivityMode(CaseSensitivityMode.INSENSITIVE);
+        }
+        return qb;
     }
 
     @Override

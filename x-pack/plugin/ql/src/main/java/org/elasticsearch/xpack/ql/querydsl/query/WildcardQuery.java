@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
+import org.elasticsearch.index.query.CaseSensitivityMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -44,8 +45,10 @@ public class WildcardQuery extends LeafQuery {
     @Override
     public QueryBuilder asBuilder() {
         WildcardQueryBuilder wb = wildcardQuery(field, query);
-        // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
-        return caseInsensitive == false ? wb : wb.caseInsensitive(caseInsensitive);
+        if (caseInsensitive) {
+            wb.caseSensitivityMode(CaseSensitivityMode.INSENSITIVE);
+        }
+        return wb;
     }
 
     @Override

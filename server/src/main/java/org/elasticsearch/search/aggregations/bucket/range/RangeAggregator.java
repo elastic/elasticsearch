@@ -307,9 +307,23 @@ public abstract class RangeAggregator extends BucketsAggregator {
             // We don't generate sensible Queries for nanoseconds.
             return null;
         }
+        boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
         String[] keys = new String[ranges.length];
         Query[] filters = new Query[ranges.length];
         for (int i = 0; i < ranges.length; i++) {
+            /*
+             * If the bounds on the ranges are too high then the `double`s
+             * that we work with will round differently in the native range
+             * aggregator than in the filters aggregator. So we can't use
+             * the filters. That is, if the input data type is a `long` in
+             * the first place. If it isn't then 
+             */
+            if (wholeNumbersOnly && ranges[i].from != Double.NEGATIVE_INFINITY && Math.abs(ranges[i].from) > 1 << 53) {
+                return null;
+            }
+            if (wholeNumbersOnly && ranges[i].to != Double.POSITIVE_INFINITY && Math.abs(ranges[i].to) > 1 << 53) {
+                return null;
+            }
             keys[i] = Integer.toString(i);
             /*
              * Use the native format on the field rather than the one provided

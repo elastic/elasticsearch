@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -223,6 +224,39 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
             assertEquals(2, ranges.get(0).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, fieldType);
+    }
+
+    public void testNotFitIntoDouble() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
+            NUMBER_FIELD_NAME,
+            NumberType.LONG,
+            true,
+            false,
+            true,
+            false,
+            null,
+            null
+        );
+
+        long start = 2L << 54; // Double stores 53 bits of mantissa, so we aggregate a bunch of bigger values
+
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range")
+            .field(NUMBER_FIELD_NAME)
+            .addRange(start, start + 50)
+            .addRange(start + 50, start + 100)
+            .addUnboundedFrom(start + 100);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            for (long l = start; l < start + 150; l++) {
+                iw.addDocument(List.of(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, l), new LongPoint(NUMBER_FIELD_NAME, l)));
+            }
+        }, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertThat(ranges, hasSize(3));
+            // If we had a native `double` range aggregator we'd get 50, 50, 50
+            assertThat(ranges.stream().mapToLong(InternalRange.Bucket::getDocCount).toArray(), equalTo(new long[] {44, 48, 58}));
             assertTrue(AggregationInspectionHelper.hasValue(range));
         }, fieldType);
     }

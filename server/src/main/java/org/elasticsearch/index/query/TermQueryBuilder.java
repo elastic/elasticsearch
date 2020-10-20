@@ -40,15 +40,11 @@ import java.util.Objects;
  */
 public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     public static final String NAME = "term";
-    public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
-    private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
-
-
-    private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
 
 
     private static final ParseField TERM_FIELD = new ParseField("term");
     private static final ParseField VALUE_FIELD = new ParseField("value");
+    private CaseSensitivityMode caseSensitivityMode = CaseSensitivityMode.FIELD_DEFAULT;
 
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public TermQueryBuilder(String fieldName, String value) {
@@ -85,18 +81,14 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         super(fieldName, value);
     }
 
-    public TermQueryBuilder caseInsensitive(boolean caseInsensitive) {
-        if (caseInsensitive == false) {
-            throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
-        }
-        this.caseInsensitive = caseInsensitive;
+    public TermQueryBuilder caseSensitivityMode(CaseSensitivityMode caseSensitivityMode) {
+        this.caseSensitivityMode = caseSensitivityMode;
         return this;
     }
 
-    public boolean caseInsensitive() {
-        return this.caseInsensitive;
+    public CaseSensitivityMode caseSensitivityMode() {
+        return this.caseSensitivityMode;
     }
-
 
     /**
      * Read from a stream.
@@ -104,14 +96,14 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     public TermQueryBuilder(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            caseInsensitive = in.readBoolean();
+            caseSensitivityMode = in.readOptionalWriteable(CaseSensitivityMode::readFromStream);
         }
     }
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         super.doWriteTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeBoolean(caseInsensitive);
+            out.writeOptionalWriteable(caseSensitivityMode);
         }
     }
 
@@ -120,7 +112,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         String fieldName = null;
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
+        CaseSensitivityMode caseSensitivityMode = CaseSensitivityMode.FIELD_DEFAULT;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -141,12 +133,8 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                             queryName = parser.text();
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            caseInsensitive = parser.booleanValue();
-                            if (caseInsensitive == false) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "[term] query does not support [" + currentFieldName + "] = false");
-                            }
+                        } else if (CaseSensitivityMode.KEY.match(currentFieldName, parser.getDeprecationHandler())) {
+                            caseSensitivityMode = CaseSensitivityMode.parse(parser.text(), parser.getDeprecationHandler());
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[term] query does not support [" + currentFieldName + "]");
@@ -167,16 +155,14 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         if (queryName != null) {
             termQuery.queryName(queryName);
         }
-        if (caseInsensitive) {
-            termQuery.caseInsensitive(caseInsensitive);
-        }
+        termQuery.caseSensitivityMode(caseSensitivityMode);
         return termQuery;
     }
 
     @Override
     protected void addExtraXContent(XContentBuilder builder, Params params) throws IOException {
-        if (caseInsensitive != DEFAULT_CASE_INSENSITIVITY) {
-            builder.field(CASE_INSENSITIVE_FIELD.getPreferredName(), caseInsensitive);
+        if (caseSensitivityMode != CaseSensitivityMode.FIELD_DEFAULT) {
+            builder.field(CaseSensitivityMode.KEY.getPreferredName(), caseSensitivityMode.parseField().getPreferredName().toString());
         }
     }
 
@@ -192,7 +178,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
                 Query query = null;
-                if (caseInsensitive) {
+                if (caseSensitivityMode == CaseSensitivityMode.INSENSITIVE) {
                     query = fieldType.termQueryCaseInsensitive(value, context);
                 } else {
                     query = fieldType.termQuery(value, context);
@@ -216,7 +202,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         if (mapper == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        if (caseInsensitive) {
+        if (caseSensitivityMode == CaseSensitivityMode.INSENSITIVE) {
             return mapper.termQueryCaseInsensitive(value, context);
         }
         return mapper.termQuery(value, context);
@@ -230,13 +216,13 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected final int doHashCode() {
-        return Objects.hash(super.doHashCode(), caseInsensitive);
+        return Objects.hash(super.doHashCode(), caseSensitivityMode);
     }
 
     @Override
     protected final boolean doEquals(TermQueryBuilder other) {
         return super.doEquals(other) &&
-               Objects.equals(caseInsensitive, other.caseInsensitive);
+               Objects.equals(caseSensitivityMode, other.caseSensitivityMode);
     }
 
 }

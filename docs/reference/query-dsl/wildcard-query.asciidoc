@@ -69,9 +69,9 @@ increases the relevance score.
 (Optional, string) Method used to rewrite the query. For valid values and more information, see the
 <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
-`case_insensitive`::
-(Optional, boolean) allows case insensitive matching of the
-pattern with the indexed field values when set to true. Setting to false is disallowed.
+`case_sensitivity`::
+(Optional, string) allows case insensitive matching of the
+pattern with the indexed field values when set to "insensitive". Default value is "field_default".
 
 [[wildcard-query-notes]]
 ==== Notes

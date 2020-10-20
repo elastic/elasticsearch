@@ -118,7 +118,7 @@ setup:
           track_total_hits: true
           query:
             regexp:
-              my_wildcard: {value: ".*Worl.*", case_insensitive: true}
+              my_wildcard: {value: ".*Worl.*", case_sensitivity: "insensitive"}
 
 
   - match: {hits.total.value: 3}

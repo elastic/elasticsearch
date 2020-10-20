@@ -73,7 +73,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
 
         if (expectedFieldName.equals(TEXT_FIELD_NAME)) {
-            if (queryBuilder.caseInsensitive()) {
+            if (queryBuilder.caseSensitivityMode() == CaseSensitivityMode.INSENSITIVE) {
                 assertThat(query, instanceOf(AutomatonQuery.class));
             } else {
                 assertThat(query, instanceOf(WildcardQuery.class));
@@ -110,7 +110,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     public void testFromJson() throws IOException {
         String json = "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\","
-            + " \"case_insensitive\" : true,\n"
+            + " \"case_sensitivity\" : \"insensitive\",\n" 
             + " \"boost\" : 2.0"
             + " } }}";
         WildcardQueryBuilder parsed = (WildcardQueryBuilder) parseQuery(json);

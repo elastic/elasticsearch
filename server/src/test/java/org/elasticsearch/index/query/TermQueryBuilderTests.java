@@ -97,16 +97,17 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
             .or(instanceOf(AutomatonQuery.class)));
         MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
+        boolean insensitive = queryBuilder.caseSensitivityMode() == CaseSensitivityMode.INSENSITIVE;
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
 
-            Term term = ((TermQuery) termQuery(mapper, queryBuilder.value(), queryBuilder.caseInsensitive())).getTerm();
+            Term term = ((TermQuery) termQuery(mapper, queryBuilder.value(), insensitive)).getTerm();
             assertThat(termQuery.getTerm(), equalTo(term));
         } else if (mapper != null) {
-            assertEquals(query, termQuery(mapper, queryBuilder.value(), queryBuilder.caseInsensitive()));
+            assertEquals(query, termQuery(mapper, queryBuilder.value(), insensitive));
         } else {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         }
@@ -135,7 +136,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "  \"term\" : {\n" +
                 "    \"exact_value\" : {\n" +
                 "      \"value\" : \"Quick Foxes!\",\n" +
-                "      \"case_insensitive\" : true,\n" +
+                "      \"case_sensitivity\" : \"insensitive\",\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
                 "  }\n" +

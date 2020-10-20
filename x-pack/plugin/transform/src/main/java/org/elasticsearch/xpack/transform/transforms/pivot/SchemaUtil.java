@@ -52,19 +52,19 @@ public final class SchemaUtil {
     }
 
     /**
-     * Convert a numeric value to an integer if it's not a floating point number.
+     * Convert a numeric value to a whole number if it's not a floating point number.
      *
      * Implementation decision: We do not care about the concrete type, but only if its floating point or not.
      * Further checks (e.g. range) are done at indexing.
      *
-     * If type is floating point and value could be an integer (ends with `.0`), we still preserve `.0` in case
+     * If type is floating point but ends with `.0`, we still preserve `.0` in case
      * the destination index uses dynamic mappings as well as being json friendly.
      *
      * @param type the type of the value according to the schema we know
      * @param value the value as double (aggs return double for everything)
-     * @return value if its floating point, a integer
+     * @return value if its floating point, long if < Long.MAX_VALUE, BigInteger if value >= Long.MAX_VALUE
      */
-    public static Object convertToIntegerTypeIfNeeded(String type, double value) {
+    public static Object dropFloatingPointComponentIfTypeRequiresIt(String type, double value) {
         if (NUMERIC_FIELD_MAPPER_TYPES.getOrDefault(type, true) == false) {
             assert value % 1 == 0;
             if (value < Long.MAX_VALUE) {

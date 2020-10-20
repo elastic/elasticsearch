@@ -58,14 +58,14 @@ public class SchemaUtilTests extends ESTestCase {
     }
 
     public void testConvertToIntegerTypeIfNeeded() {
-        assertEquals(33L, SchemaUtil.convertToIntegerTypeIfNeeded("unsigned_long", 33.0));
-        assertEquals(33L, SchemaUtil.convertToIntegerTypeIfNeeded("long", 33.0));
-        assertEquals(33.0, SchemaUtil.convertToIntegerTypeIfNeeded("double", 33.0));
-        assertEquals(33.0, SchemaUtil.convertToIntegerTypeIfNeeded("half_float", 33.0));
-        assertEquals(33.0, SchemaUtil.convertToIntegerTypeIfNeeded("unknown", 33.0));
-        assertEquals(33.0, SchemaUtil.convertToIntegerTypeIfNeeded(null, 33.0));
+        assertEquals(33L, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("unsigned_long", 33.0));
+        assertEquals(33L, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("long", 33.0));
+        assertEquals(33.0, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("double", 33.0));
+        assertEquals(33.0, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("half_float", 33.0));
+        assertEquals(33.0, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("unknown", 33.0));
+        assertEquals(33.0, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt(null, 33.0));
 
-        Object value = SchemaUtil.convertToIntegerTypeIfNeeded("unsigned_long", 1.8446744073709551615E19);
+        Object value = SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("unsigned_long", 1.8446744073709551615E19);
         assertThat(value, instanceOf(BigInteger.class));
 
         assertEquals(new BigInteger("18446744073709551615").doubleValue(), ((BigInteger) value).doubleValue(), 0.0);

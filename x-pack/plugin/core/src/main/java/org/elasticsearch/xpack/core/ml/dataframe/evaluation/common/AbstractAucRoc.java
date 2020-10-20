@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
+package org.elasticsearch.xpack.core.ml.dataframe.evaluation.common;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -24,8 +24,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
  * Area under the curve (AUC) of the receiver operating characteristic (ROC).
@@ -165,7 +163,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         private final double fpr;
         private final double threshold;
 
-        AucRocPoint(double tpr, double fpr, double threshold) {
+        public AucRocPoint(double tpr, double fpr, double threshold) {
             this.tpr = tpr;
             this.fpr = fpr;
             this.threshold = threshold;
@@ -229,24 +227,26 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
     public static class Result implements EvaluationMetricResult {
 
-        private static final String SCORE = "score";
+        public static final String NAME = "auc_roc_result";
+
+        private static final String VALUE = "value";
         private static final String CURVE = "curve";
 
-        private final double score;
+        private final double value;
         private final List<AucRocPoint> curve;
 
-        public Result(double score, List<AucRocPoint> curve) {
-            this.score = score;
+        public Result(double value, List<AucRocPoint> curve) {
+            this.value = value;
             this.curve = Objects.requireNonNull(curve);
         }
 
         public Result(StreamInput in) throws IOException {
-            this.score = in.readDouble();
+            this.value = in.readDouble();
             this.curve = in.readList(AucRocPoint::new);
         }
 
-        public double getScore() {
-            return score;
+        public double getValue() {
+            return value;
         }
 
         public List<AucRocPoint> getCurve() {
@@ -255,24 +255,24 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
         @Override
         public String getWriteableName() {
-            return registeredMetricName(Classification.NAME, NAME);
+            return NAME;
         }
 
         @Override
         public String getMetricName() {
-            return NAME.getPreferredName();
+            return AbstractAucRoc.NAME.getPreferredName();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(score);
+            out.writeDouble(value);
             out.writeList(curve);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(SCORE, score);
+            builder.field(VALUE, value);
             if (curve.isEmpty() == false) {
                 builder.field(CURVE, curve);
             }
@@ -285,13 +285,13 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return score == that.score
+            return value == that.value
                 && Objects.equals(curve, that.curve);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(score, curve);
+            return Objects.hash(value, curve);
         }
     }
 }

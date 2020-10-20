@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ForEachProcessorTests extends ESTestCase {
@@ -309,6 +310,56 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(testProcessor.getInvokedCounter(), equalTo(2));
         ingestDocument.removeField("_ingest._value");
         assertThat(ingestDocument, equalTo(originalIngestDocument));
+    }
+
+    public void testMapIteration() {
+        Map<String, Object> mapValue = Map.of("foo", 1, "bar", 2, "baz", 3);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", mapValue));
+
+        List<String> encounteredKeys = new ArrayList<>();
+        List<Object> encounteredValues = new ArrayList<>();
+        TestProcessor testProcessor = new TestProcessor(id -> {
+            String key = (String) id.getIngestMetadata().get("_key");
+            Object value = id.getIngestMetadata().get("_value");
+            encounteredKeys.add(key);
+            encounteredValues.add(value);
+            if (key.equals("bar")) {
+                id.setFieldValue("_ingest._key", "bar2");
+            }
+            if (key.equals("baz")) {
+                id.setFieldValue("_ingest._value", 33);
+            }
+        });
+        ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
+        processor.execute(ingestDocument, (result, e) -> {});
+        assertThat(testProcessor.getInvokedCounter(), equalTo(3));
+        assertThat(encounteredKeys.toArray(), arrayContainingInAnyOrder("foo", "bar", "baz"));
+        assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(1, 2, 3));
+        assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
+            arrayContainingInAnyOrder(Map.entry("foo", 1), Map.entry("bar2", 2), Map.entry("baz", 33)));
+    }
+
+    public void testRemovalOfMapKey() {
+        Map<String, Object> mapValue = Map.of("foo", 1, "bar", 2, "baz", 3);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", mapValue));
+
+        List<String> encounteredKeys = new ArrayList<>();
+        List<Object> encounteredValues = new ArrayList<>();
+        TestProcessor testProcessor = new TestProcessor(id -> {
+            String key = (String) id.getIngestMetadata().get("_key");
+            encounteredKeys.add(key);
+            encounteredValues.add(id.getIngestMetadata().get("_value"));
+            if (key.equals("bar")) {
+                id.setFieldValue("_ingest._key", "");
+            }
+        });
+        ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
+        processor.execute(ingestDocument, (result, e) -> {});
+        assertThat(testProcessor.getInvokedCounter(), equalTo(3));
+        assertThat(encounteredKeys.toArray(), arrayContainingInAnyOrder("foo", "bar", "baz"));
+        assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(1, 2, 3));
+        assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
+            arrayContainingInAnyOrder(Map.entry("foo", 1), Map.entry("baz", 3)));
     }
 
     private class AsyncUpperCaseProcessor implements Processor {

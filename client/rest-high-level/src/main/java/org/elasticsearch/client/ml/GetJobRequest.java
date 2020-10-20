@@ -42,12 +42,12 @@ public class GetJobRequest implements Validatable, ToXContentObject {
 
     public static final ParseField JOB_IDS = new ParseField("job_ids");
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
-    public static final String FOR_EXPORT = "for_export";
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     private static final String ALL_JOBS = "_all";
     private final List<String> jobIds;
     private Boolean allowNoMatch;
-    private Boolean forExport;
+    private Boolean excludeGenerated;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetJobRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -108,19 +108,19 @@ public class GetJobRequest implements Validatable, ToXContentObject {
      * This is useful when getting the configuration and wanting to put it in another cluster.
      *
      * Default value is false.
-     * @param forExport Boolean value indicating if certain fields should be removed
+     * @param excludeGenerated Boolean value indicating if certain fields should be removed
      */
-    public void setForExport(boolean forExport) {
-        this.forExport = forExport;
+    public void setExcludeGenerated(boolean excludeGenerated) {
+        this.excludeGenerated = excludeGenerated;
     }
 
-    public Boolean getForExport() {
-        return forExport;
+    public Boolean getExcludeGenerated() {
+        return excludeGenerated;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobIds, forExport, allowNoMatch);
+        return Objects.hash(jobIds, excludeGenerated, allowNoMatch);
     }
 
     @Override
@@ -135,7 +135,7 @@ public class GetJobRequest implements Validatable, ToXContentObject {
 
         GetJobRequest that = (GetJobRequest) other;
         return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(forExport, that.forExport) &&
+            Objects.equals(excludeGenerated, that.excludeGenerated) &&
             Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 

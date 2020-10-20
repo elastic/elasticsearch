@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
@@ -47,9 +48,12 @@ import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTIN
 final class DocumentParser {
 
     private final NamedXContentRegistry xContentRegistry;
+    private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
 
-    DocumentParser(NamedXContentRegistry xContentRegistry) {
+    DocumentParser(NamedXContentRegistry xContentRegistry,
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
         this.xContentRegistry = xContentRegistry;
+        this.dateParserContext = dateParserContext;
     }
 
     ParsedDocument parseDocument(SourceToParse source,
@@ -62,7 +66,7 @@ final class DocumentParser {
 
         try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(docMapper, source, parser);
+            context = new ParseContext.InternalParseContext(docMapper, dateParserContext, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, metadataFieldsMappers, context, parser);
             validateEnd(parser);

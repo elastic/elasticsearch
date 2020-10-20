@@ -32,6 +32,8 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class AutoFollowIT extends ESCCRRestTestCase {
 
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss", Locale.ROOT);
+
     public void testMultipleAutoFollowPatternsDifferentClusters() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             logger.info("skipping test, waiting for target cluster [follow]" );
@@ -179,7 +181,6 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
         final int numDocs = 64;
         final String dataStreamName = "logs-mysql-error";
-        final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss", Locale.ROOT);
 
         int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
 
@@ -203,20 +204,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         // Create data stream and ensure that is is auto followed
         {
             try (RestClient leaderClient = buildLeaderClient()) {
-                Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-                putComposableIndexTemplateRequest.setJsonEntity(
-                    "{"
-                        + "\"index_patterns\":[\"logs-mysql-*\"],"
-                        + "\"priority\":200,"
-                        + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
-                        + "\"data_stream\":{}"
-                        + "}"
-                );
-                assertOK(leaderClient.performRequest(putComposableIndexTemplateRequest));
                 for (int i = 0; i < numDocs; i++) {
                     Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
-                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + format.format(new Date()) + "\",\"message\":\"abc\"}");
+                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
                 verifyDataStream(leaderClient, dataStreamName, ".ds-logs-mysql-error-000001");
@@ -239,7 +230,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
                 Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
-                indexRequest.setJsonEntity("{\"@timestamp\": \"" + format.format(new Date()) + "\",\"message\":\"abc\"}");
+                indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                 assertOK(leaderClient.performRequest(indexRequest));
                 verifyDocuments(leaderClient, dataStreamName, numDocs + 1);
             }
@@ -261,7 +252,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
                 Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
-                indexRequest.setJsonEntity("{\"@timestamp\": \"" + format.format(new Date()) + "\",\"message\":\"abc\"}");
+                indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                 assertOK(leaderClient.performRequest(indexRequest));
                 verifyDocuments(leaderClient, dataStreamName, numDocs + 2);
             }
@@ -273,7 +264,87 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 verifyDocuments(client(), dataStreamName, numDocs + 2);
             });
         }
-        deleteAutoFollowPattern("test_pattern");
+        // Cleanup:
+        {
+            deleteAutoFollowPattern("test_pattern");
+            deleteDataStream(dataStreamName);
+        }
+    }
+
+    public void testDataStreams_autoFollowAfterDataStreamCreated() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        final int initialNumDocs = 16;
+        final String dataStreamName = "logs-syslog-prod";
+        int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+        // Initialize data stream prior to auto following
+        {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                for (int i = 0; i < initialNumDocs; i++) {
+                    Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyDataStream(leaderClient, dataStreamName, ".ds-logs-syslog-prod-000001");
+                verifyDocuments(leaderClient, dataStreamName, initialNumDocs);
+            }
+        }
+        // Create auto follow pattern
+        {
+            Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+            try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+                bodyBuilder.startObject();
+                {
+                    bodyBuilder.startArray("leader_index_patterns");
+                    {
+                        bodyBuilder.value("logs-*");
+                    }
+                    bodyBuilder.endArray();
+                    bodyBuilder.field("remote_cluster", "leader_cluster");
+                }
+                bodyBuilder.endObject();
+                request.setJsonEntity(Strings.toString(bodyBuilder));
+            }
+            assertOK(client().performRequest(request));
+        }
+        // Rollover and ensure only second backing index is replicated:
+        {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+                assertOK(leaderClient.performRequest(rolloverRequest));
+                verifyDataStream(leaderClient, dataStreamName, ".ds-logs-syslog-prod-000001", ".ds-logs-syslog-prod-000002");
+
+                Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                indexRequest.addParameter("refresh", "true");
+                indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                assertOK(leaderClient.performRequest(indexRequest));
+                verifyDocuments(leaderClient, dataStreamName, initialNumDocs + 1);
+            }
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
+                verifyDataStream(client(), dataStreamName, ".ds-logs-syslog-prod-000002");
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, 1);
+            });
+        }
+        // Explicitly follow the first backing index and check that the data stream in follow cluster is updated correctly:
+        {
+            followIndex(".ds-logs-syslog-prod-000001", ".ds-logs-syslog-prod-000001");
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
+                verifyDataStream(client(), dataStreamName, ".ds-logs-syslog-prod-000001", ".ds-logs-syslog-prod-000002");
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, initialNumDocs + 1);
+            });
+        }
+        // Cleanup:
+        {
+            deleteAutoFollowPattern("test_pattern");
+            deleteDataStream(dataStreamName);
+        }
     }
 
     private int getNumberOfSuccessfulFollowedIndices() throws IOException {
@@ -307,6 +378,13 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             Map<?, ?> actualBackingIndex = (Map<?, ?>) actualBackingIndices.get(i);
             String expectedBackingIndex = expectedBackingIndices[i];
             assertThat(actualBackingIndex.get("index_name"), equalTo(expectedBackingIndex));
+        }
+    }
+
+    private void deleteDataStream(String name) throws IOException {
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Request deleteTemplateRequest = new Request("DELETE", "/_data_stream/" + name);
+            assertOK(leaderClient.performRequest(deleteTemplateRequest));
         }
     }
 

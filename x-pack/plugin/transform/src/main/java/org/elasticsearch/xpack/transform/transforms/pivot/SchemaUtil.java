@@ -62,7 +62,7 @@ public final class SchemaUtil {
      *
      * @param type the type of the value according to the schema we know
      * @param value the value as double (aggs return double for everything)
-     * @return value if its floating point, long if < Long.MAX_VALUE, BigInteger if value >= Long.MAX_VALUE
+     * @return value if its floating point, long if value is smaller than Long.MAX_VALUE, BigInteger otherwise
      */
     public static Object dropFloatingPointComponentIfTypeRequiresIt(String type, double value) {
         if (NUMERIC_FIELD_MAPPER_TYPES.getOrDefault(type, true) == false) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -33,7 +34,7 @@ import static java.util.Collections.singletonList;
 public class FieldTypeLookupTests extends ESTestCase {
 
     public void testEmpty() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList(), null);
         assertNull(lookup.get("foo"));
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
@@ -45,7 +46,7 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testAddNewField() {
         MockFieldMapper f = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Lucene.KEYWORD_ANALYZER);
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup.get("foo"));
         assertEquals(1, size(lookup.iterator()));
@@ -55,7 +56,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper field = new MockFieldMapper("foo");
         FieldAliasMapper alias = new FieldAliasMapper("alias", "alias", "foo");
 
-        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(field), Collections.singletonList(alias));
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(field), Collections.singletonList(alias),
+            Lucene.KEYWORD_ANALYZER);
 
         MappedFieldType aliasType = lookup.get("alias");
         assertEquals(field.fieldType(), aliasType);
@@ -68,7 +70,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldAliasMapper alias1 = new FieldAliasMapper("food", "food", "foo");
         FieldAliasMapper alias2 = new FieldAliasMapper("barometer", "barometer", "bar");
 
-        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field1, field2), Arrays.asList(alias1, alias2));
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field1, field2), Arrays.asList(alias1, alias2), Lucene.KEYWORD_ANALYZER);
 
         Collection<String> names = lookup.simpleMatchToFullName("b*");
 
@@ -88,7 +90,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             .addMultiField(new MockFieldMapper.Builder("field.subfield2"))
             .build(context);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(field), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(field), emptyList(), Lucene.KEYWORD_ANALYZER);
 
         assertEquals(Set.of("field"), lookup.sourcePaths("field"));
         assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield1"));
@@ -107,7 +109,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             .copyTo("field")
             .build(context);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList(), Lucene.KEYWORD_ANALYZER);
 
         assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field"));
         assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
@@ -115,7 +117,7 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testIteratorImmutable() {
         MockFieldMapper f1 = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f1), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f1), emptyList(), Lucene.KEYWORD_ANALYZER);
 
         try {
             Iterator<MappedFieldType> itr = lookup.iterator();

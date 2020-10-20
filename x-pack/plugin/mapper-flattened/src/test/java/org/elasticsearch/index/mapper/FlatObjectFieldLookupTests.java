@@ -7,6 +7,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -41,7 +42,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         String fieldName = "object1.object2.field";
         FlatObjectFieldMapper mapper = createFlatObjectMapper(fieldName);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), emptyList(), Lucene.KEYWORD_ANALYZER);
         assertEquals(mapper.fieldType(), lookup.get(fieldName));
 
         String objectKey = "key1.key2";
@@ -62,7 +63,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         String aliasName = "alias";
         FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, fieldName);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), singletonList(alias));
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), singletonList(alias), Lucene.KEYWORD_ANALYZER);
         assertEquals(mapper.fieldType(), lookup.get(aliasName));
 
         String objectKey = "key1.key2";
@@ -85,11 +86,11 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         FlatObjectFieldMapper mapper2 = createFlatObjectMapper(field2);
         FlatObjectFieldMapper mapper3 = createFlatObjectMapper(field3);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2), emptyList(), Lucene.KEYWORD_ANALYZER);
         assertNotNull(lookup.get(field1 + ".some.key"));
         assertNotNull(lookup.get(field2 + ".some.key"));
 
-        lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2, mapper3), emptyList());
+        lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2, mapper3), emptyList(), Lucene.KEYWORD_ANALYZER);
         assertNotNull(lookup.get(field1 + ".some.key"));
         assertNotNull(lookup.get(field2 + ".some.key"));
         assertNotNull(lookup.get(field3 + ".some.key"));
@@ -126,7 +127,7 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         MockFieldMapper mapper = new MockFieldMapper("foo");
         FlatObjectFieldMapper flatObjectMapper = createFlatObjectMapper("object1.object2.field");
 
-        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper, flatObjectMapper), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper, flatObjectMapper), emptyList(), Lucene.KEYWORD_ANALYZER);
 
         Set<String> fieldNames = new HashSet<>();
         for (MappedFieldType fieldType : lookup) {

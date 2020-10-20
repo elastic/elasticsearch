@@ -40,16 +40,8 @@ public final class MappingLookup implements Iterable<Mapper> {
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
     private final int metadataFieldCount;
-    private final FieldNameAnalyzer indexAnalyzer;
 
-    private static void put(Map<String, Analyzer> analyzers, String key, Analyzer value, Analyzer defaultValue) {
-        if (value == null) {
-            value = defaultValue;
-        }
-        analyzers.put(key, value);
-    }
-
-    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex) {
+    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndexAnalyzer) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -59,7 +51,8 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
         collect(mapping.root, newObjectMappers, newFieldMappers, newFieldAliasMappers);
-        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length, defaultIndex);
+        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length,
+            defaultIndexAnalyzer);
     }
 
     private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
@@ -87,9 +80,8 @@ public final class MappingLookup implements Iterable<Mapper> {
                          Collection<ObjectMapper> objectMappers,
                          Collection<FieldAliasMapper> aliasMappers,
                          int metadataFieldCount,
-                         Analyzer defaultIndex) {
+                         Analyzer defaultIndexAnalyzer) {
         Map<String, Mapper> fieldMappers = new HashMap<>();
-        Map<String, Analyzer> indexAnalyzers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
         boolean hasNested = false;
@@ -110,8 +102,7 @@ public final class MappingLookup implements Iterable<Mapper> {
             if (fieldMappers.put(mapper.name(), mapper) != null) {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
-            MappedFieldType fieldType = mapper.fieldType();
-            put(indexAnalyzers, fieldType.name(), fieldType.indexAnalyzer(), defaultIndex);
+
         }
         this.metadataFieldCount = metadataFieldCount;
 
@@ -124,10 +115,8 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers);
-
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, defaultIndexAnalyzer);
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
-        this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
 
@@ -149,8 +138,8 @@ public final class MappingLookup implements Iterable<Mapper> {
      * A smart analyzer used for indexing that takes into account specific analyzers configured
      * per {@link FieldMapper}.
      */
-    public Analyzer indexAnalyzer() {
-        return this.indexAnalyzer;
+    public FieldNameAnalyzer indexAnalyzer() {
+        return this.fieldTypeLookup.indexAnalyzer();
     }
 
     @Override

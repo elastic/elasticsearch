@@ -109,7 +109,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                     throw new IllegalArgumentException("Value of [n] cannot be greater than 50");
                 }
             })
-            .setMergeValidator((o, n) -> n >= o);
+            .setMergeValidator((o, n, c) -> n >= o);
         final Parameter<NamedAnalyzer> analyzer
             = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> Lucene.KEYWORD_ANALYZER);
         final Parameter<NamedAnalyzer> searchAnalyzer

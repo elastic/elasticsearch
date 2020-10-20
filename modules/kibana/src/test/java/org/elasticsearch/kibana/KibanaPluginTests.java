@@ -38,7 +38,7 @@ public class KibanaPluginTests extends ESTestCase {
                 .stream()
                 .map(SystemIndexDescriptor::getIndexPattern)
                 .collect(Collectors.toUnmodifiableList()),
-            contains(".kibana*", ".reporting")
+            contains(".kibana*", ".reporting", ".apm-agent-configuration")
         );
         final List<String> names = List.of("." + randomAlphaOfLength(4), "." + randomAlphaOfLength(6));
         final List<String> namesFromDescriptors = new KibanaPlugin().getSystemIndexDescriptors(

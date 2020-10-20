@@ -116,7 +116,6 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         ExecutorService executorService = EsExecutors.newDirectExecutorService();
         when(tp.generic()).thenReturn(executorService);
         client = mock(Client.class);
-        clusterService = mock(ClusterService.class);
         Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,

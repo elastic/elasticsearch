@@ -42,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -72,6 +73,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
@@ -82,6 +86,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.InvalidationCountingCacheWrapper;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -90,6 +96,7 @@ import javax.crypto.SecretKeyFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
@@ -107,6 +114,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -160,6 +168,8 @@ public class ApiKeyService {
         TimeValue.timeValueHours(24L), Property.NodeScope);
     public static final Setting<Integer> CACHE_MAX_KEYS_SETTING = Setting.intSetting("xpack.security.authc.api_key.cache.max_keys",
         10000, Property.NodeScope);
+    public static final Setting<TimeValue> DOC_CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.api_key.doc_cache.ttl",
+        TimeValue.timeValueMinutes(5), TimeValue.timeValueMinutes(0), TimeValue.timeValueMinutes(15), Property.NodeScope);
 
     private final Clock clock;
     private final Client client;
@@ -174,11 +184,12 @@ public class ApiKeyService {
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
+    private final ApiKeyDocCache apiKeyDocCache;
 
     private volatile long lastExpirationRunMs;
 
     public ApiKeyService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex,
-                         ClusterService clusterService, ThreadPool threadPool) {
+                         ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry, ThreadPool threadPool) {
         this.clock = clock;
         this.client = client;
         this.licenseState = licenseState;
@@ -192,13 +203,34 @@ public class ApiKeyService {
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
+        final Integer maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
             this.apiKeyAuthCache = CacheBuilder.<String, ListenableFuture<CachedApiKeyHashResult>>builder()
                 .setExpireAfterWrite(ttl)
-                .setMaximumWeight(CACHE_MAX_KEYS_SETTING.get(settings))
+                .setMaximumWeight(maximumWeight)
                 .build();
+            final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
+            this.apiKeyDocCache = doc_ttl.getNanos() == 0 ? null : new ApiKeyDocCache(doc_ttl, maximumWeight);
+            cacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
+                @Override
+                public void invalidate(Collection<String> keys) {
+                    if (apiKeyDocCache != null) {
+                        apiKeyDocCache.invalidate(keys);
+                    }
+                    keys.forEach(apiKeyAuthCache::invalidate);
+                }
+
+                @Override
+                public void invalidateAll() {
+                    if (apiKeyDocCache != null) {
+                        apiKeyDocCache.invalidateAll();
+                    }
+                    apiKeyAuthCache.invalidateAll();
+                }
+            });
         } else {
             this.apiKeyAuthCache = null;
+            this.apiKeyDocCache = null;
         }
     }
 
@@ -232,6 +264,7 @@ public class ApiKeyService {
             final IndexRequest indexRequest =
                 client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setSource(builder)
+                    .setId(request.getId())
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
             final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
@@ -239,8 +272,11 @@ public class ApiKeyService {
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
                     TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
-                        indexResponse -> listener.onResponse(
-                            new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
+                        indexResponse -> {
+                            assert request.getId().equals(indexResponse.getId());
+                            listener.onResponse(
+                                    new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                        },
                         listener::onFailure))));
         } catch (IOException e) {
             listener.onFailure(e);
@@ -271,7 +307,6 @@ public class ApiKeyService {
             }
             Arrays.fill(keyHash, (char) 0);
         }
-
 
         // Save role_descriptors
         builder.startObject("role_descriptors");
@@ -349,9 +384,32 @@ public class ApiKeyService {
                 authResult.getMetadata());
     }
 
-    private void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
-                                                  ActionListener<AuthenticationResult> listener) {
+    void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
+                                          ActionListener<AuthenticationResult> listener) {
         final String docId = credentials.getId();
+
+        Consumer<ApiKeyDoc> validator = apiKeyDoc ->
+            validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                    listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+
+        final long invalidationCount;
+        if (apiKeyDocCache != null) {
+            ApiKeyDoc existing = apiKeyDocCache.get(docId);
+            if (existing != null) {
+                validator.accept(existing);
+                return;
+            }
+            // API key doc not found in cache, take a record of the current invalidation count to prepare for caching
+            invalidationCount = apiKeyDocCache.getInvalidationCount();
+        } else {
+            invalidationCount = -1;
+        }
+
         final GetRequest getRequest = client
             .prepareGet(SECURITY_MAIN_ALIAS, docId)
             .setFetchSource(true)
@@ -364,13 +422,10 @@ public class ApiKeyService {
                         response.getSourceAsBytesRef(), XContentType.JSON)) {
                         apiKeyDoc = ApiKeyDoc.fromXContent(parser);
                     }
-                    validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
-                        if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
-                            listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    }));
+                    if (invalidationCount != -1) {
+                        apiKeyDocCache.putIfNoInvalidationSince(docId, apiKeyDoc, invalidationCount);
+                    }
+                    validator.accept(apiKeyDoc);
                 } else {
                     listener.onResponse(
                         AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
@@ -587,6 +642,16 @@ public class ApiKeyService {
         return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
     }
 
+    // pkg private for testing
+    InvalidationCountingCacheWrapper<String, CachedApiKeyDoc> getDocCache() {
+        return apiKeyDocCache == null ? null : apiKeyDocCache.docCache;
+    }
+
+    // pkg private for testing
+    Cache<String, BytesReference> getRoleDescriptorsBytesCache() {
+        return apiKeyDocCache == null ? null : apiKeyDocCache.roleDescriptorsBytesCache;
+    }
+
     // package-private for testing
     void validateApiKeyExpiration(ApiKeyDoc apiKeyDoc, ApiKeyCredentials credentials, Clock clock,
                                   ActionListener<AuthenticationResult> listener) {
@@ -740,24 +805,24 @@ public class ApiKeyService {
      * @param realmName realm name
      * @param username user name
      * @param apiKeyName API key name
-     * @param apiKeyId API key id
+     * @param apiKeyIds API key id
      * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
-    public void invalidateApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
+    public void invalidateApiKeys(String realmName, String username, String apiKeyName, String[] apiKeyIds,
                                   ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
         if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
-            && Strings.hasText(apiKeyId) == false) {
+            && (apiKeyIds == null || apiKeyIds.length == 0)) {
             logger.trace("none of the parameters [api key id, api key name, username, realm name] were specified for invalidation");
             invalidateListener
                 .onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
         } else {
-            findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, true, false,
+            findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyIds, true, false,
                 ActionListener.wrap(apiKeys -> {
                     if (apiKeys.isEmpty()) {
                         logger.debug(
                             "No active api keys to invalidate for realm [{}], username [{}], api key name [{}] and api key id [{}]",
-                            realmName, username, apiKeyName, apiKeyId);
+                            realmName, username, apiKeyName, Arrays.toString(apiKeyIds));
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
                         invalidateAllApiKeys(apiKeys.stream().map(apiKey -> apiKey.getId()).collect(Collectors.toSet()),
@@ -808,7 +873,7 @@ public class ApiKeyService {
         }
     }
 
-    private void findApiKeysForUserRealmApiKeyIdAndNameCombination(String realmName, String userName, String apiKeyName, String apiKeyId,
+    private void findApiKeysForUserRealmApiKeyIdAndNameCombination(String realmName, String userName, String apiKeyName, String[] apiKeyIds,
                                                                    boolean filterOutInvalidatedKeys, boolean filterOutExpiredKeys,
                                                                    ActionListener<Collection<ApiKey>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
@@ -831,8 +896,8 @@ public class ApiKeyService {
                     boolQuery.filter(QueryBuilders.termQuery("name", apiKeyName));
                 }
             }
-            if (Strings.hasText(apiKeyId)) {
-                boolQuery.filter(QueryBuilders.termQuery("_id", apiKeyId));
+            if (apiKeyIds != null && apiKeyIds.length > 0) {
+                boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
             }
 
             findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener);
@@ -891,13 +956,32 @@ public class ApiKeyService {
                         }
                         InvalidateApiKeyResponse result = new InvalidateApiKeyResponse(invalidated, previouslyInvalidated,
                             failedRequestResponses);
-                        listener.onResponse(result);
+                        clearCache(result, listener);
                     }, e -> {
                         Throwable cause = ExceptionsHelper.unwrapCause(e);
                         traceLog("invalidate api keys", cause);
                         listener.onFailure(e);
                     }), client::bulk));
         }
+    }
+
+    private void clearCache(InvalidateApiKeyResponse result, ActionListener<InvalidateApiKeyResponse> listener) {
+        final ClearSecurityCacheRequest clearApiKeyCacheRequest =
+            new ClearSecurityCacheRequest().cacheName("api_key").keys(result.getInvalidatedApiKeys().toArray(String[]::new));
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearSecurityCacheAction.INSTANCE, clearApiKeyCacheRequest,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ClearSecurityCacheResponse nodes) {
+                    listener.onResponse(result);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("unable to clear API key cache", e);
+                    listener.onFailure(new ElasticsearchException(
+                        "clearing the API key cache failed; please clear the caches manually", e));
+                }
+            });
     }
 
     /**
@@ -972,7 +1056,8 @@ public class ApiKeyService {
     public void getApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
                            ActionListener<GetApiKeyResponse> listener) {
         ensureEnabled();
-        findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
+        final String[] apiKeyIds = Strings.hasText(apiKeyId) == false ? null : new String[] { apiKeyId };
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyIds, false, false,
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
@@ -1084,8 +1169,132 @@ public class ApiKeyService {
             this.creator = creator;
         }
 
+        public CachedApiKeyDoc toCachedApiKeyDoc() {
+            final MessageDigest digest = MessageDigests.sha256();
+            digest.update(BytesReference.toBytes(roleDescriptorsBytes));
+            final String roleDescriptorsHash = MessageDigests.toHexString(digest.digest());
+            digest.reset();
+            digest.update(BytesReference.toBytes(limitedByRoleDescriptorsBytes));
+            final String limitedByRoleDescriptorsHash = MessageDigests.toHexString(digest.digest());
+            return new CachedApiKeyDoc(
+                creationTime,
+                expirationTime,
+                invalidated,
+                hash,
+                name,
+                version,
+                creator,
+                roleDescriptorsHash,
+                limitedByRoleDescriptorsHash);
+        }
+
         static ApiKeyDoc fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
+        }
+    }
+
+    /**
+     * A cached version of the {@link ApiKeyDoc}. The main difference is that the role descriptors
+     * are replaced by their hashes. The actual values are stored in a separate role descriptor cache,
+     * so that duplicate role descriptors are cached only once (and therefore consume less memory).
+     */
+    public static final class CachedApiKeyDoc {
+        final long creationTime;
+        final long expirationTime;
+        final Boolean invalidated;
+        final String hash;
+        final String name;
+        final int version;
+        final Map<String, Object> creator;
+        final String roleDescriptorsHash;
+        final String limitedByRoleDescriptorsHash;
+
+        public CachedApiKeyDoc(
+            long creationTime, long expirationTime,
+            Boolean invalidated,
+            String hash,
+            String name, int version, Map<String, Object> creator,
+            String roleDescriptorsHash,
+            String limitedByRoleDescriptorsHash) {
+            this.creationTime = creationTime;
+            this.expirationTime = expirationTime;
+            this.invalidated = invalidated;
+            this.hash = hash;
+            this.name = name;
+            this.version = version;
+            this.creator = creator;
+            this.roleDescriptorsHash = roleDescriptorsHash;
+            this.limitedByRoleDescriptorsHash = limitedByRoleDescriptorsHash;
+        }
+
+        public ApiKeyDoc toApiKeyDoc(BytesReference roleDescriptorsBytes, BytesReference limitedByRoleDescriptorsBytes) {
+            return new ApiKeyDoc(
+                "api_key",
+                creationTime,
+                expirationTime,
+                invalidated,
+                hash,
+                name,
+                version,
+                roleDescriptorsBytes,
+                limitedByRoleDescriptorsBytes,
+                creator);
+        }
+    }
+
+    private static final class ApiKeyDocCache {
+        private final InvalidationCountingCacheWrapper<String, ApiKeyService.CachedApiKeyDoc> docCache;
+        private final Cache<String, BytesReference> roleDescriptorsBytesCache;
+
+        ApiKeyDocCache(TimeValue ttl, int maximumWeight) {
+            this.docCache = new InvalidationCountingCacheWrapper<>(
+                CacheBuilder.<String, ApiKeyService.CachedApiKeyDoc>builder()
+                    .setMaximumWeight(maximumWeight)
+                    .setExpireAfterWrite(ttl)
+                    .build()
+            );
+            // We don't use the doc TTL because that TTL is very low to avoid the risk of
+            // caching an invalidated API key. But role descriptors are immutable and may be shared between
+            // multiple API keys, so we cache for longer and rely on the weight to manage the cache size.
+            this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
+                .setExpireAfterAccess(TimeValue.timeValueHours(1))
+                .setMaximumWeight(maximumWeight * 2)
+                .build();
+        }
+
+        public ApiKeyDoc get(String docId) {
+            ApiKeyService.CachedApiKeyDoc existing = docCache.get(docId);
+            if (existing != null) {
+                final BytesReference roleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.roleDescriptorsHash);
+                final BytesReference limitedByRoleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.limitedByRoleDescriptorsHash);
+                if (roleDescriptorsBytes != null && limitedByRoleDescriptorsBytes != null) {
+                    return existing.toApiKeyDoc(roleDescriptorsBytes, limitedByRoleDescriptorsBytes);
+                }
+            }
+            return null;
+        }
+
+        public long getInvalidationCount() {
+            return docCache.getInvalidationCount();
+        }
+
+        public void putIfNoInvalidationSince(String docId, ApiKeyDoc apiKeyDoc, long invalidationCount) throws ExecutionException {
+            final CachedApiKeyDoc cachedApiKeyDoc = apiKeyDoc.toCachedApiKeyDoc();
+            if (docCache.putIfNoInvalidationSince(docId, cachedApiKeyDoc, invalidationCount)) {
+                roleDescriptorsBytesCache.computeIfAbsent(
+                    cachedApiKeyDoc.roleDescriptorsHash, k -> apiKeyDoc.roleDescriptorsBytes);
+                roleDescriptorsBytesCache.computeIfAbsent(
+                    cachedApiKeyDoc.limitedByRoleDescriptorsHash, k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
+            }
+        }
+
+        public void invalidate(Collection<String> docIds) {
+            docCache.invalidate(docIds);
+        }
+
+        public void invalidateAll() {
+            docCache.invalidateAll();
+            roleDescriptorsBytesCache.invalidateAll();
         }
     }
 }

@@ -96,7 +96,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
             .or(instanceOf(AutomatonQuery.class)));
-        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
+        MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
 
@@ -149,12 +149,12 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     public void testGeo() throws Exception {
         TermQueryBuilder query = new TermQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals("Geometry fields do not support exact searching, "
                 + "use dedicated geometry queries instead: [mapped_geo_point]", e.getMessage());
     }
 
-    public void testParseFailsWithMultipleFields() throws IOException {
+    public void testParseFailsWithMultipleFields() {
         String json = "{\n" +
                 "  \"term\" : {\n" +
                 "    \"message1\" : {\n" +

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Job;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -25,6 +27,7 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -145,6 +148,37 @@ public class SchedulerEngineTests extends ESTestCase {
             latch.await();
             assertFailedListenerLogMessage(mockLogger, numberOfSchedules * numberOfListeners);
             verifyNoMoreInteractions(mockLogger);
+        } finally {
+            engine.stop();
+        }
+    }
+
+    public void testCancellingDuringRunPreventsRescheduling() throws Exception {
+        final CountDownLatch jobRunningLatch = new CountDownLatch(1);
+        final CountDownLatch listenerLatch = new CountDownLatch(1);
+        final AtomicInteger calledCount = new AtomicInteger(0);
+        final SchedulerEngine engine = new SchedulerEngine(Settings.EMPTY, Clock.systemUTC());
+        final String jobId = randomAlphaOfLength(4);
+        try {
+            engine.register(event -> {
+                assertThat(event.getJobName(), is(jobId));
+                calledCount.incrementAndGet();
+                jobRunningLatch.countDown();
+                try {
+                    listenerLatch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            engine.add(new Job(jobId, ((startTime, now) -> 0)));
+
+            jobRunningLatch.await();
+            final int called = calledCount.get();
+            assertEquals(1, called);
+            engine.remove(jobId);
+            listenerLatch.countDown();
+
+            assertBusy(() -> assertEquals(called, calledCount.get()), 5, TimeUnit.MILLISECONDS);
         } finally {
             engine.stop();
         }

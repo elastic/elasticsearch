@@ -6,8 +6,11 @@
 
 package org.elasticsearch.xpack.stack;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -19,8 +22,11 @@ import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
+    private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
+
     // The stack template registry should remain at version 0. This is because templates and
     // policies will be changed by the ingest manager once they exist, and ES should only ever put
     // the template in place if it does not exist. If this were incremented we could accidentally
@@ -28,8 +34,15 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final int REGISTRY_VERSION = 0;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
+    public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
+        "stack.templates.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
-    private final boolean stackTemplateEnabled;
+    private final ClusterService clusterService;
+    private volatile boolean stackTemplateEnabled;
 
     //////////////////////////////////////////////////////////
     // Logs components (for matching logs-*-* indices)
@@ -129,7 +142,27 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        this.stackTemplateEnabled = StackPlugin.STACK_TEMPLATES_ENABLED.get(nodeSettings);
+        this.clusterService = clusterService;
+        this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
+    }
+
+    @Override
+    public void initialize() {
+        super.initialize();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(STACK_TEMPLATES_ENABLED, this::updateEnabledSetting);
+    }
+
+    private void updateEnabledSetting(boolean newValue) {
+        if (newValue) {
+            this.stackTemplateEnabled = true;
+        } else {
+            logger.info(
+                "stack composable templates [{}] and component templates [{}] will not be installed or reinstalled",
+                getComposableTemplateConfigs().stream().map(IndexTemplateConfig::getTemplateName).collect(Collectors.joining(",")),
+                getComponentTemplateConfigs().stream().map(IndexTemplateConfig::getTemplateName).collect(Collectors.joining(","))
+            );
+            this.stackTemplateEnabled = false;
+        }
     }
 
     @Override

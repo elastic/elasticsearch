@@ -37,7 +37,7 @@ public class VerifierTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -73,7 +73,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testQueryStartsWithNumber() {
         assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
-        assertEquals("1:1: no viable alternative at input '\"42\"'", errorParsing("\"42\" where true"));
     }
 
     public void testMissingColumn() {

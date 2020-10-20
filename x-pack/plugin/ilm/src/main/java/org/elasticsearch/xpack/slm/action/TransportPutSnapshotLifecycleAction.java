@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,16 +46,8 @@ public class TransportPutSnapshotLifecycleAction extends
     public TransportPutSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PutSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutSnapshotLifecycleAction.Request::new, indexNameExpressionResolver);
-    }
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutSnapshotLifecycleAction.Response read(StreamInput in) throws IOException {
-        return new PutSnapshotLifecycleAction.Response(in);
+                PutSnapshotLifecycleAction.Request::new, indexNameExpressionResolver, PutSnapshotLifecycleAction.Response::new,
+                ThreadPool.Names.SAME);
     }
 
     @Override

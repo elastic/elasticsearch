@@ -32,8 +32,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -96,7 +96,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         rewrite = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
-        }        
+        }
     }
 
     @Override
@@ -106,7 +106,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeOptionalString(rewrite);
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(caseInsensitive);
-        }    
+        }
     }
 
     @Override
@@ -126,18 +126,18 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     public String rewrite() {
         return this.rewrite;
     }
-    
+
     public WildcardQueryBuilder caseInsensitive(boolean caseInsensitive) {
         if (caseInsensitive == false) {
             throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
         }
         this.caseInsensitive = caseInsensitive;
         return this;
-    }    
+    }
 
     public boolean caseInsensitive() {
         return this.caseInsensitive;
-    }        
+    }
 
     @Override
     public String getWriteableName() {
@@ -165,7 +165,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         String rewrite = null;
         String value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;        
+        boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -213,16 +213,16 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                 .boost(boost)
                 .queryName(queryName);
         if (caseInsensitive) {
-            result.caseInsensitive(caseInsensitive);            
+            result.caseInsensitive(caseInsensitive);
         }
         return result;
-    }    
-    
+    }
+
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryShardContext context = queryRewriteContext.convertToShardContext();
         if (context != null) {
-            MappedFieldType fieldType = context.fieldMapper(this.fieldName);
+            MappedFieldType fieldType = context.getFieldType(this.fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
             } else if (fieldType instanceof ConstantFieldType) {
@@ -241,11 +241,11 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
 
         return super.doRewrite(queryRewriteContext);
-    }    
+    }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
 
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");

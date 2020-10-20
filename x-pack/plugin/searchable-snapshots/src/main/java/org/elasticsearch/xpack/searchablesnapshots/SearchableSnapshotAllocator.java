@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -83,6 +84,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         assert ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
             allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
         ).equals(ALLOCATOR_NAME);
+
+        if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            && allocation.snapshotShardSizeInfo().getShardSize(shardRouting) == null) {
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
+        }
 
         // let BalancedShardsAllocator take care of allocating this shard
         // TODO: once we have persistent cache, choose a node that has existing data

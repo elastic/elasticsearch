@@ -28,7 +28,7 @@ public class UpgradeSettingsAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "internal:indices/admin/upgrade";
 
     private UpgradeSettingsAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

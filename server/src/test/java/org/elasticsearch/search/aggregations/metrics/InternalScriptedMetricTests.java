@@ -91,7 +91,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     }
 
     private List<Object> randomAggregations() {
-        return randomList(randomBoolean() ? 1 : 5, this::randomAggregation);
+        return randomList(1, randomBoolean() ? 1 : 5, this::randomAggregation);
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

@@ -19,6 +19,7 @@ public interface RateAggregatorSupplier {
         String name,
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
+        RateMode rateMode,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata

@@ -270,9 +270,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public long nowInMillis() {
                 return 0;
             }
-
+            
             @Override
-            public Mapper getMapper(String name) {
+            public boolean isFieldMapped(String field) {
                 throw new UnsupportedOperationException();
             }
 
@@ -340,7 +340,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     ) throws IOException {
         withAggregationContext(mapperService, docs, null, test);
     }
-    
+
     protected final void withAggregationContext(
         MapperService mapperService,
         List<SourceToParse> docs,

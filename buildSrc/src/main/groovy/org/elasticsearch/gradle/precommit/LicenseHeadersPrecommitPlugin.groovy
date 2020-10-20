@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.provider.ProviderFactory
+import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 
 import javax.inject.Inject
@@ -39,9 +40,10 @@ class LicenseHeadersPrecommitPlugin extends PrecommitPlugin {
     @Override
     TaskProvider<? extends Task> createTask(Project project) {
         return project.getTasks().register("licenseHeaders", LicenseHeadersTask.class) {
+            SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(getProject());
             it.getSourceFolders().addAll(
                     providerFactory.provider() {
-                        return GradleUtils.getJavaSourceSets(getProject()).collect { it.allJava }.flatten()
+                        return sourceSets.collect { it.allJava }.flatten()
                     }
             )
         }

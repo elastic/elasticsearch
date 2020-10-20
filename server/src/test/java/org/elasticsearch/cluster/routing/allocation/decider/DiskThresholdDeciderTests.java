@@ -71,11 +71,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -1177,7 +1177,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
-                .putInSyncAllocationIds(0, Set.of(AllocationId.newInitializing().getId()))
+                .putInSyncAllocationIds(0, singleton(AllocationId.newInitializing().getId()))
             ).build();
 
         final RoutingTable routingTable = RoutingTable.builder()
@@ -1191,7 +1191,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         shards.put(shardId, new RestoreInProgress.ShardRestoreStatus("node1"));
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder()
-            .add(new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, List.of("test"), shards.build()));
+            .add(new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, singletonList("test"),
+                shards.build()));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(getTestName()))
             .metadata(metadata)

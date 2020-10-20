@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -34,13 +32,6 @@ public interface MediaType {
      * MUST be represented in all lowercase.
      */
     Set<String> mimeTypes();
-
-    /**
-     * The valid parameters associated with this Media type. An empty collection should be returned to support any parameters.
-     */
-    default Map<String, String> params() {
-        return Collections.emptyMap();
-    }
 
     /**
      * The representation for the canonical string representation of this MediaType, i.e. 'application/json'

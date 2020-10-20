@@ -42,12 +42,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     final Script reduceScript;
     private final List<Object> aggregations;
 
-    InternalScriptedMetric(String name, Object aggregation, Script reduceScript, Map<String, Object> metadata) {
-        this(name, Collections.singletonList(aggregation), reduceScript, metadata);
-    }
-
-
-    private InternalScriptedMetric(String name, List<Object> aggregations, Script reduceScript, Map<String, Object> metadata) {
+    InternalScriptedMetric(String name, List<Object> aggregations, Script reduceScript, Map<String, Object> metadata) {
         super(name, metadata);
         this.aggregations = aggregations;
         this.reduceScript = reduceScript;
@@ -70,11 +65,12 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(reduceScript);
         if (out.getVersion().before(Version.V_7_8_0)) {
-            if (aggregations.size() > 0) {
+            if (aggregations.size() > 1) {
                 /*
-                 * I *believe* that this situation can only happen in cross
-                 * cluster search right now. Thus the message. But computers
-                 * are hard.
+                 * If aggregations has more than one entry we're trying to
+                 * serialize an unreduced aggregation. This *should* only
+                 * happen when we're returning a scripted_metric over cross
+                 * cluster search.
                  */
                 throw new IllegalArgumentException("scripted_metric doesn't support cross cluster search until 7.8.0");
             }
@@ -97,7 +93,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
         return aggregations.get(0);
     }
 
-    List<Object> getAggregation() {
+    List<Object> aggregationsList() {
         return aggregations;
     }
 

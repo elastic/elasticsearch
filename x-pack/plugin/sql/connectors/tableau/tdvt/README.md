@@ -48,14 +48,33 @@ If there is an available other Elasticsearch instance running, that has the test
 
 Note that Logstash will add a few extra fields per row ("document" in Elasticsearch lingo); these shouldn't interfere with the testing, however.
 
-<TODO: detailed sequence of steps and add LS's config file to this repo>
+0. Download TDVT's data files [Calcs.csv](https://raw.githubusercontent.com/tableau/connector-plugin-sdk/tdvt-2.1.9/tests/datasets/TestV1/Calcs.csv) and [Staples_utf8.csv](https://raw.githubusercontent.com/tableau/connector-plugin-sdk/tdvt-2.1.9/tests/datasets/TestV1/Staples_utf8.csv) and place them into a directory that will be reachable by Logstash.
+
+1. Create the Elasticsearch indices `calcs` and `staples` and use for them the [mappings](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html) under these links: [calcs](https://github.com/elastic/elasticsearch-sql-odbc/blob/577cd2fa1ed257e42081a082682c8c089b179565/test/integration/data.py#L27) and [stapes](https://github.com/elastic/elasticsearch-sql-odbc/blob/577cd2fa1ed257e42081a082682c8c089b179565/test/integration/data.py#L87). Create an ingest [pipeline](https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html) called `calcs-pipeline` with the definition [here](https://github.com/elastic/elasticsearch-sql-odbc/blob/577cd2fa1ed257e42081a082682c8c089b179565/test/integration/data.py#L62).
+
+2. Adapt the [config file](https://www.elastic.co/guide/en/logstash/current/configuration-file-structure.html#configuration-file-structure) under the `logstash` folder, updating the <path>, <host> and <password> tags in it.
+
+3. Relaunch Logstash and wait until the files have been ingested. `calcs` index will need to have 17 documents and `staples` 54860.
 
 
 ## Running TDVT
 
-Setting up the TDVT testing involves following the steps detailed in the [official documentation](https://tableau.github.io/connector-plugin-sdk/docs/tdvt). The "fragment" in parantheses reference the respective chapters in the documentation. It is recommended to execute each test run starting afresh.
+### Automated
 
 0. Place Elasticsearch JDBC driver into [Tableau's driver folder](https://help.tableau.com/current/pro/desktop/en-us/examples_otherdatabases_jdbc.htm) under: `C:\Program Files\Tableau\Drivers`.
+
+1. Place the `.taco` file either in Tableau's dedicated connectors directory, `C:\Users\[Windows User]\Documents\My Tableau Repository\Connectors`, or a custom one ("<taco dir path>").
+
+2. Use the `tdvt_run.py` application, that clone the TDVT SDK repo, setup config files and launch the TDVT run:
+    ```
+    python3 ./tdvt_run.py -u "http://user:pass@elastic-host:9200" -t <taco dir path>
+    ```
+
+### Manually
+
+Setting up the TDVT testing involves following the steps detailed in the [official documentation](https://tableau.github.io/connector-plugin-sdk/docs/tdvt). The "fragment" in parantheses reference the respective chapters in the documentation. It is recommended to execute each test run starting afresh.
+
+0. Same as in the automated testing.
 
 1. Create new Tableau data sources for the `calcs` and `Staple` tables (#`Test a new data source`), or, alternatively, use those available already in this repo.
 	To set up new sources, launch Tableau from command line with the following parameters (PowerShell example):
@@ -95,4 +114,5 @@ Setting up the TDVT testing involves following the steps detailed in the [offici
 	```
 
 	**Note**: If running on a busy machine, TDVT's thread allocation can be throttled with the `-t <threads>` argument, where <threads> should take the value of available CPU execution units, or even `1` if running on a slower VM.
+
 

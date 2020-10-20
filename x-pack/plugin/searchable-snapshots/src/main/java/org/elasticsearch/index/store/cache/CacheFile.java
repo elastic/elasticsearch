@@ -9,7 +9,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
@@ -104,19 +103,6 @@ public class CacheFile {
 
     public Path getFile() {
         return file;
-    }
-
-    /**
-     * Increment the reference count for the underlying file by one and return a {@link Releasable} that will decrement by one when closed.
-     * TODO: Do we actually need this? Forcefully not evicting this cache file for a period of time seems pointless and in opposition to
-     *       limiting the size of the cache overall.
-     */
-    Releasable fileLock() {
-        final FileChannelReference reference = channelRef;
-        if (reference == null || reference.tryIncRef() == false) {
-            throw new AlreadyClosedException("Cache file channel has been released and closed");
-        }
-        return channelRef::decRef;
     }
 
     @Nullable

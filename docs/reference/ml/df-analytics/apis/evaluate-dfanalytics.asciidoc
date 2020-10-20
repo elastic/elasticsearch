@@ -258,7 +258,7 @@ The API returns the following results:
 {
   "outlier_detection": {
     "auc_roc": {
-      "score": 0.92584757746414444
+      "value": 0.92584757746414444
     },
     "confusion_matrix": {
       "0.25": {
@@ -534,7 +534,7 @@ The API returns the following result:
 {
   "classification" : {
     "auc_roc" : {
-      "score" : 0.8941788639536681
+      "value" : 0.8941788639536681
     }
   }
 }

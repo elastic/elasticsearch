@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -33,16 +32,16 @@ public class NativeStorageProviderTests extends ESTestCase {
         Map<Path, Long> storage = new HashMap<>();
         Path tmpDir = createTempDir();
 
-        storage.put(tmpDir, new ByteSizeValue(6, ByteSizeUnit.GB).getBytes());
+        storage.put(tmpDir, ByteSizeValue.ofGb(6).getBytes());
         NativeStorageProvider storageProvider = createNativeStorageProvider(storage);
 
         Assert.assertNotNull(
-                storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10), new ByteSizeValue(100, ByteSizeUnit.BYTES)));
+                storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10), ByteSizeValue.ofBytes(100)));
         Assert.assertNull(storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10),
-                new ByteSizeValue(1024 * 1024 * 1024 + 1, ByteSizeUnit.BYTES)));
+                ByteSizeValue.ofBytes(1024 * 1024 * 1024 + 1)));
 
         String id = randomAlphaOfLengthBetween(4, 10);
-        Path path = storageProvider.tryGetLocalTmpStorage(id, new ByteSizeValue(1, ByteSizeUnit.GB));
+        Path path = storageProvider.tryGetLocalTmpStorage(id, ByteSizeValue.ofGb(1));
         Assert.assertNotNull(path);
 
         Assert.assertEquals(tmpDir.resolve("ml-local-data").resolve("tmp").resolve(id).toString(), path.toString());
@@ -54,16 +53,16 @@ public class NativeStorageProviderTests extends ESTestCase {
 
         // low disk space
         Path disk1 = tmpDir.resolve(randomAlphaOfLengthBetween(4, 10));
-        storage.put(disk1, new ByteSizeValue(1, ByteSizeUnit.GB).getBytes());
+        storage.put(disk1, ByteSizeValue.ofGb(1).getBytes());
 
         // sufficient disk space
         Path disk2 = tmpDir.resolve(randomAlphaOfLengthBetween(4, 10));
-        storage.put(disk2, new ByteSizeValue(20, ByteSizeUnit.GB).getBytes());
+        storage.put(disk2, ByteSizeValue.ofGb(20).getBytes());
 
         NativeStorageProvider storageProvider = createNativeStorageProvider(storage);
 
         String id = randomAlphaOfLengthBetween(4, 10);
-        Path path = storageProvider.tryGetLocalTmpStorage(id, new ByteSizeValue(1, ByteSizeUnit.GB));
+        Path path = storageProvider.tryGetLocalTmpStorage(id, ByteSizeValue.ofGb(1));
         Assert.assertNotNull(path);
 
         // should resolve to disk2 as disk1 is low on space
@@ -73,11 +72,11 @@ public class NativeStorageProviderTests extends ESTestCase {
     public void testTmpStorageCleanup() throws IOException {
         Map<Path, Long> storage = new HashMap<>();
         Path tmpDir = createTempDir();
-        storage.put(tmpDir, new ByteSizeValue(6, ByteSizeUnit.GB).getBytes());
+        storage.put(tmpDir, ByteSizeValue.ofGb(6).getBytes());
         NativeStorageProvider storageProvider = createNativeStorageProvider(storage);
         String id = randomAlphaOfLengthBetween(4, 10);
 
-        Path path = storageProvider.tryGetLocalTmpStorage(id, new ByteSizeValue(1, ByteSizeUnit.KB));
+        Path path = storageProvider.tryGetLocalTmpStorage(id, ByteSizeValue.ofKb(1));
 
         Assert.assertTrue(Files.exists(path));
         Path testFile = PathUtils.get(path.toString(), "testFile");
@@ -97,11 +96,11 @@ public class NativeStorageProviderTests extends ESTestCase {
     public void testTmpStorageCleanupOnStart() throws IOException {
         Map<Path, Long> storage = new HashMap<>();
         Path tmpDir = createTempDir();
-        storage.put(tmpDir, new ByteSizeValue(6, ByteSizeUnit.GB).getBytes());
+        storage.put(tmpDir, ByteSizeValue.ofGb(6).getBytes());
         NativeStorageProvider storageProvider = createNativeStorageProvider(storage);
         String id = randomAlphaOfLengthBetween(4, 10);
 
-        Path path = storageProvider.tryGetLocalTmpStorage(id, new ByteSizeValue(1, ByteSizeUnit.KB));
+        Path path = storageProvider.tryGetLocalTmpStorage(id, ByteSizeValue.ofKb(1));
 
         Assert.assertTrue(Files.exists(path));
         Path testFile = PathUtils.get(path.toString(), "testFile");
@@ -124,7 +123,7 @@ public class NativeStorageProviderTests extends ESTestCase {
         Environment environment = mock(Environment.class);
 
         when(environment.dataFiles()).thenReturn(paths.keySet().toArray(new Path[paths.size()]));
-        NativeStorageProvider storageProvider = spy(new NativeStorageProvider(environment, new ByteSizeValue(5, ByteSizeUnit.GB)));
+        NativeStorageProvider storageProvider = spy(new NativeStorageProvider(environment, ByteSizeValue.ofGb(5)));
 
         doAnswer(invocation -> {
             return paths.getOrDefault(invocation.getArguments()[0], Long.valueOf(0)).longValue();

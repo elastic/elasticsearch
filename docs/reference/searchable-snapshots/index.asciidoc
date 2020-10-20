@@ -46,7 +46,7 @@ The shards of searchable snapshots are also allocated just like shards of any
 other index. You can, for instance, use <<shard-allocation-filtering>> to
 restrict these shards to a subset of your nodes.
 
-Normally you will use {search-snaps-cap} via the
+Normally you will manage {search-snaps-cap} via the
 <<ilm-searchable-snapshot,searchable snapshots ILM action>> which automatically
 and transparently converts your index into a searchable snapshot when it
 reaches the `cold` ILM phase. If you already have some snapshots that you want

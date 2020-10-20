@@ -88,7 +88,7 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
     /**
      * Returns the mapped field type for the given field name.
      */
-    public MappedFieldType get(String field) {
+    MappedFieldType get(String field) {
         String concreteField = aliasToConcreteName.getOrDefault(field, field);
         MappedFieldType fieldType = fullNameToFieldType.get(concreteField);
         if (fieldType != null) {
@@ -104,7 +104,7 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
      * A smart analyzer used for indexing that takes into account specific analyzers configured
      * per {@link FieldMapper}.
      */
-    public FieldNameAnalyzer indexAnalyzer() {
+    FieldNameAnalyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }
 

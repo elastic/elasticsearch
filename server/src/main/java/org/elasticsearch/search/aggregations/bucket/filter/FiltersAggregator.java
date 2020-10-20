@@ -147,7 +147,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        FiltersAggregator filterOrder = filterOrderOrNull(
+        FiltersAggregator filterOrder = buildFilterOrderOrNull(
             name,
             factories,
             keys,
@@ -176,7 +176,14 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         );
     }
 
-    private static FiltersAggregator filterOrderOrNull(
+    /**
+     * Build an {@link Aggregator} for a {@code filters} aggregation if we
+     * can collect {@link FilterByFilter}, otherwise return {@code null}. We can
+     * collect filter by filter if there isn't a parent, there aren't children,
+     * and we don't collect "other" buckets. Collecting {@link FilterByFilter}
+     * is generally going to be much faster than the {@link Compatible} aggregator.
+     */
+    public static FiltersAggregator buildFilterOrderOrNull(
         String name,
         AggregatorFactories factories,
         String[] keys,
@@ -251,8 +258,6 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         return new InternalFilters(name, buckets, keyed, metadata());
     }
 
-    public abstract boolean collectsInFilterOrder();
-
     /**
      * Collects results by running each filter against the searcher and doesn't
      * build any {@link LeafBucketCollector}s which is generally faster than
@@ -305,11 +310,6 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                 }
             }
             throw new CollectionTerminatedException();
-        }
-
-        @Override
-        public boolean collectsInFilterOrder() {
-            return true;
         }
 
         @Override
@@ -380,11 +380,6 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
             return owningBucketOrdinal * totalNumKeys + filterOrd;
-        }
-
-        @Override
-        public boolean collectsInFilterOrder() {
-            return false;
         }
     }
 

@@ -345,29 +345,35 @@ public abstract class RangeAggregator extends BucketsAggregator {
                     context.getQueryShardContext()
                 );
         }
+        FiltersAggregator delegate = FiltersAggregator.buildFilterOrderOrNull(
+            name,
+            factories,
+            keys,
+            filters,
+            false,
+            null,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+        if (delegate == null) {
+            return null;
+        }
         RangeAggregator.FromFilters<?> fromFilters = new RangeAggregator.FromFilters<>(
             parent,
             factories,
-            subAggregators -> FiltersAggregator.build(
-                name,
-                subAggregators,
-                keys,
-                filters,
-                false,
-                null,
-                context,
-                parent,
-                cardinality,
-                metadata
-            ),
+            subAggregators -> {
+                if (subAggregators.countAggregators() > 0) {
+                    throw new IllegalStateException("didn't expect to have a delegate if there are child aggs");
+                }
+                return delegate;
+            },
             valuesSourceConfig.format(),
             ranges,
             keyed,
             rangeFactory
         );
-        if (false == ((FiltersAggregator) fromFilters.delegate()).collectsInFilterOrder()) {
-            return null;
-        }
         return fromFilters;
     }
 

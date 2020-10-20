@@ -344,9 +344,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         final boolean excludeGenerated = params.paramAsBoolean(TransformField.EXCLUDE_GENERATED, false);
         final boolean forInternalStorage = params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false);
-        if (forInternalStorage) {
-            assert excludeGenerated == false: "unsupported behavior, exclude_generated is true and for_internal_storage is true";
-        }
+        assert (forInternalStorage && excludeGenerated) == false:
+            "unsupported behavior, exclude_generated is true and for_internal_storage is true";
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
         if (excludeGenerated == false) {

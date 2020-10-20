@@ -170,9 +170,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
             }
-            return metadataMappers;
+
+        } else {
+            metadataMappers.putAll(existingMapper.mapping().metadataMappersMap);
         }
-        return existingMapper.mapping().metadataMappersMap;
+        return metadataMappers;
     }
 
     /**

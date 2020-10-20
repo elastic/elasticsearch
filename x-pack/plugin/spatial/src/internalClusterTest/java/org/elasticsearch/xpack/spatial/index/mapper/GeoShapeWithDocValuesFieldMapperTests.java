@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -97,8 +96,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping), false);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -116,8 +114,8 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject());
 
         Version oldVersion = Version.V_7_7_0;
-        DocumentMapper defaultMapper = createIndex("test", settings(oldVersion).build()).mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test", settings(oldVersion).build()).mapperService()
+            .parse("type1", new CompressedXContent(mapping), false);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -136,8 +134,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping), false);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -154,8 +151,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        defaultMapper = createIndex("test2").mapperService().parse("type1", new CompressedXContent(mapping), false);
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -176,8 +172,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping), false);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -192,8 +187,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        defaultMapper = createIndex("test2").mapperService().parse("type1", new CompressedXContent(mapping), false);
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -214,8 +208,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping), false);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -230,8 +223,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        defaultMapper = createIndex("test2").mapperService().parse("type1", new CompressedXContent(mapping), false);
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -250,8 +242,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping), false);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -266,8 +257,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        defaultMapper = createIndex("test2").mapperService().parse("type1", new CompressedXContent(mapping), false);
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -287,8 +277,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping), false);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -303,8 +292,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        defaultMapper = createIndex("test2").mapperService().parse("type1", new CompressedXContent(mapping), false);
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
@@ -360,40 +348,36 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .field("type", "geo_shape")
             .endObject().endObject()
             .endObject().endObject());
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type1", new CompressedXContent(mapping))
+            () -> mapperService.parse("type1", new CompressedXContent(mapping), false)
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
     public void testSerializeDefaults() throws Exception {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .endObject().endObject()
-                .endObject().endObject());
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper("location"));
-            assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-                AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
-            assertTrue(serialized, serialized.contains("\"doc_values\":true"));
-        }
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .endObject().endObject()
+            .endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping), false);
+        String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper("location"));
+        assertTrue(serialized, serialized.contains("\"orientation\":\"" +
+            AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+        assertTrue(serialized, serialized.contains("\"doc_values\":true"));
     }
 
     public void testSerializeDocValues() throws IOException {
         boolean docValues = randomBoolean();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .field("doc_values", docValues)
             .endObject().endObject()
             .endObject().endObject());
-        DocumentMapper mapper = parser.parse("type1", new CompressedXContent(mapping));
+        DocumentMapper mapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping), false);
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper("location"));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" +
             AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
@@ -412,8 +396,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
             .endObject()
             .endObject());
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = createIndex("test").mapperService().parse("_doc", new CompressedXContent(mapping), false);
 
         BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()

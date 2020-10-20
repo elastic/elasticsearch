@@ -40,10 +40,9 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            defaultMapper.parse(new SourceToParse("test", "type", "1", new BytesArray(" {\n" +
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping), false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> defaultMapper.parse(
+            new SourceToParse("test", "type", "1", new BytesArray(" {\n" +
                 "      \"object\": {\n" +
                 "        \"array\":[\n" +
                 "        {\n" +
@@ -56,8 +55,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                 "      },\n" +
                 "      \"value\":\"value\"\n" +
                 "    }"),
-                    XContentType.JSON));
-        });
+                    XContentType.JSON)));
         assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
     }
 
@@ -65,7 +63,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("properties").endArray()
                 .endObject().endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("type", new CompressedXContent(mapping), false);
     }
 
     public void testEmptyFieldsArrayMultiFields() throws Exception {
@@ -82,7 +80,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping), false);
     }
 
     public void testFieldsArrayMultiFieldsShouldThrowException() throws Exception {
@@ -101,7 +99,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject());
         try {
-            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping), false);
             fail("Expected MapperParsingException");
         } catch(MapperParsingException e) {
             assertThat(e.getMessage(), containsString("expected map for property [fields]"));
@@ -119,7 +117,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping), false);
     }
 
     public void testFieldsWithFilledArrayShouldThrowException() throws Exception {
@@ -135,7 +133,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject());
         try {
-            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping), false);
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Expected map for property [fields]"));
@@ -158,7 +156,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping), false);
     }
 
     public void testMerge() throws IOException {
@@ -342,9 +340,8 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         // Empty name not allowed in index created after 5.0
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
-        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().parse("", new CompressedXContent(mapping), false));
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 

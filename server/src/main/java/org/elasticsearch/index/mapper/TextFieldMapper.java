@@ -359,11 +359,14 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             }
             PrefixFieldType prefixFieldType = new PrefixFieldType(tft, fullName + "._index_prefix", indexPrefixes.get());
             tft.setPrefixFieldType(prefixFieldType);
-            return new PrefixFieldMapper(pft, prefixFieldType,
-                new PrefixWrappedAnalyzer(analyzers.getIndexAnalyzer(), prefixFieldType.minChars, prefixFieldType.maxChars));
+            return new PrefixFieldMapper(pft, prefixFieldType, new PrefixWrappedAnalyzer(
+                analyzers.getIndexAnalyzer().analyzer(),
+                analyzers.positionIncrementGap.get(),
+                prefixFieldType.minChars,
+                prefixFieldType.maxChars));
         }
 
-        private PhraseFieldMapper buildPhraseMapper(FieldType fieldType, TextFieldType parent, NamedAnalyzer parentAnalyzer) {
+        private PhraseFieldMapper buildPhraseMapper(FieldType fieldType, TextFieldType parent) {
             if (indexPhrases.get() == false) {
                 return null;
             }
@@ -375,7 +378,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             }
             FieldType phraseFieldType = new FieldType(fieldType);
             parent.setIndexPhrases();
-            return new PhraseFieldMapper(phraseFieldType, new PhraseFieldType(parent), parentAnalyzer);
+            PhraseWrappedAnalyzer a
+                = new PhraseWrappedAnalyzer(analyzers.getIndexAnalyzer().analyzer(), analyzers.positionIncrementGap.get());
+            return new PhraseFieldMapper(phraseFieldType, new PhraseFieldType(parent), a);
         }
 
         @Override
@@ -383,7 +388,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
             return new TextFieldMapper(name, fieldType, tft,
-                buildPrefixMapper(context, fieldType, tft), buildPhraseMapper(fieldType, tft, analyzers.getIndexAnalyzer()),
+                buildPrefixMapper(context, fieldType, tft), buildPhraseMapper(fieldType, tft),
                 multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -394,10 +399,17 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 
         private final Analyzer delegate;
+        private final int posIncGap;
 
-        PhraseWrappedAnalyzer(Analyzer delegate) {
+        PhraseWrappedAnalyzer(Analyzer delegate, int posIncGap) {
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
+            this.posIncGap = posIncGap;
+        }
+
+        @Override
+        public int getPositionIncrementGap(String fieldName) {
+            return posIncGap;
         }
 
         @Override
@@ -415,11 +427,13 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         private final int minChars;
         private final int maxChars;
+        private final int posIncGap;
         private final Analyzer delegate;
 
-        PrefixWrappedAnalyzer(Analyzer delegate, int minChars, int maxChars) {
+        PrefixWrappedAnalyzer(Analyzer delegate, int posIncGap, int minChars, int maxChars) {
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
+            this.posIncGap = posIncGap;
             this.minChars = minChars;
             this.maxChars = maxChars;
         }
@@ -427,6 +441,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
             return delegate;
+        }
+
+        @Override
+        public int getPositionIncrementGap(String fieldName) {
+            return posIncGap;
         }
 
         @Override
@@ -552,9 +571,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         final Analyzer analyzer;
 
-        PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType, NamedAnalyzer analyzer) {
+        PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType, PhraseWrappedAnalyzer analyzer) {
             super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
-            this.analyzer = new PhraseWrappedAnalyzer(analyzer.analyzer());
+            this.analyzer = analyzer;
         }
 
         @Override

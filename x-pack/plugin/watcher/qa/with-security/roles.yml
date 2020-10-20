@@ -10,7 +10,7 @@ watcher_manager:
   cluster:
     - manage
   indices:
-    - names: '.watch*'
+    - names: [ '.watch*','watcher-history-*' ]
       privileges:
         - all
     # this index gets created by one of the watcher yaml tests

@@ -70,7 +70,7 @@ considered to be part of all tiers.
 
 {ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[Area under the curve of receiver operating characteristic (AUC ROC)] 
 is an evaluation metric that has been available for {oldetection} since 7.3 and 
-now is available for {classification} analysis as well. It represents the 
+now is available for {classification} analysis. AUC ROC represents the 
 performance of the {classification} process at different predicted probability 
 thresholds. The true positive rate for a specific class is compared against the 
 rate of all the other classes combined at the different threshold levels to 
@@ -84,8 +84,8 @@ create the curve.
 Feature processors enable you to extract process features from document fields. 
 You can use these features in model training and model deployment. Custom 
 feature processors provide a mechanism to create features that can be used at 
-search and ingest time and they don’t take up space in the index. Furthermore, 
-this process more tightly couples feature generation with the resulting model. 
+search and ingest time and they don’t take up space in the index.
+This process more tightly couples feature generation with the resulting model. 
 The result is simplified model management as both the features and the model can 
 easily follow the same life cycle.
 

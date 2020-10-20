@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A {@link LifecycleAction} which sets the index's priority. The higher the priority, the faster the recovery.
+ * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.rollup.v2.RollupV2Action} on an index
  */
 public class RollupAction implements LifecycleAction {
     public static final String NAME = "rollup";
@@ -86,7 +86,7 @@ public class RollupAction implements LifecycleAction {
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
         Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, nextStepKey, client, readOnlySettings);
+        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, rollupKey, client, readOnlySettings);
         RollupStep rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
         return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep);
     }

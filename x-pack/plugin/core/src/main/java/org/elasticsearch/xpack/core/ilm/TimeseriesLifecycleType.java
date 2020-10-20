@@ -45,15 +45,14 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS;
-    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
-        FreezeAction.NAME, SearchableSnapshotAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
+    static final Set<String> VALID_COLD_ACTIONS; // set in static block below
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
     private static final Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
-
     private static final boolean ROLLUP_V2_FEATURE_ENABLED;
+
     static {
         final String property = System.getProperty("es.rollup_v2_feature_enabled");
         if ("true".equals(property)) {
@@ -67,17 +66,14 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 "expected es.rollup_v2_feature_enabled to be unset or [true|false] but was [" + property + "]"
             );
         }
-    }
-
-    static {
         if (ROLLUP_V2_FEATURE_ENABLED) {
             ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
-                MigrateAction.NAME, FreezeAction.NAME, RollupAction.NAME, SearchableSnapshotAction.NAME);
+                RollupAction.NAME, MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
         } else {
             ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
                 MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
         }
-        final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
+        VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
         ALLOWED_ACTIONS.put(HOT_PHASE, VALID_HOT_ACTIONS);
         ALLOWED_ACTIONS.put(WARM_PHASE, VALID_WARM_ACTIONS);
         ALLOWED_ACTIONS.put(COLD_PHASE, VALID_COLD_ACTIONS);

@@ -132,7 +132,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard1 = randomBoolean();
         final boolean shard2 = randomBoolean();
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {

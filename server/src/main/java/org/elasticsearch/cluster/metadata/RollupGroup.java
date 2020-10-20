@@ -32,40 +32,63 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 // TODO(talevy): optimize for fast lookup speed
 public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXContentObject {
     private static final ParseField GROUP = new ParseField("group");
 
     private List<String> group;
+    private Map<String, String> dateInterval;
+    private Map<String, String> dateTimezone;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RollupGroup, Void> PARSER =
         new ConstructingObjectParser<>("rollup_group", false,
-            a -> new RollupGroup((List<String>) a[0]));
+            a -> new RollupGroup((List<String>) a[0], (Map<String, String>) a[1], (Map<String, String>) a[2]));
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), GROUP);
     }
 
-    public RollupGroup(List<String> group) {
+    public RollupGroup(List<String> group, Map<String, String> dateInterval, Map<String, String> dateTimezone) {
         this.group = group;
+        this.dateInterval = dateInterval;
+        this.dateTimezone = dateTimezone;
     }
 
     public RollupGroup(StreamInput in) throws IOException {
         this.group = in.readStringList();
+        this.dateInterval = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.dateTimezone = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
-    public void add(String name) {
+    public void add(String name, String interval, String timezone) {
         group.add(name);
+        dateInterval.put(name, interval);
+        dateTimezone.put(name, timezone);
     }
 
     public void remove(String name) {
         group.remove(name);
+        dateInterval.remove(name);
+        dateTimezone.remove(name);
     }
 
     public boolean contains(String name) {
         return group.contains(name);
+    }
+
+    public String getDateInterval(String name) {
+        return dateInterval.get(name);
+    }
+
+    public String getDateTimezone(String name) {
+        return dateTimezone.get(name);
+    }
+
+    public List<String> getIndices() {
+        return group;
     }
 
     static Diff<RollupGroup> readDiffFrom(StreamInput in) throws IOException {
@@ -84,6 +107,8 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(group);
+        out.writeMap(dateInterval, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(dateTimezone, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.v2.RollupV2Action;
 import org.elasticsearch.xpack.core.rollup.v2.RollupV2Task;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -88,11 +89,18 @@ public class TransportRollupV2Action extends HandledTransportAction<RollupV2Acti
                     } else {
                         rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
                     }
+                    DateHistogramGroupConfig dateConfig = rollupV2Task.config().getGroupConfig().getDateHistogram();
                     if (rollupGroups.containsKey(rollupGroupKeyName)) {
                         RollupGroup group = rollupGroups.get(rollupGroupKeyName);
-                        group.add(rollupIndexName);
+                        group.add(rollupIndexName, dateConfig.getInterval().toString(), dateConfig.getTimeZone());
                     } else {
-                        rollupGroups.put(rollupGroupKeyName, new RollupGroup(List.of(rollupIndexName)));
+                        List<String> indices = new ArrayList<>();
+                        Map<String, String> intervals = new HashMap<>();
+                        Map<String, String> timezones = new HashMap<>();
+                        indices.add(rollupIndexName);
+                        intervals.put(rollupIndexName, dateConfig.getInterval().toString());
+                        timezones.put(rollupIndexName, dateConfig.getTimeZone());
+                        rollupGroups.put(rollupGroupKeyName, new RollupGroup(indices, intervals, timezones));
                     }
                     // add rolled up index to backing datastream if rolling up a backing index of a datastream
                     IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);

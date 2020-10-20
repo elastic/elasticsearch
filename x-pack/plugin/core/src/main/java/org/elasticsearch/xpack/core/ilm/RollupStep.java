@@ -35,7 +35,9 @@ public class RollupStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
-        config.setSourceIndex(indexMetadata.getIndex().getName());
+        String originalIndex = indexMetadata.getIndex().getName();
+        config.setSourceIndex(originalIndex);
+        config.setRollupIndex(originalIndex + "-rollup");
         RollupV2Action.Request request = new RollupV2Action.Request(config);
         getClient().execute(RollupV2Action.INSTANCE, request,
                 ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

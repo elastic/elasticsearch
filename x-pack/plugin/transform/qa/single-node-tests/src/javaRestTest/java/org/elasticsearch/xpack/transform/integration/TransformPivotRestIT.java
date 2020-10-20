@@ -558,15 +558,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:0.0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19));
 
         searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27));
 
         searchResult = getAsMap(transformIndex + "/_search?q=every_2:4.0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27));
 
         final StringBuilder bulk = new StringBuilder();
 
@@ -610,15 +610,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         searchResult = getAsMap(transformIndex + "/_search?q=every_2:0.0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19));
 
         searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(30.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(30));
 
         searchResult = getAsMap(transformIndex + "/_search?q=every_2:4.0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27));
 
     }
 

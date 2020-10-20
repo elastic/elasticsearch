@@ -42,6 +42,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -358,8 +359,11 @@ final class CompositeAggregator extends BucketsAggregator {
             final LeafBucketCollector inner = queue.getLeafCollector(ctx,
                 getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length));
             inner.setScorer(scorer);
+            final Bits liveDocs = ctx.reader().getLiveDocs();
             while (docIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                inner.collect(docIt.docID());
+                if (liveDocs == null || liveDocs.get(docIt.docID())) {
+                    inner.collect(docIt.docID());
+                }
             }
         }
     }
@@ -580,4 +584,3 @@ final class CompositeAggregator extends BucketsAggregator {
         }
     }
 }
-

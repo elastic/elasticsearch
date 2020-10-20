@@ -1,6 +1,8 @@
 [[searchable-snapshots]]
 == {search-snaps-cap}
 
+beta:[]
+
 Nodes in a distributed system like {es} will inevitably fail from time to time.
 To protect your data against node failures, by default when you index a
 document into {es} it is stored on two or more nodes. You also take periodic

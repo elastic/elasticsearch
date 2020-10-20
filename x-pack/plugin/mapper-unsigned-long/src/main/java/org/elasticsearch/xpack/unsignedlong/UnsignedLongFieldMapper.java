@@ -494,8 +494,7 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-    }
+    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {}
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {

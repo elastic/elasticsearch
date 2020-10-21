@@ -175,7 +175,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             trainedModelStatsService,
-            Settings.builder().put(ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE.getKey(), new ByteSizeValue(20L)).build(),
+            Settings.builder().put(ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE.getKey(), ByteSizeValue.ofBytes(20L)).build(),
             "test-node",
             circuitBreaker);
 

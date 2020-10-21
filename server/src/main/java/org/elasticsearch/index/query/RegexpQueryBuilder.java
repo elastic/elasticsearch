@@ -154,9 +154,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     public RegexpQueryBuilder caseInsensitive(boolean caseInsensitive) {
-        if (caseInsensitive == false) {
-            throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
-        }
         this.caseInsensitive = caseInsensitive;
         return this;
     }
@@ -240,10 +237,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                             flagsValue = parser.intValue();
                         } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             caseInsensitive = parser.booleanValue();
-                            if (caseInsensitive == false) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "[regexp] query does not support [" + currentFieldName + "] = false");
-                            }
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
@@ -265,9 +258,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                 .rewrite(rewrite)
                 .boost(boost)
                 .queryName(queryName);
-        if (caseInsensitive) {
-            result.caseInsensitive(caseInsensitive);
-        }
+        result.caseInsensitive(caseInsensitive);
         return result;
     }
 
@@ -293,7 +284,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
         int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp.ALL;
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {
             query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }

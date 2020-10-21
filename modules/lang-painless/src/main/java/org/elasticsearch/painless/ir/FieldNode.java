@@ -19,13 +19,9 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
 
 public class FieldNode extends IRNode {
 
@@ -39,7 +35,7 @@ public class FieldNode extends IRNode {
         this.modifiers = modifiers;
     }
 
-    public int getModifiers(int modifiers) {
+    public int getModifiers() {
         return modifiers;
     }
 
@@ -81,9 +77,4 @@ public class FieldNode extends IRNode {
         super(location);
     }
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        classWriter.getClassVisitor().visitField(
-                ClassWriter.buildAccess(modifiers, true), name, Type.getType(fieldType).getDescriptor(), null, null).visitEnd();
-    }
 }

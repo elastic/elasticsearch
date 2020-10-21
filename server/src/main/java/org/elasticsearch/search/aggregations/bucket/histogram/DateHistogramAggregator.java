@@ -28,8 +28,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -72,7 +72,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         String name,
         AggregatorFactories factories,
         Rounding rounding,
-        Rounding.Prepared preparedRounding,
         BucketOrder order,
         boolean keyed,
         long minDocCount,
@@ -87,7 +86,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
-        this.preparedRounding = preparedRounding;
+        this.preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
         this.order = order;
         order.validate(this);
         this.keyed = keyed;

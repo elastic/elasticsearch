@@ -49,6 +49,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.unsignedlong.UnsignedLongLeafFieldData.convertUnsignedLongToDouble;
+
 public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "unsigned_long";
 
@@ -235,7 +237,7 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, false, nullValueFormatted) {
+            return new SourceValueFetcher(name(), mapperService, nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -272,9 +274,15 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
             if (isSearchable()) {
-                return (value) -> LongPoint.decodeDimension(value, 0);
+                // convert from the shifted value back to the original value
+                return (value) -> convertUnsignedLongToDouble(LongPoint.decodeDimension(value, 0));
             }
             return null;
+        }
+
+        @Override
+        public CollapseType collapseType() {
+            return CollapseType.NUMERIC;
         }
 
         /**
@@ -520,7 +528,7 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
     }
 
     /**
-     * Convert an unsigned long to the singed long by subtract 2^63 from it
+     * Convert an unsigned long to the signed long by subtract 2^63 from it
      * @param value – unsigned long value in the range [0; 2^64-1], values greater than 2^63-1 are negative
      * @return signed long value in the range [-2^63; 2^63-1]
      */

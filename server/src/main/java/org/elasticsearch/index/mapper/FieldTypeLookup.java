@@ -23,7 +23,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -33,7 +32,7 @@ import java.util.Set;
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
-class FieldTypeLookup implements Iterable<MappedFieldType> {
+final class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
     private final Map<String, String> aliasToConcreteName = new HashMap<>();
@@ -47,10 +46,6 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      */
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
-
-    FieldTypeLookup() {
-        this(Collections.emptyList(), Collections.emptyList());
-    }
 
     FieldTypeLookup(Collection<FieldMapper> fieldMappers,
                     Collection<FieldAliasMapper> fieldAliasMappers) {
@@ -87,7 +82,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     /**
      * Returns the mapped field type for the given field name.
      */
-    public MappedFieldType get(String field) {
+    MappedFieldType get(String field) {
         String concreteField = aliasToConcreteName.getOrDefault(field, field);
         MappedFieldType fieldType = fullNameToFieldType.get(concreteField);
         if (fieldType != null) {
@@ -102,7 +97,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     /**
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
-    public Set<String> simpleMatchToFullName(String pattern) {
+    Set<String> simpleMatchToFullName(String pattern) {
         Set<String> fields = new HashSet<>();
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.name())) {
@@ -129,7 +124,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      *              should be a concrete field and *not* an alias.
      * @return A set of paths in the _source that contain the field's values.
      */
-    public Set<String> sourcePaths(String field) {
+    Set<String> sourcePaths(String field) {
         String resolvedField = field;
         int lastDotIndex = field.lastIndexOf('.');
         if (lastDotIndex > 0) {

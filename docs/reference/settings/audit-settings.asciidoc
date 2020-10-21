@@ -74,7 +74,7 @@ audited in plain text when including the request body in audit events.
 // tag::xpack-sa-lf-emit-node-name-tag[]
 `xpack.security.audit.logfile.emit_node_name`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Specifies whether to include the <<node.name,node name>> as a field in
+Specifies whether to include the <<node-name,node name>> as a field in
 each audit event. The default value is `false`.
 // end::xpack-sa-lf-emit-node-name-tag[]
 
@@ -101,7 +101,7 @@ The default value is `false`.
 Specifies whether to include the node id as a field in each audit event.
 This is available for the new format only. That is to say, this information
 does not exist in the `<clustername>_access.log` file.
-Unlike <<node.name,node name>>, whose value might change if the administrator
+Unlike <<node-name,node name>>, whose value might change if the administrator
 changes the setting in the config file, the node id will persist across cluster
 restarts and the administrator cannot change it.
 The default value is `true`.

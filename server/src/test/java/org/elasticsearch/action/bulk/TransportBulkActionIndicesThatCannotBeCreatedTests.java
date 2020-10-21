@@ -36,8 +36,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -50,7 +50,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -108,7 +108,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
 
     private void indicesThatCannotBeCreatedTestCase(Set<String> expected,
-            BulkRequest bulkRequest, Function<String, Boolean> shouldAutoCreate) {
+            BulkRequest bulkRequest, Predicate<String> shouldAutoCreate) {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
@@ -139,7 +139,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
             @Override
             boolean shouldAutoCreate(String index, ClusterState state) {
-                return shouldAutoCreate.apply(index);
+                return shouldAutoCreate.test(index);
             }
 
             @Override

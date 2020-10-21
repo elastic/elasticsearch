@@ -21,6 +21,6 @@ public class FlattenedMapperPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(FlatObjectFieldMapper.CONTENT_TYPE, new FlatObjectFieldMapper.TypeParser());
+        return singletonMap(FlatObjectFieldMapper.CONTENT_TYPE, FlatObjectFieldMapper.PARSER);
     }
 }

@@ -11,7 +11,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -279,16 +278,16 @@ public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotUpdateTimestampField() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
         String mapping1 =
             "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":false}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
         String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": {\"@timestamp2\": "
             + "{\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, parser, "Mapper for [_data_stream_timestamp]", "[enabled] from [false] to [true]");
+        assertConflicts(mapping1, mapping2, mapperService, "Mapper for [_data_stream_timestamp]", "[enabled] from [false] to [true]");
 
         mapping1 = "{\"type\":{\"properties\":{\"@timestamp\": {\"type\": \"date\"}}}}}";
         mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": "
             + "{\"@timestamp2\": {\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, parser, "Mapper for [_data_stream_timestamp]", "[enabled] from [false] to [true]");
+        assertConflicts(mapping1, mapping2, mapperService, "Mapper for [_data_stream_timestamp]", "[enabled] from [false] to [true]");
     }
 }

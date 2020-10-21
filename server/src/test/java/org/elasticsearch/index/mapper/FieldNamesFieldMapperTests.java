@@ -76,8 +76,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("_field_names").endObject()
             .endObject().endObject());
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping), false);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().hasDocValues());
 
@@ -89,8 +88,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testInjectIntoDocDuringParsing() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping), false);
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -111,8 +109,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("field").field("type", "keyword").field("doc_values", false).endObject()
             .endObject().endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping), false);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertTrue(fieldNamesMapper.fieldType().isEnabled());
 
@@ -131,8 +128,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", false).endObject()
             .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping), false);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().isEnabled());
 

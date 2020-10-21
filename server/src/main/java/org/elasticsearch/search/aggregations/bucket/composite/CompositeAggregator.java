@@ -136,14 +136,10 @@ final class CompositeAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected void doPostCollection() throws IOException {
-        finishLeaf();
-    }
-
-    @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         // Composite aggregator must be at the top of the aggregation tree
         assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0L;
+        finishLeaf();
         if (deferredCollectors != NO_OP_COLLECTOR) {
             // Replay all documents that contain at least one top bucket (collected during the first pass).
             runDeferredCollections();
@@ -487,7 +483,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 collector.collect(docID);
             }
         }
-        deferredCollectors.postCollection();
     }
 
     /**

@@ -336,11 +336,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        protected void doPostCollection() throws IOException {
+        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             if (mapping != null) {
                 mapSegmentCountsToGlobalCounts(mapping);
                 mapping = null;
             }
+            return super.buildAggregations(owningBucketOrds);
         }
 
         @Override

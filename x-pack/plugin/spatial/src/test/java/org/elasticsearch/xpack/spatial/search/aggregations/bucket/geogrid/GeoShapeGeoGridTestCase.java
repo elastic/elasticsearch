@@ -304,8 +304,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-
         verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
 
         indexReader.close();

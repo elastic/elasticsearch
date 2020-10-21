@@ -70,7 +70,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     protected PackedLongValues.Builder docDeltasBuilder;
     protected PackedLongValues.Builder bucketsBuilder;
     protected long maxBucket = -1;
-    protected boolean finished = false;
     protected LongHash selectedBuckets;
 
     /**
@@ -136,20 +135,12 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         collector.preCollection();
     }
 
-    @Override
-    public void postCollection() throws IOException {
-        finishLeaf();
-        finished = true;
-    }
-
     /**
      * Replay the wrapped collector, but only on a selection of buckets.
      */
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        if (finished == false) {
-            throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
-        }
+        finishLeaf();
         if (this.selectedBuckets != null) {
             throw new IllegalStateException("Already been replayed");
         }
@@ -201,7 +192,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 // continue with the following leaf
             }
         }
-        collector.postCollection();
     }
 
     /**

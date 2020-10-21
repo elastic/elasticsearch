@@ -146,7 +146,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    protected void doPostCollection() throws IOException {
+    protected void beforeBuildingResults(long[] ordsToCollect) throws IOException {
         postCollectLastCollector();
     }
 

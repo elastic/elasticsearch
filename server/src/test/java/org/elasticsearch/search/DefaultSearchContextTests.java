@@ -32,6 +32,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -267,7 +268,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 @Override
                 protected Engine.Searcher acquireSearcherInternal(String source) {
                     try {
-                        IndexReader reader = w.getReader();
+                        IndexReader reader = ElasticsearchDirectoryReader.wrap(w.getReader(), shardId, r -> getSearcherId());
                         return new Engine.Searcher("test", reader, IndexSearcher.getDefaultSimilarity(),
                             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), reader);
                     } catch (IOException exc) {

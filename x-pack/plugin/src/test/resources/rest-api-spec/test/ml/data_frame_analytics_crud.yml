@@ -2188,7 +2188,7 @@ setup:
   - do:
       ml.get_data_frame_analytics:
         id: "simple-outlier-detection"
-        for_export: true
+        exclude_generated: true
   - match: { data_frame_analytics.0.source.index.0: "index-source" }
   - match: { data_frame_analytics.0.source.query: {"match_all" : {} } }
   - match: { data_frame_analytics.0.dest.index: "index-dest" }
@@ -2201,4 +2201,3 @@ setup:
   }}
   - is_false: data_frame_analytics.0.create_time
   - is_false: data_frame_analytics.0.version
-  - is_false: data_frame_analytics.0.id

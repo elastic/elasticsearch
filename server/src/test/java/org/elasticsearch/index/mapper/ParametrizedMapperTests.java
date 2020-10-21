@@ -109,7 +109,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                     throw new IllegalArgumentException("Value of [n] cannot be greater than 50");
                 }
             })
-            .setMergeValidator((o, n) -> n >= o);
+            .setMergeValidator((o, n, c) -> n >= o);
         final Parameter<NamedAnalyzer> analyzer
             = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> Lucene.KEYWORD_ANALYZER);
         final Parameter<NamedAnalyzer> searchAnalyzer
@@ -205,7 +205,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Collections.emptyMap(), Collections.emptyMap());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Mapper.TypeParser.ParserContext pc = new Mapper.TypeParser.ParserContext(s -> null, mapperService, s -> {
+        Mapper.TypeParser.ParserContext pc = new Mapper.TypeParser.ParserContext(s -> null, s -> {
             if (Objects.equals("keyword", s)) {
                 return KeywordFieldMapper.PARSER;
             }
@@ -213,7 +213,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 return BinaryFieldMapper.PARSER;
             }
             return null;
-        }, version, () -> null, null, null);
+        }, version, () -> null, null, null,
+            mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+            throw new UnsupportedOperationException();
+        });
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));

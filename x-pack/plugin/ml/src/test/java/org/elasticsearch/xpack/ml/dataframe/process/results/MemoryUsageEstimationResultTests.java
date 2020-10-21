@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -19,8 +18,8 @@ public class MemoryUsageEstimationResultTests extends AbstractXContentTestCase<M
 
     public static MemoryUsageEstimationResult createRandomResult() {
         return new MemoryUsageEstimationResult(
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null,
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null);
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null,
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null);
     }
 
     @Override
@@ -46,15 +45,15 @@ public class MemoryUsageEstimationResultTests extends AbstractXContentTestCase<M
 
     public void testConstructor_SmallValues() {
         MemoryUsageEstimationResult result =
-            new MemoryUsageEstimationResult(new ByteSizeValue(120, ByteSizeUnit.KB), new ByteSizeValue(30, ByteSizeUnit.KB));
-        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(120, ByteSizeUnit.KB)));
-        assertThat(result.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(30, ByteSizeUnit.KB)));
+            new MemoryUsageEstimationResult(ByteSizeValue.ofKb(120), ByteSizeValue.ofKb(30));
+        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(ByteSizeValue.ofKb(120)));
+        assertThat(result.getExpectedMemoryWithDisk(), equalTo(ByteSizeValue.ofKb(30)));
     }
 
     public void testConstructor() {
         MemoryUsageEstimationResult result =
-            new MemoryUsageEstimationResult(new ByteSizeValue(20, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB));
-        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(20, ByteSizeUnit.MB)));
-        assertThat(result.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(10, ByteSizeUnit.MB)));
+            new MemoryUsageEstimationResult(ByteSizeValue.ofMb(20), ByteSizeValue.ofMb(10));
+        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(ByteSizeValue.ofMb(20)));
+        assertThat(result.getExpectedMemoryWithDisk(), equalTo(ByteSizeValue.ofMb(10)));
     }
 }

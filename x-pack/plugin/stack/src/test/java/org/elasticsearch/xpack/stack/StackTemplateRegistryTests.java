@@ -105,7 +105,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testDisabledDoesNotAddTemplates() {
-        Settings settings = Settings.builder().put(StackPlugin.STACK_TEMPLATES_ENABLED.getKey(), false).build();
+        Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
         StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
         assertThat(disabledRegistry.getComponentTemplateConfigs(), hasSize(0));
         assertThat(disabledRegistry.getComposableTemplateConfigs(), hasSize(0));

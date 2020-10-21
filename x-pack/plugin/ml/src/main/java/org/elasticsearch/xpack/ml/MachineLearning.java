@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -418,8 +417,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
      * ML job to run on a given node will do this, and then subsequent ML jobs on the same node will reuse the
      * same already-loaded code.
      */
-    public static final ByteSizeValue NATIVE_EXECUTABLE_CODE_OVERHEAD = new ByteSizeValue(30, ByteSizeUnit.MB);
-    public static final int DYNAMIC_MEMORY_PERCENT = -1;
+    public static final ByteSizeValue NATIVE_EXECUTABLE_CODE_OVERHEAD = ByteSizeValue.ofMb(30);
     // Values higher than 100% are allowed to accommodate use cases where swapping has been determined to be acceptable.
     // Anomaly detector jobs only use their full model memory during background persistence, and this is deliberately
     // staggered, so with large numbers of jobs few will generally be persisting state at the same time.
@@ -427,18 +425,23 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
     // can handle.
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
-            Setting.intSetting("xpack.ml.max_machine_memory_percent",
-                30,
-                -1,
-                (i) -> {
-                if ((i < 5 && i != DYNAMIC_MEMORY_PERCENT) || i > 200) {
-                    throw new IllegalArgumentException(
-                        "Setting \"xpack.ml.max_machine_memory_percent\" must be between 5 and 200 or set to -1."
-                    );
-                }
-                },
-                Property.Dynamic,
-                Property.NodeScope);
+           Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.Dynamic, Property.NodeScope);
+    /**
+     * This boolean value indicates if `max_machine_memory_percent` should be ignored and a automatic calculation is used instead.
+     *
+     * This calculation takes into account total node size and the size of the JVM on that node.
+     *
+     * If the calculation fails, we fall back to `max_machine_memory_percent`.
+     *
+     * This setting is NOT dynamic. This allows the cluster administrator to set it on startup without worry of it
+     * being edited accidentally later.
+     * Consequently, it could be that this setting differs between nodes. But, we only ever pay attention to the value
+     * that is set on the current master. As master nodes are responsible for persistent task assignments.
+     */
+    public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
+        "xpack.ml.use_auto_machine_memory_percent",
+        false,
+        Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
             Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 
@@ -459,7 +462,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
-        Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Setting.Property.NodeScope);
+        Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", ByteSizeValue.ofGb(5), Setting.Property.NodeScope);
 
     // Requests per second throttling for the nightly maintenance task
     public static final Setting<Float> NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND =
@@ -539,6 +542,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
+                USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MAX_ML_NODE_SIZE
             );
     }
@@ -615,7 +619,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
         this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
-        new MlIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+        MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
+        registry.initialize();
 
         AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(client, clusterService);
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService);
@@ -657,7 +662,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         AnalyticsProcessFactory<MemoryUsageEstimationResult> memoryEstimationProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
             try {
-                NativeController nativeController = NativeController.makeNativeController(clusterService.getNodeName(), environment);
+                NativeController nativeController =
+                    NativeController.makeNativeController(clusterService.getNodeName(), environment, xContentRegistry);
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(
                     environment,
                     settings,

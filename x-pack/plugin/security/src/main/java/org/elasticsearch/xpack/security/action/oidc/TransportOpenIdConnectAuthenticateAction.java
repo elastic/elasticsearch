@@ -74,8 +74,7 @@ public class TransportOpenIdConnectAuthenticateAction
                     tokenService.createOAuth2Tokens(authentication, originatingAuthentication, tokenMetadata, true,
                         ActionListener.wrap(tuple -> {
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
-                            listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication.getUser().principal(), tuple.v1(),
-                                tuple.v2(), expiresIn));
+                            listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication, tuple.v1(), tuple.v2(), expiresIn));
                         }, listener::onFailure));
                 }, e -> {
                     logger.debug(() -> new ParameterizedMessage("OpenIDConnectToken [{}] could not be authenticated", token), e);

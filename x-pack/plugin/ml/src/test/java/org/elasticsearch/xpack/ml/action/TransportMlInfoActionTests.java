@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -22,6 +23,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
+import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -33,7 +35,7 @@ public class TransportMlInfoActionTests extends ESTestCase {
         int mlMemoryPercent = randomIntBetween(5, 90);
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder().put(MAX_MACHINE_MEMORY_PERCENT.getKey(), mlMemoryPercent).build(),
-            Collections.singleton(MAX_MACHINE_MEMORY_PERCENT));
+            Sets.newHashSet(MAX_MACHINE_MEMORY_PERCENT, USE_AUTO_MACHINE_MEMORY_PERCENT));
         long highestMlMachineMemory = -1;
 
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();

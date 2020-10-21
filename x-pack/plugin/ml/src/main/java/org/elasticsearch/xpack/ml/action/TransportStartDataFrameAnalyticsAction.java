@@ -96,6 +96,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
+import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 /**
  * Starts the persistent task for running data frame analytics.
@@ -601,6 +602,7 @@ public class TransportStartDataFrameAnalyticsAction
         private final IndexNameExpressionResolver resolver;
         private final IndexTemplateConfig inferenceIndexTemplate;
         private final long maxNodeMemory;
+        private final boolean useAutoMemoryPercentage;
 
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
@@ -622,6 +624,7 @@ public class TransportStartDataFrameAnalyticsAction
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.maxNodeMemory = MAX_ML_NODE_SIZE.get(settings).getBytes();
+            this.useAutoMemoryPercentage = USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
@@ -691,7 +694,10 @@ public class TransportStartDataFrameAnalyticsAction
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,
                 maxNodeMemory,
-                isMemoryTrackerRecentlyRefreshed);
+                isMemoryTrackerRecentlyRefreshed
+                isMemoryTrackerRecentlyRefreshed,
+                useAutoMemoryPercentage
+            );
         }
 
         @Override

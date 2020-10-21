@@ -47,7 +47,8 @@ public class NodeLoadDetector {
                                    DiscoveryNode node,
                                    int dynamicMaxOpenJobs,
                                    int maxMachineMemoryPercent,
-                                   boolean isMemoryTrackerRecentlyRefreshed) {
+                                   boolean isMemoryTrackerRecentlyRefreshed,
+                                   boolean useAutoMachineMemoryCalculation) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         Map<String, String> nodeAttributes = node.getAttributes();
         List<String> errors = new ArrayList<>();
@@ -62,7 +63,9 @@ public class NodeLoadDetector {
                 maxNumberOfOpenJobs = -1;
             }
         }
-        OptionalLong maxMlMemory = NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent);
+        OptionalLong maxMlMemory = NativeMemoryCalculator.allowedBytesForMl(node,
+            maxMachineMemoryPercent,
+            useAutoMachineMemoryCalculation);
         if (maxMlMemory.isEmpty()) {
             errors.add(MachineLearning.MACHINE_MEMORY_NODE_ATTR
                 + " attribute ["

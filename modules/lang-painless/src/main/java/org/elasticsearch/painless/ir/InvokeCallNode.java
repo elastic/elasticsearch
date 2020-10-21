@@ -20,10 +20,8 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
 
 public class InvokeCallNode extends ArgumentsNode {
 
@@ -68,19 +66,4 @@ public class InvokeCallNode extends ArgumentsNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeDebugInfo(getLocation());
-
-        if (box.isPrimitive()) {
-            methodWriter.box(MethodWriter.getType(box));
-        }
-
-        for (ExpressionNode argumentNode : getArgumentNodes()) {
-            argumentNode.write(writeScope);
-        }
-
-        methodWriter.invokeMethodCall(method);
-    }
 }

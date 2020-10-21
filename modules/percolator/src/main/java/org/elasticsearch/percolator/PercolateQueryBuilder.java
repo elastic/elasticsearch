@@ -471,7 +471,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docs.add(docMapper.parse(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
         }
 
-        FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer) docMapper.mappers().indexAnalyzer();
+        FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer)docMapper.mappers().indexAnalyzer();
         // Need to this custom impl because FieldNameAnalyzer is strict and the percolator sometimes isn't when
         // 'index.percolator.map_unmapped_fields_as_string' is enabled:
         Analyzer analyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {

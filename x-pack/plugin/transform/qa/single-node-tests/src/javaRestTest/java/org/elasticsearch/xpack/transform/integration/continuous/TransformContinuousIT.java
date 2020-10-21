@@ -316,7 +316,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .field("type", "keyword")
                     .endObject()
                     .startObject("metric")
-                    .field("type", "integer")
+                    .field("type", randomFrom("integer", "long", "unsigned_long"))
                     .endObject()
                     .startObject("location")
                     .field("type", "geo_point")

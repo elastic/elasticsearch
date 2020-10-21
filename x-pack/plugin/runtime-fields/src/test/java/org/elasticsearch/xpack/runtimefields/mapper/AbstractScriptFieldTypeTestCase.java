@@ -66,6 +66,14 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
         return mockContext(allowExpensiveQueries, null);
     }
 
+    protected boolean supportsTermQueries() {
+        return true;
+    }
+
+    protected boolean supportsRangeQueries() {
+        return true;
+    }
+
     protected static QueryShardContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(anyString())).thenReturn(mappedFieldType);
@@ -102,42 +110,52 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
     }
 
     public void testRangeQueryIsExpensive() {
+        assumeTrue("Impl does not support range queries", supportsRangeQueries());
         checkExpensiveQuery(this::randomRangeQuery);
     }
 
     public void testRangeQueryInLoop() {
+        assumeTrue("Impl does not support range queries", supportsRangeQueries());
         checkLoop(this::randomRangeQuery);
     }
 
     public void testTermQueryIsExpensive() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkExpensiveQuery(this::randomTermQuery);
     }
 
     public void testTermQueryInLoop() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkLoop(this::randomTermQuery);
     }
 
     public void testTermsQueryIsExpensive() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkExpensiveQuery(this::randomTermsQuery);
     }
 
     public void testTermsQueryInLoop() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkLoop(this::randomTermsQuery);
     }
 
     public void testPhraseQueryIsError() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().phraseQuery(null, 1, false));
     }
 
     public void testPhrasePrefixQueryIsError() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         assertQueryOnlyOnText("phrase prefix", () -> simpleMappedFieldType().phrasePrefixQuery(null, 1, 1));
     }
 
     public void testMultiPhraseQueryIsError() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().multiPhraseQuery(null, 1, false));
     }
 
     public void testSpanPrefixQueryIsError() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         assertQueryOnlyOnText("span prefix", () -> simpleMappedFieldType().spanPrefixQuery(null, null, null));
     }
 

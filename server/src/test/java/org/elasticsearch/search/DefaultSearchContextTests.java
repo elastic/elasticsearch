@@ -133,7 +133,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 @Override
                 protected Engine.Searcher acquireSearcherInternal(String source) {
                     try {
-                        IndexReader reader = w.getReader();
+                        IndexReader reader = ElasticsearchDirectoryReader.wrap(w.getReader(), shardId, r -> getSearcherId());
                         return new Engine.Searcher("test", reader, IndexSearcher.getDefaultSimilarity(),
                             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), reader);
                     } catch (IOException exc) {

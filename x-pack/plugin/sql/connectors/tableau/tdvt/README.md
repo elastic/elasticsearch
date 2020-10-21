@@ -48,24 +48,24 @@ If there is an available other Elasticsearch instance running, that has the test
 
 Note that Logstash will add a few extra fields per row ("document" in Elasticsearch lingo); these shouldn't interfere with the testing, however.
 
-0. Download TDVT's data files [Calcs.csv](https://raw.githubusercontent.com/tableau/connector-plugin-sdk/tdvt-2.1.9/tests/datasets/TestV1/Calcs.csv) and [Staples_utf8.csv](https://raw.githubusercontent.com/tableau/connector-plugin-sdk/tdvt-2.1.9/tests/datasets/TestV1/Staples_utf8.csv) and place them into a directory that will be reachable by Logstash.
+1. Download TDVT's data files [Calcs.csv](https://raw.githubusercontent.com/tableau/connector-plugin-sdk/tdvt-2.1.9/tests/datasets/TestV1/Calcs.csv) and [Staples_utf8.csv](https://raw.githubusercontent.com/tableau/connector-plugin-sdk/tdvt-2.1.9/tests/datasets/TestV1/Staples_utf8.csv) and place them into a directory that will be reachable by Logstash.
 
-1. Create the Elasticsearch indices `calcs` and `staples` and use for them the [mappings](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html) under these links: [calcs](https://github.com/elastic/elasticsearch-sql-odbc/blob/577cd2fa1ed257e42081a082682c8c089b179565/test/integration/data.py#L27) and [stapes](https://github.com/elastic/elasticsearch-sql-odbc/blob/577cd2fa1ed257e42081a082682c8c089b179565/test/integration/data.py#L87). Create an ingest [pipeline](https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html) called `calcs-pipeline` with the definition [here](https://github.com/elastic/elasticsearch-sql-odbc/blob/577cd2fa1ed257e42081a082682c8c089b179565/test/integration/data.py#L62).
+2. Create the Elasticsearch indices `calcs` and `staples` and use for them the [mappings](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html) under these links: [calcs](https://github.com/elastic/elasticsearch-sql-odbc/blob/577cd2fa1ed257e42081a082682c8c089b179565/test/integration/data.py#L27) and [stapes](https://github.com/elastic/elasticsearch-sql-odbc/blob/577cd2fa1ed257e42081a082682c8c089b179565/test/integration/data.py#L87). Create an ingest [pipeline](https://www.elastic.co/guide/en/elasticsearch/reference/current/put-pipeline-api.html) called `calcs-pipeline` with the definition [here](https://github.com/elastic/elasticsearch-sql-odbc/blob/577cd2fa1ed257e42081a082682c8c089b179565/test/integration/data.py#L62).
 
-2. Adapt the [config file](https://www.elastic.co/guide/en/logstash/current/configuration-file-structure.html#configuration-file-structure) under the `logstash` folder, updating the <path>, <host> and <password> tags in it.
+3. Adapt the [config file](https://www.elastic.co/guide/en/logstash/current/configuration-file-structure.html#configuration-file-structure) under the `logstash` folder, updating the <path>, <host> and <password> tags in it.
 
-3. Relaunch Logstash using the updated config file in previous step and wait until the files have been ingested. `calcs` index will need to have 17 documents and `staples` 54860.
+4. Relaunch Logstash using the updated config file in previous step and wait until the files have been ingested. `calcs` index will need to have 17 documents and `staples` 54860.
 
 
 ## Running TDVT
 
 ### Automated
 
-0. Place Elasticsearch JDBC driver into [Tableau's driver folder](https://help.tableau.com/current/pro/desktop/en-us/examples_otherdatabases_jdbc.htm) under: `C:\Program Files\Tableau\Drivers`.
+1. Place Elasticsearch JDBC driver into [Tableau's driver folder](https://help.tableau.com/current/pro/desktop/en-us/examples_otherdatabases_jdbc.htm) under: `C:\Program Files\Tableau\Drivers`.
 
-1. Place the `.taco` file either in Tableau's dedicated connectors directory, `C:\Users\[Windows User]\Documents\My Tableau Repository\Connectors`, or a custom one ("<taco dir path>").
+2. Place the `.taco` file either in Tableau's dedicated connectors directory, `C:\Users\[Windows User]\Documents\My Tableau Repository\Connectors`, or a custom one ("<taco dir path>").
 
-2. Use the `tdvt_run.py` application, that clone the TDVT SDK repo, setup config files and launch the TDVT run:
+3. Use the `tdvt_run.py` application, that clone the TDVT SDK repo, setup config files and launch the TDVT run:
     ```
     python3 ./tdvt_run.py -u "http://user:pass@elastic-host:9200" -t <taco dir path>
     ```
@@ -76,7 +76,7 @@ Setting up the TDVT testing involves following the steps detailed in the [offici
 
 0. Same as in the automated testing.
 
-1. Create new Tableau data sources for the `calcs` and `Staple` tables (#`Test a new data source`), or, alternatively, use those available already in this repo.
+2. Create new Tableau data sources for the `calcs` and `Staple` tables (#`Test a new data source`), or, alternatively, use those available already in this repo.
 	To set up new sources, launch Tableau from command line with the following parameters (PowerShell example):
 	```
 	.\tableau.exe -DConnectPluginsPath=<path> -DDisableVerifyConnectorPluginSignature=true
@@ -87,7 +87,7 @@ Setting up the TDVT testing involves following the steps detailed in the [offici
 
 	Save the TDS files as `cast_calcs.elastic.tds` and `Staples.elastic.tds`
 
-2. Setup a TDVT "workspace" (#`Set up`), i.e. a directory containing the test files.
+3. Setup a TDVT "workspace" (#`Set up`), i.e. a directory containing the test files.
 	Either package TDVT and install it as a Python PIP module (recommended, if [working](https://github.com/tableau/connector-plugin-sdk/issues/534)), or simply copy the `tdvt` directory of the repo into the "workspace" directory. Invoking the TDVT will then be done as `py -3 -m tdvt.tdvt <params>`, or `py -3 .\tdvt\tdvt_launcher.py <params>`, respectively. In the steps below the invokation will be indicated by the `$TDVT` call.
 	```
 	$TDVT action --setup
@@ -96,7 +96,7 @@ Setting up the TDVT testing involves following the steps detailed in the [offici
 	Copy/move the above saved `*.tds` files into the just created `tds` directory in the workspace.
 	Edit `config/tdvt/tdvt_override.ini` to update `TAB_CLI_EXE_X64` definition.
 
-3. Generate the tests by invoking TDVT as follows:
+4. Generate the tests by invoking TDVT as follows:
 
 	```
 	$TDVT action --add_ds elastic
@@ -107,11 +107,10 @@ Setting up the TDVT testing involves following the steps detailed in the [offici
 
 	Edit the `elastic.ini` file in the `config` directory in the workspace and add the following line under the `[Datasource]` section: `CommandLineOverride = -DConnectPluginsPath=<path> -DDisableVerifyConnectorPluginSignature=true`, where `<path>` has the same value as in step "1.".
 
-4. Run the tests:
+5. Run the tests:
 
 	```
 	$TDVT run elastic
 	```
 
 	**Note**: If running on a busy machine, TDVT's thread allocation can be throttled with the `-t <threads>` argument, where <threads> should take the value of available CPU execution units, or even `1` if running on a slower VM.
-

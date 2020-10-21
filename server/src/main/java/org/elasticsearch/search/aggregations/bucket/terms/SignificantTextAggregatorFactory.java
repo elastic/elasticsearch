@@ -100,10 +100,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     }
 
     private static boolean supportsAgg(MappedFieldType ft) {
-        if (ft.getTextSearchInfo() == TextSearchInfo.NONE) {
-            return false;
-        }
-        return ft.getTextSearchInfo() != TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
+        return ft.getTextSearchInfo() != TextSearchInfo.NONE
+            && ft.getTextSearchInfo() != TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
     }
 
     @Override

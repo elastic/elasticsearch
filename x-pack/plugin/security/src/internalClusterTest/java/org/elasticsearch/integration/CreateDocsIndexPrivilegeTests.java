@@ -7,7 +7,7 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.junit.Before;
 
@@ -22,14 +22,14 @@ public class CreateDocsIndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "  indices:\n" +
             "    - names: '*'\n" +
             "      privileges: [ all ]\n" +
-        "create_doc_role:\n" +
+            "create_doc_role:\n" +
             "  indices:\n" +
             "    - names: '*'\n" +
             "      privileges: [ create_doc ]\n";
 
     private static final String USERS_ROLES =
         "all_indices_role:admin\n" +
-        "create_doc_role:" + CREATE_DOC_USER + "\n";
+            "create_doc_role:" + CREATE_DOC_USER + "\n";
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -43,8 +43,9 @@ public class CreateDocsIndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(
-            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+        final Hasher passwdHasher = inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000")) :
+            Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         return super.configUsers() +
             "admin:" + usersPasswdHashed + "\n" +

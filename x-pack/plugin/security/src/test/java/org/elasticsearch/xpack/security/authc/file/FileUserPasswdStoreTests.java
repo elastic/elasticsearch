@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +51,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     private Settings settings;
     private Environment env;
     private ThreadPool threadPool;
+
+    @BeforeClass
+    public static void disableInFips(){
+        assumeFalse("We are using hashing algorithms that won't be available in FIPS-140 mode", inFipsJvm());
+    }
 
     @Before
     public void init() {

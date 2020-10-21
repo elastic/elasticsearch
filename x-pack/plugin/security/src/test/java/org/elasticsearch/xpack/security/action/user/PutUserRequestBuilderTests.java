@@ -144,8 +144,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithValidPasswordHash() throws IOException {
-        final Hasher hasher = Hasher.BCRYPT4; // this is the fastest hasher we officially support
-        final char[] hash = hasher.hash(new SecureString("secret".toCharArray()));
+        final Hasher hasher = inFipsJvm() ? Hasher.PBKDF2_1000 : Hasher.BCRYPT4; // this is the fastest hasher we officially support
+        final char[] hash = hasher.hash(new SecureString("secretpassword".toCharArray()));
         final String json = "{\n" +
             "    \"password_hash\": \"" + new String(hash) + "\"," +
             "    \"roles\": []\n" +
@@ -159,9 +159,9 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithMismatchedPasswordHash() throws IOException {
-        final Hasher systemHasher = Hasher.BCRYPT8;
-        final Hasher userHasher = Hasher.BCRYPT4; // this is the fastest hasher we officially support
-        final char[] hash = userHasher.hash(new SecureString("secret".toCharArray()));
+        final Hasher systemHasher = inFipsJvm() ? Hasher.PBKDF2_10000 : Hasher.BCRYPT8;
+        final Hasher userHasher = inFipsJvm() ? Hasher.PBKDF2_1000 : Hasher.BCRYPT4; // this is the fastest hasher we officially support
+        final char[] hash = userHasher.hash(new SecureString("secretpassword".toCharArray()));
         final String json = "{\n" +
             "    \"password_hash\": \"" + new String(hash) + "\"," +
             "    \"roles\": []\n" +
@@ -191,8 +191,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithBothPasswordAndHash() throws IOException {
-        final Hasher hasher = randomFrom(Hasher.BCRYPT4, Hasher.PBKDF2_1000);
-        final String password = randomAlphaOfLength(12);
+        final Hasher hasher = inFipsJvm() ? Hasher.PBKDF2_1000 : randomFrom(Hasher.BCRYPT4, Hasher.PBKDF2_1000);
+        final String password = randomAlphaOfLength(14);
         final char[] hash = hasher.hash(new SecureString(password.toCharArray()));
         final LinkedHashMap<String, Object> fields = new LinkedHashMap<>();
         fields.put("password", password);

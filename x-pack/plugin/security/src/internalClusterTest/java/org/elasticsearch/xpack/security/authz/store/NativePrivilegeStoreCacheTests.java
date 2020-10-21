@@ -249,12 +249,12 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
             .addIndices(new String[] { "*" }, new String[] { "read" }, null, null, null, false)
             .get();
         assertTrue(putRoleResponse.isCreated());
-
+        final Hasher hasher = inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000")) :
+            Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
         final PutUserResponse putUserResponse = new PutUserRequestBuilder(client)
             .username(testRoleCacheUser)
             .roles(testRole)
-            .password(new SecureString("password".toCharArray()),
-                Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")))
+            .password(new SecureString("longerpassword".toCharArray()), hasher)
             .get();
         assertTrue(putUserResponse.created());
 

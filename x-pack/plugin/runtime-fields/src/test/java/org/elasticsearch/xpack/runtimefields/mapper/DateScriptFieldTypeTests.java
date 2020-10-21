@@ -199,7 +199,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", 1, mockContext());
+                Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", mockContext());
                 TopDocs docs = searcher.search(query, 4);
                 assertThat(docs.scoreDocs, arrayWithSize(3));
                 assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181354]}"));
@@ -228,7 +228,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private Query randomDistanceFeatureQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.distanceFeatureQuery(randomDate(), randomTimeValue(), randomFloat(), ctx);
+        return ft.distanceFeatureQuery(randomDate(), randomTimeValue(), ctx);
     }
 
     @Override

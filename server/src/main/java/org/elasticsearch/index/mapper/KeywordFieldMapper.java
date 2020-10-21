@@ -291,6 +291,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
         }
+
+        @Override
+        public CollapseType collapseType() {
+            return CollapseType.KEYWORD;
+        }
     }
 
     private final boolean indexed;

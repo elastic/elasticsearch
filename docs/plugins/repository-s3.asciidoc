@@ -215,8 +215,19 @@ include a port. For example, the endpoint may be `172.17.0.2` or
 https://minio.io[Minio] is an example of a storage system that provides an
 S3-compatible API. The `repository-s3` plugin allows {es} to work with
 Minio-backed repositories as well as repositories stored on AWS S3. Other
-S3-compatible storage systems may also work with {es}, but these are not tested
-or supported.
+S3-compatible storage systems may also work with {es}, but these are not
+covered by the {es} test suite.
+
+Note that some storage systems claim to be S3-compatible without correctly
+supporting the full S3 API. The `repository-s3` plugin requires full
+compatibility with S3. In particular it must support the same set of API
+endpoints, return the same errors in case of failures, and offer a consistency
+model no weaker than S3's when accessed concurrently by multiple nodes. If you
+wish to use another storage system with the `repository-s3` plugin then you
+will need to work with the supplier of the storage system to address any
+incompatibilities you encounter. Incompatible error codes and consistency
+models may be particularly hard to track down since errors and consistency
+failures are usually rare and hard to reproduce.
 
 [[repository-s3-repository]]
 ==== Repository Settings
@@ -444,8 +455,9 @@ go through the VPC's NAT instance. If your VPC's NAT instance is a smaller
 instance size (e.g. a t2.micro) or is handling a high volume of network traffic
 your bandwidth to S3 may be limited by that NAT instance's networking bandwidth
 limitations. Instead we recommend creating a https://docs.aws.amazon.com/vpc/latest/userguide/vpc-endpoints.html[VPC endpoint]
-that enables connecting to S3 in instances that reside in a private subnet in an
-AWS VPC. This will eliminate any limitations imposed by the network bandwidth of your VPC's NAT instance. 
+that enables connecting to S3 in instances that reside in a private subnet in
+an AWS VPC. This will eliminate any limitations imposed by the network
+bandwidth of your VPC's NAT instance.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the
 VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.

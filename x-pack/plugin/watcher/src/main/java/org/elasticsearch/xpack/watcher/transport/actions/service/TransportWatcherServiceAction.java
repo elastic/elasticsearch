@@ -52,12 +52,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            WatcherServiceRequest::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+            WatcherServiceRequest::new, indexNameExpressionResolver, ThreadPool.Names.MANAGEMENT);
     }
 
     @Override

@@ -34,12 +34,8 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
     public TransportActivateAutoFollowPatternAction(TransportService transportService, ClusterService clusterService,
                                                     ThreadPool threadPool, ActionFilters actionFilters,
                                                     IndexNameExpressionResolver resolver) {
-        super(ActivateAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, resolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
+        super(ActivateAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, resolver,
+                ThreadPool.Names.SAME);
     }
 
     @Override

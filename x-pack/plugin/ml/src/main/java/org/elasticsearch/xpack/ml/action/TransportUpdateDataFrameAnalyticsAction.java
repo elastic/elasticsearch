@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
@@ -50,23 +48,14 @@ public class TransportUpdateDataFrameAnalyticsAction
                                                    ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                    DataFrameAnalyticsConfigProvider configProvider) {
         super(UpdateDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            UpdateDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
+                UpdateDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, PutDataFrameAnalyticsAction.Response::new,
+                ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.configProvider = configProvider;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutDataFrameAnalyticsAction.Response read(StreamInput in) throws IOException {
-        return new PutDataFrameAnalyticsAction.Response(in);
     }
 
     @Override

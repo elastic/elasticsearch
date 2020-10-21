@@ -70,16 +70,11 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
                                          IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                          PersistentTasksService persistentTasksService) {
         super(SetUpgradeModeAction.NAME, transportService, clusterService, threadPool, actionFilters, SetUpgradeModeAction.Request::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.clusterService = clusterService;
         this.client = client;
         this.persistentTasksService = persistentTasksService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -283,7 +278,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             mlTasks.stream().map(PersistentTask::getId).collect(Collectors.joining(", ", "[ ", " ]")));
 
         TypedChainTaskExecutor<PersistentTask<?>> chainTaskExecutor =
-            new TypedChainTaskExecutor<>(client.threadPool().executor(executor()),
+            new TypedChainTaskExecutor<>(client.threadPool().executor(executor),
                 r -> true,
                 // Another process could modify tasks and thus we cannot find them via the allocation_id and name
                 // If the task was removed from the node, all is well
@@ -308,7 +303,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
 
         logger.info("Isolating datafeeds: " + datafeedsToIsolate.toString());
         TypedChainTaskExecutor<IsolateDatafeedAction.Response> isolateDatafeedsExecutor =
-            new TypedChainTaskExecutor<>(client.threadPool().executor(executor()), r -> true, ex -> true);
+            new TypedChainTaskExecutor<>(client.threadPool().executor(executor), r -> true, ex -> true);
 
         datafeedsToIsolate.forEach(datafeedId -> {
             IsolateDatafeedAction.Request isolationRequest = new IsolateDatafeedAction.Request(datafeedId);

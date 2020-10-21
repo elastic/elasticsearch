@@ -89,17 +89,12 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             final IndicesService indicesService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(ResumeFollowAction.NAME, true, transportService, clusterService, threadPool, actionFilters,
-            ResumeFollowAction.Request::new, indexNameExpressionResolver);
+            ResumeFollowAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = client;
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

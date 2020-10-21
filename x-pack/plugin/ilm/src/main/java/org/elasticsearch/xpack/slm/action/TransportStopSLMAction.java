@@ -30,12 +30,7 @@ public class TransportStopSLMAction extends AcknowledgedTransportMasterNodeActio
     public TransportStopSLMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(StopSLMAction.NAME, transportService, clusterService, threadPool, actionFilters, StopSLMAction.Request::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
+            indexNameExpressionResolver, ThreadPool.Names.SAME);
     }
 
     @Override

@@ -168,7 +168,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Hook to allow taking an action before building child agg result.
+     * Hook to allow taking an action before building the sub agg results.
      */
     protected void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {}
 

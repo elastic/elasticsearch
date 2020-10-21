@@ -31,8 +31,12 @@ The following parameters can be specified in the body of a DELETE request and
 pertain to invalidating api keys:
 
 `id`::
-(Optional, string) An API key id. This parameter cannot be used with any of
-`name`, `realm_name` or `username` are used.
+(Optional, string) An API key id. This parameter cannot be used when any of
+`ids`, `name`, `realm_name` or `username` are used.
+
+`ids`::
+(Optional, array of string) A list of API key ids. This parameter cannot be used
+when any of `id`, `name`, `realm_name`, `username` are used
 
 `name`::
 (Optional, string) An API key name. This parameter cannot be used with any of
@@ -102,6 +106,17 @@ DELETE /_security/api_key
 --------------------------------------------------
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
+
+The above request can also be performed using the `ids` field which takes
+a list of API keys for bulk invalidation:
+
+[source,console]
+--------------------------------------------------
+DELETE /_security/api_key
+{
+  "ids" : [ "VuaCfGcBCdbkQm-e5aOx" ]
+}
+--------------------------------------------------
 
 The following example invalidates the API key identified by specified `name`
 immediately:

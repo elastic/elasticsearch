@@ -56,6 +56,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
         COLD_PHASE, VALID_COLD_ACTIONS,
         DELETE_PHASE, VALID_DELETE_ACTIONS);
 
+    static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(ForceMergeAction.NAME);
+
     private TimeseriesLifecycleType() {
     }
 
@@ -223,17 +225,18 @@ public class TimeseriesLifecycleType implements LifecycleType {
             });
         });
 
-        // Check for forcemerge in 'hot' without a rollover action
-        if (phases.stream()
+        // Check for actions in the hot phase that require a rollover
+        String invalidHotPhaseActions = phases.stream()
             // Is there a hot phase
             .filter(phase -> HOT_PHASE.equals(phase.getName()))
-            // That contains the 'forcemerge' action
-            .filter(phase -> phase.getActions().containsKey(ForceMergeAction.NAME))
-            // But does *not* contain the 'rollover' action?
-            .anyMatch(phase -> phase.getActions().containsKey(RolloverAction.NAME) == false)) {
-            // If there is, throw an exception
-            throw new IllegalArgumentException("the [" + ForceMergeAction.NAME +
-                "] action may not be used in the [" + HOT_PHASE +
+            // that does *not* contain the 'rollover' action
+            .filter(phase -> phase.getActions().containsKey(RolloverAction.NAME) == false)
+            // but that does have actions that require a rollover action?
+            .flatMap(phase -> Sets.intersection(phase.getActions().keySet(), HOT_ACTIONS_THAT_REQUIRE_ROLLOVER).stream())
+            .collect(Collectors.joining(", "));
+        if (Strings.hasText(invalidHotPhaseActions)) {
+            throw new IllegalArgumentException("the [" + invalidHotPhaseActions +
+                "] action(s) may not be used in the [" + HOT_PHASE +
                 "] phase without an accompanying [" + RolloverAction.NAME + "] action");
         }
 

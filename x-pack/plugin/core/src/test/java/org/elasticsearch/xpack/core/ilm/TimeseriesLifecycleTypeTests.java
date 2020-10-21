@@ -104,7 +104,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> validateHotActions.accept(Arrays.asList(ForceMergeAction.NAME)));
             assertThat(e.getMessage(),
-                containsString("the [forcemerge] action may not be used in the [hot] phase without an accompanying [rollover] action"));
+                containsString("the [forcemerge] action(s) may not be used in the [hot] phase without an accompanying [rollover] action"));
         }
     }
 

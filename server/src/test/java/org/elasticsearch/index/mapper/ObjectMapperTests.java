@@ -40,8 +40,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             defaultMapper.parse(new SourceToParse("test", "1", new BytesArray(" {\n" +
                 "      \"object\": {\n" +
@@ -65,7 +64,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("properties").endArray()
                 .endObject().endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
     }
 
     public void testEmptyFieldsArrayMultiFields() throws Exception {
@@ -82,7 +81,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
     }
 
     public void testFieldsArrayMultiFieldsShouldThrowException() throws Exception {
@@ -101,7 +100,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject());
         try {
-            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
             fail("Expected MapperParsingException");
         } catch(MapperParsingException e) {
             assertThat(e.getMessage(), containsString("expected map for property [fields]"));
@@ -119,7 +118,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
     }
 
     public void testFieldsWithFilledArrayShouldThrowException() throws Exception {
@@ -135,7 +134,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject());
         try {
-            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Expected map for property [fields]"));
@@ -158,7 +157,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
     }
 
     public void testMerge() throws IOException {
@@ -343,7 +342,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
 
         // Empty name not allowed in index created after 5.0
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
+            createIndex("test").mapperService().parse("", new CompressedXContent(mapping));
         });
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }

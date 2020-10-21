@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AutoCreateActionTests extends ESTestCase {
 
-    public void testResolveAutoCreateDataStreams() {
+    public void testResolveTemplates() {
         Metadata metadata;
         {
             Metadata.Builder mdBuilder = new Metadata.Builder();
@@ -44,23 +44,26 @@ public class AutoCreateActionTests extends ESTestCase {
         }
 
         CreateIndexRequest request = new CreateIndexRequest("logs-foobar");
-        DataStreamTemplate result  = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
+        ComposableIndexTemplate result  = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
-        assertThat(result.getTimestampField(), equalTo("@timestamp"));
+        assertThat(result.getDataStreamTemplate(), notNullValue());
+        assertThat(result.getDataStreamTemplate().getTimestampField(), equalTo("@timestamp"));
 
         request = new CreateIndexRequest("logs-barbaz");
-        result  = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
+        result  = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
-        assertThat(result.getTimestampField(), equalTo("@timestamp"));
+        assertThat(result.getDataStreamTemplate(), notNullValue());
+        assertThat(result.getDataStreamTemplate().getTimestampField(), equalTo("@timestamp"));
 
         // An index that matches with a template without a data steam definition
         request = new CreateIndexRequest("legacy-logs-foobaz");
-        result = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
-        assertThat(result, nullValue());
+        result = AutoCreateAction.resolveTemplate(request, metadata);
+        assertThat(result, notNullValue());
+        assertThat(result.getDataStreamTemplate(), nullValue());
 
         // An index that doesn't match with an index template
         request = new CreateIndexRequest("my-index");
-        result = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
+        result = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, nullValue());
     }
 

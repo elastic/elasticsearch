@@ -40,30 +40,19 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
 
     /**
      * Check that setting {@link AutoCreateIndex#AUTO_CREATE_INDEX_SETTING} to <code>false</code>
-     * disable the automatic creation on data streams.
+     * does not affect the ability to auto-create data streams, which are not subject to the setting.
      */
-    public void testCannotAutoCreateDataStreamWhenDisabled() throws IOException {
+    public void testCanAutoCreateDataStreamWhenAutoCreateIndexDisabled() throws IOException {
         configureAutoCreateIndex(false);
-
-        // Attempt to add a document to a non-existing data stream. Auto-creating the data stream should fail owing to the setting above.
-        final Request indexDocumentRequest = new Request("POST", "recipe_kr/_doc/123456");
-        indexDocumentRequest.setJsonEntity("{ \"name\": \"Kimchi\" }");
-        final ResponseException responseException = expectThrows(ResponseException.class, this::indexDocument);
-
-        assertThat(
-            Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent(), UTF_8)),
-            containsString("no such index [recipe_kr] and [action.auto_create_index] is [false]")
-        );
+        createTemplateWithAllowAutoCreate(null);
+        assertOK(this.indexDocument());
     }
 
     /**
-     * Check that automatically creating an index is allowed, even when {@link AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
-     * is <code>false</code>, when the index name matches a template and that template has <code>allow_auto_create</code>
-     * set to <code>true</code>.
+     * Check that automatically creating a data stream is allowed when the index name matches a template
+     * and that template has <code>allow_auto_create</code> set to <code>true</code>.
      */
-    public void testCanAutoCreateDataStreamWhenAllowedByTemplate() throws IOException {
-        configureAutoCreateIndex(false);
-
+    public void testCanAutoCreateDataStreamWhenExplicitlyAllowedByTemplate() throws IOException {
         createTemplateWithAllowAutoCreate(true);
 
         // Attempt to add a document to a non-existing index. Auto-creating the index should succeed because the index name
@@ -73,12 +62,9 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
 
     /**
      * Check that automatically creating a data stream is disallowed when the data stream name matches a template and that template has
-     * <code>allow_auto_create</code> explicitly to <code>false</code>, even when {@link AutoCreateIndex#AUTO_CREATE_INDEX_SETTING}
-     * is set to <code>true</code>.
+     * <code>allow_auto_create</code> explicitly to <code>false</code>.
      */
     public void testCannotAutoCreateDataStreamWhenDisallowedByTemplate() throws IOException {
-        configureAutoCreateIndex(true);
-
         createTemplateWithAllowAutoCreate(false);
 
         // Attempt to add a document to a non-existing index. Auto-creating the index should succeed because the index name
@@ -106,16 +92,20 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
     }
 
     private void createTemplateWithAllowAutoCreate(Boolean allowAutoCreate) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder()
-            .startObject()
-            .array("index_patterns", "recipe*")
-            .field("allow_auto_create", allowAutoCreate)
-            .startObject("data_stream")
-            .endObject()
-            .endObject();
+        XContentBuilder b = JsonXContent.contentBuilder();
+        b.startObject();
+        {
+            b.array("index_patterns", "recipe*");
+            if (allowAutoCreate != null) {
+                b.field("allow_auto_create", allowAutoCreate);
+            }
+            b.startObject("data_stream");
+            b.endObject();
+        }
+        b.endObject();
 
         final Request createTemplateRequest = new Request("PUT", "_index_template/recipe_template");
-        createTemplateRequest.setJsonEntity(Strings.toString(builder));
+        createTemplateRequest.setJsonEntity(Strings.toString(b));
         final Response createTemplateResponse = client().performRequest(createTemplateRequest);
         assertOK(createTemplateResponse);
     }

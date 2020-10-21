@@ -36,8 +36,6 @@ import java.util.Set;
 @FunctionalInterface
 public interface RestHandler {
 
-    Set<MediaType> defaultAcceptTypes = Set.of(XContentType.values());
-
     /**
      * Handles a rest request.
      * @param request The request to handle

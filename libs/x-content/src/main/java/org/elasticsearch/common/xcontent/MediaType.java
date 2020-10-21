@@ -46,7 +46,7 @@ public interface MediaType {
     /**
      * returns a string representation of a media type.
      */
-    default String typeWithSubtype() {
+    default String typeWithSubtype(){
         return type() + "/" + subtype();
     }
 }

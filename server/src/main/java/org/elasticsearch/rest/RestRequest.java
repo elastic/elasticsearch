@@ -93,7 +93,7 @@ public class RestRequest implements ToXContent.Params {
         this.parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
         this.parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
         if (parsedContentType != null) {
-            this.xContentType.set(parsedContentType.toMediaType(XContentType.mediaTypeRegistry));
+            this.xContentType.set(parsedContentType.toMediaType(XContentType.mediaTypeRegistry));//this also validates against 4 known media types for content-type
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
@@ -151,7 +151,7 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
-    public static Map<String, String> params(final String uri) {
+    private static Map<String, String> params(final String uri) {
         final Map<String, String> params = new HashMap<>();
         int index = uri.indexOf('?');
         if (index >= 0) {
@@ -164,7 +164,7 @@ public class RestRequest implements ToXContent.Params {
         return params;
     }
 
-    public static String path(final String uri) {
+    private static String path(final String uri) {
         final int index = uri.indexOf('?');
         if (index >= 0) {
             return uri.substring(0, index);

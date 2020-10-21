@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -145,7 +144,7 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     @Override
-    public MediaTypeRegistry validAcceptMediaTypes() {
+    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
         return restHandler.validAcceptMediaTypes();
     }
 }

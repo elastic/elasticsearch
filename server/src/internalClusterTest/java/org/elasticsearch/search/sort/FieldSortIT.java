@@ -1762,6 +1762,7 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63719")
     public void testCastDate() throws Exception {
         assertAcked(prepareCreate("index_date")
             .setMapping("field", "type=date"));

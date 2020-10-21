@@ -220,7 +220,7 @@ The response also includes other valuable information about how the
 
 You now know that a `regsvr32.exe` process was used to register a potentially
 malicious script, `RegSvr32.sct`. Next, see if `regsvr32.exe` later loads the
-`scrob.dll` library.
+`scrobj.dll` library.
 
 Modify the previous EQL query as follows:
 

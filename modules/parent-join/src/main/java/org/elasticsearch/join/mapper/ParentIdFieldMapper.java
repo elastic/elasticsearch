@@ -27,9 +27,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -38,14 +37,13 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
  * A field mapper used internally by the {@link ParentJoinFieldMapper} to index
  * the value that link documents in the index (parent _id or _id if the document is a parent).
  */
-public final class ParentIdFieldMapper extends FieldMapper {
+public final class ParentIdFieldMapper extends ParametrizedFieldMapper {
     static final String CONTENT_TYPE = "parent";
 
     static class Defaults {
@@ -56,24 +54,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
-        }
-    }
-
-    static class Builder extends FieldMapper.Builder {
-
-        Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-        }
-
-        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            return this;
-        }
-
-        @Override
-        public ParentIdFieldMapper build(BuilderContext context) {
-            return new ParentIdFieldMapper(name, fieldType,
-                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals));
         }
     }
 
@@ -110,10 +90,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
     }
 
-    protected ParentIdFieldMapper(String simpleName,
-                                  FieldType fieldType,
-                                  MappedFieldType mappedFieldType) {
-        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals) {
+        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -128,18 +106,18 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
         String refId = (String) context.externalValue();
         BytesRef binaryValue = new BytesRef(refId);
-        Field field = new Field(fieldType().name(), binaryValue, fieldType);
+        Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+    protected String contentType() {
+        return CONTENT_TYPE;
     }
 
     @Override
-    protected String contentType() {
-        return CONTENT_TYPE;
+    public Builder getMergeBuilder() {
+        return null;    // always constructed by ParentJoinFieldMapper, not through type parsers
     }
 }

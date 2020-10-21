@@ -51,8 +51,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
 
         try {
             docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder()

@@ -200,7 +200,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             for (String field : storedFields) {
                 Mapper fieldMapper = docMapper.mappers().getMapper(field);
                 if (fieldMapper == null) {
-                    if (docMapper.objectMappers().get(field) != null) {
+                    if (docMapper.mappers().objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
@@ -274,7 +274,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
             // put stored fields into result objects
             if (!fieldVisitor.fields().isEmpty()) {
-                fieldVisitor.postProcess(mapperService);
+                fieldVisitor.postProcess(mapperService::fieldType);
                 documentFields = new HashMap<>();
                 metadataFields = new HashMap<>();
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {

@@ -25,11 +25,13 @@ import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -181,6 +183,9 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         try (SearchResponseIterator it =
                  assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), 0, 2)) {
             initial = it.next();
+            while (it.hasNext()) {
+                it.next();
+            }
         }
         ensureTaskCompletion(initial.getId());
         restartTaskNode(initial.getId(), indexName);
@@ -426,6 +431,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskRemoval(newResp.getId());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63702")
     public void testSearchPhaseFailureNoCause() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
         request.setKeepOnCompletion(true);
@@ -440,5 +446,38 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         assertNotNull(response.getFailure());
         ensureTaskNotRunning(response.getId());
+    }
+
+    public void testRetryVersionConflict() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
+        request.setKeepOnCompletion(true);
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+        assertFalse(response.isRunning());
+
+        List<Thread> threads = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        List<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
+        for (int i = 0; i < 2; i++) {
+            Runnable runnable = () -> {
+                for (int j = 0; j < 10; j++) {
+                    try {
+                        latch.await();
+                        getAsyncSearch(response.getId(), TimeValue.timeValueMinutes(10));
+                    } catch (Exception exc) {
+                        exceptions.add(exc);
+                    }
+                }
+            };
+            Thread thread = new Thread(runnable);
+            thread.start();
+            threads.add(thread);
+        }
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertTrue(exceptions.toString(), exceptions.isEmpty());
     }
 }

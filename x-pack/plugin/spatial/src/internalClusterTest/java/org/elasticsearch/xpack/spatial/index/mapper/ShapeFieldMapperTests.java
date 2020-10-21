@@ -6,22 +6,17 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -29,11 +24,8 @@ import org.elasticsearch.index.mapper.SourceToParse;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.elasticsearch.index.mapper.FieldMapperTestCase.fetchSourceValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -63,8 +55,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
@@ -84,8 +75,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
@@ -102,8 +92,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        defaultMapper = createIndex("test2").mapperService().parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
@@ -124,8 +113,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
@@ -140,14 +128,12 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        defaultMapper = createIndex("test2").mapperService().parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
         coerce = ((ShapeFieldMapper)fieldMapper).coerce().value();
         assertThat(coerce, equalTo(false));
-        assertFieldWarnings("tree");
     }
 
 
@@ -162,8 +148,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
@@ -178,8 +163,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        defaultMapper = createIndex("test2").mapperService().parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
@@ -198,8 +182,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject().endObject()
             .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
@@ -214,23 +197,13 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject().endObject()
             .endObject().endObject());
 
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
+        defaultMapper = createIndex("test2").mapperService().parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
         ignoreMalformed = ((ShapeFieldMapper)fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed.explicit(), equalTo(true));
         assertThat(ignoreMalformed.value(), equalTo(false));
-    }
-
-
-    private void assertFieldWarnings(String... fieldNames) {
-        String[] warnings = new String[fieldNames.length];
-        for (int i = 0; i < fieldNames.length; ++i) {
-            warnings[i] = "Field parameter [" + fieldNames[i] + "] "
-                + "is deprecated and will be removed in a future version.";
-        }
     }
 
     public void testShapeMapperMerge() throws Exception {
@@ -267,18 +240,15 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     public void testSerializeDefaults() throws Exception {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "shape")
-                .endObject().endObject()
-                .endObject().endObject());
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            String serialized = toXContentString((ShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
-            assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-                AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
-        }
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "shape")
+            .endObject().endObject()
+            .endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
+        String serialized = toXContentString((ShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
+        assertTrue(serialized, serialized.contains("\"orientation\":\"" +
+            AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
     }
 
     public void testShapeArrayParsing() throws Exception {
@@ -291,8 +261,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             .endObject()
             .endObject());
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = createIndex("test").mapperService().parse("_doc", new CompressedXContent(mapping));
 
         BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
@@ -330,38 +299,5 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
     public String toXContentString(ShapeFieldMapper mapper) throws IOException {
         return toXContentString(mapper, true);
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        ShapeFieldMapper mapper = new ShapeFieldMapper.Builder("field").build(context);
-
-        Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
-            List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
-        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.3, 15.0));
-        String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
-        String wktPoint = "POINT (14.3 15.0)";
-
-        // Test a single shape in geojson format.
-        Object sourceValue = jsonLineString;
-        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a list of shapes in geojson format.
-        sourceValue = List.of(jsonLineString, jsonPoint);
-        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a single shape in wkt format.
-        sourceValue = wktLineString;
-        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a list of shapes in wkt format.
-        sourceValue = List.of(wktLineString, wktPoint);
-        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 }

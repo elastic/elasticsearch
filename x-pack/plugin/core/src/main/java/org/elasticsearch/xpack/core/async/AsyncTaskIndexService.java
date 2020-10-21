@@ -194,7 +194,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             UpdateRequest request = new UpdateRequest()
                 .index(index)
                 .id(docId)
-                .doc(source, XContentType.JSON);
+                .doc(source, XContentType.JSON)
+                .retryOnConflict(5);
             client.update(request, listener);
         } catch(Exception e) {
             listener.onFailure(e);
@@ -211,7 +212,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         Map<String, Object> source = Collections.singletonMap(EXPIRATION_TIME_FIELD, expirationTimeMillis);
         UpdateRequest request = new UpdateRequest().index(index)
             .id(docId)
-            .doc(source, XContentType.JSON);
+            .doc(source, XContentType.JSON)
+            .retryOnConflict(5);
         client.update(request, listener);
     }
 

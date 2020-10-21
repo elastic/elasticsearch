@@ -19,7 +19,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -39,7 +38,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.PerClassSingleValue;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -366,7 +367,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String predictedClassField = dependentVariable + "_prediction";
         indexData(sourceIndex, 300, 0, dependentVariable);
 
-        int numTopClasses = 2;
+        int numTopClasses = randomBoolean() ? 2 : -1;  // Occasionally it's worth testing the special value -1.
+        int expectedNumTopClasses = 2;
         DataFrameAnalyticsConfig config =
             buildAnalytics(
                 jobId,
@@ -390,7 +392,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(dependentVariableValues)));
-            assertTopClasses(resultsObject, numTopClasses, dependentVariable, dependentVariableValues);
+            assertTopClasses(resultsObject, expectedNumTopClasses, dependentVariable, dependentVariableValues);
 
             // Let's just assert there's both training and non-training results
             //
@@ -641,6 +643,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
             new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, null, null));
         putAnalytics(firstJob);
+        startAnalytics(firstJobId);
+        waitUntilAnalyticsIsStopped(firstJobId);
 
         String secondJobId = "classification_two_jobs_with_same_randomize_seed_2";
         String secondJobDestIndex = secondJobId + "_dest";
@@ -650,11 +654,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Classification(dependentVariable, boostedTreeParams, null, null, 1, 50.0, randomizeSeed, null));
 
         putAnalytics(secondJob);
-
-        // Let's run both jobs in parallel and wait until they are finished
-        startAnalytics(firstJobId);
         startAnalytics(secondJobId);
-        waitUntilAnalyticsIsStopped(firstJobId);
         waitUntilAnalyticsIsStopped(secondJobId);
 
         // Now we compare they both used the same training rows
@@ -785,7 +785,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(
             buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(NESTED_FIELD)))
-            .setModelMemoryLimit(new ByteSizeValue(1, ByteSizeUnit.KB))
+            .setModelMemoryLimit(ByteSizeValue.ofKb(1))
             .build();
         putAnalytics(config);
         // Shouldn't throw
@@ -957,22 +957,35 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 new org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification(
                     dependentVariable,
                     predictedClassField,
-                    Arrays.asList(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
+                    null,
+                    Arrays.asList(
+                        new Accuracy(),
+                        new AucRoc(true, dependentVariableValues.get(0).toString()),
+                        new MulticlassConfusionMatrix(),
+                        new Precision(),
+                        new Recall())));
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
-        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(4));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(5));
 
         {   // Accuracy
             Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
             assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
-            for (Accuracy.PerClassResult klass : accuracyResult.getClasses()) {
+            for (PerClassSingleValue klass : accuracyResult.getClasses()) {
                 assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
-                assertThat(klass.getAccuracy(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                assertThat(klass.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
+        }
+
+        {   // AucRoc
+            AucRoc.Result aucRocResult = (AucRoc.Result) evaluateDataFrameResponse.getMetrics().get(1);
+            assertThat(aucRocResult.getMetricName(), equalTo(AucRoc.NAME.getPreferredName()));
+            assertThat(aucRocResult.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+            assertThat(aucRocResult.getCurve(), hasSize(greaterThan(0)));
         }
 
         {   // MulticlassConfusionMatrix
             MulticlassConfusionMatrix.Result confusionMatrixResult =
-                (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(1);
+                (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(2);
             assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
             List<MulticlassConfusionMatrix.ActualClass> actualClasses = confusionMatrixResult.getConfusionMatrix();
             assertThat(
@@ -990,20 +1003,20 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
 
         {   // Precision
-            Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(2);
+            Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(3);
             assertThat(precisionResult.getMetricName(), equalTo(Precision.NAME.getPreferredName()));
-            for (Precision.PerClassResult klass : precisionResult.getClasses()) {
+            for (PerClassSingleValue klass : precisionResult.getClasses()) {
                 assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
-                assertThat(klass.getPrecision(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                assertThat(klass.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
         }
 
         {   // Recall
-            Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(3);
+            Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(4);
             assertThat(recallResult.getMetricName(), equalTo(Recall.NAME.getPreferredName()));
-            for (Recall.PerClassResult klass : recallResult.getClasses()) {
+            for (PerClassSingleValue klass : recallResult.getClasses()) {
                 assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
-                assertThat(klass.getRecall(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                assertThat(klass.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
         }
     }

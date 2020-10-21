@@ -19,17 +19,10 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class BinaryMathNode extends BinaryNode {
 
@@ -39,6 +32,7 @@ public class BinaryMathNode extends BinaryNode {
     private Class<?> binaryType;
     private Class<?> shiftType;
     private int flags;
+    private int regexLimit;
 
     public void setOperation(Operation operation) {
         this.operation = operation;
@@ -80,6 +74,14 @@ public class BinaryMathNode extends BinaryNode {
         return flags;
     }
 
+    public void setRegexLimit(int regexLimit) {
+        this.regexLimit = regexLimit;
+    }
+
+    public int getRegexLimit() {
+        return regexLimit;
+    }
+
     /* ---- end node data, begin visitor ---- */
 
     @Override
@@ -95,33 +97,8 @@ public class BinaryMathNode extends BinaryNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        if (operation == Operation.FIND || operation == Operation.MATCH) {
-            getRightNode().write(classWriter, methodWriter, writeScope);
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
-
-            if (operation == Operation.FIND) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_FIND);
-            } else if (operation == Operation.MATCH) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
-            } else {
-                throw new IllegalStateException("unexpected binary math operation [" + operation + "] " +
-                        "for type [" + getExpressionCanonicalTypeName() + "]");
-            }
-        } else {
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-            getRightNode().write(classWriter, methodWriter, writeScope);
-
-            if (binaryType == def.class || (shiftType != null && shiftType == def.class)) {
-                methodWriter.writeDynamicBinaryInstruction(location,
-                        getExpressionType(), getLeftNode().getExpressionType(), getRightNode().getExpressionType(), operation, flags);
-            } else {
-                methodWriter.writeBinaryInstruction(location, getExpressionType(), operation);
-            }
-        }
+    public BinaryMathNode(Location location) {
+        super(location);
     }
+
 }

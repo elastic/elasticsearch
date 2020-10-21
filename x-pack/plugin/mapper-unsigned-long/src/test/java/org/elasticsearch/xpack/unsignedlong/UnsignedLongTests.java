@@ -6,22 +6,27 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,9 +38,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 
@@ -67,6 +75,16 @@ public class UnsignedLongTests extends ESIntegTestCase {
             builders.add(client().prepareIndex("idx").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
         }
         indexRandom(true, builders);
+
+        prepareCreate("idx2").setMapping("ul_field", "type=long").setSettings(settings).get();
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 4; i++) {
+            IndexRequest indexRequest = new IndexRequest("idx2").source("ul_field", values[i]);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        bulkRequestBuilder.get();
+
         ensureSearchable();
     }
 
@@ -215,13 +233,13 @@ public class UnsignedLongTests extends ESIntegTestCase {
         {
             SearchResponse response = client().prepareSearch("idx")
                 .setSize(0)
-                .addAggregation(histogram("ul_histo").field("ul_field").interval(9.223372036854776E18).minDocCount(0))
+                .addAggregation(histogram("ul_histo").field("ul_field").interval(9E18).minDocCount(0))
                 .get();
             assertSearchResponse(response);
             Histogram histo = response.getAggregations().get("ul_histo");
 
             long[] expectedBucketDocCounts = { 3, 3, 4 };
-            double[] expectedBucketKeys = { 0, 9.223372036854776E18, 1.8446744073709552E19 };
+            double[] expectedBucketKeys = { 0, 9.0E18, 1.8E19 };
             int i = 0;
             for (Histogram.Bucket bucket : histo.getBuckets()) {
                 assertEquals(expectedBucketDocCounts[i], bucket.getDocCount());
@@ -235,20 +253,14 @@ public class UnsignedLongTests extends ESIntegTestCase {
             SearchResponse response = client().prepareSearch("idx")
                 .setSize(0)
                 .addAggregation(
-                    range("ul_range").field("ul_field")
-                        .addUnboundedTo(9.223372036854776E18)
-                        .addRange(9.223372036854776E18, 1.8446744073709552E19)
-                        .addUnboundedFrom(1.8446744073709552E19)
+                    range("ul_range").field("ul_field").addUnboundedTo(9.0E18).addRange(9.0E18, 1.8E19).addUnboundedFrom(1.8E19)
                 )
                 .get();
             assertSearchResponse(response);
             Range range = response.getAggregations().get("ul_range");
 
             long[] expectedBucketDocCounts = { 3, 3, 4 };
-            String[] expectedBucketKeys = {
-                "*-9.223372036854776E18",
-                "9.223372036854776E18-1.8446744073709552E19",
-                "1.8446744073709552E19-*" };
+            String[] expectedBucketKeys = { "*-9.0E18", "9.0E18-1.8E19", "1.8E19-*" };
             int i = 0;
             for (Range.Bucket bucket : range.getBuckets()) {
                 assertEquals(expectedBucketDocCounts[i], bucket.getDocCount());
@@ -265,18 +277,23 @@ public class UnsignedLongTests extends ESIntegTestCase {
             double expectedSum = Arrays.stream(values).mapToDouble(Number::doubleValue).sum();
             assertEquals(expectedSum, sum.getValue(), 0.001);
         }
+        // max agg
+        {
+            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(max("ul_max").field("ul_field")).get();
+            assertSearchResponse(response);
+            Max max = response.getAggregations().get("ul_max");
+            assertEquals(1.8446744073709551615E19, max.getValue(), 0.001);
+        }
+        // min agg
+        {
+            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(min("ul_min").field("ul_field")).get();
+            assertSearchResponse(response);
+            Min min = response.getAggregations().get("ul_min");
+            assertEquals(0, min.getValue(), 0.001);
+        }
     }
 
-    public void testSortDifferentFormatsShouldFail() throws IOException, InterruptedException {
-        Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", 1);
-        prepareCreate("idx2").setMapping("ul_field", "type=long").setSettings(settings).get();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            builders.add(client().prepareIndex("idx2").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
-        }
-        indexRandom(true, builders);
-        ensureSearchable();
-
+    public void testSortDifferentFormatsShouldFail() {
         Exception exception = expectThrows(
             SearchPhaseExecutionException.class,
             () -> client().prepareSearch()
@@ -289,5 +306,20 @@ public class UnsignedLongTests extends ESIntegTestCase {
             exception.getCause().getMessage(),
             "Can't do sort across indices, as a field has [unsigned_long] type in one index, and different type in another index!"
         );
+    }
+
+    public void testRangeQuery() {
+        SearchResponse response = client().prepareSearch("idx")
+            .setSize(0)
+            .setQuery(new RangeQueryBuilder("ul_field").to("9.0E18").includeUpper(false))
+            .get();
+        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+        response = client().prepareSearch("idx")
+            .setSize(0)
+            .setQuery(new RangeQueryBuilder("ul_field").from("9.0E18").to("1.8E19").includeUpper(false))
+            .get();
+        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+        response = client().prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").from("1.8E19")).get();
+        assertThat(response.getHits().getTotalHits().value, equalTo(4L));
     }
 }

@@ -19,13 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 public class WhileLoopNode extends LoopNode {
 
@@ -49,38 +44,8 @@ public class WhileLoopNode extends LoopNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
-
-        writeScope = writeScope.newScope();
-
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(begin);
-
-        if (isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), location);
-        }
-
-        if (getBlockNode() != null) {
-            getBlockNode().continueLabel = begin;
-            getBlockNode().breakLabel = end;
-            getBlockNode().write(classWriter, methodWriter, writeScope);
-        }
-
-        if (getBlockNode() == null || getBlockNode().doAllEscape() == false) {
-            methodWriter.goTo(begin);
-        }
-
-        methodWriter.mark(end);
+    public WhileLoopNode(Location location) {
+        super(location);
     }
+
 }

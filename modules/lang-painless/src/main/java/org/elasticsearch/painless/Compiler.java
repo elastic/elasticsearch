@@ -25,6 +25,7 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.phase.DefaultConstantFoldingOptimizationPhase;
+import org.elasticsearch.painless.phase.DefaultIRTreeToASMBytesPhase;
 import org.elasticsearch.painless.phase.DefaultStringConcatenationOptimizationPhase;
 import org.elasticsearch.painless.phase.DocFieldsPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
@@ -220,13 +221,14 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
-        // TODO(stu): Make this phase optional #60156
+        // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
-        byte[] bytes = classNode.write();
+        new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
+        byte[] bytes = classNode.getBytes();
 
         try {
             Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, bytes);
@@ -255,14 +257,15 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
-        // TODO(stu): Make this phase optional #60156
+        // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         classNode.setDebugStream(debugStream);
+        new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
 
-        return classNode.write();
+        return classNode.getBytes();
     }
 }

@@ -100,6 +100,6 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         return new DateFieldMapper.DateFieldType(AGGREGABLE_DATE, isSearchable, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
-            Collections.emptyMap());
+            null, Collections.emptyMap());
     }
 }

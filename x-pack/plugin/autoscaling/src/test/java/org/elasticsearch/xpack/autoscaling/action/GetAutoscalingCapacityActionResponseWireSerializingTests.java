@@ -10,16 +10,16 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisions;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResults;
 
 import java.util.Collections;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingDecisions;
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingDeciderResults;
 
-public class GetAutoscalingDecisionActionResponseWireSerializingTests extends AbstractWireSerializingTestCase<
-    GetAutoscalingDecisionAction.Response> {
+public class GetAutoscalingCapacityActionResponseWireSerializingTests extends AbstractWireSerializingTestCase<
+    GetAutoscalingCapacityAction.Response> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -27,18 +27,18 @@ public class GetAutoscalingDecisionActionResponseWireSerializingTests extends Ab
     }
 
     @Override
-    protected Writeable.Reader<GetAutoscalingDecisionAction.Response> instanceReader() {
-        return GetAutoscalingDecisionAction.Response::new;
+    protected Writeable.Reader<GetAutoscalingCapacityAction.Response> instanceReader() {
+        return GetAutoscalingCapacityAction.Response::new;
     }
 
     @Override
-    protected GetAutoscalingDecisionAction.Response createTestInstance() {
+    protected GetAutoscalingCapacityAction.Response createTestInstance() {
         final int numberOfPolicies = randomIntBetween(1, 8);
-        final SortedMap<String, AutoscalingDecisions> decisions = new TreeMap<>();
+        final SortedMap<String, AutoscalingDeciderResults> results = new TreeMap<>();
         for (int i = 0; i < numberOfPolicies; i++) {
-            decisions.put(randomAlphaOfLength(8), randomAutoscalingDecisions());
+            results.put(randomAlphaOfLength(8), randomAutoscalingDeciderResults());
         }
-        return new GetAutoscalingDecisionAction.Response(Collections.unmodifiableSortedMap(decisions));
+        return new GetAutoscalingCapacityAction.Response(Collections.unmodifiableSortedMap(results));
     }
 
 }

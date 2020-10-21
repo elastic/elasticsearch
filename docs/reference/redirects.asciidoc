@@ -1225,3 +1225,9 @@ See <<size-your-shards>>.
 === elasticsearch-croneval parameters
 
 See <<elasticsearch-croneval-parameters>>.
+
+[role="exclude",id="autoscaling-get-autoscaling-decision"]
+=== Autoscaling decision API
+
+The autoscaling decision API has been renamed to capacity,
+see <<autoscaling-get-autoscaling-capacity>>.

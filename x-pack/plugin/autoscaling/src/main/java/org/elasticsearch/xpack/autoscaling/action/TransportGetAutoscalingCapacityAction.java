@@ -18,53 +18,55 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisionService;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
 
-public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAction<
-    GetAutoscalingDecisionAction.Request,
-    GetAutoscalingDecisionAction.Response> {
+public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAction<
+    GetAutoscalingCapacityAction.Request,
+    GetAutoscalingCapacityAction.Response> {
 
-    private final AutoscalingDecisionService decisionService;
+    private final AutoscalingCalculateCapacityService capacityService;
     private final ClusterInfoService clusterInfoService;
 
     @Inject
-    public TransportGetAutoscalingDecisionAction(
+    public TransportGetAutoscalingCapacityAction(
         final TransportService transportService,
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final AutoscalingDecisionService.Holder decisionServiceHolder,
+        final AutoscalingCalculateCapacityService.Holder capacityServiceHolder,
         final ClusterInfoService clusterInfoService
     ) {
         super(
-            GetAutoscalingDecisionAction.NAME,
+            GetAutoscalingCapacityAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            GetAutoscalingDecisionAction.Request::new,
+            GetAutoscalingCapacityAction.Request::new,
             indexNameExpressionResolver,
-            GetAutoscalingDecisionAction.Response::new,
+            GetAutoscalingCapacityAction.Response::new,
             ThreadPool.Names.SAME
         );
-        this.decisionService = decisionServiceHolder.get();
+        this.capacityService = capacityServiceHolder.get();
         this.clusterInfoService = clusterInfoService;
-        assert this.decisionService != null;
+        assert this.capacityService != null;
     }
 
     @Override
     protected void masterOperation(
         final Task task,
-        final GetAutoscalingDecisionAction.Request request,
+        final GetAutoscalingCapacityAction.Request request,
         final ClusterState state,
-        final ActionListener<GetAutoscalingDecisionAction.Response> listener
+        final ActionListener<GetAutoscalingCapacityAction.Response> listener
     ) {
-        listener.onResponse(new GetAutoscalingDecisionAction.Response(decisionService.decide(state, clusterInfoService.getClusterInfo())));
+        listener.onResponse(
+            new GetAutoscalingCapacityAction.Response(capacityService.calculate(state, clusterInfoService.getClusterInfo()))
+        );
     }
 
     @Override
-    protected ClusterBlockException checkBlock(final GetAutoscalingDecisionAction.Request request, final ClusterState state) {
+    protected ClusterBlockException checkBlock(final GetAutoscalingCapacityAction.Request request, final ClusterState state) {
         return null;
     }
 

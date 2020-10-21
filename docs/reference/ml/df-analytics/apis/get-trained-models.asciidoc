@@ -65,9 +65,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-models]
 Specifies whether the included model definition should be returned as a JSON map
 (`true`) or in a custom compressed format (`false`). Defaults to `true`.
 
-`for_export`::
+`exclude_generated`::
 (Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=for-export]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
 
 `from`::
 (Optional, integer)

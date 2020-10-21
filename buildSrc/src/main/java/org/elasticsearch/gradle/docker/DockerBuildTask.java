@@ -143,15 +143,14 @@ public class DockerBuildTask extends DefaultTask {
                         spec.args(baseImage);
                     });
 
-                    break;
+                    return;
                 } catch (Exception e) {
                     LOGGER.warn("Attempt {}/{} to pull Docker base image {} failed", attempt, maxAttempts, baseImage);
-
-                    if (attempt == 5) {
-                        throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
-                    }
                 }
             }
+
+            // If we successfully ran `docker pull` above, we would have returned before this point.
+            throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
         }
 
         @Override

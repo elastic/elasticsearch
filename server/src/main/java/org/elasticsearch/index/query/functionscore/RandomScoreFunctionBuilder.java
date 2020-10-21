@@ -163,21 +163,15 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             } else {
                 fieldName = field;
             }
-            if (context.hasMappings()) {
-                if (context.isFieldMapped(fieldName) == false) {
-                    throw new IllegalArgumentException("Field [" + field + "] is not mapped on [" + context.index() +
-                        "] and cannot be used as a source of random numbers.");
+            if (context.isFieldMapped(fieldName) == false) {
+                if (context.hasMappings() == false) {
+                    // no mappings: the index is empty anyway
+                    return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
                 }
-            } else {
-                // no mappings: the index is empty anyway
-                return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
+                throw new IllegalArgumentException("Field [" + field + "] is not mapped on [" + context.index() +
+                    "] and cannot be used as a source of random numbers.");
             }
-            int seed;
-            if (this.seed == null) {
-                seed = hash(context.nowInMillis());
-            } else {
-                seed = this.seed;
-            }
+            int seed = this.seed == null ? hash(context.nowInMillis()) : this.seed;
             return new RandomScoreFunction(seed, salt, context.getForField(context.getFieldType(fieldName)));
         }
     }

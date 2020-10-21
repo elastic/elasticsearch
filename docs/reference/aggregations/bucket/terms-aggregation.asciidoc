@@ -599,6 +599,8 @@ expire then we may be missing accounts of interest and have set our numbers too 
 Ultimately this is a balancing act between managing the Elasticsearch resources required to process a single request and the volume
 of requests that the client application must issue to complete a task.
 
+WARNING: Partitions cannot be used together with an `exclude` parameter.
+
 ==== Multi-field terms aggregation
 
 The `terms` aggregation does not support collecting terms from multiple fields

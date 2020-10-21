@@ -268,7 +268,6 @@ public class CacheFile {
         final RangeMissingHandler writer,
         final Executor executor
     ) {
-        ensureOpen();
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
             final FileChannelReference reference = getFileChannelReference(future);

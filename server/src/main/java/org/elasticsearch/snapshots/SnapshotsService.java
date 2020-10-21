@@ -261,20 +261,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 List<SnapshotFeatureInfo> featureStates = Collections.emptyList();
                 if (request.includeGlobalState() || request.featureStates().length > 0) {
                     Set<String> featureStatesSet = new HashSet<>(Arrays.asList(request.featureStates()));
+                    boolean includeAllFeatureStates = request.includeGlobalState() && featureStatesSet.isEmpty();
+
                     featureStates = systemIndexDescriptorMap.keySet().stream()
-                        .filter(feature -> featureStatesSet.contains(feature)
-                            || (featureStatesSet.isEmpty() && request.includeGlobalState()))
-                        .map(feature -> new SnapshotFeatureInfo(feature, systemIndexDescriptorMap.get(feature).stream()
-                            .map(descriptor -> descriptor.getIndexPattern())
-                            .flatMap(pattern -> Arrays.stream(indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState, LENIENT_EXPAND_OPEN_CLOSED, pattern)))
-                            .collect(Collectors.toList())))
+                        .filter(feature -> includeAllFeatureStates || featureStatesSet.contains(feature))
+                        .map(feature -> new SnapshotFeatureInfo(feature, resolveFeatureIndexNames(currentState, feature)))
                         .collect(Collectors.toList());
 
-                    indices = Stream.concat(featureStates.stream().flatMap(state -> state.getIndices().stream()), indices.stream())
+                    // Add all resolved indices from the feature states to the list of indices
+                    indices = Stream.concat(indices.stream(), featureStates.stream().flatMap(state -> state.getIndices().stream()))
                         .distinct()
                         .collect(Collectors.toList());
-
-                } // GWB-> Refactor this awful mess
+                }
 
                 final List<String> dataStreams =
                         indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
@@ -331,6 +329,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return request.masterNodeTimeout();
             }
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+    }
+
+    private List<String> resolveFeatureIndexNames(ClusterState currentState, String feature) {
+        if (systemIndexDescriptorMap.containsKey(feature) == false) {
+            throw new IllegalArgumentException("requested snapshot of feature state for unknown feature [" + feature + "]");
+        }
+
+        return systemIndexDescriptorMap.get(feature).stream()
+            .map(SystemIndexDescriptor::getIndexPattern)
+            .flatMap(pattern -> Arrays.stream(indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState,
+                LENIENT_EXPAND_OPEN_CLOSED, pattern)))
+            .collect(Collectors.toList());
     }
 
     private static void ensureSnapshotNameNotRunning(List<SnapshotsInProgress.Entry> runningSnapshots, String repositoryName,

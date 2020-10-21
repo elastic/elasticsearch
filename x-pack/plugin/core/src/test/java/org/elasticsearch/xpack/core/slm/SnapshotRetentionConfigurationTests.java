@@ -286,7 +286,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
             Collections.singletonList("foo-fail"),
             Collections.singletonList("bar-fail"),
-            Collections.emptyList(), // GWB-> Actually generate some feature states
+            Collections.emptyList(),
             "forced-failure", startTime + between(1, 10000), totalShards, failures, randomBoolean(), meta, startTime
         );
         assertThat(snapInfo.state(), equalTo(SnapshotState.FAILED));

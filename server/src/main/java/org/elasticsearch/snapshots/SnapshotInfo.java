@@ -284,10 +284,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public SnapshotInfo(SnapshotsInProgress.Entry entry) {
         this(entry.snapshot().getSnapshotId(),
-            entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()), entry.dataStreams(), Collections.emptyList(),
+            entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()), entry.dataStreams(), entry.featureStates(),
             null, Version.CURRENT, entry.startTime(), 0L, 0, 0, Collections.emptyList(), entry.includeGlobalState(), entry.userMetadata(),
             SnapshotState.IN_PROGRESS
-        ); // GWB-> Add featureStates to SnapshotInProgress.Entry
+        );
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, List<SnapshotFeatureInfo> featureStates,

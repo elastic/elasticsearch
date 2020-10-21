@@ -102,13 +102,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamStartingWithPeriod() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        final String dataStreamName = ".may_not_start_with_period";
+        final String dataStreamName = ".ds-may_not_start_with_ds";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
-        assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.'"));
+        assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.ds-'"));
     }
 
     public void testCreateDataStreamNoTemplate() throws Exception {

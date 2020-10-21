@@ -33,7 +33,7 @@ import static java.util.Collections.singletonList;
 public class FieldTypeLookupTests extends ESTestCase {
 
     public void testEmpty() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList());
         assertNull(lookup.get("foo"));
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);

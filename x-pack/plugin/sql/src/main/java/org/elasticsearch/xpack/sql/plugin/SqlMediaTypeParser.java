@@ -41,7 +41,6 @@ public class SqlMediaTypeParser {
      * isn't then we use the {@code Content-Type} header which is required.
      */
     public MediaType getMediaType(RestRequest request, SqlQueryRequest sqlRequest) {
-
         if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
             && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
@@ -50,7 +49,8 @@ public class SqlMediaTypeParser {
             return validateColumnarRequest(sqlRequest.columnar(), mediaTypeRegistry.formatToMediaType(request.param(URL_PARAM_FORMAT)));
         }
         //*/* no longer supported?
-        return request.getParsedAccept();
+        return request.getParsedAccept()
+            .toMediaType(mediaTypeRegistry);
     }
 
     private static MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {

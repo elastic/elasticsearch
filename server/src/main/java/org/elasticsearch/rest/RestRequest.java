@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -67,10 +68,10 @@ public class RestRequest implements ToXContent.Params {
     private final Map<String, List<String>> headers;
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
-    private final SetOnce<XContentType> xContentType = new SetOnce<>();//why is this set once?
+    private final SetOnce<XContentType> xContentType = new SetOnce<>();//why is this setonce?
     private final HttpChannel httpChannel;
-    private final XContentType parsedContentType;
-    private final MediaType parsedAccept;
+    private final ParsedMediaType parsedAccept;
+    private final ParsedMediaType parsedContentType;
 
     private HttpRequest httpRequest;
 
@@ -83,16 +84,16 @@ public class RestRequest implements ToXContent.Params {
     }
 
     protected RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
-                          Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel,
-                          XContentType parsedContentType, MediaType parsedAccept) {
-        this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet(), parsedContentType, parsedAccept);
+                          Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel) {
+        this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
     }
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
-                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId,
-                        XContentType parsedContentType, MediaType parsedAccept) {
+                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
+        this.parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
+        this.parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
         if (parsedContentType != null) {
-            this.xContentType.set(parsedContentType);
+            this.xContentType.set(parsedContentType.toMediaType(XContentType.mediaTypeRegistry));
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
@@ -101,13 +102,27 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
-        this.parsedContentType = parsedContentType;
-        this.parsedAccept = parsedAccept;
     }
 
+    private static @Nullable ParsedMediaType parsedMediaType(Map<String, List<String>> headers, String headerName) {
+        //TOOD: shouldn't this be case insensitive ?
+        List<String> header = headers.get(headerName);
+        if (header == null || header.isEmpty()) {
+            return null;
+        } else if (header.size() > 1) {
+            throw new IllegalArgumentException("only one value for the  header should be provided");
+        }
+        String rawContentType = header.get(0);
+        if (Strings.hasText(rawContentType)) {
+            return ParsedMediaType.parseMediaType(rawContentType);
+        } else {
+            throw new IllegalArgumentException("header cannot be empty"+headerName);
+
+        }
+    }
     protected RestRequest(RestRequest restRequest) {
         this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
-            restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getRequestId(), restRequest.getParsedContentType(), restRequest.getParsedAccept());
+            restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getRequestId());
     }
 
     /**
@@ -129,11 +144,11 @@ public class RestRequest implements ToXContent.Params {
      * @throws BadParameterException      if the parameters can not be decoded
      * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
-    public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel, XContentType parsedContentType, MediaType parsedAccept) {
+    public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
         String path = path(httpRequest.uri());
         return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
-            requestIdGenerator.incrementAndGet(), parsedContentType, parsedAccept);
+            requestIdGenerator.incrementAndGet());
     }
 
     public static Map<String, String> params(final String uri) {
@@ -168,10 +183,10 @@ public class RestRequest implements ToXContent.Params {
      * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
     public static RestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
-                                                       HttpChannel httpChannel, XContentType parsedContentType, MediaType parsedAccept) {
+                                                       HttpChannel httpChannel) {
         Map<String, String> params = Collections.emptyMap();
         return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
-            requestIdGenerator.incrementAndGet(), parsedContentType, parsedAccept);
+            requestIdGenerator.incrementAndGet());
     }
 
     public enum Method {
@@ -498,12 +513,12 @@ public class RestRequest implements ToXContent.Params {
         return new Tuple<>(xContentType, bytes);
     }
 
-    public XContentType getParsedContentType() {
-        return parsedContentType;
+    public ParsedMediaType getParsedAccept() {
+        return parsedAccept;
     }
 
-    public MediaType getParsedAccept() {
-        return parsedAccept;
+    public ParsedMediaType getParsedContentType() {
+        return parsedContentType;
     }
 
     /**

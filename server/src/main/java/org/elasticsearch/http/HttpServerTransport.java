@@ -63,12 +63,5 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
          */
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
 
-        /**
-         * Get the associated {@link RestHandler}. This method may be called before dispatching the request.
-         */
-        default RestHandler getRestHandler(HttpRequest httpRequest) {
-            throw new UnsupportedOperationException();
-        }
-
     }
 }

@@ -23,14 +23,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class MediaTypeRegistry<T extends MediaType> {
 
-    private Map<String, T> formatToMediaType = new ConcurrentHashMap<>();
-    private Map<String, T> typeWithSubtypeToMediaType = new ConcurrentHashMap<>();
-    private Map<String, Map<String, Pattern>> parametersMap = new ConcurrentHashMap<>();
+    private Map<String, T> formatToMediaType = new HashMap<>();
+    private Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
+    private Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();
 
     public  MediaTypeRegistry<T> register(Map<String, T> formatToMediaType,
                                        Map<String, T> typeWithSubtypeToMediaType,

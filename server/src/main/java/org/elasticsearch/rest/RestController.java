@@ -23,9 +23,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,10 +35,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.usage.UsageService;
@@ -235,6 +238,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
+        //this validates..
+        MediaType type = request.getParsedAccept().toMediaType(handler.validAcceptMediaTypes());
+
         RestChannel responseChannel = channel;
         try {
             if (handler.canTripCircuitBreaker()) {
@@ -319,6 +325,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String rawPath = request.rawPath();
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
+
+
+        ParsedMediaType parsedAccept = request.getParsedAccept();
+        ParsedMediaType parsedContentType = request.getParsedContentType();
+        TriFunction<ParsedMediaType,ParsedMediaType,Boolean, Version> compatibleFunction = (a,b,c)->Version.CURRENT;
+        Version compatibleVersion = compatibleFunction.apply(parsedAccept,parsedContentType,request.hasContent());
+
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
@@ -330,7 +343,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (handlers == null) {
                     handler = null;
                 } else {
-                    handler = handlers.getHandler(requestMethod);
+                    handler = handlers.getHandler(requestMethod/*compatibleVersion*/);
                 }
                 if (handler == null) {
                   if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
@@ -347,41 +360,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // If request has not been handled, fallback to a bad request error.
         handleBadRequest(uri, requestMethod, channel);
-    }
-    /**
-     * Determine which {@link RestHandler} will handle this {@link HttpRequest}
-     * @return the {@link RestHandler} which will handle this request, null if no handler can be found
-     */
-    public RestHandler getRestHandler(HttpRequest request) {
-        final String uri = request.uri();
-        final String rawPath = RestRequest.path(uri);
-        final Map<String, String> params = RestRequest.params(uri);
-        final RestRequest.Method requestMethod;
-        try {
-            requestMethod = request.method();
-            Iterator<MethodHandlers> allHandlers = getAllHandlers(params, rawPath);
-            while (allHandlers.hasNext()) {
-                final RestHandler handler;
-                final MethodHandlers handlers = allHandlers.next();
-                if (handlers == null) {
-                    handler = null;
-                } else {
-                    handler = handlers.getHandler(requestMethod);
-                }
-                if (handler == null) {
-                    final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
-                    if (validMethodSet.contains(requestMethod) == false &&
-                        (requestMethod == RestRequest.Method.OPTIONS || validMethodSet.isEmpty() == false)) {
-                        break;
-                    }
-                } else {
-                    return handler;
-                }
-            }
-        } catch (final IllegalArgumentException e) {
-            return null;
-        }
-        return null;
     }
 
     Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {

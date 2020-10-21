@@ -94,7 +94,7 @@ public class RestRequestTests extends ESTestCase {
         when (httpRequest.getHeaders()).thenReturn(
             Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson"))));
         final RestRequest request =
-                RestRequest.request(mock(NamedXContentRegistry.class), httpRequest, mock(HttpChannel.class), null,null);
+                RestRequest.request(mock(NamedXContentRegistry.class), httpRequest, mock(HttpChannel.class));
         assertFalse(request.isContentConsumed());
         try {
             consumer.accept(request);
@@ -265,7 +265,7 @@ public class RestRequestTests extends ESTestCase {
 
         private ContentRestRequest(RestRequest restRequest) {
             super(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
-                restRequest.getHttpRequest(), restRequest.getHttpChannel(), restRequest.getParsedContentType(), restRequest.getParsedAccept());
+                restRequest.getHttpRequest(), restRequest.getHttpChannel());
             this.restRequest = restRequest;
         }
 

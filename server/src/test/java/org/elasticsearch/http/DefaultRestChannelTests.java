@@ -148,7 +148,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         Settings settings = Settings.builder().build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, null, null);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // send a response
@@ -176,7 +176,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, null, null);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // send a response
@@ -197,7 +197,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     public void testReleaseInListener() throws IOException {
         final Settings settings = Settings.builder().build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, null, null);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
@@ -251,7 +251,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                 httpRequest.getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(DefaultRestChannel.KEEP_ALIVE));
             }
         }
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, null, null);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
 
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
@@ -283,7 +283,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             public RestRequest.Method method() {
                 throw new IllegalArgumentException("test");
             }
-        }, httpChannel, null, null);
+        }, httpChannel);
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
@@ -321,7 +321,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             public HttpResponse createResponse(RestStatus status, BytesReference content) {
                 throw new IllegalArgumentException("test");
             }
-        }, httpChannel, null, null);
+        }, httpChannel);
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
@@ -352,7 +352,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpRequest.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList(originValue));
         }
         httpRequest.getHeaders().put(CorsHandler.HOST, Collections.singletonList(host));
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel, null, null);
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
 
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
         RestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, httpHandlingSettings,

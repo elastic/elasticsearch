@@ -281,6 +281,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63976")
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         final List<ScriptedBlockPlugin> plugins = initBlockFactory();
         int numberOfShards = between(2, 5);

@@ -309,16 +309,6 @@ enum TextFormat implements MediaType {
 
         return sb.toString();
     }
-    @Override
-    public Set<String> mimeTypes() {
-        return Set.of(contentType());
-    }
-
-    @Override
-    public String canonical() {
-        return contentType();
-    }
-
 
     boolean hasHeader(RestRequest request) {
         return true;

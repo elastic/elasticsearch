@@ -94,7 +94,7 @@ public class MediaTypeRegistry<T extends MediaType> {
         return this;
     }
     public MediaTypeRegistry<T> register(Collection<MediaTypeRegistry<T>> mediaTypeRegistries ) {
-        for (MediaTypeRegistry mediaTypeRegistry : mediaTypeRegistries) {
+        for (MediaTypeRegistry<T> mediaTypeRegistry : mediaTypeRegistries) {
             register(mediaTypeRegistry);
         }
         return this;

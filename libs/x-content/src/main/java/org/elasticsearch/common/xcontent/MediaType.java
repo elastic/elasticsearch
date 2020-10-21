@@ -55,6 +55,4 @@ public interface MediaType {
     }
 
 
-    String canonical();
-
 }

@@ -25,20 +25,16 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 
 public class RestSqlQueryAction extends BaseRestHandler {
-    final static Set<MediaType> acceptedMediaTypes = Stream.concat(Arrays.stream(XContentType.values()), Arrays.stream(TextFormat.values()))
-        .collect(Collectors.toUnmodifiableSet());
+
     private static final SqlMediaTypeParser sqlMediaTypeParser = new SqlMediaTypeParser();
     MediaType responseMediaType;
 
@@ -49,7 +45,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
             new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
     }
     public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes(){
-        return sqlMediaTypeParser.mediaTypeRegistry;
+        return SqlMediaTypeParser.mediaTypeRegistry;
     }
 
     @Override

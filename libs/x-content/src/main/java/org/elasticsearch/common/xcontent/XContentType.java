@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -58,18 +57,18 @@ public enum XContentType implements MediaType {
             return JsonXContent.jsonXContent;
         }
 
-        @Override
-        public Set<String> mimeTypes() {
-            //TODO: add test for each of these these are defined in lowercase
-            return Set.of(
-                "application/json",
-                "application/vnd.elasticsearch+json",
-                "application/x-ndjson",
-                "application/vnd.elasticsearch+x-ndjson",
-                "application/*",
-                "*/*"
-            );
-        }
+//        @Override
+//        public Set<String> mimeTypes() {
+//            //TODO: add test for each of these these are defined in lowercase
+//            return Set.of(
+//                "application/json",
+//                "application/vnd.elasticsearch+json",
+//                "application/x-ndjson",
+//                "application/vnd.elasticsearch+x-ndjson",
+//                "application/*",
+//                "*/*"
+//            );
+//        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -233,4 +232,6 @@ public enum XContentType implements MediaType {
     public String format() {
         return subtype();
     }
+
+
 }

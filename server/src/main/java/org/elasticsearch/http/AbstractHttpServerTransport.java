@@ -343,18 +343,16 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         Exception badRequestCause = exception;
 // find the rest handler and validate that accept and content-type are valid per the rest handler
         // if no rest handler can be found
-        ParsedMediaType parsedContentType = null;
-        ParsedMediaType parsedAccept = null;
         MediaType accept = null;
-        MediaType contentType = null;
+        XContentType contentType = null;
         try {
-            parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
-            parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
+            ParsedMediaType parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
+            ParsedMediaType parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
             RestHandler restHandler = dispatcher.getRestHandler(httpRequest);
 
             if (restHandler != null) { //if the handler is null, it may because of a request for options
                 // null accept and content type headers are acceptable, it means that one was not sent, in general we will default to JSON
-
+                // not sure about those nulls..
                 MediaTypeRegistry validAccepts = restHandler.validAcceptMediaTypes();
                 accept = parsedAccept.toMediaType(validAccepts);
                 contentType = parsedContentType.toMediaType(XContentType.mediaTypeRegistry);
@@ -443,7 +441,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         }
     }
-    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause, MediaType parsedContentType, MediaType parsedAccept) {
+    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause, XContentType parsedContentType, MediaType parsedAccept) {
         HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
         try {
             return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel, parsedContentType, parsedAccept);

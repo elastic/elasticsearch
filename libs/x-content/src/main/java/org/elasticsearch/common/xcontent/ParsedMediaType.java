@@ -99,8 +99,8 @@ public class ParsedMediaType {
                 if (isValidParameter(givenParamEntry.getKey(), givenParamEntry.getValue(), registeredParams) == false) {
                     throw new RuntimeException("Invalid param for media type" + mimeTypeWithoutParams());
                 }
-
             }
+            return type;
         }
 
         throw new RuntimeException("unkown media type"+mimeTypeWithoutParams());

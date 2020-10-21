@@ -27,7 +27,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -38,13 +37,11 @@ import static org.hamcrest.Matchers.containsString;
 
 public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
 
-    private IndexService indexService;
-    private DocumentMapperParser parser;
+    private MapperService mapperService;
 
     @Before
     public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
+        mapperService = createIndex("test").mapperService();
     }
 
     public void testStoreCidr() throws Exception {
@@ -52,7 +49,7 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties").startObject("field").field("type", "ip_range")
             .field("store", true);
         mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
+        DocumentMapper mapper = mapperService.parse("type", new CompressedXContent(Strings.toString(mapping)));
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
         final Map<String, String> cases = new HashMap<>();
         cases.put("192.168.0.0/15", "192.169.255.255");

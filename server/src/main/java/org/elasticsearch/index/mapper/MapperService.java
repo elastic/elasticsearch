@@ -147,11 +147,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzers.get(analyzerName);
     }
 
-    //TODO This is only used in tests, we may want to look into replacing those usages?
-    public DocumentMapperParser documentMapperParser() {
-        return this.documentMapperParser;
-    }
-
     public Mapper.TypeParser.ParserContext parserContext() {
         return parserContextSupplier.get();
     }

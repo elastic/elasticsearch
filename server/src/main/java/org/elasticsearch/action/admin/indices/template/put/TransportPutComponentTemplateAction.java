@@ -51,15 +51,9 @@ public class TransportPutComponentTemplateAction
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                IndexScopedSettings indexScopedSettings) {
         super(PutComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutComponentTemplateAction.Request::new, indexNameExpressionResolver);
+            PutComponentTemplateAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
     }
 
     @Override

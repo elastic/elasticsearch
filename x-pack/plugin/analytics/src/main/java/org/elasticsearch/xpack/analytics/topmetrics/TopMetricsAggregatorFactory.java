@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -40,10 +40,10 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
     private final int size;
     private final List<MultiValuesSourceFieldConfig> metricFields;
 
-    public TopMetricsAggregatorFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
+    public TopMetricsAggregatorFactory(String name, AggregationContext context, AggregatorFactory parent,
             Builder subFactoriesBuilder, Map<String, Object> metadata, List<SortBuilder<?>> sortBuilders,
             int size, List<MultiValuesSourceFieldConfig> metricFields) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, context, parent, subFactoriesBuilder, metadata);
         this.sortBuilders = sortBuilders;
         this.size = size;
         this.metricFields = metricFields;
@@ -60,7 +60,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
         }
         List<TopMetricsAggregator.MetricSource> metricSources = metricFields.stream().map(config -> {
                     ValuesSourceConfig resolved = ValuesSourceConfig.resolve(
-                            searchContext.getQueryShardContext(), ValueType.NUMERIC,
+                            context, ValueType.NUMERIC,
                             config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null,
                         CoreValuesSourceType.NUMERIC);
                     return new TopMetricsAggregator.MetricSource(config.getFieldName(), resolved.format(),

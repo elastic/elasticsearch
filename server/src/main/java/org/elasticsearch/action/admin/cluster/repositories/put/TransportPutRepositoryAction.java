@@ -46,13 +46,8 @@ public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNod
                                         RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              PutRepositoryRequest::new, indexNameExpressionResolver);
+              PutRepositoryRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.repositoriesService = repositoriesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

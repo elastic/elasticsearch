@@ -43,13 +43,8 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                              ScriptService scriptService) {
         super(DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteStoredScriptRequest::new, indexNameExpressionResolver);
+                DeleteStoredScriptRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.scriptService = scriptService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

@@ -45,14 +45,8 @@ public class TransportPutComposableIndexTemplateAction
                                                      ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
                                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PutComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutComposableIndexTemplateAction.Request::new, indexNameExpressionResolver);
+            PutComposableIndexTemplateAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.indexTemplateService = indexTemplateService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
     }
 
     @Override

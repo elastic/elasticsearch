@@ -121,7 +121,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                                     JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
                                     MlMemoryTracker memoryTracker) {
         super(DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteJobAction.Request::new, indexNameExpressionResolver);
+                DeleteJobAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = client;
         this.persistentTasksService = persistentTasksService;
         this.auditor = auditor;
@@ -131,11 +131,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         this.memoryTracker = memoryTracker;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.listenersByJobId = new HashMap<>();
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

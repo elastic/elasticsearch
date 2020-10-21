@@ -36,10 +36,10 @@ import static org.hamcrest.Matchers.instanceOf;
 public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
+    protected Object getSampleValueForDocument() {
         final byte[] binaryValue = new byte[100];
         binaryValue[56] = 1;
-        builder.value(binaryValue);
+        return binaryValue;
     }
 
     @Override

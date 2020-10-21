@@ -32,12 +32,7 @@ public class TransportStopILMAction extends AcknowledgedTransportMasterNodeActio
     public TransportStopILMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(StopILMAction.NAME, transportService, clusterService, threadPool, actionFilters, StopILMRequest::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
+            indexNameExpressionResolver, ThreadPool.Names.SAME);
     }
 
     @Override

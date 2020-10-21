@@ -65,11 +65,15 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
-                new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}")))
+            iw.addDocument(
+                org.elasticsearch.common.collect.List.of(
+                    new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))
+                )
             );
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
-                new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}")))
+            iw.addDocument(
+                org.elasticsearch.common.collect.List.of(
+                    new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))
+                )
             );
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
@@ -116,11 +120,15 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
-                new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}")))
+            iw.addDocument(
+                org.elasticsearch.common.collect.List.of(
+                    new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))
+                )
             );
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
-                new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}")))
+            iw.addDocument(
+                org.elasticsearch.common.collect.List.of(
+                    new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))
+                )
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -149,11 +157,15 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
-                new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}")))
+            iw.addDocument(
+                org.elasticsearch.common.collect.List.of(
+                    new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))
+                )
             );
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
-                new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}")))
+            iw.addDocument(
+                org.elasticsearch.common.collect.List.of(
+                    new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))
+                )
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);

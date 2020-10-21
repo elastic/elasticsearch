@@ -116,17 +116,18 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
                 IpFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), IpFieldScript.CONTEXT);
                 return new IpScriptFieldType(builder.buildFullName(context), builder.script.getValue(), factory, builder.meta.getValue());
             }, GeoPointFieldMapper.CONTENT_TYPE, (builder, context) -> {
-                    builder.formatAndLocaleNotSupported();
-                    GeoPointFieldScript.Factory factory = builder.scriptCompiler.compile(
-                        builder.script.getValue(),
-                        GeoPointFieldScript.CONTEXT);
-                    return new GeoPointScriptFieldType(
-                        builder.buildFullName(context),
-                        builder.script.getValue(),
-                        factory,
-                        builder.meta.getValue()
-                    );
-                }, KeywordFieldMapper.CONTENT_TYPE, (builder, context) -> {
+                builder.formatAndLocaleNotSupported();
+                GeoPointFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    GeoPointFieldScript.CONTEXT
+                );
+                return new GeoPointScriptFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            }, KeywordFieldMapper.CONTENT_TYPE, (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
                 StringFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), StringFieldScript.CONTEXT);
                 return new KeywordScriptFieldType(

@@ -84,7 +84,10 @@ outputs the probability that each document is an outlier.
   contains the results of the analysis.
 
 `metrics`::
-  (Optional, object) Specifies the metrics that are used for the evaluation. 
+  (Optional, object) Specifies the metrics that are used for the evaluation. If 
+  no metrics are specified, the following are returned by default: `auc_roc` 
+  (`include_curve`: false), `precision`, `recall`, `confusion_matrix` – the 
+  latter three are calculated at 0.25, 0.5, and 0.75 thresholds.
   Available metrics:
   
   `auc_roc`:::
@@ -125,7 +128,8 @@ which outputs a prediction of values.
   (Optional, object) Specifies the metrics that are used for the evaluation. For 
   more information on `mse`, `msle`, and `huber`, consult 
   https://github.com/elastic/examples/tree/master/Machine%20Learning/Regression%20Loss%20Functions[the Jupyter notebook on regression loss functions].
-  Available metrics:
+  If no metrics are specified, the following are returned by default: `mse`, 
+  `r_squared`, and `huber` (`delta`: 1.0). Available metrics:
 
   `mse`:::
     (Optional, object) Average squared difference between the predicted values 
@@ -179,7 +183,9 @@ belongs.
   This field must be defined as `nested` in the mappings.
 
 `metrics`::
-  (Optional, object) Specifies the metrics that are used for the evaluation.
+  (Optional, object) Specifies the metrics that are used for the evaluation. If 
+  no metrics are specificed, the following are returned by default: `accuracy`, 
+  `multiclass_confusion_matrix`, `precision`, and `recall`.
   Available metrics:
 
   `accuracy`:::

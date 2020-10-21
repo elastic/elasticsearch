@@ -85,7 +85,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public IndicesOptions indicesOptions() {
             // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
             // a data stream's backing indices are retrieved from its metadata
-            return IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+            return IndicesOptions.fromOptions(false, true, true, true, true,false, false, true, false);
         }
 
         @Override
@@ -108,6 +108,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
+            public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
 
             DataStream dataStream;
             ClusterHealthStatus dataStreamStatus;
@@ -166,6 +167,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
                 }
+                builder.field(HIDDEN_FIELD.getPreferredName(), dataStream.isHidden());
                 builder.endObject();
                 return builder;
             }

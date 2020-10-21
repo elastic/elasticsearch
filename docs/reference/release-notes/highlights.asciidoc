@@ -46,6 +46,7 @@ remote cluster connection.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
+[discrete]
 === Fixed index throttling
 
 When indexing data, {es} and Lucene use heap memory for buffering. To control memory usage, {es} moves data from the

@@ -4,36 +4,43 @@
 <titleabbrev>Foreach</titleabbrev>
 ++++
 
-Processes elements in an array of unknown length.
+Executes a processor on each element in an array or map.
 
-All processors can operate on elements inside an array, but if all elements of an array need to
-be processed in the same way, defining a processor for each element becomes cumbersome and tricky
-because it is likely that the number of elements in an array is unknown. For this reason the `foreach`
-processor exists. By specifying the field holding array elements and a processor that
-defines what should happen to each element, array fields can easily be preprocessed.
+All processors can operate on elements inside arrays and maps, but if the
+number of elements is unknown, it can be cumbersome to process each element
+in the same way. The `foreach` processor allows users to specify a field holding
+an array or map and a processor that should be executed on each element in that
+field.
 
-A processor inside the foreach processor works in the array element context and puts that in the ingest metadata
-under the `_ingest._value` key. If the array element is a json object it holds all immediate fields of that json object.
-and if the nested object is a value is `_ingest._value` just holds that value. Note that if a processor prior to the
-`foreach` processor used `_ingest._value` key then the specified value will not be available to the processor inside
-the `foreach` processor. The `foreach` processor does restore the original value, so that value is available to processors
-after the `foreach` processor.
+The processor specified inside the foreach processor typically works on a single
+element of the array or map. When iterating through the values of an array or
+map, the foreach processor places the current value in the ingest metadata under
+the `_ingest._value` key. If the value is a JSON object or other complex value,
+the entirety of the value and any of its children are accessible through
+`_ingest._value`.
 
-Note that any other field from the document are accessible and modifiable like with all other processors. This processor
-just puts the current array element being read into `_ingest._value` ingest metadata attribute, so that it may be
-pre-processed.
+When iterating over map values, the foreach processor also places the key value
+under `_ingest._key`. Key values are always strings. Both the key and value for
+map entries may be modified. If the key is set to `null`, the empty string, or
+a string containing only whitespace, the map entry will be removed.
 
-If the `foreach` processor fails to process an element inside the array, and no `on_failure` processor has been specified,
-then it aborts the execution and leaves the array unmodified.
+Note that fields from the document other than `_ingest._value` and
+`_ingest._key` are accessible and modifiable from any processor specified inside
+the foreach processor.
+
+If the `foreach` processor fails to process an element and no `on_failure`
+processor has been specified, then it aborts execution and leaves the array
+or map unmodified.
 
 [[foreach-options]]
 .Foreach Options
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `field`          | yes       | -        | The array field
-| `processor`      | yes       | -        | The processor to execute against each field
-| `ignore_missing` | no        | false    | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+| `field`          | yes       | -        | The array or map field
+| `processor`      | yes       | -        | The processor to execute against each element
+| `ignore_missing` | no        | false    | If `true` and `field` does not
+exist or is `null`, the processor quietly exits without modifying the document
 include::common-options.asciidoc[]
 |======
 
@@ -64,7 +71,7 @@ When this `foreach` processor operates on this sample document:
 --------------------------------------------------
 // NOTCONSOLE
 
-Then the document will look like this after preprocessing:
+Then the document will look like this after processing:
 
 [source,js]
 --------------------------------------------------
@@ -111,7 +118,7 @@ so the following `foreach` processor is used:
 --------------------------------------------------
 // NOTCONSOLE
 
-After preprocessing the result is:
+After processing the result is:
 
 [source,js]
 --------------------------------------------------
@@ -124,6 +131,117 @@ After preprocessing the result is:
       "name" : "Jane Doe"
     }
   ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The foreach processor can also be used on map fields such as:
+
+[source,js]
+--------------------------------------------------
+{
+  "products" : {
+    "widgets" : {
+      "total_sales" : 50,
+      "unit_price": 1.99,
+      "display_name": ""
+    },
+    "sprockets" : {
+      "total_sales" : 100,
+      "unit_price": 9.99,
+      "display_name": "Super Sprockets"
+    },
+    "whizbangs" : {
+      "total_sales" : 200,
+      "unit_price": 19.99,
+      "display_name": "Wonderful Whizbangs"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+When the following `foreach` processor operates on the document above with a
+map field:
+
+[source,js]
+--------------------------------------------------
+{
+  "foreach": {
+    "field": "products",
+    "processor": {
+      "uppercase": {
+        "field": "_ingest._value.display_name"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Then the document will look like this after processing:
+
+[source,js]
+--------------------------------------------------
+{
+  "products" : {
+    "widgets" : {
+      "total_sales" : 50,
+      "unit_price" : 1.99,
+      "display_name" : ""
+    },
+    "sprockets" : {
+      "total_sales" : 100,
+      "unit_price" : 9.99,
+      "display_name" : "SUPER SPROCKETS"
+    },
+    "whizbangs" : {
+      "total_sales" : 200,
+      "unit_price" : 19.99,
+      "display_name" : "WONDERFUL WHIZBANGS"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+When this `foreach` processor operates on the document, it changes the map
+keys resulting in the deletion of one map entry whose key is set to an
+empty string.
+
+[source,js]
+--------------------------------------------------
+{
+  "foreach": {
+    "field": "products",
+    "processor": {
+      "set": {
+        "field": "_ingest._key",
+        "value": "{{_ingest._value.display_name}}"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The result of the above processor is:
+
+[source,js]
+--------------------------------------------------
+{
+  "products" : {
+    "Wonderful Whizbangs" : {
+      "total_sales" : 200,
+      "unit_price" : 19.99,
+      "display_name" : "Wonderful Whizbangs"
+    },
+    "Super Sprockets" : {
+      "total_sales" : 100,
+      "unit_price" : 9.99,
+      "display_name" : "Super Sprockets"
+    }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

@@ -215,7 +215,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
 
         IndexService indexService = createIndex("foo");
         try {
-            indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+            indexService.mapperService().parse("type", new CompressedXContent(mapping));
             fail("Expected MappingParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("Unknown Similarity type [unknown_similarity] for field [field1]"));

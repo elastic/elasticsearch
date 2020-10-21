@@ -42,7 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class ReloadableAnalyzerTest extends ESSingleNodeTestCase {
+public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

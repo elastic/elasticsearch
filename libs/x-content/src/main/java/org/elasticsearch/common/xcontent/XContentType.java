@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -57,18 +56,6 @@ public enum XContentType implements MediaType {
             return JsonXContent.jsonXContent;
         }
 
-//        @Override
-//        public Set<String> mimeTypes() {
-//            //TODO: add test for each of these these are defined in lowercase
-//            return Set.of(
-//                "application/json",
-//                "application/vnd.elasticsearch+json",
-//                "application/x-ndjson",
-//                "application/vnd.elasticsearch+x-ndjson",
-//                "application/*",
-//                "*/*"
-//            );
-//        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -87,13 +74,6 @@ public enum XContentType implements MediaType {
         @Override
         public XContent xContent() {
             return SmileXContent.smileXContent;
-        }
-
-        public Set<String> mimeTypes() {
-            return Set.of(
-                "application/smile",
-                "application/vnd.elasticsearch+smile"
-            );
         }
     },
     /**
@@ -114,13 +94,6 @@ public enum XContentType implements MediaType {
         public XContent xContent() {
             return YamlXContent.yamlXContent;
         }
-
-        public Set<String> mimeTypes() {
-            return Set.of(
-                "application/yaml",
-                "application/vnd.elasticsearch+yaml"
-            );
-        }
     },
     /**
      * A CBOR based content type.
@@ -139,13 +112,6 @@ public enum XContentType implements MediaType {
         @Override
         public XContent xContent() {
             return CborXContent.cborXContent;
-        }
-
-        public Set<String> mimeTypes() {
-            return Set.of(
-                "application/cbor",
-                "application/vnd.elasticsearch+cbor"
-            );
         }
     };
 
@@ -232,6 +198,4 @@ public enum XContentType implements MediaType {
     public String format() {
         return subtype();
     }
-
-
 }

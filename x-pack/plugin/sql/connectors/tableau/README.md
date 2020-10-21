@@ -9,7 +9,7 @@ After providing basic connection and authentication information, users can easil
  - Go to the [Connector Download](https://www.elastic.co/downloads/tableau-connector) page.
  - Download the _.taco_ connector file.
  - Move the _.taco_ file here:
-    - Windows: C:\Users[Windows User]\Documents\My Tableau Repository\Connectors
+    - Windows: C:\Users\[Windows User]\Documents\My Tableau Repository\Connectors
     -  macOS: /Users/[user]/Documents/My Tableau Repository/Connectors
 2. Elasticsearch JDBC Driver Installation:
  - Go to the [Driver Download](https://www.elastic.co/downloads/jdbc-client) page.
@@ -17,4 +17,3 @@ After providing basic connection and authentication information, users can easil
     - Windows - C:\Program Files\Tableau\Drivers
     - macOS - /Users/[user]/Library/Tableau/Drivers
 3. Relaunch Tableau and connect with _Elasticsearch by Elastic_.
-

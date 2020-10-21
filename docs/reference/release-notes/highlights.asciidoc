@@ -39,6 +39,24 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
+=== Fixed retries for {ccr}
+
+{ccr-cap} now retries operations that failed due to a circuit breaker or a lost
+remote cluster connection.
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[discrete]
+=== Fixed index throttling
+
+When indexing data, {es} and Lucene use heap memory for buffering. To control memory usage, {es} moves data from the
+buffer to disk based on your {ref}/indexing-buffer.html[indexing buffer settings]. If ongoing indexing  outpaces the
+relocation of data to disk, {es} will now throttle indexing. In previous {es} versions, this feature was broken and
+throttling was not activated.
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[discrete]
 === EQL
 
 EQL (Event Query Language) is a declarative language dedicated for identifying patterns and relationships between events.

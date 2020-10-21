@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -114,7 +115,18 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
                 builder.formatAndLocaleNotSupported();
                 IpFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), IpFieldScript.CONTEXT);
                 return new IpScriptFieldType(builder.buildFullName(context), builder.script.getValue(), factory, builder.meta.getValue());
-            }, KeywordFieldMapper.CONTENT_TYPE, (builder, context) -> {
+            }, GeoPointFieldMapper.CONTENT_TYPE, (builder, context) -> {
+                    builder.formatAndLocaleNotSupported();
+                    GeoPointFieldScript.Factory factory = builder.scriptCompiler.compile(
+                        builder.script.getValue(),
+                        GeoPointFieldScript.CONTEXT);
+                    return new GeoPointScriptFieldType(
+                        builder.buildFullName(context),
+                        builder.script.getValue(),
+                        factory,
+                        builder.meta.getValue()
+                    );
+                }, KeywordFieldMapper.CONTENT_TYPE, (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
                 StringFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), StringFieldScript.CONTEXT);
                 return new KeywordScriptFieldType(

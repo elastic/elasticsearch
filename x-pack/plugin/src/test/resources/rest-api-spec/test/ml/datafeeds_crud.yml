@@ -519,10 +519,8 @@ setup:
   - do:
       ml.get_datafeeds:
         datafeed_id: test-for-export
-        for_export: true
+        exclude_generated: true
   - match: { datafeeds.0.indices.0: "index-foo"}
-  - is_false: datafeeds.0.datafeed_id
-  - is_false: datafeeds.0.job_id
   - is_false: datafeeds.0.create_time
   - is_false: datafeeds.0.query_delay
   - is_false: datafeeds.0.chunking_config

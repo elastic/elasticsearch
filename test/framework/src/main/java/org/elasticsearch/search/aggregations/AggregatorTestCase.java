@@ -844,7 +844,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     @After
-    private void cleanupReleasables() {
+    public void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
     }

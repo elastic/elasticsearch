@@ -74,6 +74,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -131,22 +132,41 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return createMapperService(Version.CURRENT, mappings);
     }
 
+    protected MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
+        return createMapperService(Version.CURRENT, settings, () -> true, mappings);
+    }
+
+    protected MapperService createMapperService(BooleanSupplier idFieldEnabled, XContentBuilder mappings) throws IOException {
+        return createMapperService(Version.CURRENT, getIndexSettings(), idFieldEnabled, mappings);
+    }
+
     protected final MapperService createMapperService(String mappings) throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
     }
 
+    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+        return createMapperService(version, getIndexSettings(), () -> true, mapping);
+    }
+
     /**
      * Create a {@link MapperService} like we would for an index.
      */
-    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
-        IndexMetadata meta = IndexMetadata.builder("index")
-            .settings(Settings.builder().put("index.version.created", version))
-            .numberOfReplicas(0)
-            .numberOfShards(1)
+    protected final MapperService createMapperService(Version version,
+                                                      Settings settings,
+                                                      BooleanSupplier idFieldDataEnabled,
+                                                      XContentBuilder mapping) throws IOException {
+        settings = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .put("index.number_of_shards", 1)
+            .put(settings)
+            .put("index.version.created", version)
             .build();
-        IndexSettings indexSettings = new IndexSettings(meta, getIndexSettings());
+        IndexMetadata meta = IndexMetadata.builder("index")
+            .settings(settings)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(meta, settings);
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
@@ -163,7 +183,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
-            () -> true,
+            idFieldDataEnabled,
             scriptService
         );
         merge(mapperService, mapping);
@@ -267,7 +287,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public long nowInMillis() {
                 return 0;
             }
-            
+
             @Override
             public boolean isFieldMapped(String field) {
                 throw new UnsupportedOperationException();

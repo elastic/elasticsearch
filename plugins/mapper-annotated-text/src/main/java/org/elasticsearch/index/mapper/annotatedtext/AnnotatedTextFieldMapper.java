@@ -73,14 +73,14 @@ import java.util.regex.Pattern;
 public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "annotated_text";
-    private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
 
     private static Builder builder(FieldMapper in) {
         return ((AnnotatedTextFieldMapper)in).builder;
     }
 
     private static NamedAnalyzer wrapAnalyzer(NamedAnalyzer in) {
-        return new NamedAnalyzer(in.name(), AnalyzerScope.INDEX, new AnnotationAnalyzerWrapper(in.analyzer()));
+        return new NamedAnalyzer(in.name(), AnalyzerScope.INDEX,
+            new AnnotationAnalyzerWrapper(in.analyzer()), in.getPositionIncrementGap(""));
     }
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
@@ -129,6 +129,12 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
             FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE ) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
+            }
+            if (analyzers.positionIncrementGap.get() != TextParams.POSITION_INCREMENT_GAP_USE_ANALYZER) {
+                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                    throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
+                        + name + "] without positions enabled");
+                }
             }
             return new AnnotatedTextFieldMapper(
                     name, fieldType, buildFieldType(fieldType, context),

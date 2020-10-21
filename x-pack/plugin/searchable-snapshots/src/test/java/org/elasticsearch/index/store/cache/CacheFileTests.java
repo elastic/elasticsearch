@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -142,20 +142,27 @@ public class CacheFileTests extends ESTestCase {
             random()
         );
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
-        final CompletableFuture<Integer> readFuture = cacheFile.populateAndRead(
-            Tuple.tuple(0L, length),
-            Tuple.tuple(0L, length),
-            channel -> Math.toIntExact(length),
-            (channel, from, to, progressUpdater) -> progressUpdater.accept(length),
-            threadPool.generic()
-        );
+        final Future<Integer> readFuture;
+        if (randomBoolean()) {
+            readFuture = cacheFile.readIfAvailableOrPending(Tuple.tuple(0L, length), channel -> Math.toIntExact(length));
+        } else {
+            readFuture = cacheFile.populateAndRead(
+                    Tuple.tuple(0L, length),
+                    Tuple.tuple(0L, length),
+                    channel -> Math.toIntExact(length),
+                    (channel, from, to, progressUpdater) -> progressUpdater.accept(length),
+                    threadPool.generic()
+            );
+        }
         final boolean evicted = randomBoolean();
         if (evicted) {
             deterministicTaskQueue.scheduleNow(cacheFile::startEviction);
         }
         deterministicTaskQueue.scheduleNow(() -> cacheFile.release(evictionListener));
         deterministicTaskQueue.runAllRunnableTasks();
-        assertTrue(readFuture.isDone());
+        if (readFuture != null) {
+            assertTrue(readFuture.isDone());
+        }
         if (evicted) {
             assertFalse(Files.exists(file));
         }

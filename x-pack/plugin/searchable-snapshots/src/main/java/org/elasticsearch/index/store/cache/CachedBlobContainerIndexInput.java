@@ -38,7 +38,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Locale;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -167,14 +167,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
             // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
 
-            final CompletableFuture<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(
-                Tuple.tuple(position, position + length),
-                channel -> {
-                    final int read = readCacheFile(channel, position, b);
-                    assert read == length : read + " vs " + length;
-                    return read;
-                }
-            );
+            final Future<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(Tuple.tuple(position, position + length), channel -> {
+                final int read = readCacheFile(channel, position, b);
+                assert read == length : read + " vs " + length;
+                return read;
+            });
 
             if (waitingForRead != null) {
                 final Integer read = waitingForRead.get();
@@ -295,7 +292,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + rangeToWrite;
             final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
 
-            final CompletableFuture<Integer> populateCacheFuture = cacheFile.populateAndRead(rangeToWrite, rangeToRead, channel -> {
+            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(rangeToWrite, rangeToRead, channel -> {
                 final int read;
                 if ((rangeToRead.v2() - rangeToRead.v1()) < b.remaining()) {
                     final ByteBuffer duplicate = b.duplicate();
@@ -311,7 +308,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
-                final CompletableFuture<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
+                final Future<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
                     final int indexCacheMissLength = toIntBytes(indexCacheMiss.v2() - indexCacheMiss.v1());
 
                     // We assume that we only cache small portions of blobs so that we do not need to:

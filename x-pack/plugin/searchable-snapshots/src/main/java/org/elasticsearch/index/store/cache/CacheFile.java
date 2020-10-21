@@ -9,6 +9,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
@@ -24,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -195,8 +198,8 @@ public class CacheFile {
             final Set<EvictionListener> evictionListeners;
             synchronized (listeners) {
                 evictionListeners = new HashSet<>(listeners);
-                refCounter.decRef();
             }
+            refCounter.decRef();
             evictionListeners.forEach(listener -> listener.onEviction(this));
         }
         assert invariant();
@@ -261,7 +264,7 @@ public class CacheFile {
      *
      * @return a future which returns the result of the {@link RangeAvailableHandler} once it has completed.
      */
-    CompletableFuture<Integer> populateAndRead(
+    Future<Integer> populateAndRead(
         final Tuple<Long, Long> rangeToWrite,
         final Tuple<Long, Long> rangeToRead,
         final RangeAvailableHandler reader,
@@ -269,19 +272,15 @@ public class CacheFile {
         final Executor executor
     ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
+        Releasable decrementRef = null;
         try {
-            final FileChannelReference reference = getFileChannelReference(future);
-            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, ActionListener.wrap(success -> {
-                final int read = reader.onRangeAvailable(reference.fileChannel);
-                assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
-                    + read
-                    + "] does not match the range to read ["
-                    + rangeToRead.v2()
-                    + '-'
-                    + rangeToRead.v1()
-                    + ']';
-                future.complete(read);
-            }, future::completeExceptionally));
+            final FileChannelReference reference = getFileChannelReference();
+            decrementRef = Releasables.releaseOnce(reference::decRef);
+            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                rangeToWrite,
+                rangeToRead,
+                rangeListener(rangeToRead, reader, future, reference, decrementRef)
+            );
 
             if (gaps.isEmpty() == false) {
                 executor.execute(new AbstractRunnable() {
@@ -313,7 +312,7 @@ public class CacheFile {
                 });
             }
         } catch (Exception e) {
-            future.completeExceptionally(e);
+            releaseAndFail(future, decrementRef, e);
         }
         return future;
     }
@@ -328,50 +327,68 @@ public class CacheFile {
      *         target range is neither available nor pending.
      */
     @Nullable
-    CompletableFuture<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
+    Future<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
+        Releasable decrementRef = null;
         try {
-            final FileChannelReference reference = getFileChannelReference(future);
-            if (tracker.waitForRangeIfPending(rangeToRead, ActionListener.wrap(success -> {
-                final int read = reader.onRangeAvailable(reference.fileChannel);
-                assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
-                    + read
-                    + "] does not match the range to read ["
-                    + rangeToRead.v2()
-                    + '-'
-                    + rangeToRead.v1()
-                    + ']';
-                future.complete(read);
-            }, future::completeExceptionally))) {
+            final FileChannelReference reference = getFileChannelReference();
+            decrementRef = Releasables.releaseOnce(reference::decRef);
+            if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, future, reference, decrementRef))) {
                 return future;
             } else {
                 // complete the future to release the channel reference
-                future.complete(0);
+                decrementRef.close();
                 return null;
             }
         } catch (Exception e) {
-            future.completeExceptionally(e);
+            releaseAndFail(future, decrementRef, e);
             return future;
         }
+    }
+
+    private static void releaseAndFail(CompletableFuture<Integer> future, Releasable decrementRef, Exception e) {
+        try {
+            Releasables.close(decrementRef);
+        } catch (Exception ex) {
+            e.addSuppressed(ex);
+        }
+        future.completeExceptionally(e);
+    }
+
+    private static ActionListener<Void> rangeListener(
+        Tuple<Long, Long> rangeToRead,
+        RangeAvailableHandler reader,
+        CompletableFuture<Integer> future,
+        FileChannelReference reference,
+        Releasable releasable
+    ) {
+        return ActionListener.runAfter(ActionListener.wrap(success -> {
+            final int read = reader.onRangeAvailable(reference.fileChannel);
+            assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
+                + read
+                + "] does not match the range to read ["
+                + rangeToRead.v2()
+                + '-'
+                + rangeToRead.v1()
+                + ']';
+            future.complete(read);
+        }, future::completeExceptionally), releasable::close);
     }
 
     /**
      * Get the reference to the currently open file channel for this cache file for a read operation
      *
-     * @param future completable future to complete after the read operation finished
      * @return file channel reference
      */
-    private FileChannelReference getFileChannelReference(CompletableFuture<Integer> future) {
+    private FileChannelReference getFileChannelReference() {
         final FileChannelReference reference;
         synchronized (listeners) {
             ensureOpen();
             reference = channelRef;
-            assert reference.refCount() > 0 : "impossible to run into a fully released channel reference under the listeners mutex";
+            assert reference != null
+                && reference.refCount() > 0 : "impossible to run into a fully released channel reference under the listeners mutex";
+            assert refCounter.refCount() > 0 : "file should not be fully released";
             reference.incRef();
-            future.handle((res, t) -> {
-                reference.decRef();
-                return null;
-            });
         }
         return reference;
     }

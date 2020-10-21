@@ -222,11 +222,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     @Override
     protected void addStoredFields(ParseContext context, Geometry geometry) {
-
+        // noop (stored fields not available for geo_shape fields)
     }
 
     @Override
     protected void addMultiFields(ParseContext context, Geometry geometry) {
-
+        // noop (completion suggester currently not compatible with geo_shape)
     }
 }

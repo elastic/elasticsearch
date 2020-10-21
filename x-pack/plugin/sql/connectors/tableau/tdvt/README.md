@@ -74,7 +74,7 @@ Note that Logstash will add a few extra fields per row ("document" in Elasticsea
 
 Setting up the TDVT testing involves following the steps detailed in the [official documentation](https://tableau.github.io/connector-plugin-sdk/docs/tdvt). The "fragment" in parantheses reference the respective chapters in the documentation. It is recommended to execute each test run starting afresh.
 
-0. Same as in the automated testing.
+1. Same as in the automated testing.
 
 2. Create new Tableau data sources for the `calcs` and `Staple` tables (#`Test a new data source`), or, alternatively, use those available already in this repo.
 	To set up new sources, launch Tableau from command line with the following parameters (PowerShell example):

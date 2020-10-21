@@ -72,6 +72,11 @@ public final class NativeMemoryCalculator {
 
     private static long allowedBytesForMl(long machineMemory, Long jvmSize, int maxMemoryPercent, boolean useAuto) {
         if (useAuto && jvmSize != null) {
+            // It is conceivable that there is a machine smaller than 200MB.
+            // If the administrator wants to use the auto configuration, the node should be larger.
+            if (machineMemory - jvmSize < OS_OVERHEAD || machineMemory == 0) {
+                return machineMemory / 100;
+            }
             // This calculation is dynamic and designed to maximally take advantage of the underlying machine for machine learning
             // We only allow 200MB for the Operating system itself and take up to 90% of the underlying native memory left
             // Example calculations:

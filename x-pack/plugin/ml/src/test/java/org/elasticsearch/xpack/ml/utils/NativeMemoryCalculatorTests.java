@@ -30,7 +30,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
     private static final int NUM_TEST_RUNS = 10;
     public void testAllowedBytesForMLWhenAutoIsFalse() {
         for (int i = 0; i < NUM_TEST_RUNS; i++) {
-            long nodeSize = randomLongBetween(100, 10_000);
+            long nodeSize = randomLongBetween(ByteSizeValue.ofMb(500).getBytes(), ByteSizeValue.ofGb(64).getBytes());
             int percent = randomIntBetween(5, 200);
             DiscoveryNode node = newNode(randomBoolean() ? null : randomNonNegativeLong(), nodeSize);
             Settings settings = newSettings(percent, false);
@@ -65,7 +65,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
     }
 
     public void testAllowedBytesForMlWhenAutoIsTrueButJVMSizeIsUnknown() {
-        long nodeSize = randomLongBetween(100, 10_000);
+        long nodeSize = randomLongBetween(ByteSizeValue.ofMb(500).getBytes(), ByteSizeValue.ofGb(64).getBytes());
         int percent = randomIntBetween(5, 200);
         DiscoveryNode node = newNode(null, nodeSize);
         Settings settings = newSettings(percent, true);
@@ -87,6 +87,21 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
         assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings), equalTo(OptionalLong.empty()));
         assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings), equalTo(OptionalLong.empty()));
         assertThat(NativeMemoryCalculator.allowedBytesForMl(node, percent, randomBoolean()), equalTo(OptionalLong.empty()));
+    }
+
+    public void testTinyNode() {
+        for (int i = 0; i < NUM_TEST_RUNS; i++) {
+            long nodeSize = randomLongBetween(0, ByteSizeValue.ofMb(200).getBytes());
+            long jvmSize = randomLongBetween(0, ByteSizeValue.ofMb(200).getBytes());
+            int percent = randomIntBetween(5, 200);
+            DiscoveryNode node = newNode(jvmSize, nodeSize);
+            Settings settings = newSettings(percent, true);
+            ClusterSettings clusterSettings = newClusterSettings(percent, true);
+            long expected = nodeSize / 100;
+            assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong(), equalTo(expected));
+            assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong(), equalTo(expected));
+            assertThat(NativeMemoryCalculator.allowedBytesForMl(node, percent, true).getAsLong(), equalTo(expected));
+        }
     }
 
     private static Settings newSettings(int maxMemoryPercent, boolean useAuto) {

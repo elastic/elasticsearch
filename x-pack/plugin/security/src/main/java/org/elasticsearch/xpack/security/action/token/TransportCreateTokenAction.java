@@ -134,8 +134,8 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                 ActionListener.wrap(tuple -> {
                     final String scope = getResponseScopeValue(request.getScope());
                     final String base64AuthenticateResponse = (grantType == GrantType.KERBEROS) ? extractOutToken() : null;
-                    final CreateTokenResponse response = new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope,
-                            tuple.v2(), base64AuthenticateResponse, authentication);
+                    final CreateTokenResponse response = new CreateTokenResponse(tuple.v1().v1(), tokenService.getExpirationDelay(), scope,
+                            tuple.v1().v2(), base64AuthenticateResponse, authentication);
                     listener.onResponse(response);
                 }, listener::onFailure));
     }

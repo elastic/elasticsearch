@@ -138,14 +138,7 @@ allprojects {
       System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
       gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
       gradle.startParameter.taskNames.contains('cleanEclipse')
-
-    // Workaround for https://github.com/gradle/gradle/issues/14932
-    if(isEclipse) {
-      apply plugin:'eclipse'
-      eclipse.classpath.file.whenMerged {
-        entries.findAll { it instanceof ProjectDependency }.each { it.entryAttributes.remove('without_test_code') }
-      }
-    }
+    
     buildMetadata = buildMetadataMap
   }
 }
@@ -337,6 +330,13 @@ allprojects {
       classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
         i++;
         folder.output = "build-eclipse/" + i
+      }
+
+      // Workaround for https://github.com/gradle/gradle/issues/14932
+      classpath.entries.findAll {
+        it instanceof ProjectDependency
+      }.each {
+        it.entryAttributes.remove('without_test_code')
       }
     }
   }

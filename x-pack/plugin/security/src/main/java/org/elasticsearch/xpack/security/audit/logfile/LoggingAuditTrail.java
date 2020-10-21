@@ -914,13 +914,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             .array("run_as", putRoleRequest.runAs())
                             // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
                             .field("application", putRoleRequest.applicationPrivileges())
-                            .startObject("cluster_conditional");
+                            .startObject("global");
                             // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}
                             // Again, only the transport client can produce this, and this only introduces a different failure mode and
                             // not a new one (without auditing it would fail differently, but it would still fail)
                             ConfigurableClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS,
                                     Arrays.asList(putRoleRequest.conditionalClusterPrivileges()));
-                            builder.endObject(); // cluster_conditional
+                            builder.endObject(); // global
                             if (putRoleRequest.metadata() != null && false == putRoleRequest.metadata().isEmpty()) {
                                 // JSON building for the metadata might fail when encountering unknown class types.
                                 // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
@@ -1033,7 +1033,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .array("run_as", roleDescriptor.getRunAs())
                         // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
                         .array("application", (Object[]) roleDescriptor.getApplicationPrivileges())
-                        .field("cluster_conditional");
+                        .field("global");
                 // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}
                 // Again, only the transport client can produce this, and this only introduces a different failure mode and
                 // not a new one (without auditing it would fail differently, but it would still fail)

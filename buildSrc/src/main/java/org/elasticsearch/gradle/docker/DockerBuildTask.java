@@ -133,7 +133,7 @@ public class DockerBuildTask extends DefaultTask {
          * @param baseImage the image to pull.
          */
         private void pullBaseImage(String baseImage) {
-            final int maxAttempts = 5;
+            final int maxAttempts = 10;
 
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 try {

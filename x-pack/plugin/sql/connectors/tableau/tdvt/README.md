@@ -105,7 +105,7 @@ Setting up the TDVT testing involves following the steps detailed in the [offici
 	When asked for a password, use the same value as in step "2." above when connecting to Elasticsearch.
 	For the "logical query config" use `simple_lower`.
 
-	Edit the `elastic.ini` file in the `config` directory in the workspace and add the following line under the `[Datasource]` section: `CommandLineOverride = -DConnectPluginsPath=<path> -DDisableVerifyConnectorPluginSignature=true`, where `<path>` has the same value as in step "1.".
+	Edit the `elastic.ini` file in the `config` directory in the workspace and add the following line under the `[Datasource]` section: `CommandLineOverride = -DConnectPluginsPath=<path> -DDisableVerifyConnectorPluginSignature=true`, where `<path>` has the same value as in step "2.".
 
 5. Run the tests:
 

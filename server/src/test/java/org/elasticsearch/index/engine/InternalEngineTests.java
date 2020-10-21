@@ -6121,7 +6121,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (Engine.SearcherSupplier searcher : searchers) {
             if (searcher.getSearcherId() != null) {
                 try (Engine.Searcher reader = searcher.acquireSearcher("test")) {
-                    final Map<Integer, DocIdSeqNoAndSource> docs = getDocIds(reader.getIndexReader());
+                    final Map<Integer, DocIdSeqNoAndSource> docs = getDocIds(reader.getIndexReader(), true);
                     final Map<Integer, DocIdSeqNoAndSource> existing = docStats.put(searcher.getSearcherId(), docs);
                     if (existing != null) {
                         assertThat(existing, equalTo(docs));
@@ -6153,7 +6153,7 @@ public class InternalEngineTests extends EngineTestCase {
                             searcher.getDirectoryReader());
                         final Map<Integer, DocIdSeqNoAndSource> docs;
                         try {
-                            docs = getDocIds(reader);
+                            docs = getDocIds(reader, true);
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }

@@ -1017,8 +1017,8 @@ public abstract class EngineTestCase extends ESTestCase {
             engine.refresh("test_get_doc_ids");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids", Engine.SearcherScope.INTERNAL)) {
-            return getDocIds(searcher.getIndexReader()).values()
-                .stream().filter(d -> d.isDeleted() == false)
+            return getDocIds(searcher.getIndexReader(), false).values()
+                .stream()
                 .sorted(Comparator.comparingLong(DocIdSeqNoAndSource::getSeqNo)
                     .thenComparingLong(DocIdSeqNoAndSource::getPrimaryTerm)
                     .thenComparing((DocIdSeqNoAndSource::getId)))
@@ -1026,7 +1026,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    public static Map<Integer, DocIdSeqNoAndSource> getDocIds(IndexReader indexReader) throws IOException {
+    public static Map<Integer, DocIdSeqNoAndSource> getDocIds(IndexReader indexReader, boolean includeDeletes) throws IOException {
         Map<Integer, DocIdSeqNoAndSource> docs = new HashMap<>();
         for (LeafReaderContext leafContext : indexReader.leaves()) {
             LeafReader reader = leafContext.reader();
@@ -1034,31 +1034,35 @@ public abstract class EngineTestCase extends ESTestCase {
             NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
             NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
             Bits liveDocs = reader.getLiveDocs();
-            for (int i = 0; i < reader.maxDoc(); i++) {
-                if (primaryTermDocValues.advanceExact(i) == false) {
+            for (int docId = 0; docId < reader.maxDoc(); docId++) {
+                final boolean isDeleted = liveDocs != null && liveDocs.get(docId) == false;
+                if (includeDeletes == false && isDeleted) {
+                    continue;
+                }
+                if (primaryTermDocValues.advanceExact(docId) == false) {
                     // We have to skip non-root docs because its _id field is not stored (indexed only).
                     continue;
                 }
                 final long primaryTerm = primaryTermDocValues.longValue();
-                Document doc = reader.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
+                Document doc = reader.document(docId, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
                 BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
                 final String id;
                 if (binaryID == null) {
+                    assert includeDeletes;
                     id = null;
                 } else {
                     id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
                 }
                 final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
-                if (seqNoDocValues.advanceExact(i) == false) {
-                    throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
+                if (seqNoDocValues.advanceExact(docId) == false) {
+                    throw new AssertionError("seqNoDocValues not found for doc[" + docId + "] id[" + id + "]");
                 }
                 final long seqNo = seqNoDocValues.longValue();
-                if (versionDocValues.advanceExact(i) == false) {
-                    throw new AssertionError("versionDocValues not found for doc[" + i + "] id[" + id + "]");
+                if (versionDocValues.advanceExact(docId) == false) {
+                    throw new AssertionError("versionDocValues not found for doc[" + docId + "] id[" + id + "]");
                 }
                 final long version = versionDocValues.longValue();
-                final boolean isDeleted = liveDocs != null && liveDocs.get(i) == false;
-                docs.put(i, new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version, isDeleted));
+                docs.put(leafContext.docBase + docId, new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version, isDeleted));
             }
         }
         return docs;

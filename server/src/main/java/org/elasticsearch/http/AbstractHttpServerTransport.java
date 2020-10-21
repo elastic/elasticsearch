@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -40,8 +41,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
@@ -54,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -89,6 +96,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final HttpTracer tracer;
+
+    private Set<MediaType> supportedContentTypes = Set.of(XContentType.values());
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
@@ -332,6 +341,40 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
 
         Exception badRequestCause = exception;
+// find the rest handler and validate that accept and content-type are valid per the rest handler
+        // if no rest handler can be found
+        ParsedMediaType parsedContentType = null;
+        ParsedMediaType parsedAccept = null;
+        MediaType accept = null;
+        MediaType contentType = null;
+        try {
+            parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
+            parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
+            RestHandler restHandler = dispatcher.getRestHandler(httpRequest);
+
+            if (restHandler != null) { //if the handler is null, it may because of a request for options
+                // null accept and content type headers are acceptable, it means that one was not sent, in general we will default to JSON
+
+                MediaTypeRegistry validAccepts = restHandler.validAcceptMediaTypes();
+                accept = parsedAccept.toMediaType(validAccepts);
+                contentType = parsedContentType.toMediaType(XContentType.mediaTypeRegistry);
+
+            }
+        } catch (Exception e) {
+            //TODO: handle as bad request like below
+            throw e;
+        }
+
+        //by now we know that we if the Accept or Content-Type header exists and they exist that they are structrually valid, and
+        //finally we know that for a given RestHandler that the handler can indeed handle the requested
+        //we also know that we only support the XContentTypes as ContentTypes (as opposed to any general mediaType)
+        // we also know that all combinations of accept and content-type are valid for the given RestHandler
+        // to avoid additional parsing we will pass down the parsed content type and parsed accept header to be part of the RestRequest
+        // this has the nice side benifit of having the mimeType paramters avialble via the RestRequest, which also means that
+        //the requested compatible version is effictefly availble via the RestRequest.
+        //we also know which rest handler is going to be used .. so make sure to pass that down to the dispatcher so it doesn't have to
+        //redo work.
+
 
         /*
          * We want to create a REST request from the incoming request from Netty. However, creating this request could fail if there
@@ -344,13 +387,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         {
             RestRequest innerRestRequest;
             try {
-                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel, contentType, accept);
             } catch (final RestRequest.ContentTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
+                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause, contentType, accept);
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel, contentType, accept);
             }
             restRequest = innerRestRequest;
         }
@@ -373,7 +416,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                         trace);
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel, contentType, accept);
                 innerChannel =
                     new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext, corsHandler,
                         trace);
@@ -384,13 +427,29 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         dispatchRequest(restRequest, channel, badRequestCause);
     }
 
-    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {
+    private static @Nullable ParsedMediaType parsedMediaType(Map<String, List<String>> headers, String headerName) {
+        //TOOD: shouldn't this be case insensitive ?
+        List<String> header = headers.get(headerName);
+        if (header == null || header.isEmpty()) {
+            return null;
+        } else if (header.size() > 1) {
+            throw new IllegalArgumentException("only one value for the  header should be provided");
+        }
+        String rawContentType = header.get(0);
+        if (Strings.hasText(rawContentType)) {
+            return ParsedMediaType.parseMediaType(rawContentType);
+        } else {
+            throw new IllegalArgumentException("header cannot be empty"+headerName);
+
+        }
+    }
+    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause, MediaType parsedContentType, MediaType parsedAccept) {
         HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
         try {
-            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel, parsedContentType, parsedAccept);
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel, parsedContentType, parsedAccept);
         }
     }
 

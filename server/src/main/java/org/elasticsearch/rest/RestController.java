@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.usage.UsageService;
@@ -346,6 +347,41 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // If request has not been handled, fallback to a bad request error.
         handleBadRequest(uri, requestMethod, channel);
+    }
+    /**
+     * Determine which {@link RestHandler} will handle this {@link HttpRequest}
+     * @return the {@link RestHandler} which will handle this request, null if no handler can be found
+     */
+    public RestHandler getRestHandler(HttpRequest request) {
+        final String uri = request.uri();
+        final String rawPath = RestRequest.path(uri);
+        final Map<String, String> params = RestRequest.params(uri);
+        final RestRequest.Method requestMethod;
+        try {
+            requestMethod = request.method();
+            Iterator<MethodHandlers> allHandlers = getAllHandlers(params, rawPath);
+            while (allHandlers.hasNext()) {
+                final RestHandler handler;
+                final MethodHandlers handlers = allHandlers.next();
+                if (handlers == null) {
+                    handler = null;
+                } else {
+                    handler = handlers.getHandler(requestMethod);
+                }
+                if (handler == null) {
+                    final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
+                    if (validMethodSet.contains(requestMethod) == false &&
+                        (requestMethod == RestRequest.Method.OPTIONS || validMethodSet.isEmpty() == false)) {
+                        break;
+                    }
+                } else {
+                    return handler;
+                }
+            }
+        } catch (final IllegalArgumentException e) {
+            return null;
+        }
+        return null;
     }
 
     Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {

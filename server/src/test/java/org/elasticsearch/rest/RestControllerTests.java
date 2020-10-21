@@ -610,7 +610,7 @@ public class RestControllerTests extends ESTestCase {
             public Exception getInboundException() {
                 return null;
             }
-        }, null);
+        }, null, parsedContentType, parsedAccept);
 
         final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);
         assertFalse(channel.getSendResponseCalled());

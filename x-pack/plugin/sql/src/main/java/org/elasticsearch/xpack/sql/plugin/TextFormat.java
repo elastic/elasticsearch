@@ -25,6 +25,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
@@ -308,6 +309,16 @@ enum TextFormat implements MediaType {
 
         return sb.toString();
     }
+    @Override
+    public Set<String> mimeTypes() {
+        return Set.of(contentType());
+    }
+
+    @Override
+    public String canonical() {
+        return contentType();
+    }
+
 
     boolean hasHeader(RestRequest request) {
         return true;

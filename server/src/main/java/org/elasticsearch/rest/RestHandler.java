@@ -20,17 +20,23 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest.Method;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Handler for REST requests
  */
 @FunctionalInterface
 public interface RestHandler {
+
+    Set<MediaType> defaultAcceptTypes = Set.of(XContentType.values());
 
     /**
      * Handles a rest request.
@@ -97,6 +103,10 @@ public interface RestHandler {
      */
     default boolean allowSystemIndexAccessByDefault() {
         return false;
+    }
+
+    default MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes(){
+        return XContentType.mediaTypeRegistry;
     }
 
     class Route {

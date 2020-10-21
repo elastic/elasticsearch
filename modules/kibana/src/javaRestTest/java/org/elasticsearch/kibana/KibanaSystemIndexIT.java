@@ -47,9 +47,10 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
     public static Iterable<Object[]> data() {
         return Arrays.asList(
             new Object[] { ".kibana" },
-            new Object[] { ".kibana-1" },
-            new Object[] { ".reporting" },
-            new Object[] { ".apm-agent-configuration" }
+            new Object[] { ".kibana_1" },
+            new Object[] { ".reporting-1" },
+            new Object[] { ".apm-agent-configuration" },
+            new Object[] { ".apm-custom-link" }
         );
     }
 

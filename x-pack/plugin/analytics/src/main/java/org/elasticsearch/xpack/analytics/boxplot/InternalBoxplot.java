@@ -71,7 +71,9 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         }
     }
 
-    public static List<String> metricNames = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toList());
+    public static List<String> metricNames = Stream.of(Metrics.values())
+        .map(m -> m.name().toLowerCase(Locale.ROOT))
+        .collect(Collectors.toList());
 
     private final TDigestState state;
 

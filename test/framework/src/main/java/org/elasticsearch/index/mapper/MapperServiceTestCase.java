@@ -158,10 +158,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                                                       BooleanSupplier idFieldDataEnabled,
                                                       XContentBuilder mapping) throws IOException {
         settings = Settings.builder()
-            .put("index.version.created", version)
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
-            .put(settings).build();
+            .put(settings)
+            .put("index.version.created", version)
+            .build();
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(settings)
             .build();

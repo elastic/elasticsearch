@@ -41,8 +41,9 @@ public class CacheFile {
         StandardOpenOption.SPARSE };
 
     /**
-     * Reference counter that counts the number of eviction listeners referencing to this cache file. Once this instance has been evicted
-     * and all listeners notified it makes sure to delete the physical file backing this cache.
+     * Reference counter that counts the number of eviction listeners referencing this cache file plus the number of open file channels
+     * for it. Once this instance has been evicted, all listeners notified and all {@link FileChannelReference} for it released,
+     * it makes sure to delete the physical file backing this cache.
      */
     private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
         @Override
@@ -70,14 +71,18 @@ public class CacheFile {
      * Background operations running for index inputs that get closed concurrently are tied to a specific instance of this reference and
      * will simply fail once all references to the channel have been released since they won't be able to acquire a reference to the
      * channel again.
+     * Each instance of this class also increments the count in {@link #refCounter} by one when instantiated and decrements it by one
+     * again when it is closed. This is done to ensure that the file backing this cache file instance is only deleted after all channels
+     * to it have been closed.
      */
-    private static final class FileChannelReference extends AbstractRefCounted {
+    private final class FileChannelReference extends AbstractRefCounted {
 
         private final FileChannel fileChannel;
 
-        FileChannelReference(Path file) throws IOException {
+        FileChannelReference() throws IOException {
             super("FileChannel[" + file + "]");
             this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
+            refCounter.incRef();
         }
 
         @Override
@@ -86,6 +91,8 @@ public class CacheFile {
                 fileChannel.close();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            } finally {
+                refCounter.decRef();
             }
         }
     }
@@ -131,7 +138,7 @@ public class CacheFile {
                     assert added : "listener already exists " + listener;
                     if (listeners.size() == 1) {
                         assert channelRef == null;
-                        channelRef = new FileChannelReference(file);
+                        channelRef = new FileChannelReference();
                     }
                 }
                 success = true;

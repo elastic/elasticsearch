@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -23,20 +23,20 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
         ByteSizeValue memory = storage != null ? randomNullableByteSizeValue() : randomByteSizeValue();
         verify(
             new FixedAutoscalingDeciderConfiguration(storage, memory, null),
-            AutoscalingCapacity.builder().node(storage, memory).tier(storage, memory).build()
+            AutoscalingCapacity.builder().node(storage, memory).total(storage, memory).build()
         );
 
         int nodes = randomIntBetween(1, 1000);
         verify(
             new FixedAutoscalingDeciderConfiguration(storage, memory, nodes),
-            AutoscalingCapacity.builder().node(storage, memory).tier(multiply(storage, nodes), multiply(memory, nodes)).build()
+            AutoscalingCapacity.builder().node(storage, memory).total(multiply(storage, nodes), multiply(memory, nodes)).build()
         );
     }
 
     private void verify(FixedAutoscalingDeciderConfiguration configuration, AutoscalingCapacity expected) {
         FixedAutoscalingDeciderService service = new FixedAutoscalingDeciderService();
-        AutoscalingDecision decision = service.scale(configuration, null);
-        assertThat(decision.requiredCapacity(), Matchers.equalTo(expected));
+        AutoscalingDeciderResult result = service.scale(configuration, null);
+        assertThat(result.requiredCapacity(), Matchers.equalTo(expected));
     }
 
     private ByteSizeValue multiply(ByteSizeValue bytes, int nodes) {

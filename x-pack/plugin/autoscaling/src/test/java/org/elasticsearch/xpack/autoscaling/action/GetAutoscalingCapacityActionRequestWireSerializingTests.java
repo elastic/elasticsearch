@@ -9,17 +9,17 @@ package org.elasticsearch.xpack.autoscaling.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class GetAutoscalingDecisionActionRequestWireSerializingTests extends AbstractWireSerializingTestCase<
-    GetAutoscalingDecisionAction.Request> {
+public class GetAutoscalingCapacityActionRequestWireSerializingTests extends AbstractWireSerializingTestCase<
+    GetAutoscalingCapacityAction.Request> {
 
     @Override
-    protected Writeable.Reader<GetAutoscalingDecisionAction.Request> instanceReader() {
-        return GetAutoscalingDecisionAction.Request::new;
+    protected Writeable.Reader<GetAutoscalingCapacityAction.Request> instanceReader() {
+        return GetAutoscalingCapacityAction.Request::new;
     }
 
     @Override
-    protected GetAutoscalingDecisionAction.Request createTestInstance() {
-        return new GetAutoscalingDecisionAction.Request();
+    protected GetAutoscalingCapacityAction.Request createTestInstance() {
+        return new GetAutoscalingCapacityAction.Request();
     }
 
 }

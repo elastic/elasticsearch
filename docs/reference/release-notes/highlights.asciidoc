@@ -39,23 +39,19 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
-=== Cross-cluster replication
-
-Fixed retries for {ccr}.
+=== Fixed retries for {ccr}
 
 {ccr-cap} now retries operations that failed due to a circuit breaker or a lost
 remote cluster connection.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-=== Engine
+=== Fixed index throttling
 
-Fix to actually activate throttle indexing.
-
-When indexing data into {es}, heap memory is used in lucene and {es} for buffering data. To keep the memory usage under
-control, {es} will move data to disk according to the <<indexing-buffer, indexing buffer settings>>. If moving
-data cannot keep up with the ongoing indexing, {es} will start throttling indexing. This throttling behavior was broken,
-so throttling was not activated, and it has been fixed.
+When indexing data, {es} and Lucene use heap memory for buffering. To control memory usage, {es} moves data from the
+buffer to disk based on your {ref}/indexing-buffer.html[indexing buffer settings]. If ongoing indexing  outpaces the
+relocation of data to disk, {es} will now throttle indexing. In previous {es} versions, this feature was broken and
+throttling was not activated.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]

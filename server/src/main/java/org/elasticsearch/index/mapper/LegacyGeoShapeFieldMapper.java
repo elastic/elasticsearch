@@ -149,7 +149,14 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public static boolean parse(String name, String fieldName, Object fieldNode, DeprecatedParameters deprecatedParameters) {
             if (Names.STRATEGY.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                 checkPrefixTreeSupport(fieldName);
-                deprecatedParameters.setSpatialStrategy(SpatialStrategy.fromString(fieldNode.toString()));
+                SpatialStrategy strategy = SpatialStrategy.fromString(fieldNode.toString());
+                if (strategy == null) {
+                    DEPRECATION_LOGGER.deprecate("geo_mapper_strategy",
+                        "Unknown strategy [" + fieldNode.toString() + "], falling back to [recursive]. " +
+                            "Available strategies are [recursive,term].  In a future release, this fallback " +
+                            "will be removed and an unknown strategy will throw an error");
+                }
+                deprecatedParameters.setSpatialStrategy(strategy);
             } else if (Names.TREE.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                 checkPrefixTreeSupport(fieldName);
                 deprecatedParameters.setTree(fieldNode.toString());

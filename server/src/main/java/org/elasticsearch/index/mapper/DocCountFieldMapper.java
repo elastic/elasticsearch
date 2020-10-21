@@ -63,6 +63,8 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         public static final DocCountFieldType INSTANCE = new DocCountFieldType();
 
+        private static final Long defaultValue = 1L;
+
         public DocCountFieldType() {
             super(NAME, false, false, true, TextSearchInfo.NONE,  Collections.emptyMap());
         }
@@ -79,7 +81,25 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Field [" + name() + " ]of type [" + CONTENT_TYPE + "] is not searchable");
+            throw new QueryShardException(context, "Field [" + name() + "] of type [" + typeName() + "] is not searchable");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), mapperService, defaultValue) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if ("".equals(value)) {
+                        return defaultValue;
+                    } else {
+                        return NumberFieldMapper.NumberType.objectToLong(value, false);
+                    }
+                }
+            };
         }
     }
 
@@ -102,19 +122,6 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) { }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
-    }
 
     @Override
     public DocCountFieldType fieldType() {

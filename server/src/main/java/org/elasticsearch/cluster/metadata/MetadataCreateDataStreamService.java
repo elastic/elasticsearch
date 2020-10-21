@@ -132,11 +132,12 @@ public class MetadataCreateDataStreamService {
         if (request.name.toLowerCase(Locale.ROOT).equals(request.name) == false) {
             throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
         }
-        if (request.name.startsWith(".")) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
+        if (request.name.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            throw new IllegalArgumentException(String.format("data_stream [%s] must not start with '%s'", request.name,
+                DataStream.BACKING_INDEX_PREFIX));
         }
 
-        ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
+        ComposableIndexTemplate composableTemplate = lookupTemplateForDataStream(request.name, currentState.metadata());
 
         String firstBackingIndexName = DataStream.getDefaultBackingIndexName(request.name, 1);
         CreateIndexClusterStateUpdateRequest createIndexRequest =
@@ -156,9 +157,11 @@ public class MetadataCreateDataStreamService {
         assert firstBackingIndex != null;
         assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
 
-        String fieldName = template.getDataStreamTemplate().getTimestampField();
+        String fieldName = composableTemplate.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()));
+        Template template = composableTemplate.template();
+        boolean hidden = template != null && template.settings() != null && IndexMetadata.INDEX_HIDDEN_SETTING.get(template.settings());
+        DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()), hidden);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();

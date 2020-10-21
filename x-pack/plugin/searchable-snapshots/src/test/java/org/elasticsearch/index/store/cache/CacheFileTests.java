@@ -147,11 +147,11 @@ public class CacheFileTests extends ESTestCase {
             readFuture = cacheFile.readIfAvailableOrPending(Tuple.tuple(0L, length), channel -> Math.toIntExact(length));
         } else {
             readFuture = cacheFile.populateAndRead(
-                    Tuple.tuple(0L, length),
-                    Tuple.tuple(0L, length),
-                    channel -> Math.toIntExact(length),
-                    (channel, from, to, progressUpdater) -> progressUpdater.accept(length),
-                    threadPool.generic()
+                Tuple.tuple(0L, length),
+                Tuple.tuple(0L, length),
+                channel -> Math.toIntExact(length),
+                (channel, from, to, progressUpdater) -> progressUpdater.accept(length),
+                threadPool.generic()
             );
         }
         final boolean evicted = randomBoolean();

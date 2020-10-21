@@ -27,8 +27,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -44,7 +44,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,8 +66,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     @Inject
     public TransportClusterStatsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                        NodeService nodeService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
+        super(ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, ClusterStatsRequest::new,
+                ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }
@@ -73,12 +75,16 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     @Override
     protected ClusterStatsResponse newResponse(ClusterStatsRequest request,
                                                List<ClusterStatsNodeResponse> responses, List<FailedNodeException> failures) {
+        assert Transports.assertNotTransportThread("Constructor of ClusterStatsResponse runs expensive computations on mappings found in" +
+                " the cluster state that are too slow for a transport thread");
+        ClusterState state = clusterService.state();
         return new ClusterStatsResponse(
             System.currentTimeMillis(),
-            clusterService.state().metaData().clusterUUID(),
+            state.metadata().clusterUUID(),
             clusterService.getClusterName(),
             responses,
-            failures);
+            failures,
+            state);
     }
 
     @Override
@@ -93,9 +99,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest, Task task) {
-        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false);
+        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE,
-                true, true, true, false, true, false, false, false, false, false, true, false);
+                true, true, true, false, true, false, false, false, false, false, true, false, false, false);
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
@@ -136,7 +142,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
     }
 
-    public static class ClusterStatsNodeRequest extends BaseNodeRequest {
+    public static class ClusterStatsNodeRequest extends TransportRequest {
 
         ClusterStatsRequest request;
 

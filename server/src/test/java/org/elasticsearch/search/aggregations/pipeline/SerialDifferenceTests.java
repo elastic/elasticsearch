@@ -19,15 +19,20 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.TestAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SerialDifferenceTests extends BasePipelineAggregationTestCase<SerialDiffPipelineAggregationBuilder> {
 
@@ -47,32 +52,28 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
         }
         return factory;
     }
-    
+
     /**
      * The validation should verify the parent aggregation is allowed.
      */
     public void testValidate() throws IOException {
-        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
-        aggBuilders.add(createTestAggregatorFactory());
-
-        final SerialDiffPipelineAggregationBuilder builder = new SerialDiffPipelineAggregationBuilder("name", "valid");
-        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+        assertThat(validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
+                new SerialDiffPipelineAggregationBuilder("name", "valid")), nullValue());
     }
 
-    /**
-     * The validation should throw an IllegalArgumentException, since parent
-     * aggregation is not a type of HistogramAggregatorFactory,
-     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
-     */
-    public void testValidateException() throws IOException {
+    public void testInvalidParent() throws IOException {
         final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(createTestAggregatorFactory());
-        TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
+        AggregationBuilder parent = mock(AggregationBuilder.class);
+        when(parent.getName()).thenReturn("name");
+        assertThat(validate(parent, new SerialDiffPipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
+                "Validation Failed: 1: serial_diff aggregation [name] must have a histogram, "
+                + "date_histogram or auto_date_histogram as parent;"));
+    }
 
-        final SerialDiffPipelineAggregationBuilder builder = new SerialDiffPipelineAggregationBuilder("name", "invalid_agg>metric");
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
-                () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
-        assertEquals("serial_diff aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
-                ex.getMessage());
+    public void testNoParent() {
+        assertThat(validate(emptyList(), new SerialDiffPipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
+                "Validation Failed: 1: serial_diff aggregation [name] must have a histogram, "
+                + "date_histogram or auto_date_histogram as parent but doesn't have a parent;"));
     }
 }

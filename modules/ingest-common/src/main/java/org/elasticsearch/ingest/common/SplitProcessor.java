@@ -44,8 +44,9 @@ public final class SplitProcessor extends AbstractProcessor {
     private final boolean preserveTrailing;
     private final String targetField;
 
-    SplitProcessor(String tag, String field, String separator, boolean ignoreMissing, boolean preserveTrailing, String targetField) {
-        super(tag);
+    SplitProcessor(String tag, String description, String field, String separator, boolean ignoreMissing, boolean preserveTrailing,
+                   String targetField) {
+        super(tag, description);
         this.field = field;
         this.separator = separator;
         this.ignoreMissing = ignoreMissing;
@@ -96,13 +97,13 @@ public final class SplitProcessor extends AbstractProcessor {
     public static class Factory implements Processor.Factory {
         @Override
         public SplitProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                     Map<String, Object> config) throws Exception {
+                                     String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean preserveTrailing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "preserve_trailing", false);
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             String separator = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator");
-            return new SplitProcessor(processorTag, field, separator, ignoreMissing, preserveTrailing, targetField);
+            return new SplitProcessor(processorTag, description, field, separator, ignoreMissing, preserveTrailing, targetField);
         }
     }
 }

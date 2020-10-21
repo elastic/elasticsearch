@@ -62,10 +62,10 @@ public final class InvalidateTokenResponse {
         PARSER.declareInt(constructorArg(), PREVIOUSLY_INVALIDATED_TOKENS);
         PARSER.declareInt(constructorArg(), ERROR_COUNT);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), ERRORS);
+
     }
 
-    public InvalidateTokenResponse(int invalidatedTokens, int previouslyInvalidatedTokens,
-                                   @Nullable List<ElasticsearchException> errors) {
+    public InvalidateTokenResponse(int invalidatedTokens, int previouslyInvalidatedTokens, @Nullable List<ElasticsearchException> errors) {
         this.invalidatedTokens = invalidatedTokens;
         this.previouslyInvalidatedTokens = previouslyInvalidatedTokens;
         if (null == errors) {
@@ -110,7 +110,7 @@ public final class InvalidateTokenResponse {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         return PARSER.parse(parser, null);
     }
 }

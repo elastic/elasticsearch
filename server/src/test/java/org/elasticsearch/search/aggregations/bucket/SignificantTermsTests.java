@@ -23,16 +23,16 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -52,7 +52,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
     @Override
     protected SignificantTermsAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAlphaOfLengthBetween(3, 20);
-        SignificantTermsAggregationBuilder factory = new SignificantTermsAggregationBuilder(name, null);
+        SignificantTermsAggregationBuilder factory = new SignificantTermsAggregationBuilder(name);
         String field = randomAlphaOfLengthBetween(3, 20);
         randomFieldOrScript(factory, field);
 

@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
 
@@ -118,7 +118,7 @@ public class CompositeAggCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         SearchSourceBuilder q;
         try {
             q = deserializeQuery(registry, nextQuery);
@@ -268,7 +268,7 @@ public class CompositeAggCursor implements Cursor {
 
 
     @Override
-    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

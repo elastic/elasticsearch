@@ -56,4 +56,8 @@ public class CombinedRateLimiter {
         rateLimit = maxBytesPerSec.getBytes() > 0;
         rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());
     }
+
+    public double getMBPerSec() {
+        return rateLimiter.getMBPerSec();
+    }
 }

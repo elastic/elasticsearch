@@ -42,8 +42,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleLuceneTests extends ESTestCase {
     public void testSortValues() throws Exception {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         for (int i = 0; i < 10; i++) {
             Document document = new Document();
@@ -74,7 +74,7 @@ public class SimpleLuceneTests extends ESTestCase {
     }
 
     public void testSimpleNumericOps() throws Exception {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
@@ -104,7 +104,7 @@ public class SimpleLuceneTests extends ESTestCase {
      * first (with load and break).
      */
     public void testOrdering() throws Exception {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
@@ -132,7 +132,7 @@ public class SimpleLuceneTests extends ESTestCase {
     }
 
     public void testNRTSearchOnClosedWriter() throws Exception {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         DirectoryReader reader = DirectoryReader.open(indexWriter);
 

@@ -20,15 +20,14 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -86,7 +85,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * This method checks all the things that need to be checked after each test
      */
-    public void assertAfterTest() throws IOException {
+    public void assertAfterTest() throws Exception {
         ensureEstimatedStats();
     }
 
@@ -146,8 +145,8 @@ public abstract class TestCluster implements Closeable {
                 if ("_all".equals(indices[0])) {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
                     ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
-                    for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
-                        concreteIndices.add(indexMetaData.getIndex().getName());
+                    for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
+                        concreteIndices.add(indexMetadata.getIndex().getName());
                     }
                     if (!concreteIndices.isEmpty()) {
                         assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
@@ -163,7 +162,7 @@ public abstract class TestCluster implements Closeable {
     public void wipeAllTemplates(Set<String> exclude) {
         if (size() > 0) {
             GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
-            for (IndexTemplateMetaData indexTemplate : response.getIndexTemplates()) {
+            for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
                 if (exclude.contains(indexTemplate.getName())) {
                     continue;
                 }

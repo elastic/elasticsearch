@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.flattened.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,23 +34,24 @@ class FlatObjectFieldParser {
     private final MappedFieldType fieldType;
     private final int depthLimit;
     private final int ignoreAbove;
+    private final String nullValue;
 
     FlatObjectFieldParser(String rootFieldName,
                           String keyedFieldName,
                           MappedFieldType fieldType,
                           int depthLimit,
-                          int ignoreAbove) {
+                          int ignoreAbove,
+                          String nullValue) {
         this.rootFieldName = rootFieldName;
         this.keyedFieldName = keyedFieldName;
         this.fieldType = fieldType;
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
+        this.nullValue = nullValue;
     }
 
     public List<IndexableField> parse(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT,
-            parser.currentToken(),
-            parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         ContentPath path = new ContentPath();
         List<IndexableField> fields = new ArrayList<>();
@@ -108,8 +108,8 @@ class FlatObjectFieldParser {
             String value = parser.text();
             addField(path, currentName, value, fields);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            if (fieldType.nullValueAsString() != null) {
-                addField(path, currentName, fieldType.nullValueAsString(), fields);
+            if (nullValue != null) {
+                addField(path, currentName, nullValue, fields);
             }
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
@@ -133,7 +133,7 @@ class FlatObjectFieldParser {
         }
         String keyedValue = createKeyedValue(key, value);
 
-        if (fieldType.indexOptions() != IndexOptions.NONE) {
+        if (fieldType.isSearchable()) {
             fields.add(new StringField(rootFieldName, new BytesRef(value), Field.Store.NO));
             fields.add(new StringField(keyedFieldName, new BytesRef(keyedValue), Field.Store.NO));
         }

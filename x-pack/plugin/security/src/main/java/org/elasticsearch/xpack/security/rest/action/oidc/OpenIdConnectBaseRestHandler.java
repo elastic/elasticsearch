@@ -33,7 +33,7 @@ public abstract class OpenIdConnectBaseRestHandler extends SecurityBaseRestHandl
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (Realms.isRealmTypeAvailable(licenseState.allowedRealmType(), OIDC_REALM_TYPE)) {
+        } else if (Realms.isRealmTypeAvailable(licenseState, OIDC_REALM_TYPE)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", OIDC_REALM_TYPE);

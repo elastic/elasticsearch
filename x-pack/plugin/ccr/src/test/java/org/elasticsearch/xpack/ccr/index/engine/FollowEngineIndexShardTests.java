@@ -113,7 +113,8 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE);
         final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
         routing = ShardRoutingHelper.newWithRestoreSource(routing,
-            new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, "test"));
+            new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT,
+                new IndexId("test", UUIDs.randomBase64UUID(random()))));
         target = reinitShard(target, routing);
         Store sourceStore = source.store();
         Store targetStore = target.store();
@@ -133,6 +134,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                         }
                         targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
                     }
+                    recoveryState.getIndex().setFileDetailsComplete();
                     return null;
                 });
             }

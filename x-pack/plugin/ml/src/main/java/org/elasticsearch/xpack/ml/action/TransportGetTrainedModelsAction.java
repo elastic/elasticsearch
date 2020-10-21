@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 
@@ -48,29 +49,42 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                     return;
                 }
 
-                if (request.isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
+                if (request.getIncludes().isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
                     listener.onFailure(
                         ExceptionsHelper.badRequestException(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED)
                     );
                     return;
                 }
 
-                if (request.isIncludeModelDefinition()) {
-                    provider.getTrainedModel(totalAndIds.v2().iterator().next(), true, ActionListener.wrap(
-                        config -> listener.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()),
-                        listener::onFailure
-                    ));
+                if (request.getIncludes().isIncludeModelDefinition()) {
+                    provider.getTrainedModel(
+                        totalAndIds.v2().iterator().next(),
+                        request.getIncludes(),
+                        ActionListener.wrap(
+                            config -> listener.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()),
+                            listener::onFailure
+                        )
+                    );
                 } else {
-                    provider.getTrainedModels(totalAndIds.v2(), request.isAllowNoResources(), ActionListener.wrap(
-                        configs -> listener.onResponse(responseBuilder.setModels(configs).build()),
-                        listener::onFailure
-                    ));
+                    provider.getTrainedModels(
+                        totalAndIds.v2(),
+                        request.getIncludes(),
+                        request.isAllowNoResources(),
+                        ActionListener.wrap(
+                            configs -> listener.onResponse(responseBuilder.setModels(configs).build()),
+                            listener::onFailure
+                        )
+                    );
                 }
             },
             listener::onFailure
         );
 
-        provider.expandIds(request.getResourceId(), request.isAllowNoResources(), request.getPageParams(), idExpansionListener);
+        provider.expandIds(request.getResourceId(),
+            request.isAllowNoResources(),
+            request.getPageParams(),
+            new HashSet<>(request.getTags()),
+            idExpansionListener);
     }
 
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
@@ -57,8 +58,11 @@ public class ExpressionRoleMappingTests extends ESTestCase {
 
     @Before
     public void setupMapping() throws Exception {
-        realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"),
-            Settings.EMPTY, Mockito.mock(Environment.class), new ThreadContext(Settings.EMPTY));
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
+        realm = new RealmConfig(
+            realmIdentifier,
+            Settings.builder().put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            Mockito.mock(Environment.class), new ThreadContext(Settings.EMPTY));
     }
 
     public void testValidExpressionWithFixedRoleNames() throws Exception {

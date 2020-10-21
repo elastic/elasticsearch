@@ -20,10 +20,12 @@
 package org.elasticsearch.client.transform.transforms.pivot;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class DateHistogramGroupSourceTests extends AbstractXContentTestCase<DateHistogramGroupSource> {
 
@@ -36,10 +38,16 @@ public class DateHistogramGroupSourceTests extends AbstractXContentTestCase<Date
     }
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
-        String field = randomAlphaOfLengthBetween(1, 20);
-        return new DateHistogramGroupSource(field,
-                randomDateHistogramInterval(),
-                randomBoolean() ? randomZone() : null);
+        String field = randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : null;
+        Script script = randomBoolean() ? new Script(randomAlphaOfLengthBetween(1, 10)) : null;
+
+        return new DateHistogramGroupSource(
+            field,
+            script,
+            randomBoolean(),
+            randomDateHistogramInterval(),
+            randomBoolean() ? randomZone() : null
+        );
     }
 
     @Override
@@ -55,5 +63,11 @@ public class DateHistogramGroupSourceTests extends AbstractXContentTestCase<Date
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // allow unknown fields in the root of the object only
+        return field -> !field.isEmpty();
     }
 }

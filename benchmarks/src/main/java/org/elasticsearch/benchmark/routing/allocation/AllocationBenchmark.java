@@ -21,8 +21,8 @@ package org.elasticsearch.benchmark.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -49,7 +49,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
-@SuppressWarnings("unused") //invoked by benchmarking framework
+@SuppressWarnings("unused") // invoked by benchmarking framework
 public class AllocationBenchmark {
     // Do NOT make any field final (even if it is not annotated with @Param)! See also
     // http://hg.openjdk.java.net/code-tools/jmh/file/tip/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_10_ConstantFold.java
@@ -106,8 +106,7 @@ public class AllocationBenchmark {
         "       10|     10|        2|    50",
         "      100|      1|        2|    50",
         "      100|      3|        2|    50",
-        "      100|     10|        2|    50"
-    })
+        "      100|     10|        2|    50" })
     public String indicesShardsReplicasNodes = "10|1|0|1";
 
     public int numTags = 2;
@@ -124,22 +123,23 @@ public class AllocationBenchmark {
         int numReplicas = toInt(params[2]);
         int numNodes = toInt(params[3]);
 
-        strategy = Allocators.createAllocationService(Settings.builder()
-                .put("cluster.routing.allocation.awareness.attributes", "tag")
-                .build());
+        strategy = Allocators.createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.awareness.attributes", "tag").build()
+        );
 
-        MetaData.Builder mb = MetaData.builder();
+        Metadata.Builder mb = Metadata.builder();
         for (int i = 1; i <= numIndices; i++) {
-            mb.put(IndexMetaData.builder("test_" + i)
+            mb.put(
+                IndexMetadata.builder("test_" + i)
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT))
                     .numberOfShards(numShards)
                     .numberOfReplicas(numReplicas)
             );
         }
-        MetaData metaData = mb.build();
+        Metadata metadata = mb.build();
         RoutingTable.Builder rb = RoutingTable.builder();
         for (int i = 1; i <= numIndices; i++) {
-            rb.addAsNew(metaData.index("test_" + i));
+            rb.addAsNew(metadata.index("test_" + i));
         }
         RoutingTable routingTable = rb.build();
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
@@ -147,8 +147,10 @@ public class AllocationBenchmark {
             nb.add(Allocators.newNode("node" + i, Collections.singletonMap("tag", "tag_" + (i % numTags))));
         }
         initialClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData).routingTable(routingTable).nodes
-                (nb).build();
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(nb)
+            .build();
     }
 
     private int toInt(String v) {
@@ -159,8 +161,10 @@ public class AllocationBenchmark {
     public ClusterState measureAllocation() {
         ClusterState clusterState = initialClusterState;
         while (clusterState.getRoutingNodes().hasUnassignedShards()) {
-            clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes()
-                    .shardsWithState(ShardRoutingState.INITIALIZING));
+            clusterState = strategy.applyStartedShards(
+                clusterState,
+                clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING)
+            );
             clusterState = strategy.reroute(clusterState, "reroute");
         }
         return clusterState;

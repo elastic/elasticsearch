@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99" #TODO change this after backport
-      reason:  These new error messages were added in 7.1
+      version: " - 7.1.99"
+      reason:  These new error messages were added in 7.2
 
   - do:
       indices.create:
@@ -98,3 +98,95 @@ setup:
             the_bad_max:
               max_bucket:
                 buckets_path: "the_terms>the_percentiles"
+
+---
+"Top level bucket_sort":
+  - skip:
+      version: " - 7.7.99"
+      reason:  This validation was changed in 7.8.0
+
+  - do:
+      catch: /bucket_sort aggregation \[the_bad_bucket_sort\] must be declared inside of another aggregation/
+      search:
+        body:
+          aggs:
+            the_terms:
+              terms:
+                field: "int_field"
+              aggs:
+                the_max:
+                  max:
+                    field: "int_field"
+            the_bad_bucket_sort:
+              bucket_sort:
+                sort:
+                  - the_terms>the_max
+
+---
+"deep cumulative sum":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 3
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"t": "a", "int" :  1, "@timestamp" : "2020-07-16T00:00:00.000Z"}'
+          - '{"index": {}}'
+          - '{"t": "a", "int" : 50, "@timestamp" : "2020-07-17T00:00:00.000Z"}'
+          - '{"index": {}}'
+          - '{"t": "a", "int" : 99, "@timestamp" : "2020-07-18T00:00:00.000Z"}'
+          - '{"index": {}}'
+          - '{"t": "b", "int" :  1, "@timestamp" : "2020-07-16T00:00:00.000Z"}'
+          - '{"index": {}}'
+          - '{"t": "b", "int" : 99, "@timestamp" : "2020-07-17T00:00:00.000Z"}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          size: 0
+          aggs:
+            t:
+              terms:
+                field: t.keyword
+              aggs:
+                by_date:
+                  date_histogram:
+                    field: "@timestamp"
+                    fixed_interval: 1d
+                  aggs:
+                    avg:
+                      avg:
+                        field: int
+                    sum:
+                      cumulative_sum:
+                        buckets_path: avg.value
+  - match: { hits.total: 5 }
+  - length: { aggregations.t.buckets: 2 }
+  - match: { aggregations.t.buckets.0.key: a }
+  - match: { aggregations.t.buckets.1.key: b }
+  - length: { aggregations.t.buckets.0.by_date.buckets: 3 }
+  - match: { aggregations.t.buckets.0.by_date.buckets.0.key_as_string: "2020-07-16T00:00:00.000Z" }
+  - match: { aggregations.t.buckets.0.by_date.buckets.0.avg.value: 1 }
+  - match: { aggregations.t.buckets.0.by_date.buckets.0.sum.value: 1 }
+  - match: { aggregations.t.buckets.0.by_date.buckets.1.key_as_string: "2020-07-17T00:00:00.000Z" }
+  - match: { aggregations.t.buckets.0.by_date.buckets.1.avg.value: 50 }
+  - match: { aggregations.t.buckets.0.by_date.buckets.1.sum.value: 51 }
+  - match: { aggregations.t.buckets.0.by_date.buckets.2.key_as_string: "2020-07-18T00:00:00.000Z" }
+  - match: { aggregations.t.buckets.0.by_date.buckets.2.avg.value: 99 }
+  - match: { aggregations.t.buckets.0.by_date.buckets.2.sum.value: 150 }
+  - length: { aggregations.t.buckets.1.by_date.buckets: 2 }
+  - match: { aggregations.t.buckets.1.by_date.buckets.0.key_as_string: "2020-07-16T00:00:00.000Z" }
+  - match: { aggregations.t.buckets.1.by_date.buckets.0.avg.value: 1 }
+  - match: { aggregations.t.buckets.1.by_date.buckets.0.sum.value: 1 }
+  - match: { aggregations.t.buckets.1.by_date.buckets.1.key_as_string: "2020-07-17T00:00:00.000Z" }
+  - match: { aggregations.t.buckets.1.by_date.buckets.1.avg.value: 99 }
+  - match: { aggregations.t.buckets.1.by_date.buckets.1.sum.value: 100 }

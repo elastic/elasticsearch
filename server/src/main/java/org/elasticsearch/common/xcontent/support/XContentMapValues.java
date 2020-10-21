@@ -97,6 +97,16 @@ public class XContentMapValues {
         }
     }
 
+    /**
+     * For the provided path, return its value in the xContent map.
+     *
+     * Note that in contrast with {@link XContentMapValues#extractRawValues}, array and object values
+     * can be returned.
+     *
+     * @param path the value's path in the map.
+     *
+     * @return the value associated with the path in the map or 'null' if the path does not exist.
+     */
     public static Object extractValue(String path, Map<?, ?> map) {
         return extractValue(map, path.split("\\."));
     }
@@ -105,19 +115,51 @@ public class XContentMapValues {
         if (pathElements.length == 0) {
             return null;
         }
-        return extractValue(pathElements, 0, map);
+        return XContentMapValues.extractValue(pathElements, 0, map, null);
     }
 
-    @SuppressWarnings({"unchecked"})
-    private static Object extractValue(String[] pathElements, int index, Object currentValue) {
-        if (index == pathElements.length) {
-            return currentValue;
-        }
-        if (currentValue == null) {
+    /**
+     * For the provided path, return its value in the xContent map.
+     *
+     * Note that in contrast with {@link XContentMapValues#extractRawValues}, array and object values
+     * can be returned.
+     *
+     * @param path the value's path in the map.
+     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
+     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
+     *
+     * @return the value associated with the path in the map or 'null' if the path does not exist.
+     */
+    public static Object extractValue(String path, Map<?, ?> map, Object nullValue) {
+        String[] pathElements = path.split("\\.");
+        if (pathElements.length == 0) {
             return null;
         }
+        return extractValue(pathElements, 0, map, nullValue);
+    }
+
+    private static Object extractValue(String[] pathElements,
+                                       int index,
+                                       Object currentValue,
+                                       Object nullValue) {
+        if (currentValue instanceof List) {
+            List<?> valueList = (List<?>) currentValue;
+            List<Object> newList = new ArrayList<>(valueList.size());
+            for (Object o : valueList) {
+                Object listValue = extractValue(pathElements, index, o, nullValue);
+                if (listValue != null) {
+                    newList.add(listValue);
+                }
+            }
+            return newList;
+        }
+
+        if (index == pathElements.length) {
+            return currentValue != null ? currentValue : nullValue;
+        }
+
         if (currentValue instanceof Map) {
-            Map map = (Map) currentValue;
+            Map<?, ?> map = (Map<?, ?>) currentValue;
             String key = pathElements[index];
             Object mapValue = map.get(key);
             int nextIndex = index + 1;
@@ -126,18 +168,12 @@ public class XContentMapValues {
                 mapValue = map.get(key);
                 nextIndex++;
             }
-            return extractValue(pathElements, nextIndex, mapValue);
-        }
-        if (currentValue instanceof List) {
-            List valueList = (List) currentValue;
-            List newList = new ArrayList(valueList.size());
-            for (Object o : valueList) {
-                Object listValue = extractValue(pathElements, index, o);
-                if (listValue != null) {
-                    newList.add(listValue);
-                }
+
+            if (map.containsKey(key) == false) {
+                return null;
             }
-            return newList;
+
+            return extractValue(pathElements, nextIndex, mapValue, nullValue);
         }
         return null;
     }
@@ -267,7 +303,7 @@ public class XContentMapValues {
 
                 List<Object> filteredValue = filter((Iterable<?>) value,
                         subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
-                if (filteredValue.isEmpty() == false) {
+                if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
                 }
 
@@ -328,6 +364,16 @@ public class XContentMapValues {
     public static String nodeStringValue(Object node, String defaultValue) {
         if (node == null) {
             return defaultValue;
+        }
+        return node.toString();
+    }
+
+    /**
+     * Returns the {@link Object#toString} value of its input, or {@code null} if the input is null
+     */
+    public static String nodeStringValue(Object node) {
+        if (node == null) {
+            return null;
         }
         return node.toString();
     }

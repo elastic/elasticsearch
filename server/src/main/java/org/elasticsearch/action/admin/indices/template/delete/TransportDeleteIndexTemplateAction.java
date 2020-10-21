@@ -24,49 +24,34 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexTemplateAction
-        extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
+public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<DeleteIndexTemplateRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexTemplateAction.class);
 
-    private final MetaDataIndexTemplateService indexTemplateService;
+    private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
     public TransportDeleteIndexTemplateAction(TransportService transportService, ClusterService clusterService,
-                                              ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
+                                              ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteIndexTemplateRequest::new, indexNameExpressionResolver);
+            DeleteIndexTemplateRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.indexTemplateService = indexTemplateService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -78,13 +63,13 @@ public class TransportDeleteIndexTemplateAction
     protected void masterOperation(Task task, final DeleteIndexTemplateRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         indexTemplateService.removeTemplates(
-            new MetaDataIndexTemplateService
+            new MetadataIndexTemplateService
                 .RemoveRequest(request.name())
                 .masterTimeout(request.masterNodeTimeout()),
-            new MetaDataIndexTemplateService.RemoveListener() {
+            new MetadataIndexTemplateService.RemoveListener() {
                 @Override
-                public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
-                    listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
+                public void onResponse(MetadataIndexTemplateService.RemoveResponse response) {
+                    listener.onResponse(AcknowledgedResponse.of(response.acknowledged()));
                 }
 
                 @Override

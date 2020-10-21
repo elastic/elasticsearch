@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ql.index;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -16,16 +16,19 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.type.ConstantKeywordEsField;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -40,9 +43,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -59,23 +64,24 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public class IndexResolver {
 
     public enum IndexType {
-        STANDARD_INDEX("BASE TABLE", "INDEX"),
-        ALIAS("VIEW", "ALIAS"),
-        FROZEN_INDEX("BASE TABLE", "FROZEN INDEX"),
+        STANDARD_INDEX(SQL_TABLE, "INDEX"),
+        ALIAS(SQL_VIEW, "ALIAS"),
+        FROZEN_INDEX(SQL_TABLE, "FROZEN INDEX"),
         // value for user types unrecognized
         UNKNOWN("UNKNOWN", "UNKNOWN");
 
-        public static final String SQL_BASE_TABLE = "BASE TABLE";
-        public static final String SQL_TABLE = "TABLE";
-        public static final String SQL_VIEW = "VIEW";
-
         public static final EnumSet<IndexType> VALID_INCLUDE_FROZEN = EnumSet.of(STANDARD_INDEX, ALIAS, FROZEN_INDEX);
         public static final EnumSet<IndexType> VALID_REGULAR = EnumSet.of(STANDARD_INDEX, ALIAS);
-        public static final EnumSet<IndexType> INDICES_ONLY = EnumSet.of(STANDARD_INDEX, FROZEN_INDEX);
 
         private final String toSql;
         private final String toNative;
@@ -88,7 +94,7 @@ public class IndexResolver {
         public String toSql() {
             return toSql;
         }
-        
+
         public String toNative() {
             return toNative;
         }
@@ -110,7 +116,7 @@ public class IndexResolver {
         public IndexType type() {
             return type;
         }
-        
+
         @Override
         public String toString() {
             return name;
@@ -137,6 +143,9 @@ public class IndexResolver {
         }
     }
 
+    public static final String SQL_TABLE = "TABLE";
+    public static final String SQL_VIEW = "VIEW";
+
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES, Option.IGNORE_THROTTLED),
             EnumSet.of(WildcardStates.OPEN));
@@ -154,11 +163,12 @@ public class IndexResolver {
 
     private final Client client;
     private final String clusterName;
+    private final DataTypeRegistry typeRegistry;
 
-
-    public IndexResolver(Client client, String clusterName) {
+    public IndexResolver(Client client, String clusterName, DataTypeRegistry typeRegistry) {
         this.client = client;
         this.clusterName = clusterName;
+        this.typeRegistry = typeRegistry;
     }
 
     public String clusterName() {
@@ -182,14 +192,14 @@ public class IndexResolver {
                     .local(true)
                     .aliases(indices)
                     .indicesOptions(IndicesOptions.lenientExpandOpen());
-    
+
             client.admin().indices().getAliases(aliasRequest, wrap(aliases ->
                             resolveIndices(indices, javaRegex, aliases, retrieveIndices, retrieveFrozenIndices, listener),
                             ex -> {
                                 // with security, two exception can be thrown:
                                 // INFE - if no alias matches
                                 // security exception is the user cannot access aliases
-    
+
                                 // in both cases, that is allowed and we continue with the indices request
                                 if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
                                     resolveIndices(indices, javaRegex, null, retrieveIndices, retrieveFrozenIndices, listener);
@@ -206,7 +216,7 @@ public class IndexResolver {
             boolean retrieveIndices, boolean retrieveFrozenIndices, ActionListener<Set<IndexInfo>> listener) {
 
         if (retrieveIndices || retrieveFrozenIndices) {
-            
+
             GetIndexRequest indexRequest = new GetIndexRequest()
                     .local(true)
                     .indices(indices)
@@ -218,11 +228,11 @@ public class IndexResolver {
             if (retrieveFrozenIndices) {
                 indexRequest.indicesOptions(FROZEN_INDICES_OPTIONS);
             }
-    
+
             client.admin().indices().getIndex(indexRequest,
-                    wrap(response -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, listener),
-                            listener::onFailure));
-            
+                wrap(response -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, listener),
+                    listener::onFailure));
+
         } else {
             filterResults(javaRegex, aliases, null, false, false, listener);
         }
@@ -233,15 +243,15 @@ public class IndexResolver {
             boolean retrieveIndices,
             boolean retrieveFrozenIndices,
             ActionListener<Set<IndexInfo>> listener) {
-        
+
         // since the index name does not support ?, filter the results manually
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
         Set<IndexInfo> result = new TreeSet<>(Comparator.comparing(IndexInfo::name));
         // filter aliases (if present)
         if (aliases != null) {
-            for (ObjectCursor<List<AliasMetaData>> cursor : aliases.getAliases().values()) {
-                for (AliasMetaData amd : cursor.value) {
+            for (ObjectCursor<List<AliasMetadata>> cursor : aliases.getAliases().values()) {
+                for (AliasMetadata amd : cursor.value) {
                     String alias = amd.alias();
                     if (alias != null && (pattern == null || pattern.matcher(alias).matches())) {
                         result.add(new IndexInfo(alias, IndexType.ALIAS));
@@ -249,13 +259,13 @@ public class IndexResolver {
                 }
             }
         }
-        
+
         // filter indices (if present)
         String[] indicesNames = indices != null ? indices.indices() : null;
         if (indicesNames != null) {
             for (String indexName : indicesNames) {
                 boolean isFrozen = retrieveFrozenIndices
-                        && IndexSettings.INDEX_SEARCH_THROTTLED.get(indices.getSettings().get(indexName)) == Boolean.TRUE;
+                        && indices.getSettings().get(indexName).getAsBoolean("index.frozen", false);
 
                 if (pattern == null || pattern.matcher(indexName).matches()) {
                     result.add(new IndexInfo(indexName, isFrozen ? IndexType.FROZEN_INDEX : IndexType.STANDARD_INDEX));
@@ -269,29 +279,46 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
+    public void resolveAsMergedMapping(String indexWildcard, String javaRegex, IndicesOptions indicesOptions,
+            ActionListener<IndexResolution> listener) {
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions);
+        client.fieldCaps(fieldRequest,
+                ActionListener.wrap(
+                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get())),
+                        listener::onFailure));
+    }
+
+    /**
+     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
+     */
     public void resolveAsMergedMapping(String indexWildcard, String javaRegex, boolean includeFrozen,
             ActionListener<IndexResolution> listener) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
-                        response -> listener.onResponse(mergedMappings(indexWildcard, response.getIndices(), response.get())),
+                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get())),
                         listener::onFailure));
     }
 
-    public static IndexResolution mergedMappings(String indexPattern, String[] indexNames, 
+    public static IndexResolution mergedMappings(DataTypeRegistry typeRegistry, String indexPattern, String[] indexNames,
             Map<String, Map<String, FieldCapabilities>> fieldCaps) {
 
-        if (fieldCaps == null || fieldCaps.isEmpty()) {
+        if (indexNames.length == 0) {
             return IndexResolution.notFound(indexPattern);
         }
 
         // merge all indices onto the same one
-        List<EsIndex> indices = buildIndices(indexNames, null, fieldCaps, i -> indexPattern, (n, types) -> {
+        List<EsIndex> indices = buildIndices(typeRegistry, indexNames, null, fieldCaps, null, i -> indexPattern, (n, types) -> {
             StringBuilder errorMessage = new StringBuilder();
 
             boolean hasUnmapped = types.containsKey(UNMAPPED);
+            // a keyword field and a constant_keyword field with the same name in two different indices are considered "compatible"
+            // since a common use case of constant_keyword field involves two indices with a field having the same name: one being
+            // a keyword, the other being a constant_keyword
+            boolean hasCompatibleKeywords = types.containsKey(KEYWORD.esType()) && types.containsKey(CONSTANT_KEYWORD.esType());
+            int allowedTypesCount = (hasUnmapped ? 2 : 1) + (hasCompatibleKeywords ? 1 : 0);
 
-            if (types.size() > (hasUnmapped ? 2 : 1)) {
+            if (types.size() > allowedTypesCount) {
                 // build the error message
                 // and create a MultiTypeField
 
@@ -336,6 +363,11 @@ public class IndexResolver {
                 }
             }
 
+            // if there are both a keyword and a constant_keyword type for this field, only keep the keyword as a common compatible type
+            if (hasCompatibleKeywords) {
+                types.remove(CONSTANT_KEYWORD.esType());
+            }
+
             // everything checks
             return null;
         });
@@ -349,7 +381,8 @@ public class IndexResolver {
         return IndexResolution.valid(indices.isEmpty() ? new EsIndex(indexNames[0], emptyMap()) : indices.get(0));
     }
 
-    private static EsField createField(String fieldName, Map<String, Map<String, FieldCapabilities>> globalCaps,
+    private static EsField createField(DataTypeRegistry typeRegistry, String fieldName,
+            Map<String, Map<String, FieldCapabilities>> globalCaps,
             Map<String, EsField> hierarchicalMapping,
             Map<String, EsField> flattedMapping,
             Function<String, EsField> field) {
@@ -371,7 +404,7 @@ public class IndexResolver {
                 // lack of parent implies the field is an alias
                 if (map == null) {
                     // as such, create the field manually, marking the field to also be an alias
-                    fieldFunction = s -> createField(s, DataType.OBJECT.name(), new TreeMap<>(), false, true);
+                    fieldFunction = s -> createField(typeRegistry, s, OBJECT.esType(), new TreeMap<>(), false, true);
                 } else {
                     Iterator<FieldCapabilities> iterator = map.values().iterator();
                     FieldCapabilities parentCap = iterator.next();
@@ -379,10 +412,10 @@ public class IndexResolver {
                         parentCap = iterator.next();
                     }
                     final FieldCapabilities parentC = parentCap;
-                    fieldFunction = s -> createField(s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false);
+                    fieldFunction = s -> createField(typeRegistry, s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false);
                 }
 
-                parent = createField(parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
+                parent = createField(typeRegistry, parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
             }
             parentProps = parent.getProperties();
         }
@@ -393,7 +426,7 @@ public class IndexResolver {
             UnsupportedEsField unsupportedParent = (UnsupportedEsField) parent;
             String inherited = unsupportedParent.getInherited();
             String type = unsupportedParent.getOriginalType();
-            
+
             if (inherited == null) {
                 // mark the sub-field as unsupported, just like its parent, setting the first unsupported parent as the current one
                 esField = new UnsupportedEsField(esField.getName(), type, unsupportedParent.getName(), esField.getProperties());
@@ -410,34 +443,45 @@ public class IndexResolver {
         return esField;
     }
 
-    private static EsField createField(String fieldName, String typeName, Map<String, EsField> props,
+    private static EsField createField(DataTypeRegistry typeRegistry, String fieldName, String typeName, Map<String, EsField> props,
             boolean isAggregateable, boolean isAlias) {
-        DataType esType = DataType.fromTypeName(typeName);
-        switch (esType) {
-            case TEXT:
-                return new TextEsField(fieldName, props, false, isAlias);
-            case KEYWORD:
-                int length = DataType.KEYWORD.defaultPrecision;
-                // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
-                boolean normalized = false;
-                return new KeywordEsField(fieldName, props, isAggregateable, length, normalized, isAlias);
-            case DATETIME:
-                return new DateEsField(fieldName, props, isAggregateable);
-            case UNSUPPORTED:
-                return new UnsupportedEsField(fieldName, typeName, null, props);
-            default:
-                return new EsField(fieldName, esType, props, isAggregateable, isAlias);
+        DataType esType = typeRegistry.fromEs(typeName);
+
+        if (esType == TEXT) {
+            return new TextEsField(fieldName, props, false, isAlias);
         }
+        if (esType == KEYWORD) {
+            int length = Short.MAX_VALUE;
+            // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
+            boolean normalized = false;
+            return new KeywordEsField(fieldName, props, isAggregateable, length, normalized, isAlias);
+        }
+        if (esType == DATETIME) {
+            return new DateEsField(fieldName, props, isAggregateable);
+        }
+        if (esType == CONSTANT_KEYWORD) {
+            return new ConstantKeywordEsField(fieldName);
+        }
+        if (esType == UNSUPPORTED) {
+            return new UnsupportedEsField(fieldName, typeName, null, props);
+        }
+
+        return new EsField(fieldName, esType, props, isAggregateable, isAlias);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, IndicesOptions indicesOptions) {
         return new FieldCapabilitiesRequest()
                 .indices(Strings.commaDelimitedListToStringArray(index))
                 .fields("*")
                 .includeUnmapped(true)
                 //lenient because we throw our own errors looking at the response e.g. if something was not resolved
                 //also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
-                .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
+                .indicesOptions(indicesOptions);
+    }
+
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen) {
+        IndicesOptions indicesOptions = includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
+        return createFieldCapsRequest(index, indicesOptions);
     }
 
     /**
@@ -446,18 +490,34 @@ public class IndexResolver {
     public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, boolean includeFrozen,
             ActionListener<List<EsIndex>> listener) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
-        client.fieldCaps(fieldRequest,
-                ActionListener.wrap(
-                        response -> listener.onResponse(separateMappings(indexWildcard, javaRegex, response.getIndices(), response.get())),
-                        listener::onFailure));
+        client.fieldCaps(fieldRequest, wrap(response -> {
+            client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases ->
+                listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), aliases.getAliases())),
+                ex -> {
+                    if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                        listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), null));
+                    } else {
+                        listener.onFailure(ex);
+                    }
+                }));
+            },
+            listener::onFailure));
 
     }
-    
-    public static List<EsIndex> separateMappings(String indexPattern, String javaRegex, String[] indexNames,
-            Map<String, Map<String, FieldCapabilities>> fieldCaps) {
-        return buildIndices(indexNames, javaRegex, fieldCaps, Function.identity(), (s, cap) -> null);
+
+    private GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
+        return new GetAliasesRequest()
+                .local(true)
+                .aliases("*")
+                .indices(response.getIndices())
+                .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
     }
-    
+
+    public static List<EsIndex> separateMappings(DataTypeRegistry typeRegistry, String javaRegex, String[] indexNames,
+            Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
+        return buildIndices(typeRegistry, indexNames, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null);
+    }
+
     private static class Fields {
         final Map<String, EsField> hierarchicalMapping = new TreeMap<>();
         final Map<String, EsField> flattedMapping = new LinkedHashMap<>();
@@ -467,16 +527,28 @@ public class IndexResolver {
      * Assemble an index-based mapping from the field caps (which is field based) by looking at the indices associated with
      * each field.
      */
-    private static List<EsIndex> buildIndices(String[] indexNames, String javaRegex, Map<String, Map<String, FieldCapabilities>> fieldCaps,
+    private static List<EsIndex> buildIndices(DataTypeRegistry typeRegistry, String[] indexNames, String javaRegex,
+            Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> aliases,
             Function<String, String> indexNameProcessor,
             BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier) {
 
-        if (indexNames == null || indexNames.length == 0) {
+        if ((indexNames == null || indexNames.length == 0) && (aliases == null || aliases.isEmpty())) {
             return emptyList();
         }
 
-        final List<String> resolvedIndices = asList(indexNames);
-        Map<String, Fields> indices = new LinkedHashMap<>(resolvedIndices.size());
+        Set<String> resolvedAliases = new HashSet<>();
+        if (aliases != null) {
+            Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iterator = aliases.iterator();
+            while (iterator.hasNext()) {
+                for (AliasMetadata alias : iterator.next().value) {
+                    resolvedAliases.add(alias.getAlias());
+                }
+            }
+        }
+
+        List<String> resolvedIndices = new ArrayList<>(asList(indexNames));
+        int mapSize = CollectionUtils.mapSize(resolvedIndices.size() + resolvedAliases.size());
+        Map<String, Fields> indices = new LinkedHashMap<>(mapSize);
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
         // sort fields in reverse order to build the field hierarchy
@@ -487,15 +559,17 @@ public class IndexResolver {
 
         for (Entry<String, Map<String, FieldCapabilities>> entry : sortedFields) {
             String fieldName = entry.getKey();
-            Map<String, FieldCapabilities> types = entry.getValue();
 
             // ignore size added by the mapper plugin
             if (FIELD_NAMES_BLACKLIST.contains(fieldName)) {
                 continue;
             }
 
-            // apply verification
+            Map<String, FieldCapabilities> types = new LinkedHashMap<>(entry.getValue());
+            // apply verification and possibly remove the "duplicate" CONSTANT_KEYWORD field type
             final InvalidMappedField invalidField = validityVerifier.apply(fieldName, types);
+            // apply verification for fields belonging to index aliases
+            Map<String, InvalidMappedField> invalidFieldsForAliases = getInvalidFieldsForAliases(fieldName, types, aliases);
 
             // filter meta fields and unmapped
             FieldCapabilities unmapped = types.get(UNMAPPED);
@@ -515,8 +589,8 @@ public class IndexResolver {
                 // compute the actual indices - if any are specified, take into account the unmapped indices
                 List<String> concreteIndices = null;
                 if (capIndices != null) {
-                    if (unmappedIndices.isEmpty() == true) {
-                        concreteIndices = asList(capIndices);
+                    if (unmappedIndices.isEmpty()) {
+                        concreteIndices = new ArrayList<>(asList(capIndices));
                     } else {
                         concreteIndices = new ArrayList<>(capIndices.length);
                         for (String capIndex : capIndices) {
@@ -530,37 +604,63 @@ public class IndexResolver {
                     concreteIndices = resolvedIndices;
                 }
 
+                // add to the list of concrete indices the aliases associated with these indices
+                Set<String> uniqueAliases = new LinkedHashSet<>();
+                if (aliases != null) {
+                    for (String concreteIndex : concreteIndices) {
+                        if (aliases.containsKey(concreteIndex)) {
+                            List<AliasMetadata> concreteIndexAliases = aliases.get(concreteIndex);
+                            concreteIndexAliases.stream().forEach(e -> uniqueAliases.add(e.alias()));
+                        }
+                    }
+                    concreteIndices.addAll(uniqueAliases);
+                }
+
                 // put the field in their respective mappings
                 for (String index : concreteIndices) {
-                    if (pattern == null || pattern.matcher(index).matches()) {
-                        String indexName = indexNameProcessor.apply(index);
+                    boolean isIndexAlias = uniqueAliases.contains(index);
+                    if (pattern == null || pattern.matcher(index).matches() || isIndexAlias) {
+                        String indexName = isIndexAlias ? index : indexNameProcessor.apply(index);
                         Fields indexFields = indices.get(indexName);
                         if (indexFields == null) {
                             indexFields = new Fields();
                             indices.put(indexName, indexFields);
                         }
                         EsField field = indexFields.flattedMapping.get(fieldName);
-                        if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
+                        boolean createField = false;
+                        if (isIndexAlias == false) {
+                            if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
+                                createField = true;
+                            }
+                        }
+                        else {
+                            if (field == null && invalidFieldsForAliases.get(index) == null) {
+                                createField = true;
+                            }
+                        }
+
+                        if (createField) {
                             int dot = fieldName.lastIndexOf('.');
                             /*
                              * Looking up the "tree" at the parent fields here to see if the field is an alias.
                              * When the upper elements of the "tree" have no elements in fieldcaps, then this is an alias field. But not
                              * always: if there are two aliases - a.b.c.alias1 and a.b.c.alias2 - only one of them will be considered alias.
                              */
-                            Holder<Boolean> isAlias = new Holder<>(false);
+                            Holder<Boolean> isAliasFieldType = new Holder<>(false);
                             if (dot >= 0) {
                                 String parentName = fieldName.substring(0, dot);
                                 if (indexFields.flattedMapping.get(parentName) == null) {
                                     // lack of parent implies the field is an alias
                                     if (fieldCaps.get(parentName) == null) {
-                                        isAlias.set(true);
+                                        isAliasFieldType.set(true);
                                     }
                                 }
                             }
-                            
-                            createField(fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
-                                    s -> invalidField != null ? invalidField : createField(s, typeCap.getType(), emptyMap(),
-                                            typeCap.isAggregatable(), isAlias.get()));
+
+                            createField(typeRegistry, fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
+                                    s -> invalidField != null ? invalidField :
+                                        createField(typeRegistry, s, typeCap.getType(), emptyMap(), typeCap.isAggregatable(),
+                                                isAliasFieldType.get()));
                         }
                     }
                 }
@@ -574,5 +674,142 @@ public class IndexResolver {
         }
         foundIndices.sort(Comparator.comparing(EsIndex::name));
         return foundIndices;
+    }
+
+
+    /*
+     * Checks if the field is valid (same type and same capabilities - searchable/aggregatable) across indices belonging to a list
+     * of aliases.
+     * A field can look like the example below (generated by field_caps API).
+     *   "name": {
+     *       "text": {
+     *           "type": "text",
+     *           "searchable": false,
+     *           "aggregatable": false,
+     *           "indices": [
+     *               "bar",
+     *               "foo"
+     *           ],
+     *           "non_searchable_indices": [
+     *               "foo"
+     *           ]
+     *       },
+     *       "keyword": {
+     *           "type": "keyword",
+     *           "searchable": false,
+     *           "aggregatable": true,
+     *           "non_aggregatable_indices": [
+     *               "bar", "baz"
+     *           ]
+     *       }
+     *   }
+     */
+    private static Map<String, InvalidMappedField> getInvalidFieldsForAliases(String fieldName, Map<String, FieldCapabilities> types,
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
+        if (aliases == null || aliases.isEmpty()) {
+            return emptyMap();
+        }
+        Map<String, InvalidMappedField> invalidFields = new HashMap<>();
+        Map<String, Set<String>> typesErrors = new HashMap<>(); // map holding aliases and a list of unique field types across its indices
+        Map<String, Set<String>> aliasToIndices = new HashMap<>(); // map with aliases and their list of indices
+
+        Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iter = aliases.iterator();
+        while (iter.hasNext()) {
+            ObjectObjectCursor<String, List<AliasMetadata>> index = iter.next();
+            for (AliasMetadata aliasMetadata : index.value) {
+                String aliasName = aliasMetadata.alias();
+                aliasToIndices.putIfAbsent(aliasName, new HashSet<>());
+                aliasToIndices.get(aliasName).add(index.key);
+            }
+        }
+
+        // iterate over each type
+        for (Entry<String, FieldCapabilities> type : types.entrySet()) {
+            String esFieldType = type.getKey();
+            if (esFieldType == UNMAPPED) {
+                continue;
+            }
+            String[] indices = type.getValue().indices();
+            // if there is a list of indices where this field type is defined
+            if (indices != null) {
+                // Look at all these indices' aliases and add the type of the field to a list (Set) with unique elements.
+                // A valid mapping for a field in an index alias should contain only one type. If it doesn't, this means that field
+                // is mapped as different types across the indices in this index alias.
+                for (String index : indices) {
+                    List<AliasMetadata> indexAliases = aliases.get(index);
+                    if (indexAliases == null) {
+                        continue;
+                    }
+                    for (AliasMetadata aliasMetadata : indexAliases) {
+                        String aliasName = aliasMetadata.alias();
+                        if (typesErrors.containsKey(aliasName)) {
+                            typesErrors.get(aliasName).add(esFieldType);
+                        } else {
+                            Set<String> fieldTypes = new HashSet<>();
+                            fieldTypes.add(esFieldType);
+                            typesErrors.put(aliasName, fieldTypes);
+                        }
+                    }
+                }
+            }
+        }
+
+        for (String aliasName : aliasToIndices.keySet()) {
+            // if, for the same index alias, there are multiple field types for this fieldName ie the index alias has indices where the same
+            // field name is of different types
+            Set<String> esFieldTypes = typesErrors.get(aliasName);
+            if (esFieldTypes != null && esFieldTypes.size() > 1) {
+                // consider the field as invalid, for the currently checked index alias
+                // the error message doesn't actually matter
+                invalidFields.put(aliasName, new InvalidMappedField(fieldName));
+            } else {
+                // if the field type is the same across all this alias' indices, check the field's capabilities (searchable/aggregatable)
+                for (Entry<String, FieldCapabilities> type : types.entrySet()) {
+                    if (type.getKey() == UNMAPPED) {
+                        continue;
+                    }
+                    FieldCapabilities f = type.getValue();
+
+                    // the existence of a list of non_aggregatable_indices is an indication that not all indices have the same capabilities
+                    // but this list can contain indices belonging to other aliases, so we need to check only for this alias
+                    if (f.nonAggregatableIndices() != null) {
+                        Set<String> aliasIndices = aliasToIndices.get(aliasName);
+                        int nonAggregatableCount = 0;
+                        // either all or none of the non-aggregatable indices belonging to a certain alias should be in this list
+                        for (String nonAggIndex : f.nonAggregatableIndices()) {
+                            if (aliasIndices.contains(nonAggIndex)) {
+                                nonAggregatableCount++;
+                            }
+                        }
+                        if (nonAggregatableCount > 0 && nonAggregatableCount != aliasIndices.size()) {
+                            invalidFields.put(aliasName, new InvalidMappedField(fieldName));
+                            break;
+                        }
+                    }
+
+                    // perform the same check for non_searchable_indices list
+                    if (f.nonSearchableIndices() != null) {
+                        Set<String> aliasIndices = aliasToIndices.get(aliasName);
+                        int nonSearchableCount = 0;
+                        // either all or none of the non-searchable indices belonging to a certain alias should be in this list
+                        for (String nonSearchIndex : f.nonSearchableIndices()) {
+                            if (aliasIndices.contains(nonSearchIndex)) {
+                                nonSearchableCount++;
+                            }
+                        }
+                        if (nonSearchableCount > 0 && nonSearchableCount != aliasIndices.size()) {
+                            invalidFields.put(aliasName, new InvalidMappedField(fieldName));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (invalidFields.size() > 0) {
+            return invalidFields;
+        }
+        // everything checks
+        return emptyMap();
     }
 }

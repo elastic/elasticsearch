@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -13,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class DataFrameAnalyticsSourceTests extends AbstractSerializingTestCase<DataFrameAnalyticsSource> {
+public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestCase<DataFrameAnalyticsSource> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -67,6 +68,13 @@ public class DataFrameAnalyticsSourceTests extends AbstractSerializingTestCase<D
                 generateRandomStringArray(10, 10, false, false));
         }
         return new DataFrameAnalyticsSource(index, queryProvider, sourceFiltering);
+    }
+
+    public static DataFrameAnalyticsSource mutateForVersion(DataFrameAnalyticsSource instance, Version version) {
+        if (version.before(Version.V_7_6_0)) {
+            return new DataFrameAnalyticsSource(instance.getIndex(), instance.getQueryProvider(), null);
+        }
+        return instance;
     }
 
     @Override
@@ -131,5 +139,10 @@ public class DataFrameAnalyticsSourceTests extends AbstractSerializingTestCase<D
         FetchSourceContext sourceFiltering = new FetchSourceContext(true,
             includes.toArray(new String[0]), excludes.toArray(new String[0]));
         return new DataFrameAnalyticsSource(new String[] { "index" } , null, sourceFiltering);
+    }
+
+    @Override
+    protected DataFrameAnalyticsSource mutateInstanceForVersion(DataFrameAnalyticsSource instance, Version version) {
+        return mutateForVersion(instance, version);
     }
 }

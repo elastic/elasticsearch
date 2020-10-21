@@ -27,6 +27,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
@@ -139,6 +140,9 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
                         type + "` for field `" + field + "`");
             }
         }
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {}
     }
 
     /**
@@ -251,6 +255,9 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
                         + type + "` for field `" + field + "`");
             }
         }
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {}
     }
 
     private static DocValuesType getDocValuesType(LeafReader in, String field) {

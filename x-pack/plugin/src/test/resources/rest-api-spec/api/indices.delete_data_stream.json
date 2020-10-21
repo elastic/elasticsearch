@@ -1,0 +1,26 @@
+{
+  "indices.delete_data_stream":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
+      "description":"Deletes a data stream."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_stream/{name}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"A comma-separated list of data streams to delete; use `*` to delete all data streams"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

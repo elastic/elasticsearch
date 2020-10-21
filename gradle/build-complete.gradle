@@ -16,6 +16,7 @@ if (buildNumber) {
           Set<File> fileSet = fileTree(projectDir) {
             include("**/*.hprof")
             include("**/reaper.log")
+            include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
             exclude("**/build/testclusters/**/data/**")
             exclude("**/build/testclusters/**/distro/**")

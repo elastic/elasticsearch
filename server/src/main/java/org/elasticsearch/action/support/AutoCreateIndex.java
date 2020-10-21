@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,13 +44,16 @@ public final class AutoCreateIndex {
     public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
         new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);
 
-    private final boolean dynamicMappingDisabled;
     private final IndexNameExpressionResolver resolver;
+    private final SystemIndices systemIndices;
     private volatile AutoCreate autoCreate;
 
-    public AutoCreateIndex(Settings settings, ClusterSettings clusterSettings, IndexNameExpressionResolver resolver) {
+    public AutoCreateIndex(Settings settings,
+                           ClusterSettings clusterSettings,
+                           IndexNameExpressionResolver resolver,
+                           SystemIndices systemIndices) {
         this.resolver = resolver;
-        dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
+        this.systemIndices = systemIndices;
         this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_CREATE_INDEX_SETTING, this::setAutoCreate);
     }
@@ -67,18 +70,21 @@ public final class AutoCreateIndex {
      * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
      */
     public boolean shouldAutoCreate(String index, ClusterState state) {
-        if (resolver.hasIndexOrAlias(index, state)) {
+        if (resolver.hasIndexAbstraction(index, state)) {
             return false;
         }
+
+        // Always auto-create system indexes
+        if (systemIndices.isSystemIndex(index)) {
+            return true;
+        }
+
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
         if (autoCreate.autoCreateIndex == false) {
             throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
         }
-        if (dynamicMappingDisabled) {
-            throw new IndexNotFoundException("[" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]",
-                    index);
-        }
+
         // matches not set, default value of "true"
         if (autoCreate.expressions.isEmpty()) {
             return true;

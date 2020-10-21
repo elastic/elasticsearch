@@ -1,0 +1,80 @@
+[[delete-snapshot-api]]
+=== Delete snapshot API
+++++
+<titleabbrev>Delete snapshot</titleabbrev>
+++++
+
+Deletes a <<snapshot-restore,snapshot>>.
+
+////
+[source,console]
+----
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+
+PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+
+PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
+
+PUT /_snapshot/my_repository/snapshot_3?wait_for_completion=true
+----
+// TESTSETUP
+////
+
+[source,console]
+-----------------------------------
+DELETE /_snapshot/my_repository/my_snapshot
+-----------------------------------
+
+[[delete-snapshot-api-request]]
+==== {api-request-title}
+
+`DELETE /_snapshot/<repository>/<snapshot>`
+
+[[delete-snapshot-api-desc]]
+==== {api-description-title}
+
+Use the delete snapshot API to delete a <<snapshot-restore,snapshot>>, which is a backup taken from a running {es} cluster.
+
+When deleting a snapshot from a repository, {es} deletes all files that are associated with the snapshot and not used by any other snapshots. All files that are shared with at least one other existing snapshot are left intact.
+
+If you attempt to delete a snapshot while it is being created, the snapshot process aborts and all associated will be deleted.
+
+To delete multiple snapshots in a single request, separate the snapshot names with a comma or use a wildcard (`*`).
+
+TIP: Use the delete snapshot API to cancel long-running snapshot operations that were started by mistake.
+
+[[delete-snapshot-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Required, string)
+Name of the repository to delete a snapshot from.
+
+`<snapshot>`::
+(Required, string)
+Comma-separated list of snapshot names to delete. Also accepts wildcards (`*`).
+
+[[delete-snapshot-api-example]]
+==== {api-example-title}
+
+The following request deletes `snapshot_2` and `snapshot_3` from the repository named `my_repository`.
+
+[source,console]
+----
+DELETE /_snapshot/my_repository/snapshot_2,snapshot_3
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "acknowledged" : true
+}
+----

@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -47,6 +49,8 @@ import java.util.function.LongSupplier;
 
 /** A formatter for values as returned by the fielddata/doc-values APIs. */
 public interface DocValueFormat extends NamedWriteable {
+    long MASK_2_63 = 0x8000000000000000L;
+    BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
 
     /** Format a long value. This is used by terms and histogram aggregations
      *  to format keys for fields that use longs as a doc value representation
@@ -201,6 +205,13 @@ public interface DocValueFormat extends NamedWriteable {
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
+            if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.getVersion().before(Version.V_8_0_0)) {
+                /* when deserialising from 7.7+ nodes expect a flag indicating if a pattern is of joda style
+                   This is only used to support joda style indices in 7.x, in 8 we no longer support this.
+                   All indices in 8 should use java style pattern. Hence we can ignore this flag.
+                */
+                in.readBoolean();
+            }
         }
 
         @Override
@@ -213,6 +224,17 @@ public interface DocValueFormat extends NamedWriteable {
             out.writeString(formatter.pattern());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
+            if (out.getVersion().onOrAfter(Version.V_7_7_0) && out.getVersion().before(Version.V_8_0_0)) {
+                /* when serializing to 7.7+  send out a flag indicating if a pattern is of joda style
+                   This is only used to support joda style indices in 7.x, in 8 we no longer support this.
+                   All indices in 8 should use java style pattern. Hence this flag is always false.
+                */
+                out.writeBoolean(false);
+            }
+        }
+
+        public DateMathParser getDateMathParser() {
+            return parser;
         }
 
         @Override
@@ -233,6 +255,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
+        }
+
+        @Override
+        public String toString() {
+            return "DocValueFormat.DateTime(" + formatter + ", " + timeZone + ", " + resolution + ")";
         }
     }
 
@@ -448,5 +475,66 @@ public interface DocValueFormat extends NamedWriteable {
         public int hashCode() {
             return Objects.hash(pattern);
         }
-    }
+    };
+
+    /**
+     * DocValues format for unsigned 64 bit long values,
+     * that are stored as shifted signed 64 bit long values.
+     */
+    DocValueFormat UNSIGNED_LONG_SHIFTED = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "unsigned_long_shifted";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public String toString() {
+            return "unsigned_long_shifted";
+        }
+
+        /**
+         * Formats the unsigned long to the shifted long format
+         */
+        @Override
+        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            long parsedValue = Long.parseUnsignedLong(value);
+            // subtract 2^63 or 10000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+            // equivalent to flipping the first bit
+            return parsedValue ^ MASK_2_63;
+        }
+
+        /**
+         * Formats a raw docValue that is stored in the shifted long format to the unsigned long representation.
+         */
+        @Override
+        public Object format(long value) {
+            // add 2^63 or 10000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000,
+            // equivalent to flipping the first bit
+            long formattedValue = value ^ MASK_2_63;
+            if (formattedValue >= 0) {
+                return formattedValue;
+            } else {
+                return BigInteger.valueOf(formattedValue).and(BIGINTEGER_2_64_MINUS_ONE);
+            }
+        }
+
+        /**
+         * Double docValues of the unsigned_long field type are already in the formatted representation,
+         * so we don't need to do anything here
+         */
+        @Override
+        public Double format(double value) {
+            return value;
+        }
+
+        @Override
+        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+            return Double.parseDouble(value);
+        }
+    };
 }

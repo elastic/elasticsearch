@@ -6,13 +6,13 @@ Document level security restricts the documents that users have read access to.
 In particular, it restricts which documents can be accessed from document-based 
 read APIs. 
 
-To enable document level security, you use a query to specify the documents that 
-each role can access. The document query is associated with a particular index 
-or index pattern and operates in conjunction with the privileges specified for 
-the indices.
+To enable document level security, you use a query to specify the documents that
+each role can access. The document query is associated with a particular data
+stream, index, or wildcard (`*`) pattern and operates in conjunction with the
+privileges specified for the data streams and indices.
 
 The following role definition grants read access only to documents that
-belong to the `click` category within all the `events-*` indices:
+belong to the `click` category within all the `events-*` data streams and indices:
 
 [source,console]
 --------------------------------------------------

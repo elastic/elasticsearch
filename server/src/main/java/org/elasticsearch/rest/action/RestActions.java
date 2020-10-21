@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -88,7 +89,7 @@ public class RestActions {
             builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
         }
         builder.field(FAILED_FIELD.getPreferredName(), failed);
-        if (shardFailures != null && shardFailures.length > 0) {
+        if (CollectionUtils.isEmpty(shardFailures) == false) {
             builder.startArray(FAILURES_FIELD.getPreferredName());
             for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
                 shardFailure.toXContent(builder, params);
@@ -204,7 +205,11 @@ public class RestActions {
     }
 
     public static QueryBuilder getQueryContent(XContentParser requestParser) {
-        return parseTopLevelQueryBuilder(requestParser);
+        return parseTopLevelQueryBuilder("query", requestParser);
+    }
+
+    public static QueryBuilder getQueryContent(String fieldName, XContentParser requestParser) {
+        return parseTopLevelQueryBuilder(fieldName, requestParser);
     }
 
     /**
@@ -237,7 +242,7 @@ public class RestActions {
     /**
      * Parses a top level query including the query element that wraps it
      */
-    private static QueryBuilder parseTopLevelQueryBuilder(XContentParser parser) {
+    private static QueryBuilder parseTopLevelQueryBuilder(String fieldName, XContentParser parser) {
         try {
             QueryBuilder queryBuilder = null;
             XContentParser.Token first = parser.nextToken();
@@ -251,8 +256,8 @@ public class RestActions {
             }
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
-                    String fieldName = parser.currentName();
-                    if ("query".equals(fieldName)) {
+                    String currentName = parser.currentName();
+                    if (fieldName.equals(currentName)) {
                         queryBuilder = parseInnerQueryBuilder(parser);
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");

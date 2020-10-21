@@ -75,10 +75,12 @@ public class TransportShardFlushAction
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(ShardFlushRequest request, IndexShard replica) {
-        replica.flush(request.getRequest());
-        logger.trace("{} flush request executed on replica", replica.shardId());
-        return new ReplicaResult();
+    protected void shardOperationOnReplica(ShardFlushRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            replica.flush(request.getRequest());
+            logger.trace("{} flush request executed on replica", replica.shardId());
+            return new ReplicaResult();
+        });
     }
 
     // TODO: Remove this transition in 9.0

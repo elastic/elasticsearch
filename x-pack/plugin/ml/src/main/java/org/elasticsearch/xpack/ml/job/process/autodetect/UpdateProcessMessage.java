@@ -10,21 +10,26 @@ import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 
 import java.util.List;
 
 public final class UpdateProcessMessage {
 
     @Nullable private final ModelPlotConfig modelPlotConfig;
+    @Nullable private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
     @Nullable private final List<JobUpdate.DetectorUpdate> detectorUpdates;
-    @Nullable private final MlFilter filter;
+    @Nullable private final List<MlFilter> filters;
     @Nullable private final List<ScheduledEvent> scheduledEvents;
 
-    private UpdateProcessMessage(@Nullable ModelPlotConfig modelPlotConfig, @Nullable List<JobUpdate.DetectorUpdate> detectorUpdates,
-                                 @Nullable MlFilter filter, List<ScheduledEvent> scheduledEvents) {
+    private UpdateProcessMessage(@Nullable ModelPlotConfig modelPlotConfig,
+                                 @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
+                                 @Nullable List<JobUpdate.DetectorUpdate> detectorUpdates,
+                                 @Nullable List<MlFilter> filters, List<ScheduledEvent> scheduledEvents) {
         this.modelPlotConfig = modelPlotConfig;
+        this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
         this.detectorUpdates = detectorUpdates;
-        this.filter = filter;
+        this.filters = filters;
         this.scheduledEvents = scheduledEvents;
     }
 
@@ -34,13 +39,18 @@ public final class UpdateProcessMessage {
     }
 
     @Nullable
+    public PerPartitionCategorizationConfig getPerPartitionCategorizationConfig() {
+        return perPartitionCategorizationConfig;
+    }
+
+    @Nullable
     public List<JobUpdate.DetectorUpdate> getDetectorUpdates() {
         return detectorUpdates;
     }
 
     @Nullable
-    public MlFilter getFilter() {
-        return filter;
+    public List<MlFilter> getFilters() {
+        return filters;
     }
 
     @Nullable
@@ -51,12 +61,18 @@ public final class UpdateProcessMessage {
     public static class Builder {
 
         @Nullable private ModelPlotConfig modelPlotConfig;
+        @Nullable private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
         @Nullable private List<JobUpdate.DetectorUpdate> detectorUpdates;
-        @Nullable private MlFilter filter;
+        @Nullable private List<MlFilter> filters;
         @Nullable private List<ScheduledEvent> scheduledEvents;
 
         public Builder setModelPlotConfig(ModelPlotConfig modelPlotConfig) {
             this.modelPlotConfig = modelPlotConfig;
+            return this;
+        }
+
+        public Builder setPerPartitionCategorizationConfig(PerPartitionCategorizationConfig perPartitionCategorizationConfig) {
+            this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
             return this;
         }
 
@@ -65,8 +81,8 @@ public final class UpdateProcessMessage {
             return this;
         }
 
-        public Builder setFilter(MlFilter filter) {
-            this.filter = filter;
+        public Builder setFilters(List<MlFilter> filters) {
+            this.filters = filters;
             return this;
         }
 
@@ -76,7 +92,7 @@ public final class UpdateProcessMessage {
         }
 
         public UpdateProcessMessage build() {
-            return new UpdateProcessMessage(modelPlotConfig, detectorUpdates, filter, scheduledEvents);
+            return new UpdateProcessMessage(modelPlotConfig, perPartitionCategorizationConfig, detectorUpdates, filters, scheduledEvents);
         }
     }
 }

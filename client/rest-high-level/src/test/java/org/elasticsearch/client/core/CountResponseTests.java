@@ -20,7 +20,7 @@
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -91,7 +91,7 @@ public class CountResponseTests extends ESTestCase {
             String nodeId = randomAlphaOfLengthBetween(5, 10);
             String indexName = randomAlphaOfLengthBetween(5, 10);
             searchShardTarget = new SearchShardTarget(nodeId,
-                new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), randomInt()), null, null);
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), randomInt()), null, null);
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }

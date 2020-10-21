@@ -21,7 +21,7 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -135,9 +135,9 @@ public final class ShardPath {
         Path loadedPath = null;
         for (Path path : availableShardPaths) {
             // EMPTY is safe here because we never call namedObject
-            ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+            ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
             if (load != null) {
-                if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
+                if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
                     logger.warn("{} found shard on path: [{}] with a different index UUID - this "
                         + "shard seems to be leftover from a different index with the same name. "
                         + "Remove the leftover shard in order to reuse the path with the current index", shardId, path);
@@ -178,9 +178,9 @@ public final class ShardPath {
         final Path[] paths = env.availableShardPaths(lock.getShardId());
         for (Path path : paths) {
             // EMPTY is safe here because we never call namedObject
-            ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+            ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
             if (load != null) {
-                if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
+                if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
                     logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
                     assert Files.isDirectory(path) : path + " is not a directory";
                     NodeEnvironment.acquireFSLockForPaths(indexSettings, paths);
@@ -265,7 +265,7 @@ public final class ShardPath {
         long maxUsableBytes = Long.MIN_VALUE;
         for (NodeEnvironment.NodePath nodePath : paths) {
             FileStore fileStore = nodePath.fileStore;
-            long usableBytes = fileStore.getUsableSpace();
+            long usableBytes = fileStore.getUsableSpace(); // NB usable bytes doesn't account for reserved space (e.g. incoming recoveries)
             assert usableBytes >= 0 : "usable bytes must be >= 0, got: " + usableBytes;
 
             if (bestPath == null || usableBytes > maxUsableBytes) {

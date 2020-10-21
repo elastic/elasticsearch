@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -55,9 +56,9 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), shardRoutingState);
         ShardRouting shard = clusterState.getRoutingTable().index("idx").shard(0).primaryShard();
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.emptyList()),
-            clusterState.getRoutingNodes(), clusterState, null, System.nanoTime());
+            clusterState.getRoutingNodes(), clusterState, null, null, System.nanoTime());
         ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(shard, allocation, null, randomBoolean(),
-            new TestGatewayAllocator(), new ShardsAllocator() {
+            new AllocationService(null, new TestGatewayAllocator(), new ShardsAllocator() {
                 @Override
                 public void allocate(RoutingAllocation allocation) {
                     // no-op
@@ -71,7 +72,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         throw new UnsupportedOperationException("cannot explain");
                     }
                 }
-            });
+            }, null, null));
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());
         assertFalse(cae.getShardAllocationDecision().isDecisionTaken());
@@ -177,6 +178,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {
-        return new RoutingAllocation(NOOP_DECIDERS, clusterState.getRoutingNodes(), clusterState, null, System.nanoTime());
+        return new RoutingAllocation(NOOP_DECIDERS, clusterState.getRoutingNodes(), clusterState, null, null, System.nanoTime());
     }
 }

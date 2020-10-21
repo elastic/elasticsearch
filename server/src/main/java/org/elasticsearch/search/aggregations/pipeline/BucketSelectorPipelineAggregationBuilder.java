@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.TreeMap;
 
@@ -43,7 +42,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     public static final String NAME = "bucket_selector";
 
     private final Map<String, String> bucketsPathsMap;
-    private Script script;
+    private final Script script;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
     public BucketSelectorPipelineAggregationBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
@@ -61,22 +60,14 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
      */
     public BucketSelectorPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
-        int mapSize = in.readVInt();
-        bucketsPathsMap = new HashMap<>(mapSize);
-        for (int i = 0; i < mapSize; i++) {
-            bucketsPathsMap.put(in.readString(), in.readString());
-        }
+        bucketsPathsMap = in.readMap(StreamInput::readString, StreamInput::readString);
         script = new Script(in);
         gapPolicy = GapPolicy.readFrom(in);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(bucketsPathsMap.size());
-        for (Entry<String, String> e : bucketsPathsMap.entrySet()) {
-            out.writeString(e.getKey());
-            out.writeString(e.getValue());
-        }
+        out.writeMap(bucketsPathsMap, StreamOutput::writeString, StreamOutput::writeString);
         script.writeTo(out);
         gapPolicy.writeTo(out);
     }
@@ -108,8 +99,8 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new BucketSelectorPipelineAggregator(name, bucketsPathsMap, script, gapPolicy, metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new BucketSelectorPipelineAggregator(name, bucketsPathsMap, script, gapPolicy, metadata);
     }
 
     @Override
@@ -191,6 +182,11 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
             factory.gapPolicy(gapPolicy);
         }
         return factory;
+    }
+
+    @Override
+    protected void validate(ValidationContext context) {
+        context.validateHasParent(NAME, name);
     }
 
     @Override

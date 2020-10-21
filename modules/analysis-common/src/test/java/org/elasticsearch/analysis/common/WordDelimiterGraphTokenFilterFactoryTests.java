@@ -21,7 +21,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -118,6 +118,38 @@ public class WordDelimiterGraphTokenFilterFactoryTests
             expectedIncr, expectedPosLen, null);
     }
 
+    public void testIgnoreKeywords() throws IOException {
+        //test with keywords but ignore is false (default behavior)
+        Settings settings = Settings.builder()
+                .put("index.analysis.filter.my_word_delimiter.type", type)
+                .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
+                .put("index.analysis.filter.my_keyword.type", "keyword_marker")
+                .put("index.analysis.filter.my_keyword.keywords", "PowerHungry")
+                .put("index.analysis.analyzer.my_analyzer.type", "custom")
+                .put("index.analysis.analyzer.my_analyzer.tokenizer", "whitespace")
+                .put("index.analysis.analyzer.my_analyzer.filter", "my_keyword, my_word_delimiter")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        String source = "PowerShot PowerHungry";
+        int[] expectedStartOffsets = new int[]{0, 5, 10, 15};
+        int[] expectedEndOffsets = new int[]{5, 9, 15, 21};
+        String[] expected = new String[]{"Power", "Shot", "Power", "Hungry"};
+        NamedAnalyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        assertAnalyzesTo(analyzer, source, expected, expectedStartOffsets, expectedEndOffsets);
+
+        //test with keywords but ignore_keywords is set as true
+        settings = Settings.builder().put(settings)
+                .put("index.analysis.filter.my_word_delimiter.ignore_keywords", "true")
+                .build();
+        analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        expectedStartOffsets = new int[]{0, 5, 10};
+        expectedEndOffsets = new int[]{5, 9, 21};
+        expected = new String[]{"Power", "Shot", "PowerHungry"};
+        assertAnalyzesTo(analyzer, source, expected, expectedStartOffsets, expectedEndOffsets);
+    }
+
     public void testPreconfiguredFilter() throws IOException {
         // Before 7.3 we don't adjust offsets
         {
@@ -125,7 +157,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
             Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED,
+                .put(IndexMetadata.SETTING_VERSION_CREATED,
                     VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0)))
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
@@ -148,7 +180,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
             Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
                 .build();

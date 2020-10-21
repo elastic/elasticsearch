@@ -1,0 +1,143 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "admin_role"
+        body:  >
+          {
+            "cluster": ["manage_security"]
+          }
+
+  - do:
+      security.put_user:
+        username: "token_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "admin_role" ],
+            "full_name" : "Token User"
+          }
+
+---
+teardown:
+
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "token_user"
+        ignore: 404
+
+---
+"Test invalidate access token return statuses":
+
+  - do:
+      catch: bad_request
+      security.invalidate_token:
+        body:
+          token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB
+
+  - do:
+      security.get_token:
+        body:
+          grant_type: "password"
+          username: "token_user"
+          password: "x-pack-test-password"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+  - match: { expires_in: 1200 }
+  - is_false: scope
+
+  - do:
+      catch: missing
+      security.invalidate_token:
+        body:
+          token: "!this_is_not_a_base64_string_and_we_should_fail_decoding_it"
+
+  - match: { invalidated_tokens: 0 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }
+
+  - do:
+      catch: missing
+      security.invalidate_token:
+        body:
+          token: "10we+might+assume+this+is+valid+old+token"
+
+  - match: { invalidated_tokens: 0 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }
+
+  - do:
+      catch: missing
+      security.invalidate_token:
+        body:
+          token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB
+
+  - match: { invalidated_tokens: 0 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }
+
+---
+"Test invalidate refresh token return statuses":
+
+  - do:
+      catch: bad_request
+      security.invalidate_token:
+        body:
+          refresh_token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB
+
+  - do:
+      security.get_token:
+        body:
+          grant_type: "password"
+          username: "token_user"
+          password: "x-pack-test-password"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+  - match: { expires_in: 1200 }
+  - is_false: scope
+
+  - do:
+      catch: missing
+      security.invalidate_token:
+        body:
+          refresh_token: "!this_is_not_a_base64_string_and_we_should_fail_decoding_it"
+
+  - match: { invalidated_tokens: 0 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }
+
+  - do:
+      catch: missing
+      security.invalidate_token:
+        body:
+          refresh_token: "10we+might+assume+this+is+valid+old+token"
+
+  - match: { invalidated_tokens: 0 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }
+
+  - do:
+      catch: missing
+      security.invalidate_token:
+        body:
+          refresh_token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB
+
+  - match: { invalidated_tokens: 0 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }

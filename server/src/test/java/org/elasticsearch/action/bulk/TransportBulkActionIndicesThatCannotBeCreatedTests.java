@@ -27,17 +27,21 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -46,7 +50,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -104,14 +108,15 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
 
     private void indicesThatCannotBeCreatedTestCase(Set<String> expected,
-            BulkRequest bulkRequest, Function<String, Boolean> shouldAutoCreate) {
+            BulkRequest bulkRequest, Predicate<String> shouldAutoCreate) {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
-        when(state.getMetaData()).thenReturn(MetaData.EMPTY_META_DATA);
+        when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
+        when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(state);
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(state.getNodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(clusterService.localNode()).thenReturn(localNode);
         when(localNode.isIngestNode()).thenReturn(randomBoolean());
@@ -119,7 +124,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         final ExecutorService direct = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
-                null, null, mock(ActionFilters.class), null, null) {
+                null, null, mock(ActionFilters.class), null, null,
+            new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of())) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
@@ -133,11 +139,11 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
             @Override
             boolean shouldAutoCreate(String index, ClusterState state) {
-                return shouldAutoCreate.apply(index);
+                return shouldAutoCreate.test(index);
             }
 
             @Override
-            void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+            void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
                 // If we try to create an index just immediately assume it worked
                 listener.onResponse(new CreateIndexResponse(true, true, index) {});
             }

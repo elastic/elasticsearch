@@ -25,28 +25,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ChildrenAggregationBuilder
-        extends ValuesSourceAggregationBuilder<WithOrdinals, ChildrenAggregationBuilder> {
+public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<ChildrenAggregationBuilder> {
 
     public static final String NAME = "children";
 
@@ -61,7 +57,7 @@ public class ChildrenAggregationBuilder
      *            the type of children documents
      */
     public ChildrenAggregationBuilder(String name, String childType) {
-        super(name, CoreValuesSourceType.BYTES, ValueType.STRING);
+        super(name);
         if (childType == null) {
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
@@ -69,23 +65,28 @@ public class ChildrenAggregationBuilder
     }
 
     protected ChildrenAggregationBuilder(ChildrenAggregationBuilder clone,
-                                         Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                         Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.childType = clone.childType;
         this.childFilter = clone.childFilter;
         this.parentFilter = clone.parentFilter;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new ChildrenAggregationBuilder(this, factoriesBuilder, metaData);
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.BYTES;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new ChildrenAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public ChildrenAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.BYTES, ValueType.STRING);
+        super(in);
         childType = in.readString();
     }
 
@@ -95,33 +96,34 @@ public class ChildrenAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<WithOrdinals> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig<WithOrdinals> config,
-                                                                     AggregatorFactory parent,
-                                                                     Builder subFactoriesBuilder) throws IOException {
-        return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
-                subFactoriesBuilder, metaData);
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       Builder subFactoriesBuilder) throws IOException {
+        return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, context, parent,
+                subFactoriesBuilder, metadata);
     }
 
     @Override
-    protected ValuesSourceConfig<WithOrdinals> resolveConfig(QueryShardContext queryShardContext) {
-        ValuesSourceConfig<WithOrdinals> config = new ValuesSourceConfig<>(CoreValuesSourceType.BYTES);
-        joinFieldResolveConfig(queryShardContext, config);
-        return config;
-    }
+    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
+        ValuesSourceConfig config;
 
-    private void joinFieldResolveConfig(QueryShardContext queryShardContext, ValuesSourceConfig<WithOrdinals> config) {
-        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(queryShardContext.getMapperService());
-        ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
-        if (parentIdFieldMapper != null) {
-            parentFilter = parentIdFieldMapper.getParentFilter();
-            childFilter = parentIdFieldMapper.getChildFilter(childType);
-            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            final SortedSetDVOrdinalsIndexFieldData fieldData = queryShardContext.getForField(fieldType);
-            config.fieldContext(new FieldContext(fieldType.name(), fieldData, fieldType));
-        } else {
-            config.unmapped(true);
+        Joiner joiner = Joiner.getJoiner(context);
+        if (joiner == null || joiner.childTypeExists(childType) == false) {
+            // Unmapped field case
+            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), context);
+            return config;
         }
+
+        parentFilter = joiner.parentFilter(childType);
+        childFilter = joiner.filter(childType);
+        MappedFieldType fieldType = context.getFieldType(joiner.parentJoinField(childType));
+        config = ValuesSourceConfig.resolveFieldOnly(fieldType, context);
+        return config;
     }
 
     @Override
@@ -175,5 +177,10 @@ public class ChildrenAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return ValuesSourceRegistry.UNREGISTERED_KEY;
     }
 }

@@ -24,12 +24,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,6 +62,14 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         PARSER.declareObject(CompositeAggregationBuilder::aggregateAfter, (p, context) -> p.map(), AFTER_FIELD_NAME);
     }
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        DateHistogramValuesSourceBuilder.register(builder);
+        HistogramValuesSourceBuilder.register(builder);
+        GeoTileGridValuesSourceBuilder.register(builder);
+        TermsValuesSourceBuilder.register(builder);
+        builder.registerUsage(NAME);
+    }
+
     private List<CompositeValuesSourceBuilder<?>> sources;
     private Map<String, Object> after;
     private int size = 10;
@@ -72,16 +81,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     protected CompositeAggregationBuilder(CompositeAggregationBuilder clone,
-                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.sources = new ArrayList<>(clone.sources);
         this.after = clone.after;
         this.size = clone.size;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new CompositeAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new CompositeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
@@ -147,6 +156,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return size;
     }
 
+    @Override
+    public BucketCardinality bucketCardinality() {
+        /*
+         * Cardinality *does* have buckets so MULTI might be appropriate here.
+         * But the buckets can't be used with the composite agg so we're
+         * going to pretend that it doesn't have buckets.
+         */
+        return BucketCardinality.NONE;
+    }
+
     /**
      * Returns null if the provided factory and his parents are compatible with
      * this aggregator or the instance of the parent's factory that is incompatible with
@@ -185,7 +204,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     @Override
-    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
                                         AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
         AggregatorFactory invalid = checkParentIsNullOrNested(parent);
         if (invalid != null) {
@@ -194,7 +213,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         }
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
         for (int i = 0; i < configs.length; i++) {
-            configs[i] = sources.get(i).build(queryShardContext);
+            configs[i] = sources.get(i).build(context);
             if (configs[i].valuesSource().needsScores()) {
                 throw new IllegalArgumentException("[sources] cannot access _score");
             }
@@ -225,8 +244,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         } else {
             afterKey = null;
         }
-        return new CompositeAggregationFactory(name, queryShardContext, parent, subfactoriesBuilder, metaData, size,
-            configs, afterKey);
+        return new CompositeAggregationFactory(name, context, parent, subfactoriesBuilder, metadata, size, configs, afterKey);
     }
 
 

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -47,16 +47,16 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        NumberFieldType fieldType = new NumberFieldType(NumberType.DOUBLE);
+        NumberFieldType fieldType = new NumberFieldType("field", NumberType.DOUBLE);
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName("field")).thenReturn(fieldType);
-        when(mapperService.fullName("alias")).thenReturn(fieldType);
+        when(mapperService.fieldType("field")).thenReturn(fieldType);
+        when(mapperService.fieldType("alias")).thenReturn(fieldType);
 
         SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);
         when(doubleValues.nextValue()).thenReturn(2.718);
 
-        AtomicNumericFieldData atomicFieldData = mock(AtomicNumericFieldData.class);
+        LeafNumericFieldData atomicFieldData = mock(LeafNumericFieldData.class);
         when(atomicFieldData.getDoubleValues()).thenReturn(doubleValues);
 
         IndexNumericFieldData fieldData = mock(IndexNumericFieldData.class);
@@ -64,7 +64,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, ignored -> fieldData);
+        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData);
     }
 
     private NumberSortScript.LeafFactory compile(String expression) {

@@ -79,4 +79,20 @@ public class StreamsTests extends ESTestCase {
         assertEquals(-1, input.read());
         input.close();
     }
+
+    public void testFullyConsumeInputStream() throws IOException {
+        final String bytes = randomAlphaOfLengthBetween(0, 100);
+        final BytesArray stuffArray = new BytesArray(bytes);
+        assertEquals(bytes.length(), Streams.consumeFully(stuffArray.streamInput()));
+    }
+
+    public void testLimitInputStream() throws IOException {
+        final byte[] bytes = randomAlphaOfLengthBetween(1, 100).getBytes(StandardCharsets.UTF_8);
+        final int limit = randomIntBetween(0, bytes.length);
+        final BytesArray stuffArray = new BytesArray(bytes);
+        final ByteArrayOutputStream out = new ByteArrayOutputStream(bytes.length);
+        final long count = org.elasticsearch.core.internal.io.Streams.copy(Streams.limitStream(stuffArray.streamInput(), limit), out);
+        assertEquals(limit, count);
+        assertThat(Arrays.equals(out.toByteArray(), Arrays.copyOf(bytes, limit)), equalTo(true));
+    }
 }

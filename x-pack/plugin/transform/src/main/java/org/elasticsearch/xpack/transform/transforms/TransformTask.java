@@ -13,9 +13,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -34,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 
@@ -46,11 +50,11 @@ import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_ST
 public class TransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener, TransformContext.Listener {
 
     // Default interval the scheduler sends an event if the config does not specify a frequency
-    private static final long SCHEDULER_NEXT_MILLISECONDS = 60000;
     private static final Logger logger = LogManager.getLogger(TransformTask.class);
     private static final IndexerState[] RUNNING_STATES = new IndexerState[] { IndexerState.STARTED, IndexerState.INDEXING };
     public static final String SCHEDULE_NAME = TransformField.TASK_NAME + "/schedule";
 
+    private final ParentTaskAssigningClient parentTaskClient;
     private final TransformTaskParams transform;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
@@ -65,6 +69,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         String type,
         String action,
         TaskId parentTask,
+        Client client,
         TransformTaskParams transform,
         TransformState state,
         SchedulerEngine schedulerEngine,
@@ -73,6 +78,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         Map<String, String> headers
     ) {
         super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
+        this.parentTaskClient = new ParentTaskAssigningClient(client, parentTask);
         this.transform = transform;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
@@ -104,6 +110,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         this.initialPosition = initialPosition;
 
         this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, this);
+    }
+
+    public ParentTaskAssigningClient getParentTaskClient() {
+        return parentTaskClient;
     }
 
     public String getTransformId() {
@@ -170,6 +180,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         ClientTransformIndexer indexer = getIndexer();
         if (indexer == null) {
             transformsCheckpointService.getCheckpointingInfo(
+                parentTaskClient,
                 transform.getId(),
                 context.getCheckpoint(),
                 initialPosition,
@@ -275,16 +286,9 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }));
     }
 
-    void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
-        this.context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-    }
-
     /**
      * This sets the flag for the task to stop at the next checkpoint.
      *
-     * If first persists the flag and then mutates the local variable.
-     *
-     * It only persists if the value is different than what is currently held in memory.
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
      * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
      */
@@ -302,7 +306,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             shouldStopAtCheckpointListener.onResponse(null);
             return;
         }
-        getIndexer().persistShouldStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
+
+        // move the call to the generic thread pool, so we do not block the network thread
+        getThreadPool().executor(ThreadPool.Names.GENERIC)
+            .execute(() -> { getIndexer().setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener); });
     }
 
     public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {
@@ -335,12 +342,13 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
 
         // If state was in a failed state, we should stop immediately
         if (wasFailed) {
-            getIndexer().onStop();
-            getIndexer().doSaveState(IndexerState.STOPPED, getIndexer().getPosition(), () -> {});
+            getIndexer().stopAndSaveState();
             return;
         }
 
-        if (getIndexer().getState() == IndexerState.STOPPED || getIndexer().getState() == IndexerState.STOPPING) {
+        IndexerState indexerState = getIndexer().getState();
+
+        if (indexerState == IndexerState.STOPPED || indexerState == IndexerState.STOPPING) {
             return;
         }
 
@@ -350,13 +358,16 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
         // or has yet to even start one.
         // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
-            (getIndexer().getState() == IndexerState.STARTED && getIndexer().initialRun())) {
+            (indexerState == IndexerState.STARTED && getIndexer().initialRun())) {
             IndexerState state = getIndexer().stop();
             if (state == IndexerState.STOPPED) {
-                getIndexer().onStop();
-                getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
+                getIndexer().stopAndSaveState();
             }
         }
+    }
+
+    public synchronized void applyNewSettings(SettingsConfig newSettings) {
+        getIndexer().applyNewSettings(newSettings);
     }
 
     @Override
@@ -410,6 +421,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }
     }
 
+    @Override
+    public boolean shouldCancelChildrenOnCancellation() {
+        // shutdown implements graceful shutdown of children
+        return false;
+    }
+
     /**
      * Attempt to gracefully cleanup the transform so it can be terminated.
      * This tries to remove the job from the scheduler and completes the persistent task
@@ -421,7 +438,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         markAsCompleted();
     }
 
-    void persistStateToClusterState(TransformState state, ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener) {
+    void persistStateToClusterState(TransformState state, ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
         updatePersistentTaskState(state, ActionListener.wrap(success -> {
             logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
             listener.onResponse(success);
@@ -455,6 +472,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             listener.onResponse(null);
             return;
         }
+
+        logger.error("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
         auditor.error(transform.getId(), reason);
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.
@@ -515,12 +534,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     private SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
             TimeValue frequency = transform.getFrequency();
-            return now + (frequency == null ? SCHEDULER_NEXT_MILLISECONDS : frequency.getMillis());
+            return now + (frequency == null ? Transform.DEFAULT_TRANSFORM_FREQUENCY.getMillis() : frequency.getMillis());
         };
     }
 
     synchronized void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
-        indexer.set(indexerBuilder.build(getThreadPool().executor(ThreadPool.Names.GENERIC), context));
+        indexer.set(indexerBuilder.build(getThreadPool(), ThreadPool.Names.GENERIC, context));
     }
 
     ThreadPool getThreadPool() {

@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -18,10 +18,8 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  */
 public class Mul extends ArithmeticOperation {
 
-    private DataType dataType;
-
     public Mul(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryArithmeticOperation.MUL);
+        super(source, left, right, DefaultBinaryArithmeticOperation.MUL);
     }
 
     @Override
@@ -34,27 +32,11 @@ public class Mul extends ArithmeticOperation {
         DataType r = right().dataType();
 
         // 1. both are numbers
-        if (l.isNullOrNumeric() && r.isNullOrNumeric()) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-
-        if (l.isNullOrInterval() && (r.isInteger() || r.isNull())) {
-            dataType = l;
-            return TypeResolution.TYPE_RESOLVED;
-        } else if (r.isNullOrInterval() && (l.isInteger() || l.isNull())) {
-            dataType = r;
+        if (DataTypes.isNullOrNumeric(l) && DataTypes.isNullOrNumeric(r)) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
         return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
-    }
-
-    @Override
-    public DataType dataType() {
-        if (dataType == null) {
-            dataType = super.dataType();
-        }
-        return dataType;
     }
 
     @Override

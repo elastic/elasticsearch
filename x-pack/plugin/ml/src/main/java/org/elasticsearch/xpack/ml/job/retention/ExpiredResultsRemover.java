@@ -30,6 +30,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -50,6 +51,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -67,13 +69,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     private static final Logger LOGGER = LogManager.getLogger(ExpiredResultsRemover.class);
 
-    private final OriginSettingClient client;
     private final AnomalyDetectionAuditor auditor;
     private final ThreadPool threadPool;
 
-    public ExpiredResultsRemover(OriginSettingClient client, AnomalyDetectionAuditor auditor, ThreadPool threadPool) {
-        super(client);
-        this.client = Objects.requireNonNull(client);
+    public ExpiredResultsRemover(OriginSettingClient client, Iterator<Job> jobIterator, TaskId parentTaskId,
+                                 AnomalyDetectionAuditor auditor, ThreadPool threadPool) {
+        super(client, jobIterator, parentTaskId);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
@@ -84,9 +85,16 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     }
 
     @Override
-    protected void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener) {
+    protected void removeDataBefore(
+        Job job,
+        float requestsPerSecond,
+        long latestTimeMs,
+        long cutoffEpochMs,
+        ActionListener<Boolean> listener
+    ) {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
-        DeleteByQueryRequest request = createDBQRequest(job, cutoffEpochMs);
+        DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs);
+        request.setParentTask(getParentTaskId());
 
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
@@ -108,14 +116,15 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    private DeleteByQueryRequest createDBQRequest(Job job, long cutoffEpochMs) {
+    DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
 
-        // Delete the documents gradually.
-        // With DEFAULT_SCROLL_SIZE = 1000 this implies we spread deletion of 1 million documents over 5000 seconds ~= 83 minutes.
-        request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE);
-        request.setRequestsPerSecond(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5);
+        request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
+            // We are deleting old data, we should simply proceed as a version conflict could mean that another deletion is taking place
+            .setAbortOnVersionConflict(false)
+            .setTimeout(DEFAULT_MAX_DURATION)
+            .setRequestsPerSecond(requestsPerSec);
 
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
@@ -131,8 +140,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     }
 
     @Override
-    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
-        ThreadedActionListener<Long> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
+    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
+        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
         latestBucketTime(jobId, ActionListener.wrap(
                 latestTime -> {
@@ -140,7 +149,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                         threadedActionListener.onResponse(null);
                     } else {
                         long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-                        threadedActionListener.onResponse(cutoff);
+                        threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
                     }
                 },
                 listener::onFailure
@@ -161,6 +170,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.source(searchSourceBuilder);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        searchRequest.setParentTask(getParentTaskId());
 
         client.search(searchRequest, ActionListener.wrap(
                 response -> {

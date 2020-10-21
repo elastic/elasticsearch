@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -56,6 +57,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
     public static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
     public static final ParseField CATEGORIZATION_ANALYZER = CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER;
+    public static final ParseField PER_PARTITION_CATEGORIZATION = new ParseField("per_partition_categorization");
     public static final ParseField LATENCY = new ParseField("latency");
     public static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
     public static final ParseField DETECTORS = new ParseField("detectors");
@@ -85,6 +87,9 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         parser.declareField(Builder::setCategorizationAnalyzerConfig,
             (p, c) -> CategorizationAnalyzerConfig.buildFromXContentFragment(p, ignoreUnknownFields),
             CATEGORIZATION_ANALYZER, ObjectParser.ValueType.OBJECT_OR_STRING);
+        parser.declareObject(Builder::setPerPartitionCategorizationConfig,
+            ignoreUnknownFields ? PerPartitionCategorizationConfig.LENIENT_PARSER : PerPartitionCategorizationConfig.STRICT_PARSER,
+            PER_PARTITION_CATEGORIZATION);
         parser.declareString((builder, val) ->
             builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
         parser.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
@@ -101,6 +106,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     private final String categorizationFieldName;
     private final List<String> categorizationFilters;
     private final CategorizationAnalyzerConfig categorizationAnalyzerConfig;
+    private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
     private final TimeValue latency;
     private final String summaryCountFieldName;
     private final List<Detector> detectors;
@@ -108,14 +114,16 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     private final Boolean multivariateByFields;
 
     private AnalysisConfig(TimeValue bucketSpan, String categorizationFieldName, List<String> categorizationFilters,
-                           CategorizationAnalyzerConfig categorizationAnalyzerConfig, TimeValue latency, String summaryCountFieldName,
-                           List<Detector> detectors, List<String> influencers, Boolean multivariateByFields) {
+                           CategorizationAnalyzerConfig categorizationAnalyzerConfig,
+                           PerPartitionCategorizationConfig perPartitionCategorizationConfig, TimeValue latency,
+                           String summaryCountFieldName, List<Detector> detectors, List<String> influencers, Boolean multivariateByFields) {
         this.detectors = detectors;
         this.bucketSpan = bucketSpan;
         this.latency = latency;
         this.categorizationFieldName = categorizationFieldName;
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         this.categorizationFilters = categorizationFilters == null ? null : Collections.unmodifiableList(categorizationFilters);
+        this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
         this.summaryCountFieldName = summaryCountFieldName;
         this.influencers = Collections.unmodifiableList(influencers);
         this.multivariateByFields = multivariateByFields;
@@ -126,6 +134,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         categorizationFieldName = in.readOptionalString();
         categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
         categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
+        perPartitionCategorizationConfig = new PerPartitionCategorizationConfig(in);
         latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
         detectors = Collections.unmodifiableList(in.readList(Detector::new));
@@ -145,6 +154,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalWriteable(categorizationAnalyzerConfig);
+        perPartitionCategorizationConfig.writeTo(out);
         out.writeOptionalTimeValue(latency);
         out.writeOptionalString(summaryCountFieldName);
         out.writeList(detectors);
@@ -172,6 +182,10 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
     public CategorizationAnalyzerConfig getCategorizationAnalyzerConfig() {
         return categorizationAnalyzerConfig;
+    }
+
+    public PerPartitionCategorizationConfig getPerPartitionCategorizationConfig() {
+        return perPartitionCategorizationConfig;
     }
 
     /**
@@ -325,6 +339,11 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             // gets written as a single string.
             categorizationAnalyzerConfig.toXContent(builder, params);
         }
+        // perPartitionCategorizationConfig is never null on the server side (it can be in the equivalent client class),
+        // but is not useful to know when categorization is not being used
+        if (categorizationFieldName != null) {
+            builder.field(PER_PARTITION_CATEGORIZATION.getPreferredName(), perPartitionCategorizationConfig);
+        }
         if (latency != null) {
             builder.field(LATENCY.getPreferredName(), latency.getStringRep());
         }
@@ -354,6 +373,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 Objects.equals(categorizationFieldName, that.categorizationFieldName) &&
                 Objects.equals(categorizationFilters, that.categorizationFilters) &&
                 Objects.equals(categorizationAnalyzerConfig, that.categorizationAnalyzerConfig) &&
+                Objects.equals(perPartitionCategorizationConfig, that.perPartitionCategorizationConfig) &&
                 Objects.equals(summaryCountFieldName, that.summaryCountFieldName) &&
                 Objects.equals(detectors, that.detectors) &&
                 Objects.equals(influencers, that.influencers) &&
@@ -363,8 +383,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(
-                bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig, latency,
-                summaryCountFieldName, detectors, influencers, multivariateByFields);
+                bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig, perPartitionCategorizationConfig,
+                latency, summaryCountFieldName, detectors, influencers, multivariateByFields);
     }
 
     public static class Builder {
@@ -377,6 +397,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         private String categorizationFieldName;
         private List<String> categorizationFilters;
         private CategorizationAnalyzerConfig categorizationAnalyzerConfig;
+        private PerPartitionCategorizationConfig perPartitionCategorizationConfig = new PerPartitionCategorizationConfig();
         private String summaryCountFieldName;
         private List<String> influencers = new ArrayList<>();
         private Boolean multivariateByFields;
@@ -393,6 +414,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             this.categorizationFilters = analysisConfig.categorizationFilters == null ? null
                     : new ArrayList<>(analysisConfig.categorizationFilters);
             this.categorizationAnalyzerConfig = analysisConfig.categorizationAnalyzerConfig;
+            this.perPartitionCategorizationConfig = analysisConfig.perPartitionCategorizationConfig;
             this.summaryCountFieldName = analysisConfig.summaryCountFieldName;
             this.influencers = new ArrayList<>(analysisConfig.influencers);
             this.multivariateByFields = analysisConfig.multivariateByFields;
@@ -445,6 +467,12 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setPerPartitionCategorizationConfig(PerPartitionCategorizationConfig perPartitionCategorizationConfig) {
+            this.perPartitionCategorizationConfig =
+                ExceptionsHelper.requireNonNull(perPartitionCategorizationConfig, PER_PARTITION_CATEGORIZATION.getPreferredName());
+            return this;
+        }
+
         public Builder setSummaryCountFieldName(String summaryCountFieldName) {
             this.summaryCountFieldName = summaryCountFieldName;
             return this;
@@ -485,13 +513,51 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             verifyMlCategoryIsUsedWhenCategorizationFieldNameIsSet();
             verifyCategorizationAnalyzer();
             verifyCategorizationFilters();
+            verifyConfigConsistentWithPerPartitionCategorization();
 
             verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet();
 
             verifyNoInconsistentNestedFieldNames();
 
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig,
-                    latency, summaryCountFieldName, detectors, influencers, multivariateByFields);
+                perPartitionCategorizationConfig, latency, summaryCountFieldName, detectors, influencers, multivariateByFields);
+        }
+
+        private void verifyConfigConsistentWithPerPartitionCategorization() {
+            if (perPartitionCategorizationConfig.isEnabled() == false) {
+                return;
+            }
+
+            if (categorizationFieldName == null) {
+                throw ExceptionsHelper.badRequestException(CATEGORIZATION_FIELD_NAME.getPreferredName()
+                    + " must be set when per-partition categorization is enabled");
+            }
+
+            AtomicReference<String> singlePartitionFieldName = new AtomicReference<>();
+            detectors.forEach(d -> {
+                String thisDetectorPartitionFieldName = d.getPartitionFieldName();
+                if (d.getByOverPartitionTerms().contains(ML_CATEGORY_FIELD)) {
+                    if (ML_CATEGORY_FIELD.equals(d.getPartitionFieldName())) {
+                        throw ExceptionsHelper.badRequestException(ML_CATEGORY_FIELD + " cannot be used as a "
+                            + Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName()
+                            + " when per-partition categorization is enabled");
+                    }
+                    if (thisDetectorPartitionFieldName == null) {
+                        throw ExceptionsHelper.badRequestException(Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName()
+                            + " must be set for detectors that reference " + ML_CATEGORY_FIELD
+                            + " when per-partition categorization is enabled");
+                    }
+                }
+                if (thisDetectorPartitionFieldName != null) {
+                    String previousPartitionFieldName = singlePartitionFieldName.getAndSet(thisDetectorPartitionFieldName);
+                    if (previousPartitionFieldName != null &&
+                        previousPartitionFieldName.equals(thisDetectorPartitionFieldName) == false) {
+                        throw ExceptionsHelper.badRequestException(Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName()
+                            + " cannot vary between detectors when per-partition categorization is enabled: ["
+                            + previousPartitionFieldName + "] and [" + thisDetectorPartitionFieldName + "] are used");
+                    }
+                }
+            });
         }
 
         private void verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet() {

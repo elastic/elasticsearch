@@ -1,6 +1,5 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-sql'
   description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
@@ -10,7 +9,7 @@ esplugin {
 
 ext {
   // SQL dependency versions
-  jlineVersion = "3.10.0"
+  jlineVersion = "3.14.1"
   antlrVersion = "4.5.3"
 
   // SQL test dependency versions
@@ -26,33 +25,22 @@ configurations {
 
 archivesBaseName = 'x-pack-sql'
 
-// All integration tests live in qa modules
-integTest.enabled = false
-
-task internalClusterTest(type: Test) {
-  mustRunAfter test
-  include '**/*IT.class'
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-check.dependsOn internalClusterTest
-
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   compileOnly(project(':modules:lang-painless')) {
     exclude group: "org.ow2.asm"
   }
-  compile project('sql-action')
-  compile project(':modules:aggs-matrix-stats')
-  compile "org.antlr:antlr4-runtime:${antlrVersion}"
+  api project('sql-action')
+  api project(':modules:aggs-matrix-stats')
+  api "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('ql'), configuration: 'default')
-  testCompile project(':test:framework')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ql'), configuration: 'testArtifacts')
-  testCompile project(path: ':modules:reindex', configuration: 'runtime')
-  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
-  testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+  testImplementation project(':test:framework')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('ql'), configuration: 'testArtifacts')
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:parent-join')
+  testImplementation project(path: ':modules:analysis-common')
   bin(project(path: xpackModule('sql:sql-cli'), configuration: 'shadow'))
 }
 
@@ -91,7 +79,7 @@ dependencies {
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/xpack/sql/parser'
 
-task cleanGenerated(type: Delete) {
+tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
     include '*.tokens'
   }
@@ -100,8 +88,8 @@ task cleanGenerated(type: Delete) {
   }
 }
 
-task regenParser(type: JavaExec) {
-  dependsOn cleanGenerated
+tasks.register("regenParser", JavaExec) {
+  dependsOn "cleanGenerated"
   main = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
@@ -116,8 +104,8 @@ task regenParser(type: JavaExec) {
     "${file(grammarPath)}/SqlBase.g4"
 }
 
-task regen {
-  dependsOn regenParser
+tasks.register("regen") {
+  dependsOn "regenParser"
   doLast {
     // moves token files to grammar directory for use with IDE's
     ant.move(file: "${outputPath}/SqlBase.tokens", toDir: grammarPath)
@@ -142,5 +130,11 @@ task regen {
     ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
       patternset(includes: 'SqlBase*.java')
     }
+  }
+}
+
+allprojects {
+  task checkNoBwc {
+    dependsOn tasks.withType(Test).matching { it.name.contains('bwc') == false }
   }
 }

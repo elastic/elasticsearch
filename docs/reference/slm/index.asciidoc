@@ -1,0 +1,21 @@
+[role="xpack"]
+[testenv="basic"]
+[[snapshot-lifecycle-management]]
+== {slm-init}: Manage the snapshot lifecycle
+
+You can set up snapshot lifecycle policies to automate the timing, frequency, and retention of snapshots.
+Snapshot policies can apply to multiple data streams and indices.
+
+The {slm} ({slm-init}) <<snapshot-lifecycle-management-api, CRUD APIs>> provide
+the building blocks for the snapshot policy features that are part of {kib} Management.
+{kibana-ref}/snapshot-repositories.html[Snapshot and Restore] makes it easy to 
+set up policies, register snapshot repositories, view and manage snapshots, and restore data streams or indices.
+
+You can stop and restart {slm-init} to temporarily pause automatic backups while performing
+upgrades or other maintenance.
+
+include::getting-started-slm.asciidoc[]
+
+include::slm-security.asciidoc[]
+
+include::slm-retention.asciidoc[]

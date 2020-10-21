@@ -11,29 +11,31 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.time.ZoneId;
+
 public class LessThan extends BinaryComparison implements Negatable<BinaryComparison> {
 
-    public LessThan(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonOperation.LT);
+    public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
+        super(source, left, right, BinaryComparisonOperation.LT, zoneId);
     }
 
     @Override
     protected NodeInfo<LessThan> info() {
-        return NodeInfo.create(this, LessThan::new, left(), right());
+        return NodeInfo.create(this, LessThan::new, left(), right(), zoneId());
     }
 
     @Override
     protected LessThan replaceChildren(Expression newLeft, Expression newRight) {
-        return new LessThan(source(), newLeft, newRight);
+        return new LessThan(source(), newLeft, newRight, zoneId());
     }
 
     @Override
     public GreaterThan swapLeftAndRight() {
-        return new GreaterThan(source(), right(), left());
+        return new GreaterThan(source(), right(), left(), zoneId());
     }
 
     @Override
     public GreaterThanOrEqual negate() {
-        return new GreaterThanOrEqual(source(), left(), right());
+        return new GreaterThanOrEqual(source(), left(), right(), zoneId());
     }
 }

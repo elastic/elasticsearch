@@ -43,8 +43,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -171,24 +174,14 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Action(String actionName, TransportService transportService, ClusterService clusterService,
                ThreadPool threadPool) {
             super(actionName, transportService, clusterService, threadPool,
-                    new ActionFilters(new HashSet<>()), Request::new, new IndexNameExpressionResolver());
+                    new ActionFilters(new HashSet<>()), Request::new, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                    Response::new, ThreadPool.Names.SAME);
         }
 
         @Override
         protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
             // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
             super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
-        }
-
-        @Override
-        protected String executor() {
-            // very lightweight operation in memory, no need to fork to a thread
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected Response read(StreamInput in) throws IOException {
-            return new Response(in);
         }
 
         @Override
@@ -392,7 +385,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
         if (rejoinSameMaster) {
-            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(masterNode, "Fake error"));
+            transport.handleRemoteError(capturedRequest.requestId,
+                randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode));
             assertFalse(listener.isDone());
             if (randomBoolean()) {
                 // simulate master node removal

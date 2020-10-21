@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -91,14 +91,14 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final String indexName = "test";
         final ClusterState clusterState = stateWithActivePrimary(indexName, true, randomInt(2), randomInt(2));
 
-        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
         final List<StartedShardEntry> tasks = Stream.concat(
             // Existent shard id but different allocation id
             IntStream.range(0, randomIntBetween(1, 5))
-                .mapToObj(i -> new StartedShardEntry(new ShardId(indexMetaData.getIndex(), 0), String.valueOf(i), 0L, "allocation id")),
+                .mapToObj(i -> new StartedShardEntry(new ShardId(indexMetadata.getIndex(), 0), String.valueOf(i), 0L, "allocation id")),
             // Non existent shard id
             IntStream.range(1, randomIntBetween(2, 5))
-                .mapToObj(i -> new StartedShardEntry(new ShardId(indexMetaData.getIndex(), i), String.valueOf(i), 0L, "shard id"))
+                .mapToObj(i -> new StartedShardEntry(new ShardId(indexMetadata.getIndex(), i), String.valueOf(i), 0L, "shard id"))
 
         ).collect(Collectors.toList());
 
@@ -115,10 +115,10 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final String indexName = "test";
         final ClusterState clusterState = stateWithAssignedPrimariesAndReplicas(new String[]{indexName}, randomIntBetween(2, 10), 1);
 
-        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
-        final List<StartedShardEntry> tasks = IntStream.range(0, randomIntBetween(1, indexMetaData.getNumberOfShards()))
+        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final List<StartedShardEntry> tasks = IntStream.range(0, randomIntBetween(1, indexMetadata.getNumberOfShards()))
             .mapToObj(i -> {
-                final ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
+                final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
                 final IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
                 final String allocationId;
                 if (randomBoolean()) {
@@ -126,7 +126,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                 } else {
                     allocationId = shardRoutingTable.replicaShards().iterator().next().allocationId().getId();
                 }
-                final long primaryTerm = indexMetaData.primaryTerm(shardId.id());
+                final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
                 return new StartedShardEntry(shardId, allocationId, primaryTerm, "test");
             }).collect(Collectors.toList());
 
@@ -143,9 +143,9 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final String indexName = "test";
         final ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING, ShardRoutingState.INITIALIZING);
 
-        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
-        final ShardId shardId = new ShardId(indexMetaData.getIndex(), 0);
-        final long primaryTerm = indexMetaData.primaryTerm(shardId.id());
+        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+        final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
         final ShardRouting primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
         final String primaryAllocationId = primaryShard.allocationId().getId();
 
@@ -172,11 +172,11 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final String indexName = "test";
         final ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING);
 
-        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
-        final ShardId shardId = new ShardId(indexMetaData.getIndex(), 0);
+        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
         final ShardRouting shardRouting = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
         final String allocationId = shardRouting.allocationId().getId();
-        final long primaryTerm = indexMetaData.primaryTerm(shardId.id());
+        final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
 
         final List<StartedShardEntry> tasks = IntStream.range(0, randomIntBetween(2, 10))
             .mapToObj(i -> new StartedShardEntry(shardId, allocationId, primaryTerm, "test"))
@@ -201,13 +201,13 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
 
         ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING, ShardRoutingState.INITIALIZING);
         clusterState = ClusterState.builder(clusterState)
-            .metaData(MetaData.builder(clusterState.metaData())
-                .put(IndexMetaData.builder(clusterState.metaData().index(indexName))
+            .metadata(Metadata.builder(clusterState.metadata())
+                .put(IndexMetadata.builder(clusterState.metadata().index(indexName))
                     .primaryTerm(shard, primaryTerm)
                     .build(), true)
                 .build())
             .build();
-        final ShardId shardId = new ShardId(clusterState.metaData().index(indexName).getIndex(), shard);
+        final ShardId shardId = new ShardId(clusterState.metadata().index(indexName).getIndex(), shard);
         final String primaryAllocationId = clusterState.routingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
         {
             final StartedShardEntry task =

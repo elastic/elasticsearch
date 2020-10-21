@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ql.expression.function;
 
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.ConditionalFunction;
 
 
 public class DefaultFunctionTypeRegistry implements FunctionTypeRegistry {
@@ -16,7 +15,6 @@ public class DefaultFunctionTypeRegistry implements FunctionTypeRegistry {
 
     private enum Types {
         AGGREGATE(AggregateFunction.class),
-        CONDITIONAL(ConditionalFunction.class),
         SCALAR(ScalarFunction.class);
 
         private Class<? extends Function> baseClass;

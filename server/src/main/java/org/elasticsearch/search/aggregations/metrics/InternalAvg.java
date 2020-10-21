@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,9 +33,8 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     private final double sum;
     private final long count;
 
-    public InternalAvg(String name, double sum, long count, DocValueFormat format, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalAvg(String name, double sum, long count, DocValueFormat format, Map<String, Object> metadata) {
+        super(name, metadata);
         this.sum = sum;
         this.count = count;
         this.format = format;
@@ -97,7 +95,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
             count += avg.count;
             kahanSummation.add(avg.sum);
         }
-        return new InternalAvg(getName(), kahanSummation.value(), count, format, pipelineAggregators(), getMetaData());
+        return new InternalAvg(getName(), kahanSummation.value(), count, format, getMetadata());
     }
 
     @Override

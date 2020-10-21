@@ -23,9 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,14 +36,13 @@ public class FsBlobStore implements BlobStore {
 
     private final boolean readOnly;
 
-    public FsBlobStore(Settings settings, Path path, boolean readonly) throws IOException {
+    public FsBlobStore(int bufferSizeInBytes, Path path, boolean readonly) throws IOException {
         this.path = path;
         this.readOnly = readonly;
         if (this.readOnly == false) {
             Files.createDirectories(path);
         }
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size",
-            new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.bufferSizeInBytes = bufferSizeInBytes;
     }
 
     @Override

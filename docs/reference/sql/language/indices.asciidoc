@@ -6,10 +6,10 @@
 {es-sql} supports two types of patterns for matching multiple indices or tables:
 
 [[sql-index-patterns-multi]]
-[float]
+[discrete]
 ==== {es} multi-index
 
-The {es} notation for enumerating, including or excluding <<multi-index,multi index syntax>>
+The {es} notation for enumerating, including or excluding <<multi-index,multi-target syntax>>
 is supported _as long_ as it is quoted or escaped as a table identifier.
 
 For example:
@@ -36,7 +36,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
 NOTE: There is the restriction that all resolved concrete tables have the exact same mapping.
 
 [[sql-index-patterns-like]]
-[float]
+[discrete]
 ==== SQL `LIKE` notation
 
 The common `LIKE` statement (including escaping if needed) to match a wildcard pattern, based on one `_`

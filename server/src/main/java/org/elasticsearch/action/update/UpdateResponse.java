@@ -38,6 +38,13 @@ public class UpdateResponse extends DocWriteResponse {
 
     private GetResult getResult;
 
+    public UpdateResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
+        if (in.readBoolean()) {
+            getResult = new GetResult(in);
+        }
+    }
+
     public UpdateResponse(StreamInput in) throws IOException {
         super(in);
         if (in.readBoolean()) {
@@ -73,8 +80,18 @@ public class UpdateResponse extends DocWriteResponse {
     }
 
     @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        writeGetResult(out);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        writeGetResult(out);
+    }
+
+    private void writeGetResult(StreamOutput out) throws IOException {
         if (getResult == null) {
             out.writeBoolean(false);
         } else {
@@ -109,7 +126,7 @@ public class UpdateResponse extends DocWriteResponse {
     }
 
     public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
 
         Builder context = new Builder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {

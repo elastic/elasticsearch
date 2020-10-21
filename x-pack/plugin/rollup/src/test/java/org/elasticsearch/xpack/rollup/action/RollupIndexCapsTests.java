@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -35,7 +35,7 @@ public class RollupIndexCapsTests extends ESTestCase {
         RollupIndexCaps caps = new RollupIndexCaps(ESTestCase.randomAlphaOfLength(10), jobs);
         assertTrue(caps.hasCaps());
 
-        List<String> jobCaps = caps.getJobCapsByIndexPattern(MetaData.ALL).stream()
+        List<String> jobCaps = caps.getJobCapsByIndexPattern(Metadata.ALL).stream()
                 .map(RollupJobCaps::getJobID)
                 .collect(Collectors.toList());
         assertThat(jobCaps.size(), equalTo(2));

@@ -1,0 +1,93 @@
+---
+setup:
+  - skip:
+      version: " - 7.8.99"
+      reason: "resolve index introduced in 7.9"
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: test_index1
+        body:
+          aliases:
+            test_alias: {}
+            test_blias: {}
+            test_clias: {}
+
+  - do:
+      indices.create:
+        index: test_index2
+        body:
+          aliases:
+            test_alias: {}
+
+  - do:
+      indices.close:
+        index: test_index2
+
+  - do:
+      indices.create:
+        index: test_index3
+        body:
+          aliases:
+            test_blias: {}
+
+---
+"Resolve index with indices and aliases":
+  - skip:
+      version: " - 7.8.99"
+      reason: "resolve index introduced in 7.9"
+
+  - do:
+      indices.resolve_index:
+        name: '*'
+
+  - match: {indices.0.name: test_index1}
+  - match: {indices.0.aliases.0: test_alias}
+  - match: {indices.0.aliases.1: test_blias}
+  - match: {indices.0.aliases.2: test_clias}
+  - match: {indices.0.attributes.0: open}
+  - match: {indices.1.name: test_index3}
+  - match: {indices.1.aliases.0: test_blias}
+  - match: {indices.1.attributes.0: open}
+  - match: {aliases.0.name: test_alias}
+  - match: {aliases.0.indices.0: test_index1}
+  - match: {aliases.0.indices.1: test_index2}
+  - match: {aliases.1.name: test_blias}
+  - match: {aliases.1.indices.0: test_index1}
+  - match: {aliases.1.indices.1: test_index3}
+  - match: {aliases.2.name: test_clias}
+  - match: {aliases.2.indices.0: test_index1}
+  - length: {data_streams: 0}
+
+---
+"Resolve index with hidden and closed indices":
+  - skip:
+      version: " - 7.8.99"
+      reason: "resolve index introduced in 7.9"
+
+  - do:
+      indices.resolve_index:
+        name: '*'
+        expand_wildcards: [all]
+
+  - match: {indices.0.name: test_index1}
+  - match: {indices.0.aliases.0: test_alias}
+  - match: {indices.0.aliases.1: test_blias}
+  - match: {indices.0.aliases.2: test_clias}
+  - match: {indices.0.attributes.0: open}
+  - match: {indices.1.name: test_index2}
+  - match: {indices.1.aliases.0: test_alias}
+  - match: {indices.1.attributes.0: closed}
+  - match: {indices.2.name: test_index3}
+  - match: {indices.2.aliases.0: test_blias}
+  - match: {indices.2.attributes.0: open}
+  - match: {aliases.0.name: test_alias}
+  - match: {aliases.0.indices.0: test_index1}
+  - match: {aliases.0.indices.1: test_index2}
+  - match: {aliases.1.name: test_blias}
+  - match: {aliases.1.indices.0: test_index1}
+  - match: {aliases.1.indices.1: test_index3}
+  - match: {aliases.2.name: test_clias}
+  - match: {aliases.2.indices.0: test_index1}
+  - length: {data_streams: 0}

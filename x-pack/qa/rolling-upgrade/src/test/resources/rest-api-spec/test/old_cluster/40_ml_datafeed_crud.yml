@@ -1,8 +1,3 @@
-setup:
-  - skip:
-      version: "all"
-      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/42258"
-
 ---
 "Put job and datafeed without aggs in old cluster":
 
@@ -121,10 +116,10 @@ setup:
   - is_false: datafeeds.0.node
 
 ---
-"Put job and datafeed with aggs in old cluster - deprecated interval with warning":
+"Put job and datafeed with aggs in old cluster - deprecated interval with warning before 8.0.0":
   - skip:
-      version: " - 7.1.99"
-      reason:  calendar_interval introduced in 7.2.0
+      version: "8.0.0 - "
+      reason:  at version 8.0.0, deprecation warnings don't occur on get_stats
       features: warnings
 
   - do:
@@ -163,6 +158,78 @@ setup:
                 "date_histogram": {
                   "field": "time",
                   "interval": "30s",
+                  "time_zone": "UTC"
+                },
+                "aggregations": {
+                  "time": {
+                    "max": {"field": "time"}
+                  },
+                  "airline": {
+                    "terms": {
+                      "field": "airline",
+                      "size": 100
+                    },
+                    "aggregations": {
+                      "responsetime": {
+                        "avg": {
+                          "field": "responsetime"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      ml.get_datafeed_stats:
+        datafeed_id: old-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.state: stopped}
+  - is_false: datafeeds.0.node
+
+---
+"Put job and datafeed with aggs in old cluster - deprecated interval with warning after 8.0.0":
+  - skip:
+      version: " - 7.99.99"
+      reason:  at version 8.0.0, deprecation warnings don't occur on get_stats
+
+  - do:
+      ml.put_job:
+        job_id: old-cluster-datafeed-job-with-aggs
+        body:  >
+          {
+            "description":"Cluster upgrade",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "summary_count_field_name": "doc_count",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+  - match: { job_id: old-cluster-datafeed-job-with-aggs }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: old-cluster-datafeed-with-aggs
+        body:  >
+          {
+            "job_id":"old-cluster-datafeed-job-with-aggs",
+            "indices":["airline-data"],
+            "scroll_size": 2000,
+            "aggregations": {
+              "buckets": {
+                "date_histogram": {
+                  "field": "time",
+                  "fixed_interval": "30s",
                   "time_zone": "UTC"
                 },
                 "aggregations": {

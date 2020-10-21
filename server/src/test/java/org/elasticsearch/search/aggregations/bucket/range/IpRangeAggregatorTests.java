@@ -35,28 +35,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Comparator;
 
 public class IpRangeAggregatorTests extends AggregatorTestCase {
-
-    private static InetAddress randomIp(boolean v4) {
-        try {
-            if (v4) {
-                byte[] ipv4 = new byte[4];
-                random().nextBytes(ipv4);
-                return InetAddress.getByAddress(ipv4);
-            } else {
-                byte[] ipv6 = new byte[16];
-                random().nextBytes(ipv6);
-                return InetAddress.getByAddress(ipv6);
-            }
-        } catch (UnknownHostException e) {
-            throw new AssertionError();
-        }
-    }
-
 
     private static boolean isInRange(BytesRef value, BytesRef from, BytesRef to) {
         if ((to == null || to.compareTo(value) > 0) && (from == null || from.compareTo(value) <= 0)) {
@@ -128,11 +110,10 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 }
                 w.addDocument(doc);
             }
-            MappedFieldType fieldType = new IpFieldMapper.IpFieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = search(searcher, new MatchAllDocsQuery(), builder, fieldType);
+                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
                 assertEquals(numRanges, range.getBuckets().size());
                 for (int i = 0; i < range.getBuckets().size(); i++) {
                     Tuple<BytesRef, BytesRef> expected = requestedRanges[i];
@@ -167,7 +148,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .missing("192.168.100.42"); // Apparently we expect a string here
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = search(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
+                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
                 assertEquals(1, range.getBuckets().size());
             }
         }
@@ -188,7 +169,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 expectThrows(IllegalArgumentException.class, () -> {
-                    search(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
+                    searchAndReduce(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
                 });
             }
         }

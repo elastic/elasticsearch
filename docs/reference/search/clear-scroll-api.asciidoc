@@ -1,0 +1,86 @@
+[[clear-scroll-api]]
+=== Clear scroll API
+++++
+<titleabbrev>Clear scroll</titleabbrev>
+++++
+
+Clears the search context and results for a
+<<scroll-search-results,scrolling search>>.
+
+////
+[source,console]
+--------------------------------------------------
+GET /_search?scroll=1m
+{
+  "size": 1,
+  "query": {
+    "match_all": {}
+  }
+}
+--------------------------------------------------
+// TEST[setup:my_index]
+////
+
+[source,console]
+--------------------------------------------------
+DELETE /_search/scroll
+{
+  "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
+}
+--------------------------------------------------
+// TEST[continued]
+// TEST[s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
+
+[[clear-scroll-api-request]]
+==== {api-request-title}
+
+`DELETE /_search/scroll/<scroll_id>`
+deprecated:[7.0.0]
+
+`DELETE /_search/scroll`
+
+[[clear-scroll-api-path-params]]
+==== {api-path-parms-title}
+
+`<scroll_id>`::
+deprecated:[7.0.0]
+(Optional, string)
+Comma-separated list of scroll IDs to clear. To clear all scroll IDs, use `_all`.
++
+IMPORTANT: Scroll IDs can be long. We recommend only specifying
+scroll IDs using the <<clear-scroll-api-scroll-id-param,`scroll_id` request body
+parameter>>.
+
+[[clear-scroll-api-query-params]]
+==== {api-query-parms-title}
+
+`scroll_id`::
+deprecated:[7.0.0]
+(Optional, string)
+Comma-separated list of scroll IDs to clear. To clear all scroll IDs, use `_all`.
++
+IMPORTANT: Scroll IDs can be long. We recommend only specifying
+scroll IDs using the <<clear-scroll-api-scroll-id-param,`scroll_id` request body
+parameter>>.
+
+[role="child_attributes"]
+[[clear-scroll-api-request-body]]
+==== {api-request-body-title}
+
+[[clear-scroll-api-scroll-id-param]]
+`scroll_id`::
+(Required, string or array of strings)
+Scroll IDs to clear. To clear all scroll IDs, use `_all`.
+
+[role="child_attributes"]
+[[clear-scroll-api-response-body]]
+==== {api-response-body-title}
+
+`succeeded`::
+(boolean)
+If `true`, the request succeeded. This does not indicate whether any scrolling
+search requests were cleared.
+
+`num_freed`::
+(integer)
+Number of scrolling search requests cleared.

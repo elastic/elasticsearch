@@ -1,0 +1,199 @@
+[role="xpack"]
+[[ilm-rollover]]
+=== Rollover
+
+Phases allowed: hot.
+
+Rolls over a target to a new index when the existing index meets one of the rollover conditions.
+
+IMPORTANT: If the rollover action is used on a <<ccr-put-follow,follower index>>,
+policy execution waits until the leader index rolls over (or is
+<<skipping-rollover, otherwise marked complete>>),
+then converts the follower index into a regular index with the
+<<ilm-unfollow-action, Unfollow action>>.
+
+A rollover target can be a <<data-streams, data stream>> or an <<indices-aliases, index alias>>.
+When targeting a data stream, the new index becomes the data stream's
+<<data-stream-write-index,write index>> and its generation is incremented.
+
+To roll over an <<indices-aliases, index alias>>, the alias and its write index
+must meet the following conditions:
+
+* The index name must match the pattern '^.*-\\d+$', for example (`my-index-000001`).
+* The `index.lifecycle.rollover_alias` must be configured as the alias to roll over. 
+* The index must be the <<indices-rollover-is-write-index, write index>> for the alias.
+
+For example, if `my-index-000001` has the alias `my_data`, 
+the following settings must be configured. 
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "settings": {
+    "index.lifecycle.name": "my_policy",
+    "index.lifecycle.rollover_alias": "my_data"
+  },
+  "aliases": {
+    "my_data": {
+      "is_write_index": true
+    }
+  }
+}
+--------------------------------------------------
+
+[[ilm-rollover-options]]
+==== Options
+
+You must specify at least one rollover condition. 
+An empty rollover action is invalid.
+
+`max_age`::
+(Optional,  <<time-units, time units>>)  
+Triggers roll over after the maximum elapsed time from index creation is reached. 
+
+`max_docs`::
+(Optional, integer)
+Triggers roll over after the specified maximum number of documents is reached.
+Documents added since the last refresh are not included in the document count.
+The document count does *not* include documents in replica shards.
+
+`max_size`::
+(Optional, <<byte-units, byte units>>)
+Triggers roll over when the index reaches a certain size.
+This is the total size of all primary shards in the index. 
+Replicas are not counted toward the maximum index size.
++
+TIP: To see the current index size, use the <<cat-indices, _cat indices>> API. 
+The `pri.store.size` value shows the combined size of all primary shards.
+
+[[ilm-rollover-ex]]
+==== Example
+
+[[ilm-rollover-size-ex]]
+===== Roll over based on index size
+
+This example rolls the index over when it is at least 100 gigabytes.
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover" : {
+            "max_size": "100GB"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[ilm-rollover-documents-ex]]
+===== Roll over based on document count
+
+This example rolls the index over when it contains at least one hundred million documents.
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover" : {
+            "max_docs": 100000000
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+ 
+[ilm-rollover-age-ex]]
+===== Roll over based on index age
+
+This example rolls the index over if it was created at least 7 days ago.
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover" : {
+            "max_age": "7d"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[ilm-rollover-conditions-ex]]
+===== Roll over using multiple conditions
+
+When you specify multiple rollover conditions, 
+the index is rolled over when _any_ of the conditions are met.
+This example rolls the index over if it is at least 7 days old or at least 100 gigabytes. 
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover" : {
+            "max_age": "7d",
+            "max_size": "100GB"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[ilm-rollover-block-ex]]
+===== Rollover condition blocks phase transition
+
+The rollover action only completes if one of its conditions is met. 
+This means that any subsequent phases are blocked until rollover succeeds.
+
+For example, the following policy deletes the index one day after it rolls over. 
+It does not delete the index one day after it was created.
+
+[source,console]
+--------------------------------------------------
+PUT /_ilm/policy/rollover_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_size": "50G"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "1d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

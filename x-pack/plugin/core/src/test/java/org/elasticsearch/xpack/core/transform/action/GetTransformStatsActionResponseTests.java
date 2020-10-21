@@ -23,7 +23,7 @@ public class GetTransformStatsActionResponseTests extends AbstractWireSerializin
         List<TransformStats> stats = new ArrayList<>();
         int totalStats = randomInt(10);
         for (int i = 0; i < totalStats; ++i) {
-            stats.add(TransformStatsTests.randomDataFrameTransformStats());
+            stats.add(TransformStatsTests.randomTransformStats());
         }
         int totalErrors = randomInt(10);
         List<TaskOperationFailure> taskFailures = new ArrayList<>(totalErrors);

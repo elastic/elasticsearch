@@ -19,16 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.FilteredIntervalsSource;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -146,11 +143,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
-                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer, false));
             }
@@ -529,11 +526,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
-                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, analyzer, true));
             }
@@ -642,32 +639,31 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
-            NamedAnalyzer analyzer = fieldType.searchAnalyzer();
+            NamedAnalyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
             if (this.analyzer != null) {
-                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 checkPositions(fieldType);
                 if (this.analyzer == null) {
-                    analyzer = fieldType.searchAnalyzer();
+                    analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
                 }
                 BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
-                // TODO Intervals.wildcard() should take BytesRef
-                source = Intervals.fixField(useField, XIntervals.wildcard(normalizedTerm));
+                source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
             }
             else {
                 checkPositions(fieldType);
                 BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
-                source = XIntervals.wildcard(normalizedTerm);
+                source = Intervals.wildcard(normalizedTerm);
             }
             return source;
         }
 
         private void checkPositions(MappedFieldType type) {
-            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+            if (type.getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
             }
         }
@@ -780,25 +776,24 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
-            NamedAnalyzer analyzer = fieldType.searchAnalyzer();
+            NamedAnalyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
             if (this.analyzer != null) {
-                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 checkPositions(fieldType);
                 if (this.analyzer == null) {
-                    analyzer = fieldType.searchAnalyzer();
+                    analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
                 }
             }
             checkPositions(fieldType);
             BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), term);
             FuzzyQuery fq = new FuzzyQuery(new Term(fieldType.name(), normalizedTerm),
                 fuzziness.asDistance(term), prefixLength, 128, transpositions);
-            CompiledAutomaton ca = new CompiledAutomaton(fq.toAutomaton());
-            source = XIntervals.multiterm(ca, term);
+            source = Intervals.multiterm(fq.getAutomata(), term);
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }
@@ -806,7 +801,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         private void checkPositions(MappedFieldType type) {
-            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+            if (type.getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
             }
         }

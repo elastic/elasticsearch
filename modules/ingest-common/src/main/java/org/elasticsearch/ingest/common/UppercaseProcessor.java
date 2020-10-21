@@ -30,8 +30,8 @@ public final class UppercaseProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "uppercase";
 
-    UppercaseProcessor(String processorTag, String field, boolean ignoreMissing, String targetField) {
-        super(processorTag, field, ignoreMissing, targetField);
+    UppercaseProcessor(String processorTag, String description, String field, boolean ignoreMissing, String targetField) {
+        super(processorTag, description, ignoreMissing, targetField, field);
     }
 
     public static String apply(String value) {
@@ -55,9 +55,9 @@ public final class UppercaseProcessor extends AbstractStringProcessor<String> {
         }
 
         @Override
-        protected UppercaseProcessor newProcessor(String tag, Map<String, Object> config, String field,
+        protected UppercaseProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
                                                   boolean ignoreMissing, String targetField) {
-            return new UppercaseProcessor(tag, field, ignoreMissing, targetField);
+            return new UppercaseProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }
 }

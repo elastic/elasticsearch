@@ -1,0 +1,1273 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Aggs not supported by H2 / traditional SQL stores
+//
+
+singlePercentileWithoutComma
+SELECT gender, PERCENTILE(emp_no, 90 + 7) p1 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d
+null                 |10019.0           
+F                    |10099.51          
+M                    |10095.789999999999
+;
+
+singlePercentileWithComma
+SELECT gender, PERCENTILE(emp_no, 97.76) p1 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d
+null                 |10019.0           
+F                    |10099.7608          
+M                    |10096.2232
+;
+
+multiplePercentilesOneWithCommaOneWithout
+SELECT gender, PERCENTILE(emp_no, 92.45) p1, PERCENTILE(emp_no, 91) p2 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d                 | p2:d
+null                 |10018.745             |10018.599999999999
+F                    |10098.0085            |10096.119999999999
+M                    |10091.393             |10090.37       
+;
+
+multiplePercentilesWithoutComma
+SELECT gender, PERCENTILE(emp_no, 91) p1, PERCENTILE(emp_no, 89) p2 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d                 | p2:d
+null                 |10018.599999999999    |10018.4        
+F                    |10096.119999999999    |10093.74       
+M                    |10090.37              |10086.92       
+;
+
+multiplePercentilesWithComma
+SELECT gender, PERCENTILE(emp_no, 85.7) p1, PERCENTILE(emp_no, 94.3) p2 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d                 | p2:d
+null                 |10018.070000000002    |10018.929999999998
+F                    |10091.343             |10098.619         
+M                    |10084.349             |10093.502         
+;
+
+percentileRank
+SELECT gender, PERCENTILE_RANK(emp_no, 10000 + 25) rank FROM test_emp GROUP BY gender;
+
+gender:s             | rank:d
+null                 |100.0             
+F                    |17.424242424242426
+M                    |15.350877192982457
+;
+
+multiplePercentileRanks
+SELECT gender, PERCENTILE_RANK(emp_no, 10030.0) rank1, PERCENTILE_RANK(emp_no, 10025) rank2 FROM test_emp GROUP BY gender;
+
+gender:s             | rank1:d              | rank2:d
+null                 |100.0                 |100.0             
+F                    |21.445221445221442    |17.424242424242426
+M                    |21.929824561403507    |15.350877192982457
+;
+
+multiplePercentilesAndPercentileRank
+SELECT gender, PERCENTILE(emp_no, 97.76) p1, PERCENTILE(emp_no, 93.3) p2, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d                 | p2:d                 | rank:d
+null                 |10019.0               |10018.83              |100.0             
+F                    |10099.7608            |10098.289             |17.424242424242426
+M                    |10096.2232            |10092.362             |15.350877192982457
+;
+
+sum
+SELECT SUM(salary) FROM test_emp;
+
+  SUM(salary)
+---------------
+4824855
+;
+
+aggregateWithCastPruned
+SELECT CAST(SUM(salary) AS INTEGER) FROM test_emp;
+
+ CAST(SUM(salary) AS INTEGER)
+-----------------------------
+4824855
+;
+
+aggregateWithUpCast
+SELECT CAST(SUM(salary) AS DOUBLE) FROM test_emp;
+
+  CAST(SUM(salary) AS DOUBLE)
+-----------------------------
+4824855.0
+;
+
+aggregateWithUpCastAsFloat
+SELECT CAST(SUM(salary) AS FLOAT) FROM test_emp;
+
+  CAST(SUM(salary) AS FLOAT)
+-----------------------------
+4824855.0
+;
+
+aggregateWithCastNumericToString
+SELECT CAST(AVG(salary) AS VARCHAR) FROM test_emp;
+
+  CAST(AVG(salary) AS VARCHAR):s
+--------------------------------
+48248.55
+;
+
+kurtosisAndSkewnessNoGroup
+SELECT KURTOSIS(emp_no) k, SKEWNESS(salary) s FROM test_emp;
+
+k:d                  | s:d
+1.7997599759975997   | 0.2707722118423227
+;
+
+kurtosisAndSkewnessGroup
+SELECT gender, KURTOSIS(salary) k, SKEWNESS(salary) s FROM test_emp GROUP BY gender;
+
+gender:s             | k:d                  | s:d
+
+null                 |2.2215791166941923    |-0.03373126000214023
+F                    |1.7873117044424276    |0.05504995122217512 
+M                    |2.280646181070106     |0.44302407229580243
+;
+
+nullAggs
+SELECT MAX(languages) max, MIN(languages) min, SUM(languages) sum, AVG(languages) avg,
+       PERCENTILE(languages, 80) percent, PERCENTILE_RANK(languages, 3) percent_rank, 
+       KURTOSIS(languages) kurtosis, SKEWNESS(languages) skewness  
+       FROM test_emp GROUP BY languages ORDER BY languages ASC LIMIT 5;
+
+      max:bt   |      min:bt   |      sum:bt   |      avg:d   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d    
+---------------+---------------+---------------+--------------+---------------+---------------+---------------+---------------
+null           |null           |null           |null          |null           |null           |null           |null           
+1              |1              |15             |1             |1.0            |100.0          |NaN            |NaN            
+2              |2              |38             |2             |2.0            |100.0          |NaN            |NaN            
+3              |3              |51             |3             |3.0            |100.0          |NaN            |NaN            
+4              |4              |72             |4             |4.0            |0.0            |NaN            |NaN   
+;
+
+aggSumWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY gender;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+aggSumWithAliasWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY g;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+aggSumWithNumericRefWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY 2;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+sumLiteralWithTrueConditionAndHavingWithCount
+SELECT SUM(1) AS c FROM test_emp WHERE 'a'='a' HAVING COUNT(1) > 0;
+
+      c:i       
+---------------
+100     
+;       
+
+sumLiteralWithTwoConditionsAndGroupByField
+SELECT SUM(10) AS s10, birth_date, SUM(1) AS c FROM test_emp WHERE (birth_date >= {ts '1959-01-01 00:00:00'}) AND (birth_date <= {ts '1959-12-31 23:59:59'}) GROUP BY 2;
+
+    s10:l      |      birth_date:ts     |       c:l       
+---------------+------------------------+---------------
+10             |1959-01-27T00:00:00.000Z|1              
+10             |1959-04-07T00:00:00.000Z|1              
+20             |1959-07-23T00:00:00.000Z|2              
+10             |1959-08-10T00:00:00.000Z|1              
+10             |1959-08-19T00:00:00.000Z|1              
+10             |1959-10-01T00:00:00.000Z|1              
+10             |1959-12-03T00:00:00.000Z|1              
+10             |1959-12-25T00:00:00.000Z|1              
+;
+
+sumLiteralWithGroupByAndTwoConditionsOnSum
+SELECT first_name, SUM(1) AS c FROM test_emp GROUP BY 1 HAVING ((SUM(1) >= 0) AND (SUM(1) <= 577)) LIMIT 10;
+
+ first_name:s  |       c:l       
+---------------+---------------
+null           |10             
+Alejandro      |1              
+Amabile        |1              
+Anneke         |1              
+Anoosh         |1              
+Arumugam       |1              
+Basil          |1              
+Berhard        |1              
+Berni          |1              
+Bezalel        |1              
+;
+
+sumFieldWithSumLiteralAsCondition
+SELECT first_name, last_name, SUM(salary) AS s, birth_date AS y, COUNT(1) FROM test_emp GROUP BY 1, 2, 4 HAVING ((SUM(1) >= 1) AND (SUM(1) <= 577)) AND ((SUM(salary) >= 35000) AND (SUM(salary) <= 45000));
+
+  first_name:s |   last_name:s |       s:i     |           y:ts         |   COUNT(1):l    
+---------------+---------------+---------------+------------------------+---------------
+null           |Brender        |36051          |1959-10-01T00:00:00.000Z|1              
+null           |Joslin         |37716          |1959-01-27T00:00:00.000Z|1              
+null           |Lortz          |35222          |1960-07-20T00:00:00.000Z|1              
+null           |Makrucki       |37691          |1963-07-22T00:00:00.000Z|1              
+null           |Swan           |39878          |1962-12-29T00:00:00.000Z|1              
+Alejandro      |McAlpine       |44307          |1953-09-19T00:00:00.000Z|1              
+Amabile        |Gomatam        |38645          |1955-10-04T00:00:00.000Z|1              
+Basil          |Tramer         |37853          |null                    |1              
+Berhard        |McFarlin       |38376          |1954-10-01T00:00:00.000Z|1              
+Berni          |Genin          |37137          |1956-02-12T00:00:00.000Z|1              
+Chirstian      |Koblick        |36174          |1954-05-01T00:00:00.000Z|1              
+Domenick       |Tempesti       |39356          |1963-11-26T00:00:00.000Z|1              
+Hilari         |Morton         |37702          |1965-01-03T00:00:00.000Z|1              
+Hisao          |Lipner         |40612          |1958-01-21T00:00:00.000Z|1              
+Jayson         |Mandell        |43889          |1954-09-16T00:00:00.000Z|1              
+Jungsoon       |Syrzycki       |39638          |1954-02-25T00:00:00.000Z|1              
+Kendra         |Hofting        |44956          |1961-05-30T00:00:00.000Z|1              
+Kenroku        |Malabarba      |35742          |1962-11-07T00:00:00.000Z|1              
+Margareta      |Bierman        |41933          |1960-09-06T00:00:00.000Z|1              
+Mayuko         |Warwick        |40031          |1952-12-24T00:00:00.000Z|1              
+Mingsen        |Casley         |39728          |null                    |1              
+Mokhtar        |Bernatsky      |38992          |1955-08-28T00:00:00.000Z|1              
+Saniya         |Kalloufi       |43906          |1958-02-19T00:00:00.000Z|1              
+Sreekrishna    |Servieres      |44817          |1961-09-23T00:00:00.000Z|1              
+Sudharsan      |Flasterstein   |43602          |1963-03-21T00:00:00.000Z|1              
+Vishv          |Zockler        |39110          |1959-07-23T00:00:00.000Z|1              
+Weiyi          |Meriste        |37112          |null                    |1              
+Yinghua        |Dredge         |43026          |1958-05-21T00:00:00.000Z|1              
+Zvonko         |Nyanchama      |42716          |null                    |1              
+;
+
+mirrorIifForNumericAggregate
+SELECT IIF(COUNT(1)=0, NULL, 123)+5, AVG(123), MIN(123)+5, IIF(COUNT(1)=0, NULL, 30*COUNT(1)), SUM(30) FROM test_emp;
+
+IIF(COUNT(1)=0, NULL, 123)+5:i|   AVG(123):d    |  MIN(123)+5:i   |IIF(COUNT(1)=0, NULL, 30*COUNT(1)):l|    SUM(30):l    
+------------------------------+-----------------+-----------------+------------------------------------+---------------
+128                           |123              |128              |3000                                |3000           
+;
+
+
+aggByComplexCastedValue
+SELECT CONVERT(CONCAT(LTRIM(CONVERT("emp_no", SQL_VARCHAR)), LTRIM(CONVERT("languages", SQL_VARCHAR))), SQL_BIGINT) AS "TEMP"
+FROM "test_emp" GROUP BY "TEMP" ORDER BY "TEMP" LIMIT 20;
+
+    TEMP:l      
+---------------
+10020          
+10021          
+10022          
+10023          
+10024          
+10025          
+10026          
+10027          
+10028          
+10029          
+100012         
+100025         
+100034         
+100045         
+100051         
+100063         
+100074         
+100082         
+100091         
+100104         
+;
+
+aggAndOrderByCastedValue
+SELECT CHAR_LENGTH(SPACE(CAST(languages AS SMALLINT))), COUNT(*) FROM test_emp GROUP BY 1 ORDER BY 1 DESC;
+
+CHAR_LENGTH(SPACE(CAST(languages AS SMALLINT))):i|   COUNT(*):l
+-------------------------------------------------+---------------
+5                                                |21
+4                                                |18
+3                                                |17
+2                                                |19
+1                                                |15
+null                                             |10
+;
+
+aggAndOrderByCastedFunctionValue
+SELECT ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)),2), COUNT(*) FROM test_emp GROUP BY 1 ORDER BY 1 DESC;
+
+ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)),2):d|  COUNT(*):l
+-------------------------------------------------+---------------
+12.17                                            |21
+7.42                                             |18
+4.47                                             |17
+2.65                                             |19
+1.73                                             |15
+null                                             |10
+;
+
+groupByRoundWithTwoParams
+SELECT ROUND(YEAR("birth_date"), -2) FROM test_emp GROUP BY ROUND(YEAR("birth_date"), -2);
+
+ROUND(YEAR("birth_date"), -2)
+-----------------------------
+null
+2000
+;
+
+groupByTruncateWithTwoParams
+SELECT TRUNCATE(YEAR("birth_date"), -2) FROM test_emp GROUP BY TRUNCATE(YEAR("birth_date"), -2);
+
+TRUNCATE(YEAR("birth_date"), -2)
+--------------------------------
+null
+1900
+;
+// Fails for H2
+groupByCastScalarWithNumericRef
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) FROM test_emp GROUP BY 1 ORDER BY 1 NULLS FIRST;
+
+CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT):l
+------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConvertScalar
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) FROM test_emp GROUP BY CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) ORDER BY CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) NULLS FIRST;
+
+
+CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT):l
+-----------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+
+groupByConvertScalarWithAlias
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) as "convert" FROM test_emp GROUP BY "convert" ORDER BY "convert" NULLS FIRST;
+
+convert:l
+---------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConvertScalarWithNumericRef
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) FROM test_emp GROUP BY 1 ORDER BY 1 NULLS FIRST;
+
+CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT):l
+-----------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConstantScalar
+SELECT PI() * emp_no FROM test_emp GROUP BY PI() * emp_no ORDER BY PI() * emp_no LIMIT 10;
+
+PI() * emp_no:d
+---------------
+31419.0681285515
+31422.2097212051
+31425.3513138587
+31428.4929065123
+31431.6344991659
+31434.7760918195
+31437.9176844731
+31441.0592771266
+31444.2008697802
+31447.3424624338
+;
+
+groupByConstantScalarWithOrderByDesc
+SELECT PI() * emp_no FROM test_emp GROUP BY PI() * emp_no ORDER BY PI() * emp_no DESC LIMIT 10;
+
+PI() * emp_no:d
+-------
+31730.0858012569
+31726.9442086033
+31723.8026159497
+31720.6610232961
+31717.5194306425
+31714.3778379889
+31711.2362453353
+31708.0946526817
+31704.9530600281
+31701.8114673746
+;
+
+groupByConstantScalarWithAlias
+SELECT PI() * emp_no AS "value" FROM test_emp GROUP BY value ORDER BY value LIMIT 10;
+
+value:d
+-------
+31419.0681285515
+31422.2097212051
+31425.3513138587
+31428.4929065123
+31431.6344991659
+31434.7760918195
+31437.9176844731
+31441.0592771266
+31444.2008697802
+31447.3424624338
+;
+
+groupByConstantScalarWithNumericRef
+SELECT PI() * emp_no FROM test_emp GROUP BY 1 ORDER BY 1 DESC LIMIT 10;
+
+PI() * emp_no:d
+-------
+31730.0858012569
+31726.9442086033
+31723.8026159497
+31720.6610232961
+31717.5194306425
+31714.3778379889
+31711.2362453353
+31708.0946526817
+31704.9530600281
+31701.8114673746
+;
+
+groupByFieldAndConstantScalarWithMultipleOrderBy
+SELECT gender, emp_no % 3 + PI() FROM test_emp GROUP BY gender, emp_no % 3 + PI() ORDER BY gender, emp_no % 3 + PI() DESC LIMIT 8;
+
+gender:s    |emp_no % 3 + PI():d
+------------+------------------
+null        |5.1415926535
+null        |4.1415926535
+null        |3.1415926535
+F           |5.1415926535
+F           |4.1415926535
+F           |3.1415926535
+M           |5.1415926535
+M           |4.1415926535
+;
+
+groupByFieldAndConstantScalarWithAliasWithOrderByDesc
+SELECT gender, emp_no % 3 + PI() as p FROM test_emp GROUP BY gender, emp_no % 3 + PI() ORDER BY gender DESC, p DESC LIMIT 8;
+
+gender:s    |p:d
+------------+------------------
+M           |5.1415926535
+M           |4.1415926535
+M           |3.1415926535
+F           |5.1415926535
+F           |4.1415926535
+F           |3.1415926535
+null        |5.1415926535
+null        |4.1415926535
+;
+
+aggregateWithStringScalars
+schema::gender:s|avg:s
+SELECT gender, REPLACE(CONVERT(AVG(salary), text), '.', ',') as "avg"
+FROM test_emp WHERE languages IS NOT NULL AND birth_date IS NOT NULL GROUP BY gender ORDER BY gender LIMIT 2;
+
+    gender     |      avg
+---------------+---------------
+null           |48760,5
+F              |51130,48
+;
+
+//
+// Grouping functions
+//
+
+
+histogramNumeric
+SELECT HISTOGRAM(salary, 5000) AS h FROM test_emp GROUP BY h;
+
+       h       
+---------------
+25000          
+30000          
+35000          
+40000          
+45000          
+50000          
+55000          
+60000          
+65000          
+70000  
+;
+
+histogramDateTime
+schema::h:ts|c:l
+SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h;
+
+           h            |       c       
+------------------------+---------------
+null                    |10             
+1952-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1954-01-01T00:00:00.000Z|8              
+1955-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1957-01-01T00:00:00.000Z|4              
+1958-01-01T00:00:00.000Z|7              
+1959-01-01T00:00:00.000Z|9              
+1960-01-01T00:00:00.000Z|8              
+1961-01-01T00:00:00.000Z|8              
+1962-01-01T00:00:00.000Z|6              
+1963-01-01T00:00:00.000Z|7              
+1964-01-01T00:00:00.000Z|4              
+1965-01-01T00:00:00.000Z|1              
+;
+
+histogramDateTimeWithCountAndOrder
+schema::h:ts|c:l
+SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
+
+           h            |       c       
+------------------------+---------------
+1965-01-01T00:00:00.000Z|1              
+1964-01-01T00:00:00.000Z|4              
+1963-01-01T00:00:00.000Z|7              
+1962-01-01T00:00:00.000Z|6              
+1961-01-01T00:00:00.000Z|8              
+1960-01-01T00:00:00.000Z|8              
+1959-01-01T00:00:00.000Z|9              
+1958-01-01T00:00:00.000Z|7              
+1957-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1955-01-01T00:00:00.000Z|4              
+1954-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1952-01-01T00:00:00.000Z|8              
+null                    |10             
+;
+
+histogramOneMonth
+schema::h:ts|c:l|birth_date:ts
+SELECT HISTOGRAM(birth_date, INTERVAL 1 MONTH) AS h, COUNT(*) as c, birth_date FROM test_emp GROUP BY h, birth_date HAVING c >= 1 ORDER BY h ASC LIMIT 20;
+
+           h            |       c       |       birth_date       
+------------------------+---------------+------------------------
+null                    |10             |null                    
+1952-02-01T00:00:00.000Z|1              |1952-02-27T00:00:00.000Z
+1952-04-01T00:00:00.000Z|1              |1952-04-19T00:00:00.000Z
+1952-05-01T00:00:00.000Z|1              |1952-05-15T00:00:00.000Z
+1952-06-01T00:00:00.000Z|1              |1952-06-13T00:00:00.000Z
+1952-07-01T00:00:00.000Z|1              |1952-07-08T00:00:00.000Z
+1952-08-01T00:00:00.000Z|1              |1952-08-06T00:00:00.000Z
+1952-11-01T00:00:00.000Z|1              |1952-11-13T00:00:00.000Z
+1952-12-01T00:00:00.000Z|1              |1952-12-24T00:00:00.000Z
+1953-01-01T00:00:00.000Z|1              |1953-01-07T00:00:00.000Z
+1953-01-01T00:00:00.000Z|1              |1953-01-23T00:00:00.000Z
+1953-02-01T00:00:00.000Z|1              |1953-02-08T00:00:00.000Z
+1953-04-01T00:00:00.000Z|1              |1953-04-03T00:00:00.000Z
+1953-04-01T00:00:00.000Z|1              |1953-04-20T00:00:00.000Z
+1953-04-01T00:00:00.000Z|1              |1953-04-21T00:00:00.000Z
+1953-07-01T00:00:00.000Z|1              |1953-07-28T00:00:00.000Z
+1953-09-01T00:00:00.000Z|1              |1953-09-02T00:00:00.000Z
+1953-09-01T00:00:00.000Z|1              |1953-09-19T00:00:00.000Z
+1953-09-01T00:00:00.000Z|1              |1953-09-29T00:00:00.000Z
+1953-11-01T00:00:00.000Z|1              |1953-11-07T00:00:00.000Z
+;
+
+histogramOneDay
+schema::h:ts|c:l|birth_date:ts
+SELECT HISTOGRAM(birth_date, INTERVAL 1 DAY) AS h, COUNT(*) as c, birth_date FROM test_emp WHERE YEAR(birth_date) BETWEEN 1959 AND 1960 GROUP BY h, birth_date ORDER BY h ASC;
+
+           h            |       c       |       birth_date       
+------------------------+---------------+------------------------
+1959-01-27T00:00:00.000Z|1              |1959-01-27T00:00:00.000Z
+1959-04-07T00:00:00.000Z|1              |1959-04-07T00:00:00.000Z
+1959-07-23T00:00:00.000Z|2              |1959-07-23T00:00:00.000Z
+1959-08-10T00:00:00.000Z|1              |1959-08-10T00:00:00.000Z
+1959-08-19T00:00:00.000Z|1              |1959-08-19T00:00:00.000Z
+1959-10-01T00:00:00.000Z|1              |1959-10-01T00:00:00.000Z
+1959-12-03T00:00:00.000Z|1              |1959-12-03T00:00:00.000Z
+1959-12-25T00:00:00.000Z|1              |1959-12-25T00:00:00.000Z
+1960-02-20T00:00:00.000Z|1              |1960-02-20T00:00:00.000Z
+1960-03-09T00:00:00.000Z|1              |1960-03-09T00:00:00.000Z
+1960-05-25T00:00:00.000Z|1              |1960-05-25T00:00:00.000Z
+1960-07-20T00:00:00.000Z|1              |1960-07-20T00:00:00.000Z
+1960-08-09T00:00:00.000Z|1              |1960-08-09T00:00:00.000Z
+1960-09-06T00:00:00.000Z|1              |1960-09-06T00:00:00.000Z
+1960-10-04T00:00:00.000Z|1              |1960-10-04T00:00:00.000Z
+1960-12-17T00:00:00.000Z|1              |1960-12-17T00:00:00.000Z
+;
+
+histogramDateTimeWithMonthOnTop
+schema::h:i|c:l
+SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
+
+       h       |       c       
+---------------+---------------
+12             |7              
+10             |17             
+8              |16             
+6              |16             
+4              |18             
+2              |10             
+0              |6              
+null           |10    
+;
+
+histogramDateTimeWithYearOnTop
+schema::h:i|c:l
+SELECT HISTOGRAM(YEAR(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
+       h       |       c       
+---------------+---------------
+1964           |5              
+1962           |13             
+1960           |16             
+1958           |16             
+1956           |9              
+1954           |12             
+1952           |19             
+null           |10   
+;
+
+histogramDateTimeWithScalars
+schema::h:ts|c:l
+SELECT HISTOGRAM(birth_date, INTERVAL 20 MONTHS + INTERVAL 30 MONTHS) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY c DESC;
+
+           h            |       c
+------------------------+---------------
+1957-09-06T00:00:00.000Z|31
+1953-07-29T00:00:00.000Z|24
+1961-10-15T00:00:00.000Z|20
+1949-06-20T00:00:00.000Z|15
+null                    |10
+;
+
+histogramYearOnDateTimeWithScalars
+schema::year:i|c:l
+SELECT YEAR(CAST(birth_date + INTERVAL 5 YEARS AS DATE) + INTERVAL 20 MONTHS) AS year, COUNT(*) as c FROM test_emp GROUP BY 1;
+
+     year      |   c
+---------------+---------------
+null           |10
+1958           |2
+1959           |12
+1960           |7
+1961           |7
+1962           |4
+1963           |5
+1964           |5
+1965           |7
+1966           |9
+1967           |7
+1968           |7
+1969           |8
+1970           |6
+1971           |4
+;
+
+histogramNumericWithExpression
+schema::h:i|c:l
+SELECT HISTOGRAM(emp_no % 100, 10) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
+
+       h       |       c       
+---------------+---------------
+90             |10             
+80             |10             
+70             |10             
+60             |10             
+50             |10             
+40             |10             
+30             |10             
+20             |10             
+10             |10             
+0              |10   
+;
+
+histogramGroupByWithoutAlias
+schema::h:ts|c:l
+SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY HISTOGRAM(birth_date, INTERVAL 1 YEAR) ORDER BY h DESC;
+
+           h            |       c       
+------------------------+---------------
+1965-01-01T00:00:00.000Z|1              
+1964-01-01T00:00:00.000Z|4              
+1963-01-01T00:00:00.000Z|7              
+1962-01-01T00:00:00.000Z|6              
+1961-01-01T00:00:00.000Z|8              
+1960-01-01T00:00:00.000Z|8              
+1959-01-01T00:00:00.000Z|9              
+1958-01-01T00:00:00.000Z|7              
+1957-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1955-01-01T00:00:00.000Z|4              
+1954-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1952-01-01T00:00:00.000Z|8              
+null                    |10             
+;
+
+countAll
+schema::all_names:l|c:l
+SELECT COUNT(ALL first_name) all_names, COUNT(*) c FROM test_emp;
+
+   all_names   |       c
+---------------+---------------
+90             |100 
+;
+
+countDistinctAndLiteral
+schema::ln:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING ln>5 AND ccc>5;
+
+      ln       |     ccc     
+---------------+-------------
+10             |10           
+33             |33
+57             |57                
+;
+
+countSmallCountTypesWithHaving
+schema::ln:l|dln:l|fn:l|dfn:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>5 AND ln>32 AND dfn>1 AND fn>1 AND ccc>5;
+
+      ln       |     dln     |      fn       |     dfn    |      ccc
+---------------+-------------+---------------+------------+-------------
+33             |32           |32             |32          |33
+57             |54           |48             |48          |57
+;
+
+
+countAllCountTypesWithHaving
+schema::ln:l|dln:l|fn:l|dfn:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>5 AND ln>32 AND dfn>1 AND fn>1 AND ccc>5;
+
+      ln       |     dln     |      fn       |     dfn    |      ccc
+---------------+-------------+---------------+------------+-------------
+33             |32           |32             |32          |33
+57             |54           |48             |48          |57
+;
+
+aggCountEqualityFalse
+schema::areEqual:b|ln:l|dln:l
+SELECT COUNT(last_name)=COUNT(DISTINCT last_name) AS areEqual, COUNT(last_name) ln, COUNT(DISTINCT last_name) dln FROM test_emp;
+
+   areEqual    |      ln       |      dln
+---------------+---------------+---------------
+false          |100            |96
+;
+
+aggCountEqualityTrue
+schema::areEqual:b|fn:l|dfn:l
+SELECT COUNT(first_name)=COUNT(DISTINCT first_name) AS areEqual, COUNT(first_name) fn, COUNT(DISTINCT first_name) dfn FROM test_emp;
+
+   areEqual    |      fn       |      dfn
+---------------+---------------+---------------
+true           |90             |90
+;
+
+aggCountWithNull
+schema::COUNT(NULL):l|COUNT(*):l|COUNT(DISTINCT languages):l|languages:bt
+SELECT COUNT(NULL), COUNT(*), COUNT(DISTINCT languages), languages FROM test_emp GROUP BY languages ORDER BY languages DESC;
+
+  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)|   languages   
+---------------+---------------+-------------------------+---------------
+null           |21             |1                        |5              
+null           |18             |1                        |4              
+null           |17             |1                        |3              
+null           |19             |1                        |2              
+null           |15             |1                        |1              
+null           |10             |0                        |null          
+;
+
+aggCountZeroDocuments
+schema::COUNT(NULL):l|COUNT(*):l|COUNT(DISTINCT languages):l
+SELECT COUNT(NULL), COUNT(*), COUNT(DISTINCT languages) FROM test_emp WHERE languages > 100;
+
+  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)
+---------------+---------------+-------------------------
+null           |0              |0
+;
+
+aggCountAllEquality
+schema::areEqual:b|afn:l
+SELECT COUNT(first_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_name) afn FROM test_emp;
+
+   areEqual    |      afn      
+---------------+---------------
+true           |90             
+;
+
+aggCountAllDifferentFields
+schema::areEqual:b|afn:l|aln:l
+SELECT COUNT(ALL last_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_name) afn, COUNT(ALL last_name) aln FROM test_emp;
+
+   areEqual    |      afn      |      aln
+---------------+---------------+---------------
+false          |90             |100
+;
+
+topHitsAsMinAndMax
+schema::min:s|max:s|first:s|last:s
+SELECT MIN(first_name) as min, MAX(first_name) as max, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp;
+
+    min        |   max         |   first      |   last
+---------------+---------------+--------------+----------
+   Alejandro   |   Zvonko      |   Alejandro  |   Zvonko
+;
+
+topHitsAsMinAndMaxAndGroupBy
+schema::gender:s|min:s|max:s|first:s|last:s
+SELECT gender, MIN(first_name) as min, MAX(first_name) as max, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   min         |   max        |   first       |   last
+---------------+---------------+--------------+---------------+----------
+null           |   Berni       |   Patricio   |   Berni       |   Patricio
+F              |   Alejandro   |   Xinglin    |   Alejandro   |   Xinglin
+M              |   Amabile     |   Zvonko     |   Amabile     |   Zvonko
+;
+
+topHitsWithOneArgAndGroupBy
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   Berni       |   Patricio
+F              |   Alejandro   |   Xinglin
+M              |   Amabile     |   Zvonko
+;
+
+topHitsWithTwoArgsAndGroupBy
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) as first, LAST(first_name, birth_date) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   Lillian     |   Eberhardt
+F              |   Sumant      |   Valdiodio
+M              |   Remzi       |   Hilari
+;
+
+topHitsWithTwoArgsAndGroupByWithNullsOnTargetField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10025 AND 10035 GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+F              |   null        |   Divier
+M              |   null        |   Domenick
+;
+
+topHitsWithTwoArgsAndGroupByWithNullsOnSortingField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10047 AND 10052 GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+F              |   Basil       |   Basil
+M              |   Hidefumi    |   Heping
+;
+
+topHitsWithTwoArgsAndGroupByWithNullsOnTargetAndSortingField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10037 AND 10052 GROUP BY gender ORDER BY gender;
+
+    gender     |   first     |  last
+---------------+-------------+-----------------
+F              |   Basil     |  Weiyi
+M              |   Hidefumi  |  null
+;
+
+topHitsWithTwoArgsAndGroupByWithAllNullsOnTargetField
+schema::gender:s|first:s|last:s
+SELECT gender, FIRST(first_name, birth_date) AS first, LAST(first_name, birth_date) AS last FROM test_emp WHERE emp_no BETWEEN 10030 AND 10037 GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+F              |   null        |   null
+M              |   null        |   null
+;
+
+topHitsOnDatetime
+schema::gender:s|first:i|last:i
+SELECT gender, month(first(birth_date, languages)) first, month(last(birth_date, languages)) last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   first       |   last
+---------------+---------------+---------------
+null           |   1           |   10
+F              |   4           |   6
+M              |   1           |   4
+;
+
+medianAbsoluteDeviation
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |      mad      
+---------------+---------------
+null           |10789.0        
+F              |12719.0        
+M              |8905.0         
+;
+
+medianAbsoluteDeviationOnTwoFields
+schema::gender:s|avg:l|mad_s:l|mad_l:d
+SELECT gender, FLOOR(AVG(salary)) AS avg, FLOOR(MAD(salary)) AS mad_s, MAD(languages) AS mad_l FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |      avg      |     mad_s     |     mad_l     
+---------------+---------------+---------------+---------------
+null           |48760          |10789          |2.0            
+F              |50490          |12719          |1.5            
+M              |46860          |8905           |1.0     
+;
+
+medianAbsoluteDeviationOnSecondaryFieldWithOrder
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender ORDER BY mad ASC;
+
+    gender     |      mad      
+---------------+---------------
+M              |8905.0         
+null           |10789.0        
+F              |12719.0         
+;
+
+
+medianAbsoluteDeviationOnSecondaryFieldWithOrderAndHaving
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender HAVING mad > 10000 ORDER BY mad ASC;
+
+    gender     |      mad      
+---------------+---------------
+null           |10789.0        
+F              |12719.0         
+;
+
+
+// aggregates with scalars
+aggregateFunctionsWithScalars
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "min",
+AVG(cos(salary * 1.2) + 100 * (salary / 5)) AS "avg",
+SUM(-salary / 0.765 + sin((salary + 12345) / 12)) AS "sum",
+MAD(abs(salary / -0.813) / 2 + (12345 * (salary % 10))) AS "mad"
+FROM test_emp;
+
+       max        |      min      |       avg       |       sum        |       mad
+------------------+---------------+-----------------+------------------+-----------------
+155409.30000000002|23532.72       |964937.9295477575|-6307004.517507723|30811.76199261993
+;
+
+countWithScalars
+schema::cnt1:l|cnt2:l
+SELECT count(DISTINCT CASE WHEN (languages - 1) > 3 THEN (languages + 3) * 1.2 ELSE (languages - 1) * 2.7 END) AS "cnt1",
+count(CASE WHEN (languages - 2) > 2 THEN (languages + 5) * 1.2 ELSE ((languages / 0.87) - 11) * 2.7 END) AS "cnt2"
+FROM test_emp;
+
+   cnt1   |  cnt2
+----------+-------
+5         | 90
+;
+
+aggregateFunctionsWithScalarsAndGroupBy
+schema::max:d|min:d|avg:d|sum:d|mad:d|gender:s
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "min",
+AVG(cos(salary * 1.2) + 100 * (salary / 5)) AS "avg",
+SUM(-salary / 0.765 + sin((salary + 12345) / 12)) AS "sum",
+MAD(abs(salary / -0.813) / 2 + (12345 * (salary % 10))) AS "mad",
+gender
+FROM test_emp GROUP BY gender ORDER BY gender;
+
+       max        |      min      |       avg        |        sum        |       mad       |    gender
+------------------+---------------+------------------+-------------------+-----------------+---------------
+132335.1          |23532.72       |975179.5463883684 |-637388.2516376646 |33398.4963099631 |null
+155409.30000000002|24139.08       |1009778.6217005679|-2178038.0602625553|24031.90651906518|F
+151745.40000000002|24110.25       |937180.7539433916 |-3491578.2056075027|32956.9126691267 |M
+;
+
+countWithScalarsAndGroupBy
+schema::cnt1:l|cnt2:l|gender:s
+SELECT count(DISTINCT CASE WHEN (languages - 1) > 3 THEN (languages + 3) * 1.2 ELSE (languages - 1) * 2.7 END) AS "cnt1",
+count(CASE WHEN (languages - 2) > 2 THEN (languages + 5) * 1.2 ELSE ((languages / 0.87) - 11) * 2.7 END) AS "cnt2",
+gender
+FROM test_emp GROUP BY gender ORDER BY gender;
+
+     cnt1      |     cnt2      |    gender
+---------------+---------------+---------------
+4              |10             |null
+5              |30             |F
+5              |50             |M
+;
+
+aggregatesWithScalarsAndGroupByOrderByAgg
+schema::max:d|gender:s
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+gender
+FROM test_emp GROUP BY gender ORDER BY max DESC;
+
+       max        |    gender
+------------------+---------------
+155409.30000000002|F
+151745.40000000002|M
+132335.1          |null
+;
+
+aggregatesWithScalarsAndGroupByOrderByAggWithoutProjection
+schema::gender:s
+SELECT gender FROM test_emp GROUP BY gender ORDER BY MAX(salary % 100) DESC;
+
+    gender
+---------------
+M
+null
+F
+;
+
+topHitsWithScalars
+schema::first:s|last:s|gender:s
+SELECT FIRST(concat('aa_', substring(first_name, 3, 10)), birth_date) AS first,
+LAST(concat('bb_', substring(last_name, 4, 8)), birth_date) AS last,
+gender
+FROM test_emp GROUP BY gender ORDER By gender;
+
+     first     |     last      |    gender
+---------------+---------------+---------------
+aa_llian       |bb_kki         |null
+aa_mant        |bb_zuma        |F
+aa_mzi         |bb_ton         |M
+;
+
+aggregateFunctionsWithScalarsAndGroupByAndHaving
+schema::max:d|min:d|gender:s
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "min",
+gender FROM test_emp
+GROUP BY gender HAVING max > 152000 or min > 24000 ORDER BY gender;
+
+       max        |      min      |    gender
+------------------+---------------+---------------
+155409.30000000002|24139.08       |F
+151745.40000000002|24110.25       |M
+;
+
+aggregateFunctionsWithScalarsAndGroupByAndHaving_ComplexExpressions
+schema::max:d|min:d|gender:s
+SELECT ABS((MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) + 123) / -100) AS "max",
+cos(MIN(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) % 100) AS "min",
+gender
+FROM test_emp
+GROUP BY gender HAVING (max / 10) + 10 > 165  OR ABS(min * -100) > 60 ORDER BY gender;
+
+       max        |        min        |    gender
+------------------+-------------------+---------------
+1555.323          |0.1887687166044111 |F
+1518.6840000000002|-0.6783938504738453|M
+;
+
+aggregateFunctionsWithScalarsAndGroupByAndHaving_CombinedFields
+schema::min:d|max:d|gender:s
+SELECT MIN(ABS(salary * (languages / - 20.0))) AS "min",
+MAX(salary / ((languages / 3.0) + 1)) AS "max",
+gender
+FROM test_emp
+GROUP BY gender HAVING (min::long) / 120 > 12 OR ROUND(max) / 10 > 5200 ORDER BY gender;
+
+      min      |      max      |    gender
+---------------+---------------+---------------
+2436.75        |55287.75       |null
+1401.75        |52508.25       |M
+;
+
+aggregateFunctionsWithScalarsAndGroupByAndHavingConvertedToStats
+schema::max:d|min:d|gender:s
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "min",
+gender FROM test_emp
+GROUP BY gender HAVING max > 155000 or min > 36000 ORDER BY gender;
+
+       max        |       min        |    gender
+------------------+------------------+---------------
+155409.30000000002|36803.700000000004|F
+151745.40000000002|36720.0           |M
+;
+
+percentileAggregateFunctionsWithScalars
+schema::percentile:d|percentile_rank:d|gender:s
+SELECT PERCENTILE(CASE WHEN (salary / 2) > 10000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END, 80) AS "percentile",
+PERCENTILE_RANK(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END, 40000) AS "percentile_rank",
+gender FROM test_emp
+GROUP BY gender ORDER BY gender;
+
+   percentile    | percentile_rank  |    gender
+-----------------+------------------+---------------
+86857.79999999999|32.69659025378865 |null
+94042.92000000001|37.03569653103581 |F
+87348.36         |44.337514210592246|M
+;
+
+extendedStatsAggregateFunctionsWithScalars
+schema::stddev_pop:d|stddev_samp:d|sum_of_squares:d|var_pop:d|var_samp:d|gender:s
+SELECT STDDEV_POP(CASE WHEN (salary / 2) > 10000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "stddev_pop",
+STDDEV_SAMP(CASE WHEN (salary / 2) > 10000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "stddev_samp",
+SUM_OF_SQUARES(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "sum_of_squares",
+VAR_POP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "var_pop",
+VAR_SAMP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "var_samp",
+gender FROM test_emp
+GROUP BY gender ORDER BY gender;
+
+    stddev_pop    |   stddev_samp    |   sum_of_squares    |      var_pop       |      var_samp      |    gender
+------------------+------------------+---------------------+--------------------+--------------------+---------------
+16752.73244172422 |17658.930515747525|3.06310583829007E10  |3.460331137445282E8 |3.844812374939202E8 |null
+17427.462400181845|17697.67172930331 |1.148127725047658E11 |3.1723426960671306E8|3.271478405319228E8 |F
+15702.798665784752|15842.381843421828|1.5882243113919238E11|2.529402043805585E8 |2.5745699374449703E8|M
+;
+
+extendedStatsAggregateFunctionsWithScalarAndSameArg
+schema::stddev_pop:d|stddev_samp:d|sum_of_squares:d|var_pop:d|var_samp:d|gender:s
+SELECT STDDEV_POP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "stddev_pop",
+STDDEV_SAMP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "stddev_samp",
+SUM_OF_SQUARES(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "sum_of_squares",
+VAR_POP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "var_pop",
+VAR_SAMP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "var_samp",
+gender FROM test_emp
+GROUP BY gender ORDER BY gender;
+
+    stddev_pop    |   stddev_samp    |   sum_of_squares    |      var_pop       |      var_samp      |    gender
+------------------+------------------+---------------------+--------------------+--------------------+---------------
+18601.965319409886|19608.193121598946|3.4461553130896095E10|3.460331137445282E8 |3.844812374939202E8 |null
+17811.071545718776|18087.228658142263|1.2151168881502939E11|3.1723426960671306E8|3.271478405319228E8 |F
+15904.093950318531|16045.466454562704|1.699198993070239E11 |2.529402043805585E8 |2.5745699374449703E8|M
+;
+
+
+aggWithMinOfDatesAndCastAsDate
+schema::g:s|m:date
+SELECT gender g, MIN(CAST(birth_date AS DATE)) m FROM test_emp GROUP BY gender HAVING MIN(CAST(birth_date AS DATE)) < NOW() ORDER BY g;
+
+       g       |           m            
+---------------+------------------------
+null           |1953-01-23T00:00:00.000Z
+F              |1952-04-19T00:00:00.000Z
+M              |1952-02-27T00:00:00.000Z
+;
+
+aggWithMinOfDatetime
+schema::g:s|m:ts
+SELECT gender g, MIN(birth_date) m FROM test_emp GROUP BY gender HAVING m < NOW() ORDER BY gender;
+
+       g       |           m            
+---------------+------------------------
+null           |1953-01-23T00:00:00.000Z
+F              |1952-04-19T00:00:00.000Z
+M              |1952-02-27T00:00:00.000Z
+;
+
+aggWithMinOfDatetimeAndDate
+schema::g:s|mc:date|m:ts
+SELECT gender g, MIN(CAST(birth_date AS DATE)) mc, MIN(birth_date) m FROM test_emp GROUP BY gender HAVING MIN(CAST(birth_date AS DATE)) < NOW() AND MIN(birth_date) <= CURRENT_TIMESTAMP() ORDER BY g;
+
+       g       |           mc           |           m            
+---------------+------------------------+------------------------
+null           |1953-01-23T00:00:00.000Z|1953-01-23T00:00:00.000Z
+F              |1952-04-19T00:00:00.000Z|1952-04-19T00:00:00.000Z
+M              |1952-02-27T00:00:00.000Z|1952-02-27T00:00:00.000Z
+;
+
+aggWithMaxOfDatetime
+schema::g:s|m:ts
+SELECT gender g, MAX(birth_date) m FROM test_emp GROUP BY gender HAVING m < NOW() ORDER BY gender;
+
+       g       |           m            
+---------------+------------------------
+null           |1963-06-07T00:00:00.000Z
+F              |1964-10-18T00:00:00.000Z
+M              |1965-01-03T00:00:00.000Z
+;
+
+aggWithMaxOfDate
+schema::g:s|m:date
+SELECT gender g, MAX(CAST(birth_date AS DATE)) m FROM test_emp GROUP BY gender HAVING m < CAST('2020-01-01' AS DATE) ORDER BY gender;
+
+       g       |           m            
+---------------+------------------------
+null           |1963-06-07T00:00:00.000Z
+F              |1964-10-18T00:00:00.000Z
+M              |1965-01-03T00:00:00.000Z
+;
+
+aggWithMinMaxOfDatetime
+schema::g:s|mx:ts|mn:ts
+SELECT gender g, MAX(birth_date) mx, MIN(birth_date) mn FROM test_emp GROUP BY gender HAVING mn < NOW() AND mx > CAST('1950-01-01' AS DATE) ORDER BY gender;
+
+       g       |           mx           |           mn           
+---------------+------------------------+------------------------
+null           |1963-06-07T00:00:00.000Z|1953-01-23T00:00:00.000Z
+F              |1964-10-18T00:00:00.000Z|1952-04-19T00:00:00.000Z
+M              |1965-01-03T00:00:00.000Z|1952-02-27T00:00:00.000Z
+;
+
+aggWithMinMaxOfDate
+schema::g:s|mx:date|mn:date
+SELECT gender g, MAX(CAST(birth_date AS DATE)) mx, MIN(CAST(birth_date AS DATE)) mn FROM test_emp GROUP BY gender HAVING mn < CAST('2020-01-01' AS DATE) OR mx < CAST('1980-01-01T12:00:00' AS DATETIME) ORDER BY gender;
+
+       g       |           mx           |           mn           
+---------------+------------------------+------------------------
+null           |1963-06-07T00:00:00.000Z|1953-01-23T00:00:00.000Z
+F              |1964-10-18T00:00:00.000Z|1952-04-19T00:00:00.000Z
+M              |1965-01-03T00:00:00.000Z|1952-02-27T00:00:00.000Z
+;
+

@@ -73,7 +73,7 @@ is often beneficial to use separate fields for analysis with and without phoneti
 That way searches can be run against both fields with differing boosts and trade-offs (e.g.
 only run a fuzzy `match` query on the original text field, but not on the phonetic version).
 
-[float]
+[discrete]
 ===== Double metaphone settings
 
 If the `double_metaphone` encoder is used, then this additional setting is
@@ -83,7 +83,7 @@ supported:
 
     The maximum length of the emitted metaphone token.  Defaults to `4`.
 
-[float]
+[discrete]
 ===== Beider Morse settings
 
 If the `beider_morse` encoder is used, then these additional settings are

@@ -24,7 +24,9 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.support.MustacheTemplateEvaluator;
 
@@ -94,6 +96,24 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    public void validate(ScriptService scriptService) {
+        try {
+            final XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template, XContentType.JSON);
+            final Script script = MustacheTemplateEvaluator.parseForScript(parser, Collections.emptyMap());
+            final TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
+            if ("mustache".equals(script.getLang())) {
+                compiledTemplate.execute();
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(e);
         }
     }
 

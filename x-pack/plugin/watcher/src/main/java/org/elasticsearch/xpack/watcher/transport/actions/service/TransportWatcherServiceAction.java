@@ -12,33 +12,30 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 
-import java.io.IOException;
-
-public class TransportWatcherServiceAction extends TransportMasterNodeAction<WatcherServiceRequest, AcknowledgedResponse> {
+public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNodeAction<WatcherServiceRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportWatcherServiceAction.class);
 
-    private AckedRequest ackedRequest = new AckedRequest() {
+    private static final AckedRequest ackedRequest = new AckedRequest() {
         @Override
         public TimeValue ackTimeout() {
             return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
@@ -55,17 +52,7 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            WatcherServiceRequest::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+            WatcherServiceRequest::new, indexNameExpressionResolver, ThreadPool.Names.MANAGEMENT);
     }
 
     @Override
@@ -73,15 +60,15 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
                                    ActionListener<AcknowledgedResponse> listener) {
         switch (request.getCommand()) {
             case STOP:
-                setWatcherMetaDataAndWait(true, listener);
+                setWatcherMetadataAndWait(true, listener);
                 break;
             case START:
-                setWatcherMetaDataAndWait(false, listener);
+                setWatcherMetadataAndWait(false, listener);
                 break;
         }
     }
 
-    private void setWatcherMetaDataAndWait(boolean manuallyStopped, final ActionListener<AcknowledgedResponse> listener) {
+    private void setWatcherMetadataAndWait(boolean manuallyStopped, final ActionListener<AcknowledgedResponse> listener) {
         String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
         clusterService.submitStateUpdateTask(source,
@@ -89,23 +76,23 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
 
                     @Override
                     protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                        return new AcknowledgedResponse(acknowledged);
+                        return AcknowledgedResponse.of(acknowledged);
                     }
 
                     @Override
                     public ClusterState execute(ClusterState clusterState) {
                         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-                        WatcherMetaData newWatcherMetaData = new WatcherMetaData(manuallyStopped);
-                        WatcherMetaData currentMetaData = clusterState.metaData().custom(WatcherMetaData.TYPE);
+                        WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
+                        WatcherMetadata currentMetadata = clusterState.metadata().custom(WatcherMetadata.TYPE);
 
                         // adhere to the contract of returning the original state if nothing has changed
-                        if (newWatcherMetaData.equals(currentMetaData)) {
+                        if (newWatcherMetadata.equals(currentMetadata)) {
                             return clusterState;
                         } else {
                             ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-                            builder.metaData(MetaData.builder(clusterState.getMetaData())
-                                    .putCustom(WatcherMetaData.TYPE, newWatcherMetaData));
+                            builder.metadata(Metadata.builder(clusterState.getMetadata())
+                                    .putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
                             return builder.build();
                         }
                     }

@@ -22,24 +22,35 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.core.PageParams;
+import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.common.Nullable;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 public class GetTrainedModelsRequest implements Validatable {
 
+    private static final String DEFINITION = "definition";
+    private static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
+    private static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
     public static final String ALLOW_NO_MATCH = "allow_no_match";
-    public static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
+    public static final String TAGS = "tags";
+    public static final String INCLUDE = "include";
 
     private final List<String> ids;
     private Boolean allowNoMatch;
-    private Boolean includeDefinition;
+    private Set<String> includes = new HashSet<>();
     private Boolean decompressDefinition;
+    private Boolean excludeGenerated;
     private PageParams pageParams;
+    private List<String> tags;
 
     /**
      * Helper method to create a request that will get ALL TrainedModelConfigs
@@ -81,19 +92,37 @@ public class GetTrainedModelsRequest implements Validatable {
         return this;
     }
 
-    public Boolean getIncludeDefinition() {
-        return includeDefinition;
+    public Set<String> getIncludes() {
+        return Collections.unmodifiableSet(includes);
+    }
+
+    public GetTrainedModelsRequest includeDefinition() {
+        this.includes.add(DEFINITION);
+        return this;
+    }
+
+    public GetTrainedModelsRequest includeTotalFeatureImportance() {
+        this.includes.add(TOTAL_FEATURE_IMPORTANCE);
+        return this;
+    }
+
+    public GetTrainedModelsRequest includeFeatureImportanceBaseline() {
+        this.includes.add(FEATURE_IMPORTANCE_BASELINE);
+        return this;
     }
 
     /**
      * Whether to include the full model definition.
      *
      * The full model definition can be very large.
-     *
+     * @deprecated Use {@link GetTrainedModelsRequest#includeDefinition()}
      * @param includeDefinition If {@code true}, the definition is included.
      */
+    @Deprecated
     public GetTrainedModelsRequest setIncludeDefinition(Boolean includeDefinition) {
-        this.includeDefinition = includeDefinition;
+        if (includeDefinition != null && includeDefinition) {
+            return this.includeDefinition();
+        }
         return this;
     }
 
@@ -108,6 +137,46 @@ public class GetTrainedModelsRequest implements Validatable {
      */
     public GetTrainedModelsRequest setDecompressDefinition(Boolean decompressDefinition) {
         this.decompressDefinition = decompressDefinition;
+        return this;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    /**
+     * The tags that the trained model must match. These correspond to {@link TrainedModelConfig#getTags()}.
+     *
+     * The models returned will match ALL tags supplied.
+     * If none are provided, only the provided ids are used to find models
+     * @param tags The tags to match when finding models
+     */
+    public GetTrainedModelsRequest setTags(List<String> tags) {
+        this.tags = tags;
+        return this;
+    }
+
+    /**
+     * See {@link GetTrainedModelsRequest#setTags(List)}
+     */
+    public GetTrainedModelsRequest setTags(String... tags) {
+        return setTags(Arrays.asList(tags));
+    }
+
+    public Boolean getExcludeGenerated() {
+        return excludeGenerated;
+    }
+
+    /**
+     * Setting this flag to `true` removes certain fields from the model definition on retrieval.
+     *
+     * This is useful when getting the model and wanting to put it in another cluster.
+     *
+     * Default value is false.
+     * @param excludeGenerated Boolean value indicating if certain fields should be removed from the mode on GET
+     */
+    public GetTrainedModelsRequest setExcludeGenerated(Boolean excludeGenerated) {
+        this.excludeGenerated = excludeGenerated;
         return this;
     }
 
@@ -128,12 +197,13 @@ public class GetTrainedModelsRequest implements Validatable {
         return Objects.equals(ids, other.ids)
             && Objects.equals(allowNoMatch, other.allowNoMatch)
             && Objects.equals(decompressDefinition, other.decompressDefinition)
-            && Objects.equals(includeDefinition, other.includeDefinition)
+            && Objects.equals(includes, other.includes)
+            && Objects.equals(excludeGenerated, other.excludeGenerated)
             && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, allowNoMatch, pageParams, decompressDefinition, includeDefinition);
+        return Objects.hash(ids, allowNoMatch, pageParams, decompressDefinition, includes, excludeGenerated);
     }
 }

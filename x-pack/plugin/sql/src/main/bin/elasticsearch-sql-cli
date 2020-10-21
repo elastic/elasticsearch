@@ -6,11 +6,12 @@
 
 source "`dirname "$0"`"/elasticsearch-env
 
-source "`dirname "$0"`"/x-pack-env
+source "$ES_HOME"/bin/x-pack-env
 
-CLI_JAR=$(ls $ES_HOME/bin/elasticsearch-sql-cli-*.jar)
+CLI_JAR=$(ls "$ES_HOME"/bin/elasticsearch-sql-cli-*.jar)
 
 exec \
   "$JAVA" \
+  "$XSHARE" \
   -jar "$CLI_JAR" \
   "$@"

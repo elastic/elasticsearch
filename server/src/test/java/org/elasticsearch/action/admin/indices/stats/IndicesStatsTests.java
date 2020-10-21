@@ -124,7 +124,6 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
             assertNotNull(commitStats);
             assertThat(commitStats.getGeneration(), greaterThan(0L));
             assertThat(commitStats.getId(), notNullValue());
-            assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
         }
     }

@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -51,7 +51,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testConditionMet() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
@@ -59,7 +59,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metaData(MetaData.builder().put(indexMetadata, true).build())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
         WaitForIndexingCompleteStep step = createRandomInstance();
@@ -69,14 +69,14 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testConditionMetNotAFollowerIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metaData(MetaData.builder().put(indexMetadata, true).build())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
         WaitForIndexingCompleteStep step = createRandomInstance();
@@ -90,7 +90,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         if (randomBoolean()) {
             indexSettings.put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false");
         }
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(indexSettings)
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
@@ -98,7 +98,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metaData(MetaData.builder().put(indexMetadata, true).build())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
         WaitForIndexingCompleteStep step = createRandomInstance();
@@ -113,7 +113,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
 
     public void testIndexDeleted() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metaData(MetaData.builder().build())
+            .metadata(Metadata.builder().build())
             .build();
 
         WaitForIndexingCompleteStep step = createRandomInstance();

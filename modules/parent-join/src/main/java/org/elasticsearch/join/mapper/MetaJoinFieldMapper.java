@@ -19,21 +19,20 @@
 
 package org.elasticsearch.join.mapper;
 
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
+import java.util.function.Supplier;
 
 /**
  * Simple field mapper hack to ensure that there is a one and only {@link ParentJoinFieldMapper} per mapping.
@@ -42,46 +41,18 @@ import java.util.List;
  * This class is also used to quickly retrieve the parent-join field defined in a mapping without
  * specifying the name of the field.
  */
-public class MetaJoinFieldMapper extends FieldMapper {
+public class MetaJoinFieldMapper extends MetadataFieldMapper {
+
     static final String NAME = "_parent_join";
     static final String CONTENT_TYPE = "parent_join";
 
-    static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new MetaJoinFieldType();
-
-        static {
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setHasDocValues(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    static class Builder extends FieldMapper.Builder<Builder, MetaJoinFieldMapper> {
-        Builder() {
-            super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
-        }
-
-        @Override
-        public MetaJoinFieldMapper build(BuilderContext context) {
-            fieldType.setName(NAME);
-            return new MetaJoinFieldMapper(name, fieldType, context.indexSettings());
-        }
-    }
-
     public static class MetaJoinFieldType extends StringFieldType {
 
-        private ParentJoinFieldMapper mapper;
+        private final String joinField;
 
-        MetaJoinFieldType() {}
-
-        protected MetaJoinFieldType(MetaJoinFieldType ref) {
-            super(ref);
-        }
-
-        public MetaJoinFieldType clone() {
-            return new MetaJoinFieldType(this);
+        private MetaJoinFieldType(String joinField) {
+            super(NAME, false, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this.joinField = joinField;
         }
 
         @Override
@@ -90,22 +61,22 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            throw new UnsupportedOperationException("Cannot load field data for metadata field [" + NAME + "]");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + NAME + "].");
         }
 
         @Override
         public Object valueForDisplay(Object value) {
-            if (value == null) {
-                return null;
-            }
-            BytesRef binaryValue = (BytesRef) value;
-            return binaryValue.utf8ToString();
+            throw new UnsupportedOperationException();
         }
 
-        public ParentJoinFieldMapper getMapper() {
-            return mapper;
+        public String getJoinField() {
+            return joinField;
         }
 
         @Override
@@ -114,12 +85,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    MetaJoinFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings) {
-        super(name, fieldType, ParentIdFieldMapper.Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
-    }
-
-    void setFieldMapper(ParentJoinFieldMapper mapper) {
-        fieldType().mapper = mapper;
+    MetaJoinFieldMapper(String joinField) {
+        super(new MetaJoinFieldType(joinField));
     }
 
     @Override
@@ -133,7 +100,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new IllegalStateException("Should never be called");
     }
 

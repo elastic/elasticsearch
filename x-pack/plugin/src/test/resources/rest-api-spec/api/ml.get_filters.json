@@ -1,7 +1,8 @@
 {
   "ml.get_filters":{
     "documentation":{
-      "url":null
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-filter.html",
+      "description":"Retrieves filters."
     },
     "stability":"stable",
     "url":{

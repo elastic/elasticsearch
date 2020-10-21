@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[ml-find-file-structure]]
-=== Find file structure API
+= Find file structure API
 ++++
 <titleabbrev>Find file structure</titleabbrev>
 ++++
@@ -13,21 +13,22 @@ suitable to be ingested into {es}.
 
 
 [[ml-find-file-structure-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/find_file_structure`
 
 
 [[ml-find-file-structure-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml` or
 `monitor` cluster privileges to use this API. See
-<<security-privileges>>.
+<<security-privileges>> and
+{ml-docs-setup-privileges}.
 
 
 [[ml-find-file-structure-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API provides a starting point for ingesting data into {es} in a format that
 is suitable for subsequent use with other {ml} functionality.
@@ -60,7 +61,7 @@ chosen.
 
 
 [[ml-find-file-structure-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `charset`::
   (Optional, string) The file's character set. It must be a character set that
@@ -78,9 +79,11 @@ chosen.
 `delimiter`::
   (Optional, string) If you have set `format` to `delimited`, you can specify
   the character used to delimit the values in each row. Only a single character
-  is supported; the delimiter cannot have multiple characters. If this parameter
-  is not specified, the structure finder considers the following possibilities:
-  comma, tab, semi-colon, and pipe (`|`).
+  is supported; the delimiter cannot have multiple characters. By default, the
+  API considers the following possibilities: comma, tab, semi-colon, and pipe
+  (`|`). In this default scenario, all rows must have the same number of fields
+  for the delimited format to be detected. If you specify a delimiter, up to 10%
+  of the rows can have a different number of columns than the first row.
 
 `explain`::
   (Optional, boolean) If this parameter is set to `true`, the response includes
@@ -88,9 +91,13 @@ chosen.
   the structure finder produced its result. The default value is `false`.
 
 `format`::
-  (Optional, string) The high level structure of the file. Valid values are
-  `ndjson`, `xml`, `delimited`, and `semi_structured_text`. If this parameter is
-  not specified, the structure finder chooses one.
+(Optional, string) The high level structure of the file. Valid values are
+`ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the
+API chooses the format. In this default scenario, all rows must
+have the same number of fields for a delimited format to be detected. If the
+`format` is set to `delimited` and the `delimiter` is not set, however, the
+API tolerates up to 5% of rows that have a different number of
+columns than the first row.
 
 `grok_pattern`::
   (Optional, string) If you have set `format` to `semi_structured_text`, you can
@@ -145,8 +152,8 @@ to request analysis of 100000 lines to achieve some variety.
   value is `true`. Otherwise, the default value is `false`.
 
 `timeout`::
-  (Optional, <<time-units,time units>>) Sets the maximum amount of time that the 
-  structure analysis make take. If the analysis is still running when the 
+  (Optional, <<time-units,time units>>) Sets the maximum amount of time that the
+  structure analysis make take. If the analysis is still running when the
   timeout expires then it will be aborted. The default value is 25 seconds.
 
 `timestamp_field`::
@@ -163,8 +170,8 @@ also specified.
 For structured file formats, if you specify this parameter, the field must exist
 within the file.
 
-If this parameter is not specified, the structure finder makes a decision about 
-which field (if any) is the primary timestamp field. For structured file 
+If this parameter is not specified, the structure finder makes a decision about
+which field (if any) is the primary timestamp field. For structured file
 formats, it is not compulsory to have a timestamp in the file.
 --
 
@@ -213,21 +220,21 @@ format from a built-in set.
 The following table provides the appropriate `timeformat` values for some example timestamps:
 
 |===
-| Timeformat                 | Presentation 
+| Timeformat                 | Presentation
 
 | yyyy-MM-dd HH:mm:ssZ       | 2019-04-20 13:15:22+0000
-| EEE, d MMM yyyy HH:mm:ss Z | Sat, 20 Apr 2019 13:15:22 +0000    
+| EEE, d MMM yyyy HH:mm:ss Z | Sat, 20 Apr 2019 13:15:22 +0000
 | dd.MM.yy HH:mm:ss.SSS      | 20.04.19 13:15:22.285
 |===
 
-See 
+See
 https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[the Java date/time format documentation]
 for more information about date and time format syntax.
 
 --
 
 [[ml-find-file-structure-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 The text file that you want to analyze. It must contain data that is suitable to
 be ingested into {es}. It does not need to be in JSON format and it does not
@@ -235,10 +242,10 @@ need to be UTF-8 encoded. The size is limited to the {es} HTTP receive buffer
 size, which defaults to 100 Mb.
 
 [[ml-find-file-structure-examples]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [[ml-find-file-structure-example-nld-json]]
-===== Ingesting newline-delimited JSON
+=== Ingesting newline-delimited JSON
 
 Suppose you have a newline-delimited JSON file that contains information about
 some books. You can send the contents to the `find_file_structure` endpoint:
@@ -292,21 +299,23 @@ If the request does not encounter errors, you receive the following result:
   ],
   "need_client_timezone" : true, <10>
   "mappings" : { <11>
-    "@timestamp" : {
-      "type" : "date"
-    },
-    "author" : {
-      "type" : "keyword"
-    },
-    "name" : {
-      "type" : "keyword"
-    },
-    "page_count" : {
-      "type" : "long"
-    },
-    "release_date" : {
-      "type" : "date",
-      "format" : "iso8601"
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "author" : {
+        "type" : "keyword"
+      },
+      "name" : {
+        "type" : "keyword"
+      },
+      "page_count" : {
+        "type" : "long"
+      },
+      "release_date" : {
+        "type" : "date",
+        "format" : "iso8601"
+      }
     }
   },
   "ingest_pipeline" : {
@@ -315,7 +324,7 @@ If the request does not encounter errors, you receive the following result:
       {
         "date" : {
           "field" : "release_date",
-          "timezone" : "{{ beat.timezone }}",
+          "timezone" : "{{ event.timezone }}",
           "formats" : [
             "ISO8601"
           ]
@@ -550,7 +559,7 @@ If the request does not encounter errors, you receive the following result:
 
 
 [[ml-find-file-structure-example-nyc]]
-===== Finding the structure of NYC yellow cab example data
+=== Finding the structure of NYC yellow cab example data
 
 The next example shows how it's possible to find the structure of some New York
 City yellow cab trip data. The first `curl` command downloads the data, the
@@ -615,73 +624,188 @@ If the request does not encounter errors, you receive the following result:
   ],
   "need_client_timezone" : true, <10>
   "mappings" : {
-    "@timestamp" : {
-      "type" : "date"
-    },
-    "DOLocationID" : {
-      "type" : "long"
-    },
-    "PULocationID" : {
-      "type" : "long"
-    },
-    "RatecodeID" : {
-      "type" : "long"
-    },
-    "VendorID" : {
-      "type" : "long"
-    },
-    "extra" : {
-      "type" : "double"
-    },
-    "fare_amount" : {
-      "type" : "double"
-    },
-    "improvement_surcharge" : {
-      "type" : "double"
-    },
-    "mta_tax" : {
-      "type" : "double"
-    },
-    "passenger_count" : {
-      "type" : "long"
-    },
-    "payment_type" : {
-      "type" : "long"
-    },
-    "store_and_fwd_flag" : {
-      "type" : "keyword"
-    },
-    "tip_amount" : {
-      "type" : "double"
-    },
-    "tolls_amount" : {
-      "type" : "double"
-    },
-    "total_amount" : {
-      "type" : "double"
-    },
-    "tpep_dropoff_datetime" : {
-      "type" : "date",
-      "format" : "yyyy-MM-dd HH:mm:ss"
-    },
-    "tpep_pickup_datetime" : {
-      "type" : "date",
-      "format" : "yyyy-MM-dd HH:mm:ss"
-    },
-    "trip_distance" : {
-      "type" : "double"
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "DOLocationID" : {
+        "type" : "long"
+      },
+      "PULocationID" : {
+        "type" : "long"
+      },
+      "RatecodeID" : {
+        "type" : "long"
+      },
+      "VendorID" : {
+        "type" : "long"
+      },
+      "extra" : {
+        "type" : "double"
+      },
+      "fare_amount" : {
+        "type" : "double"
+      },
+      "improvement_surcharge" : {
+        "type" : "double"
+      },
+      "mta_tax" : {
+        "type" : "double"
+      },
+      "passenger_count" : {
+        "type" : "long"
+      },
+      "payment_type" : {
+        "type" : "long"
+      },
+      "store_and_fwd_flag" : {
+        "type" : "keyword"
+      },
+      "tip_amount" : {
+        "type" : "double"
+      },
+      "tolls_amount" : {
+        "type" : "double"
+      },
+      "total_amount" : {
+        "type" : "double"
+      },
+      "tpep_dropoff_datetime" : {
+        "type" : "date",
+        "format" : "yyyy-MM-dd HH:mm:ss"
+      },
+      "tpep_pickup_datetime" : {
+        "type" : "date",
+        "format" : "yyyy-MM-dd HH:mm:ss"
+      },
+      "trip_distance" : {
+        "type" : "double"
+      }
     }
   },
   "ingest_pipeline" : {
     "description" : "Ingest pipeline created by file structure finder",
     "processors" : [
       {
+        "csv" : {
+          "field" : "message",
+          "target_fields" : [
+            "VendorID",
+            "tpep_pickup_datetime",
+            "tpep_dropoff_datetime",
+            "passenger_count",
+            "trip_distance",
+            "RatecodeID",
+            "store_and_fwd_flag",
+            "PULocationID",
+            "DOLocationID",
+            "payment_type",
+            "fare_amount",
+            "extra",
+            "mta_tax",
+            "tip_amount",
+            "tolls_amount",
+            "improvement_surcharge",
+            "total_amount"
+          ]
+        }
+      },
+      {
         "date" : {
           "field" : "tpep_pickup_datetime",
-          "timezone" : "{{ beat.timezone }}",
+          "timezone" : "{{ event.timezone }}",
           "formats" : [
             "yyyy-MM-dd HH:mm:ss"
           ]
+        }
+      },
+      {
+        "convert" : {
+          "field" : "DOLocationID",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "PULocationID",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "RatecodeID",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "VendorID",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "extra",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "fare_amount",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "improvement_surcharge",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "mta_tax",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "passenger_count",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "payment_type",
+          "type" : "long"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "tip_amount",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "tolls_amount",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "total_amount",
+          "type" : "double"
+        }
+      },
+      {
+        "convert" : {
+          "field" : "trip_distance",
+          "type" : "double"
+        }
+      },
+      {
+        "remove" : {
+          "field" : "message"
         }
       }
     ]
@@ -1360,7 +1484,7 @@ If the request does not encounter errors, you receive the following result:
 
 
 [[ml-find-file-structure-example-timeout]]
-===== Setting the timeout parameter
+=== Setting the timeout parameter
 
 If you try to analyze a lot of data then the analysis will take a long time.
 If you want to limit the amount of processing your {es} cluster performs for
@@ -1406,7 +1530,7 @@ data.
 
 
 [[ml-find-file-structure-example-eslog]]
-===== Analyzing {es} log files
+=== Analyzing {es} log files
 
 This is an example of analyzing {es}'s own log file:
 
@@ -1440,14 +1564,16 @@ this:
   ],
   "need_client_timezone" : true,
   "mappings" : {
-    "@timestamp" : {
-      "type" : "date"
-    },
-    "loglevel" : {
-      "type" : "keyword"
-    },
-    "message" : {
-      "type" : "text"
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "loglevel" : {
+        "type" : "keyword"
+      },
+      "message" : {
+        "type" : "text"
+      }
     }
   },
   "ingest_pipeline" : {
@@ -1464,7 +1590,7 @@ this:
       {
         "date" : {
           "field" : "timestamp",
-          "timezone" : "{{ beat.timezone }}",
+          "timezone" : "{{ event.timezone }}",
           "formats" : [
             "ISO8601"
           ]
@@ -1558,7 +1684,7 @@ this:
 
 
 [[ml-find-file-structure-example-grok]]
-===== Specifying `grok_pattern` as query parameter
+=== Specifying `grok_pattern` as query parameter
 
 If you recognize more fields than the simple `grok_pattern` produced by the
 structure finder unaided then you can resubmit the request specifying a more
@@ -1600,20 +1726,22 @@ this:
   ],
   "need_client_timezone" : true,
   "mappings" : {
-    "@timestamp" : {
-      "type" : "date"
-    },
-    "class" : {
-      "type" : "keyword"
-    },
-    "loglevel" : {
-      "type" : "keyword"
-    },
-    "message" : {
-      "type" : "text"
-    },
-    "node" : {
-      "type" : "keyword"
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "class" : {
+        "type" : "keyword"
+      },
+      "loglevel" : {
+        "type" : "keyword"
+      },
+      "message" : {
+        "type" : "text"
+      },
+      "node" : {
+        "type" : "keyword"
+      }
     }
   },
   "ingest_pipeline" : {
@@ -1630,7 +1758,7 @@ this:
       {
         "date" : {
           "field" : "timestamp",
-          "timezone" : "{{ beat.timezone }}",
+          "timezone" : "{{ event.timezone }}",
           "formats" : [
             "ISO8601"
           ]
@@ -1653,7 +1781,7 @@ this:
           "count" : 26
         },
         {
-          "value" : "o.e.c.m.MetaDataIndexTemplateService",
+          "value" : "o.e.c.m.MetadataIndexTemplateService",
           "count" : 8
         },
         {

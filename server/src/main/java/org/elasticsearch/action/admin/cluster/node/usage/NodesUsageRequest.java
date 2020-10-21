@@ -28,10 +28,12 @@ import java.io.IOException;
 public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
 
     private boolean restActions;
+    private boolean aggregations;
 
     public NodesUsageRequest(StreamInput in) throws IOException {
         super(in);
         this.restActions = in.readBoolean();
+        this.aggregations = in.readBoolean();
     }
 
     /**
@@ -47,6 +49,7 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
      */
     public NodesUsageRequest all() {
         this.restActions = true;
+        this.aggregations = true;
         return this;
     }
 
@@ -73,9 +76,26 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
         return this;
     }
 
+
+    /**
+     * Should the node rest actions usage statistics be returned.
+     */
+    public boolean aggregations() {
+        return this.aggregations;
+    }
+
+    /**
+     * Should the node rest actions usage statistics be returned.
+     */
+    public NodesUsageRequest aggregations(boolean aggregations) {
+        this.aggregations = aggregations;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(restActions);
+        out.writeBoolean(aggregations);
     }
 }

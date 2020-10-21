@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -23,15 +22,18 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateResponse;
+import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Rest handler that authenticates the user based on the information provided as parameters of the redirect_uri
  */
-public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler {
+public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler implements RestRequestFilter {
     private static final Logger logger = LogManager.getLogger();
 
     static final ObjectParser<OpenIdConnectAuthenticateRequest, Void> PARSER = new ObjectParser<>("oidc_authn",
@@ -44,9 +46,13 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
         PARSER.declareStringOrNull(OpenIdConnectAuthenticateRequest::setRealm, new ParseField("realm"));
     }
 
-    public RestOpenIdConnectAuthenticateAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestOpenIdConnectAuthenticateAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(POST, "/_security/oidc/authenticate", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_security/oidc/authenticate"));
     }
 
     @Override
@@ -59,12 +65,15 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
                     @Override
                     public RestResponse buildResponse(OpenIdConnectAuthenticateResponse response, XContentBuilder builder)
                         throws Exception {
-                        builder.startObject()
-                            .field("username", response.getPrincipal())
-                            .field("access_token", response.getAccessTokenString())
-                            .field("refresh_token", response.getRefreshTokenString())
-                            .field("expires_in", response.getExpiresIn().seconds())
-                            .endObject();
+                        builder.startObject();
+                        builder.field("username", response.getPrincipal());
+                        builder.field("access_token", response.getAccessTokenString());
+                        builder.field("refresh_token", response.getRefreshTokenString());
+                        builder.field("expires_in", response.getExpiresIn().seconds());
+                        if(response.getAuthentication() != null) {
+                            builder.field("authentication", response.getAuthentication());
+                        }
+                        builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });
@@ -74,5 +83,12 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
     @Override
     public String getName() {
         return "security_oidc_authenticate_action";
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Set.of("redirect_uri");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

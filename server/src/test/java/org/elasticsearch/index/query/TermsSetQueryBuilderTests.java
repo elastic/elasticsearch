@@ -49,6 +49,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -71,7 +72,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -88,7 +89,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             value -> value.equals(GEO_POINT_FIELD_NAME) || value.equals(GEO_SHAPE_FIELD_NAME),
             () -> randomFrom(MAPPED_FIELD_NAMES));
         List<?> randomTerms = randomValues(fieldName);
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, randomTerms);
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, randomTerms);
         if (randomBoolean()) {
             queryBuilder.setMinimumShouldMatchField("m_s_m");
         } else {
@@ -124,14 +125,14 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 context.isCacheable());
 
         // specifically trigger the two cases where query is cacheable
-        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.singletonList("foo"));
+        queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.singletonList("foo"));
         queryBuilder.setMinimumShouldMatchField("m_s_m");
         context = createShardContext();
         rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
-        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.emptyList());
+        queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.emptyList());
         queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
         context = createShardContext();
         rewriteQuery(queryBuilder, new QueryShardContext(context));
@@ -139,7 +140,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
         // also test one case where query is not cacheable
-        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.singletonList("foo"));
+        queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.singletonList("foo"));
         queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
         context = createShardContext();
         rewriteQuery(queryBuilder, new QueryShardContext(context));
@@ -295,7 +296,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     public void testFieldAlias() {
         List<String> randomTerms = Arrays.asList(generateRandomStringArray(5, 10, false, false));
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_ALIAS_FIELD_NAME, randomTerms)
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(TEXT_ALIAS_FIELD_NAME, randomTerms)
             .setMinimumShouldMatchField("m_s_m");
 
         QueryShardContext context = createShardContext();

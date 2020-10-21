@@ -87,9 +87,7 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                 writer.addDocument(doc);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves());
-                    DateFieldMapper.Builder b = new DateFieldMapper.Builder("test");
-                    DateFieldMapper.DateFieldType dateFieldType = b.fieldType();
-                    dateFieldType.setName("test");
+                    DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType("test");
                     QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> 0);
                     MappedFieldType.Relation relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 0, 10,
                         true, true, ZoneOffset.UTC, null, context);

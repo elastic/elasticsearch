@@ -27,8 +27,8 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Respons
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
@@ -67,7 +66,6 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     private final ThreadPool threadPool;
     private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
-    private final Client client;
 
     @Inject
     public TransportStopTransformAction(
@@ -105,16 +103,15 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         this.threadPool = threadPool;
         this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
-        this.client = client;
     }
 
     static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
-        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (isForce == false && tasks != null) {
             List<String> failedTasks = new ArrayList<>();
             List<String> failedReasons = new ArrayList<>();
             for (String transformId : transformIds) {
-                PersistentTasksCustomMetaData.PersistentTask<?> dfTask = tasks.getTask(transformId);
+                PersistentTasksCustomMetadata.PersistentTask<?> dfTask = tasks.getTask(transformId);
                 if (dfTask != null
                     && dfTask.getState() instanceof TransformState
                     && ((TransformState) dfTask.getState()).getTaskState() == TransformTaskState.FAILED) {
@@ -136,7 +133,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     static Tuple<Set<String>, Set<String>> findTasksWithoutConfig(ClusterState state, String transformId) {
-        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
 
         Set<String> taskIds = new HashSet<>();
         Set<String> executorNodes = new HashSet<>();
@@ -147,7 +144,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 return Regex.simpleMatch(transformId, transformParams.getId());
             };
 
-            for (PersistentTasksCustomMetaData.PersistentTask<?> pTask : tasks.findTasks(TransformField.TASK_NAME, taskMatcher)) {
+            for (PersistentTasksCustomMetadata.PersistentTask<?> pTask : tasks.findTasks(TransformField.TASK_NAME, taskMatcher)) {
                 executorNodes.add(pTask.getExecutorNode());
                 taskIds.add(pTask.getId());
             }
@@ -274,13 +271,10 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     private ActionListener<Response> waitForStopListener(Request request, ActionListener<Response> listener) {
 
         ActionListener<Response> onStopListener = ActionListener.wrap(
-            waitResponse -> client.admin()
-                .indices()
-                .prepareRefresh(TransformInternalIndexConstants.LATEST_INDEX_NAME)
-                .execute(ActionListener.wrap(r -> listener.onResponse(waitResponse), e -> {
-                    logger.info("Failed to refresh internal index after delete", e);
-                    listener.onResponse(waitResponse);
-                })),
+            waitResponse -> transformConfigManager.refresh(ActionListener.wrap(r -> listener.onResponse(waitResponse), e -> {
+                logger.warn("Could not refresh state, state information might be outdated", e);
+                listener.onResponse(waitResponse);
+            })),
             listener::onFailure
         );
         return ActionListener.wrap(
@@ -356,12 +350,12 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     ) {
         // This map is accessed in the predicate and the listener callbacks
         final Map<String, ElasticsearchException> exceptions = new ConcurrentHashMap<>();
-        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetaData -> {
-            if (persistentTasksCustomMetaData == null) {
+        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
+            if (persistentTasksCustomMetadata == null) {
                 return true;
             }
             for (String persistentTaskId : persistentTaskIds) {
-                PersistentTasksCustomMetaData.PersistentTask<?> transformsTask = persistentTasksCustomMetaData.getTask(persistentTaskId);
+                PersistentTasksCustomMetadata.PersistentTask<?> transformsTask = persistentTasksCustomMetadata.getTask(persistentTaskId);
                 // Either the task has successfully stopped or we have seen that it has failed
                 if (transformsTask == null || exceptions.containsKey(persistentTaskId)) {
                     continue;
@@ -380,7 +374,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
                     // If all the tasks are now flagged as failed, do not wait for another ClusterState update.
                     // Return to the caller as soon as possible
-                    return persistentTasksCustomMetaData.tasks().stream().allMatch(p -> exceptions.containsKey(p.getId()));
+                    return persistentTasksCustomMetadata.tasks().stream().allMatch(p -> exceptions.containsKey(p.getId()));
                 }
                 return false;
             }
@@ -413,11 +407,11 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }, e -> {
             // waitForPersistentTasksCondition throws a IllegalStateException on timeout
             if (e instanceof IllegalStateException && e.getMessage().startsWith("Timed out")) {
-                PersistentTasksCustomMetaData persistentTasksCustomMetaData = clusterService.state()
-                    .metaData()
-                    .custom(PersistentTasksCustomMetaData.TYPE);
+                PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
+                    .metadata()
+                    .custom(PersistentTasksCustomMetadata.TYPE);
 
-                if (persistentTasksCustomMetaData == null) {
+                if (persistentTasksCustomMetadata == null) {
                     listener.onResponse(new Response(Boolean.TRUE));
                     return;
                 }
@@ -425,7 +419,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 // collect which tasks are still running
                 Set<String> stillRunningTasks = new HashSet<>();
                 for (String persistentTaskId : persistentTaskIds) {
-                    if (persistentTasksCustomMetaData.getTask(persistentTaskId) != null) {
+                    if (persistentTasksCustomMetadata.getTask(persistentTaskId) != null) {
                         stillRunningTasks.add(persistentTaskId);
                     }
                 }

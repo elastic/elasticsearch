@@ -56,7 +56,9 @@ public class NotEqualMessageBuilder {
         actual = new TreeMap<>(actual);
         expected = new TreeMap<>(expected);
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
-            compare(expectedEntry.getKey(), actual.remove(expectedEntry.getKey()), expectedEntry.getValue());
+            boolean hadKey = actual.containsKey(expectedEntry.getKey());
+            Object actualValue = actual.remove(expectedEntry.getKey());
+            compare(expectedEntry.getKey(), hadKey, actualValue, expectedEntry.getValue());
         }
         for (Map.Entry<String, Object> unmatchedEntry : actual.entrySet()) {
             field(unmatchedEntry.getKey(), "unexpected but found [" + unmatchedEntry.getValue() + "]");
@@ -69,7 +71,7 @@ public class NotEqualMessageBuilder {
     public void compareLists(List<Object> actual, List<Object> expected) {
         int i = 0;
         while (i < actual.size() && i < expected.size()) {
-            compare(Integer.toString(i), actual.get(i), expected.get(i));
+            compare(Integer.toString(i), true, actual.get(i), expected.get(i));
             i++;
         }
         if (actual.size() == expected.size()) {
@@ -87,10 +89,14 @@ public class NotEqualMessageBuilder {
      * Compare two values.
      * @param field the name of the field being compared.
      */
-    public void compare(String field, @Nullable Object actual, Object expected) {
+    public void compare(String field, boolean hadKey, @Nullable Object actual, Object expected) {
         if (expected instanceof Map) {
-            if (actual == null) {
+            if (false == hadKey) {
                 field(field, "expected map but not found");
+                return;
+            }
+            if (actual == null) {
+                field(field, "expected map but was [null]");
                 return;
             }
             if (false == actual instanceof Map) {
@@ -112,8 +118,12 @@ public class NotEqualMessageBuilder {
             return;
         }
         if (expected instanceof List) {
-            if (actual == null) {
+            if (false == hadKey) {
                 field(field, "expected list but not found");
+                return;
+            }
+            if (actual == null) {
+                field(field, "expected list but was [null]");
                 return;
             }
             if (false == actual instanceof List) {
@@ -134,8 +144,16 @@ public class NotEqualMessageBuilder {
             indent -= 1;
             return;
         }
-        if (actual == null) {
+        if (false == hadKey) {
             field(field, "expected [" + expected + "] but not found");
+            return;
+        }
+        if (actual == null) {
+            if (expected == null) {
+                field(field, "same [" + expected + "]");
+                return;
+            }
+            field(field, "expected [" + expected + "] but was [null]");
             return;
         }
         if (Objects.equals(expected, actual)) {

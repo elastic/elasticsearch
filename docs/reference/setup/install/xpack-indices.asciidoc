@@ -1,4 +1,4 @@
-Some commercial features automatically create system indices within {es}.
+Some commercial features automatically create indices within {es}.
 By default, {es} is configured to allow automatic index creation, and no
 additional steps are required. However, if you have disabled automatic index
 creation in {es}, you must configure

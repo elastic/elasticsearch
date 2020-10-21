@@ -152,7 +152,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     @Override
     protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
         String fieldInQuery = fieldName;
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {
             fieldInQuery = fieldType.name();
         }

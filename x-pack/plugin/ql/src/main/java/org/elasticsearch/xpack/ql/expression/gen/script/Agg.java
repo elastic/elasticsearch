@@ -34,13 +34,13 @@ class Agg extends Param<AggregateFunction> {
         else if (agg instanceof Count) {
             Count c = (Count) agg;
             // for literals get the last count
-            if (c.field().foldable() == true) {
+            if (c.field().foldable()) {
                 return COUNT_PATH;
             }
             // when dealing with fields, check whether there's a single-metric (distinct -> cardinality)
             // or a bucket (non-distinct - filter agg)
             else {
-                if (c.distinct() == true) {
+                if (c.distinct()) {
                     return Expressions.id(c);
                 } else {
                     return Expressions.id(c) + "." + COUNT_PATH;

@@ -26,7 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -49,22 +48,14 @@ public class ClusterBlockException extends ElasticsearchException {
 
     public ClusterBlockException(StreamInput in) throws IOException {
         super(in);
-        int totalBlocks = in.readVInt();
-        Set<ClusterBlock> blocks = new HashSet<>(totalBlocks);
-        for (int i = 0; i < totalBlocks;i++) {
-            blocks.add(new ClusterBlock(in));
-        }
-        this.blocks = unmodifiableSet(blocks);
+        this.blocks = unmodifiableSet(in.readSet(ClusterBlock::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (blocks != null) {
-            out.writeVInt(blocks.size());
-            for (ClusterBlock block : blocks) {
-                block.writeTo(out);
-            }
+            out.writeCollection(blocks);
         } else {
             out.writeVInt(0);
         }
@@ -110,13 +101,23 @@ public class ClusterBlockException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         RestStatus status = null;
+        boolean onlyRetryableBlocks = true;
         for (ClusterBlock block : blocks) {
-            if (status == null) {
-                status = block.status();
-            } else if (status.getStatus() < block.status().getStatus()) {
-                status = block.status();
+            boolean isRetryableBlock = block.status() == RestStatus.TOO_MANY_REQUESTS;
+            if (isRetryableBlock == false) {
+                if (status == null) {
+                    status = block.status();
+                } else if (status.getStatus() < block.status().getStatus()) {
+                    status = block.status();
+                }
             }
+            onlyRetryableBlocks = onlyRetryableBlocks && isRetryableBlock;
         }
+        // return retryable status if there are only retryable blocks
+        if (onlyRetryableBlocks) {
+            return RestStatus.TOO_MANY_REQUESTS;
+        }
+        // return status which has the maximum code of all status except the retryable blocks'
         return status;
     }
 }

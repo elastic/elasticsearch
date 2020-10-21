@@ -28,8 +28,10 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -37,7 +39,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -161,6 +165,16 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [rescore] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
         }
+        {
+            // Reader context with scroll
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id")))
+                .scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
     }
 
     public void testCopyConstructor() throws IOException {
@@ -192,5 +206,18 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
         randomFrom(mutators).run();
         return mutation;
+    }
+
+    public void testDescriptionForDefault() {
+        assertThat(toDescription(new SearchRequest()), equalTo("indices[], search_type[QUERY_THEN_FETCH], source[]"));
+    }
+
+    public void testDescriptionIncludesScroll() {
+        assertThat(toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
+            equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]"));
+    }
+
+    private String toDescription(SearchRequest request) {
+        return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
     }
 }

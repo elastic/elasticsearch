@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
@@ -31,12 +33,13 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -87,7 +90,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     private static String[] randomStringFields() {
-        String[] mappedStringFields = new String[]{STRING_FIELD_NAME, STRING_FIELD_NAME_2, STRING_ALIAS_FIELD_NAME};
+        String[] mappedStringFields = new String[]{TEXT_FIELD_NAME, KEYWORD_FIELD_NAME, TEXT_ALIAS_FIELD_NAME};
         String[] unmappedStringFields = generateRandomStringArray(2, 5, false, false);
         return Stream.concat(Arrays.stream(mappedStringFields), Arrays.stream(unmappedStringFields)).toArray(String[]::new);
     }
@@ -150,7 +153,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         } else {
             likeItems = randomLikeItems;
         }
-        if (randomBoolean() && likeItems != null && likeItems.length > 0) { // for the default field
+        if (randomBoolean() && CollectionUtils.isEmpty(likeItems) == false) { // for the default field
             queryBuilder = new MoreLikeThisQueryBuilder(null, likeItems);
         } else {
             queryBuilder = new MoreLikeThisQueryBuilder(randomFields, likeTexts, likeItems);
@@ -257,7 +260,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     @Override
     protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryBuilder.likeItems() != null && queryBuilder.likeItems().length > 0) {
+        if (CollectionUtils.isEmpty(queryBuilder.likeItems()) == false) {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery booleanQuery = (BooleanQuery) query;
             for (BooleanClause booleanClause : booleanQuery) {
@@ -295,6 +298,20 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
     }
 
+    public void testUsesIndexAnalyzer() throws IOException {
+        MoreLikeThisQueryBuilder qb
+            = new MoreLikeThisQueryBuilder(new String[]{KEYWORD_FIELD_NAME}, new String[]{"some text"}, null);
+        MoreLikeThisQuery q = (MoreLikeThisQuery) qb.toQuery(createShardContext());
+        try (TokenStream ts = q.getAnalyzer().tokenStream(KEYWORD_FIELD_NAME, "some text")) {
+            ts.reset();
+            CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+            assertTrue(ts.incrementToken());
+            assertEquals("some text", termAtt.toString());
+            assertFalse(ts.incrementToken());
+            ts.end();
+        }
+    }
+
     public void testDefaultField() throws IOException {
         QueryShardContext context = createShardContext();
 
@@ -307,10 +324,10 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         }
 
         {
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index",
                     context.getIndexSettings().getSettings(),
-                    Settings.builder().putList("index.query.default_field", STRING_FIELD_NAME).build()
+                    Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME).build()
                 )
             );
             try {
@@ -318,7 +335,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 builder.toQuery(context);
             } finally {
                 // Reset the default value
-                context.getIndexSettings().updateIndexMetaData(
+                context.getIndexSettings().updateIndexMetadata(
                     newIndexMeta("index",
                         context.getIndexSettings().getSettings(),
                         Settings.builder().putList("index.query.default_field", "*").build()
@@ -442,10 +459,10 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         return query;
     }
 
-    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+    private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)
             .build();
-        return IndexMetaData.builder(name).settings(build).build();
+        return IndexMetadata.builder(name).settings(build).build();
     }
 }

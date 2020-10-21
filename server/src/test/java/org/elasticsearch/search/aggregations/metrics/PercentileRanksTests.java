@@ -37,8 +37,7 @@ public class PercentileRanksTests extends BaseAggregationTestCase<PercentileRank
 
         if (randomBoolean()) {
             factory.numberOfSignificantValueDigits(randomIntBetween(0, 5));
-        }
-        if (randomBoolean()) {
+        } else if (randomBoolean()) {
             factory.compression(randomIntBetween(1, 50000));
         }
         String field = randomNumericField();

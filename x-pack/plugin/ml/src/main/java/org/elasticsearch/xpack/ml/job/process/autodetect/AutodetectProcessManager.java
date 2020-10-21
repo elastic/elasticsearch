@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import joptsimple.internal.Strings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -14,6 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
@@ -26,14 +28,16 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -49,6 +53,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
@@ -75,9 +80,11 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -92,15 +99,16 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(AutodetectProcessManager.class);
 
     private final Client client;
-    private final Environment environment;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
     private final AutodetectProcessFactory autodetectProcessFactory;
     private final NormalizerFactory normalizerFactory;
+    private final IndexNameExpressionResolver expressionResolver;
 
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
+    private final AnnotationPersister annotationPersister;
 
     private NativeStorageProvider nativeStorageProvider;
     private final ConcurrentMap<Long, ProcessContext> processByAllocation = new ConcurrentHashMap<>();
@@ -113,22 +121,24 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     private volatile boolean upgradeInProgress;
 
-    public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
+    public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool,
                                     NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor, ClusterService clusterService,
                                     JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
-                                    JobDataCountsPersister jobDataCountsPersister, AutodetectProcessFactory autodetectProcessFactory,
-                                    NormalizerFactory normalizerFactory, NativeStorageProvider nativeStorageProvider) {
-        this.environment = environment;
+                                    JobDataCountsPersister jobDataCountsPersister, AnnotationPersister annotationPersister,
+                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
+                                    NativeStorageProvider nativeStorageProvider, IndexNameExpressionResolver expressionResolver) {
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.maxAllowedRunningJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
+        this.expressionResolver = expressionResolver;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
+        this.annotationPersister = annotationPersister;
         this.auditor = auditor;
         this.nativeStorageProvider = Objects.requireNonNull(nativeStorageProvider);
         clusterService.addListener(this);
@@ -323,16 +333,17 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 }, handler
         );
 
-        // Step 2. Set the filter on the message and get scheduled events
-        ActionListener<MlFilter> filterListener = ActionListener.wrap(
-                filter -> {
-                    updateProcessMessage.setFilter(filter);
+        // Step 2. Set the filters on the message and get scheduled events
+        ActionListener<List<MlFilter>> filtersListener = ActionListener.wrap(
+                filters -> {
+                    updateProcessMessage.setFilters(filters);
 
                     if (updateParams.isUpdateScheduledEvents()) {
-                        jobManager.getJob(jobTask.getJobId(), new ActionListener<Job>() {
+                        jobManager.getJob(jobTask.getJobId(), new ActionListener<>() {
                             @Override
                             public void onResponse(Job job) {
-                                DataCounts dataCounts = getStatistics(jobTask).get().v1();
+                                Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> stats = getStatistics(jobTask);
+                                DataCounts dataCounts = stats.isPresent() ? stats.get().v1() : new DataCounts(job.getId());
                                 ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()
                                         .start(job.earliestValidTimestamp(dataCounts));
                                 jobResultsProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
@@ -349,25 +360,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 }, handler
         );
 
-        // Step 1. Get the filter
-        if (updateParams.getFilter() == null) {
-            filterListener.onResponse(null);
+        // All referenced filters must also be updated
+        Set<String> filterIds = updateParams.extractReferencedFilters();
+
+        // Step 1. Get the filters
+        if (filterIds.isEmpty()) {
+            filtersListener.onResponse(null);
         } else {
-            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request();
-            getFilterRequest.setFilterId(updateParams.getFilter().getId());
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest,
-                    new ActionListener<GetFiltersAction.Response>() {
-
-                @Override
-                public void onResponse(GetFiltersAction.Response response) {
-                    filterListener.onResponse(response.getFilters().results().get(0));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    handler.accept(e);
-                }
-            });
+            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(Strings.join(filterIds, ","));
+            getFilterRequest.setPageParams(new PageParams(0, filterIds.size()));
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest, ActionListener.wrap(
+                getFilterResponse -> filtersListener.onResponse(getFilterResponse.getFilters().results()),
+                handler
+            ));
         }
     }
 
@@ -431,17 +436,41 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     e -> closeHandler.accept(e, true)
                 ));
             },
-            e -> closeHandler.accept(e, true));
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof InvalidAliasNameException) {
+                    String msg = "Detected a problem with your setup of machine learning, the state index alias ["
+                        + AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+                        + "] exists as index but must be an alias.";
+                    logger.error(new ParameterizedMessage("[{}] {}", jobId, msg), e);
+                    auditor.error(jobId, msg);
+                    setJobState(jobTask, JobState.FAILED, msg, e2 -> closeHandler.accept(e, true));
+                } else {
+                    closeHandler.accept(e, true);
+                }
+            }
+        );
 
         // Make sure the state index and alias exist
         ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
-            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasHandler),
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasHandler),
             e -> closeHandler.accept(e, true)
         );
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
-        ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-            ElasticsearchMappings::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+        ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
+            ack -> ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler),
+            e -> {
+                // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
+                // and it would cause more harm than good to block jobs from opening in subsequent releases
+                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+                    AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+            }
+        );
+
+        // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
+        AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, annotationsIndexUpdateHandler);
     }
 
     private boolean createProcessAndSetRunning(ProcessContext processContext,
@@ -517,6 +546,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 jobId,
                 renormalizer,
                 jobResultsPersister,
+                annotationPersister,
                 process,
                 autodetectParams.modelSizeStats(),
                 autodetectParams.timingStats());
@@ -534,7 +564,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             }
             throw e;
         }
-        return new AutodetectCommunicator(job, environment, process, new StateStreamer(client), dataCountsReporter, processor, handler,
+        return new AutodetectCommunicator(job, process, new StateStreamer(client), dataCountsReporter, processor, handler,
                 xContentRegistry, autodetectWorkerExecutor);
 
     }
@@ -685,7 +715,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
                 logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId());
@@ -704,7 +734,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
                 try {

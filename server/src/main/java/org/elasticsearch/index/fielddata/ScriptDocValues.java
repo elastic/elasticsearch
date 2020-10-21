@@ -452,7 +452,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    // We need to make a copy here, because BytesBinaryDVAtomicFieldData's SortedBinaryDocValues
+                    // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortedBinaryDocValues
                     // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
                     // instance for all slots in the values array.
                     values[i].copyBytes(in.nextValue());
@@ -481,25 +481,30 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public int size() {
             return count;
         }
-
     }
 
-    public static final class Strings extends BinaryScriptDocValues<String> {
-
+    public static class Strings extends BinaryScriptDocValues<String> {
         public Strings(SortedBinaryDocValues in) {
             super(in);
         }
 
         @Override
-        public String get(int index) {
+        public final String get(int index) {
             if (count == 0) {
                 throw new IllegalStateException("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
-            return values[index].get().utf8ToString();
+            return bytesToString(values[index].get());
         }
 
-        public String getValue() {
+        /**
+         * Convert the stored bytes to a String.
+         */
+        protected String bytesToString(BytesRef bytes) {
+            return bytes.utf8ToString();
+        }
+
+        public final String getValue() {
             return get(0);
         }
     }

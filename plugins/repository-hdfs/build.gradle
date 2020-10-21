@@ -28,6 +28,8 @@ import java.nio.file.Paths
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.rest-test'
 
 esplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
@@ -35,7 +37,7 @@ esplugin {
 }
 
 versions << [
-  'hadoop2': '2.8.1'
+  'hadoop2': '2.8.5'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
@@ -45,32 +47,38 @@ configurations {
 }
 
 dependencies {
-  compile "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-common:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
-  compile 'org.apache.htrace:htrace-core4:4.0.1-incubating'
-  compile 'com.google.guava:guava:11.0.2'
-  compile 'com.google.protobuf:protobuf-java:2.5.0'
-  compile 'commons-logging:commons-logging:1.1.3'
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  compile 'commons-cli:commons-cli:1.2'
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile 'commons-collections:commons-collections:3.2.2'
-  compile 'commons-configuration:commons-configuration:1.6'
-  compile 'commons-io:commons-io:2.4'
-  compile 'commons-lang:commons-lang:2.6'
-  compile 'javax.servlet:servlet-api:2.5'
-  compile "org.slf4j:slf4j-api:${versions.slf4j}"
-  compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  api "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-common:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
+  api 'org.apache.htrace:htrace-core4:4.0.1-incubating'
+  runtimeOnly 'com.google.guava:guava:11.0.2'
+  api 'com.google.protobuf:protobuf-java:2.5.0'
+  api 'commons-logging:commons-logging:1.1.3'
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api 'commons-cli:commons-cli:1.2'
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api 'commons-collections:commons-collections:3.2.2'
+  api 'commons-configuration:commons-configuration:1.6'
+  api 'commons-io:commons-io:2.4'
+  api 'commons-lang:commons-lang:2.6'
+  api 'javax.servlet:servlet-api:2.5'
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
   if (isEclipse == false) {
-    testRuntime files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
+    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
+  }
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
   }
 }
 
@@ -79,12 +87,20 @@ normalization {
     // ignore generated keytab files for the purposes of build avoidance
     ignore '*.keytab'
     // ignore fixture ports file which is on the classpath primarily to pacify the security manager
-    ignore '*HdfsFixture/**'
+    ignore 'ports'
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /hadoop-.*/, to: 'hadoop'
+}
+
+tasks.named("integTest").configure {
+  it.dependsOn(project.tasks.named("bundlePlugin"))
+}
+
+testClusters.integTest {
+  plugin(project.tasks.bundlePlugin.archiveFile)
 }
 
 String realm = "BUILD.ELASTIC.CO"
@@ -92,12 +108,12 @@ String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
-  project.tasks.create(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+  def tsk = project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
     maxWaitInSeconds 60
-    onlyIf { project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled && BuildParams.inFipsJvm == false }
+    onlyIf { BuildParams.inFipsJvm == false }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
@@ -128,6 +144,10 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 
     args miniHDFSArgs.toArray()
   }
+
+  // TODO: The task configuration block has side effects that require it currently to be always executed.
+  // Otherwise tests start failing. Therefore we enforce the task creation for now.
+  tsk.get()
 }
 
 Set disabledIntegTestTaskNames = []
@@ -149,23 +169,31 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
       }
     }
 
-    runner {
       onlyIf { BuildParams.inFipsJvm == false }
       if (integTestTaskName.contains("Ha")) {
+        Path portsFile
+        File portsFileDir = file("${workingDir}/hdfsFixture")
         if (integTestTaskName.contains("Secure")) {
-          Path path = buildDir.toPath()
+          portsFile = buildDir.toPath()
             .resolve("fixtures")
             .resolve("secureHaHdfsFixture")
             .resolve("ports")
-          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
         } else {
-          Path path = buildDir.toPath()
+          portsFile = buildDir.toPath()
             .resolve("fixtures")
             .resolve("haHdfsFixture")
             .resolve("ports")
-          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
         }
-        classpath += files("$buildDir/fixtures")
+        nonInputProperties.systemProperty "test.hdfs-fixture.ports", file("$portsFileDir/ports")
+        classpath += files(portsFileDir)
+        // Copy ports file to separate location which is placed on the test classpath
+        doFirst {
+          mkdir(portsFileDir)
+          copy {
+            from portsFile
+            into portsFileDir
+          }
+        }
       }
 
       if (integTestTaskName.contains("Secure")) {
@@ -179,11 +207,10 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
           )
         }
       }
-    }
   }
 
   testClusters."${integTestTaskName}" {
-    plugin(file(bundlePlugin.archiveFile))
+    plugin(bundlePlugin.archiveFile)
     if (integTestTaskName.contains("Secure")) {
       systemProperty "java.security.krb5.conf", krb5conf
       extraConfigFile(
@@ -221,7 +248,7 @@ if (legalPath == false) {
 
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
-integTest.runner {
+integTest {
   onlyIf { BuildParams.inFipsJvm == false }
   exclude('**/Ha*TestSuiteIT.class')
 }
@@ -235,12 +262,12 @@ if (fixtureSupported) {
   integTestHa.dependsOn haHdfsFixture
 
   // The normal test runner only runs the standard hdfs rest tests
-  integTest.runner {
+  integTest {
     systemProperty 'tests.rest.suite', 'hdfs_repository'
   }
 
   // Only include the HA integration tests for the HA test task
-  integTestHa.runner {
+  integTestHa {
     setIncludes(['**/Ha*TestSuiteIT.class'])
   }
 } else {
@@ -251,7 +278,7 @@ if (fixtureSupported) {
   }
 
   // The normal integration test runner will just test that the plugin loads
-  integTest.runner {
+  integTest {
     systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
   }
   // HA fixture is unsupported. Don't run them.
@@ -261,15 +288,15 @@ if (fixtureSupported) {
 check.dependsOn(integTestSecure, integTestSecureHa)
 
 // Run just the secure hdfs rest test suite.
-integTestSecure.runner {
+integTestSecure {
   systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
 }
 // Ignore HA integration Tests. They are included below as part of integTestSecureHa test runner.
-integTestSecure.runner {
+integTestSecure {
   exclude('**/Ha*TestSuiteIT.class')
 }
 // Only include the HA integration tests for the HA test task
-integTestSecureHa.runner {
+integTestSecureHa {
   setIncludes(['**/Ha*TestSuiteIT.class'])
 }
 

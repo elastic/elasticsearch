@@ -19,16 +19,18 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -53,6 +55,78 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testNewContextWithClearedTransients() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient("foo", "bar");
+        threadContext.putTransient("bar", "baz");
+        threadContext.putHeader("foo", "bar");
+        threadContext.putHeader("baz", "bar");
+        threadContext.addResponseHeader("foo", "bar");
+        threadContext.addResponseHeader("bar", "qux");
+
+        // this is missing or null
+        if (randomBoolean()) {
+            threadContext.putTransient("acme", null);
+        }
+
+        // foo is the only existing transient header that is cleared
+        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(false, randomFrom(List.of("foo", "foo"),
+                List.of("foo"), List.of("foo", "acme")))) {
+            // only the requested transient header is cleared
+            assertNull(threadContext.getTransient("foo"));
+            // missing header is still missing
+            assertNull(threadContext.getTransient("acme"));
+            // other headers are preserved
+            assertEquals("baz", threadContext.getTransient("bar"));
+            assertEquals("bar", threadContext.getHeader("foo"));
+            assertEquals("bar", threadContext.getHeader("baz"));
+            assertEquals("bar", threadContext.getResponseHeaders().get("foo").get(0));
+            assertEquals("qux", threadContext.getResponseHeaders().get("bar").get(0));
+
+            // try override stashed header
+            threadContext.putTransient("foo", "acme");
+            assertEquals("acme", threadContext.getTransient("foo"));
+            // add new headers
+            threadContext.putTransient("baz", "bar");
+            threadContext.putHeader("bar", "baz");
+            threadContext.addResponseHeader("baz", "bar");
+            threadContext.addResponseHeader("foo", "baz");
+        }
+
+        // original is restored (it is not overridden)
+        assertEquals("bar", threadContext.getTransient("foo"));
+        // headers added inside the stash are NOT preserved
+        assertNull(threadContext.getTransient("baz"));
+        assertNull(threadContext.getHeader("bar"));
+        assertNull(threadContext.getResponseHeaders().get("baz"));
+        // original headers are restored
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals("bar", threadContext.getHeader("baz"));
+        assertEquals("bar", threadContext.getResponseHeaders().get("foo").get(0));
+        assertEquals(1, threadContext.getResponseHeaders().get("foo").size());
+        assertEquals("qux", threadContext.getResponseHeaders().get("bar").get(0));
+
+        // test stashed missing header stays missing
+        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(randomBoolean(), randomFrom(Arrays.asList("acme", "acme"),
+                Arrays.asList("acme")))) {
+            assertNull(threadContext.getTransient("acme"));
+            threadContext.putTransient("acme", "foo");
+        }
+        assertNull(threadContext.getTransient("acme"));
+
+        // test preserved response headers
+        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(true, randomFrom(List.of("foo", "foo"),
+                List.of("foo"), List.of("foo", "acme")))) {
+            threadContext.addResponseHeader("baz", "bar");
+            threadContext.addResponseHeader("foo", "baz");
+        }
+        assertEquals("bar", threadContext.getResponseHeaders().get("foo").get(0));
+        assertEquals("baz", threadContext.getResponseHeaders().get("foo").get(1));
+        assertEquals(2, threadContext.getResponseHeaders().get("foo").size());
+        assertEquals("bar", threadContext.getResponseHeaders().get("baz").get(0));
+        assertEquals(1, threadContext.getResponseHeaders().get("baz").size());
     }
 
     public void testStashWithOrigin() {
@@ -203,12 +277,12 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.addResponseHeader("foo", "bar");
         }
 
-        final String value = DeprecationLogger.formatWarning("qux");
-        threadContext.addResponseHeader("baz", value, DeprecationLogger::extractWarningValueFromWarningHeader);
+        final String value = HeaderWarning.formatWarning("qux");
+        threadContext.addResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         // pretend that another thread created the same response at a different time
         if (randomBoolean()) {
-            final String duplicateValue = DeprecationLogger.formatWarning("qux");
-            threadContext.addResponseHeader("baz", duplicateValue, DeprecationLogger::extractWarningValueFromWarningHeader);
+            final String duplicateValue = HeaderWarning.formatWarning("qux");
+            threadContext.addResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         }
 
         threadContext.addResponseHeader("Warning", "One is the loneliest number");

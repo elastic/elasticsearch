@@ -6,13 +6,13 @@
 
 package org.elasticsearch.xpack.core.slm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,9 +32,14 @@ public class SLMFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeOptionalWriteable(this.slmStats);
     }
 
-    public SLMFeatureSetUsage(boolean available, boolean enabled, @Nullable SnapshotLifecycleStats slmStats) {
-        super(XPackField.SNAPSHOT_LIFECYCLE, available, enabled);
+    public SLMFeatureSetUsage(boolean available, @Nullable SnapshotLifecycleStats slmStats) {
+        super(XPackField.SNAPSHOT_LIFECYCLE, available, true);
         this.slmStats = slmStats;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_5_0;
     }
 
     public SnapshotLifecycleStats getStats() {

@@ -20,6 +20,7 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -59,15 +60,22 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final HttpHandlingSettings settings;
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
+    private final CorsHandler corsHandler;
+
+    @Nullable
+    private final HttpTracer tracerLog;
 
     DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
-                       HttpHandlingSettings settings, ThreadContext threadContext) {
+                       HttpHandlingSettings settings, ThreadContext threadContext, CorsHandler corsHandler,
+                       @Nullable HttpTracer tracerLog) {
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
         this.bigArrays = bigArrays;
         this.settings = settings;
         this.threadContext = threadContext;
+        this.corsHandler = corsHandler;
+        this.tracerLog = tracerLog;
     }
 
     @Override
@@ -77,13 +85,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
-        final ArrayList<Releasable> toClose = new ArrayList<>(4);
-        toClose.add(httpRequest::release);
-        if (isCloseConnection()) {
+        // We're sending a response so we know we won't be needing the request content again and release it
+        Releasables.closeWhileHandlingException(httpRequest::release);
+
+        final ArrayList<Releasable> toClose = new ArrayList<>(3);
+        if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
 
         boolean success = false;
+        String opaque = null;
+        String contentLength = null;
         try {
             final BytesReference content = restResponse.content();
             if (content instanceof Releasable) {
@@ -102,10 +114,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
 
-            // TODO: Ideally we should move the setting of Cors headers into :server
-            // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
+            corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
 
-            String opaque = request.header(X_OPAQUE_ID);
+            opaque = request.header(X_OPAQUE_ID);
             if (opaque != null) {
                 setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
             }
@@ -117,7 +128,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
             // If our response has no content-length, calculate and set one
-            setHeaderField(httpResponse, CONTENT_LENGTH, String.valueOf(restResponse.content().length()), false);
+            contentLength = String.valueOf(restResponse.content().length());
+            setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
 
             addCookies(httpResponse);
 
@@ -132,6 +144,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         } finally {
             if (success == false) {
                 Releasables.close(toClose);
+            }
+            if (tracerLog != null) {
+                tracerLog.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
             }
         }
     }
@@ -164,18 +179,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                     response.addHeader(SET_COOKIE, cookie);
                 }
             }
-        }
-    }
-
-    // Determine if the request connection should be closed on completion.
-    private boolean isCloseConnection() {
-        try {
-            final boolean http10 = request.getHttpRequest().protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
-            return CLOSE.equalsIgnoreCase(request.header(CONNECTION))
-                || (http10 && !KEEP_ALIVE.equalsIgnoreCase(request.header(CONNECTION)));
-        } catch (Exception e) {
-            // In case we fail to parse the http protocol version out of the request we always close the connection
-            return true;
         }
     }
 }

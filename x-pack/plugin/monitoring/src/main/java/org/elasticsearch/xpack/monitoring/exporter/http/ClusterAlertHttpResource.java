@@ -82,7 +82,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         // if we should be adding, then we need to check for existence
-        if (isWatchDefined() && licenseState.isMonitoringClusterAlertsAllowed()) {
+        if (isWatchDefined() && licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)) {
             final CheckedFunction<Response, Boolean, IOException> watchChecker =
                     (response) -> shouldReplaceClusterAlert(response, XContentType.JSON.xContent(), LAST_UPDATED_VERSION);
 

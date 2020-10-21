@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -22,11 +19,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -38,18 +36,26 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
     private final Hasher passwordHasher;
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutUserAction.class));
 
-    public RestPutUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestPutUserAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
         passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/user/{username}", this,
-            POST, "/_xpack/security/user/{username}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_security/user/{username}", this,
-            PUT, "/_xpack/security/user/{username}", deprecationLogger);
+        return List.of(
+            new ReplacedRoute(POST, "/_security/user/{username}",
+                POST, "/_xpack/security/user/{username}"),
+            new ReplacedRoute(PUT, "/_security/user/{username}",
+                PUT, "/_xpack/security/user/{username}")
+        );
     }
 
     @Override
@@ -72,7 +78,7 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
         });
     }
 
-    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(Sets.newHashSet("password", "passwordHash"));
+    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(Sets.newHashSet("password", "password_hash"));
 
     @Override
     public Set<String> getFilteredFields() {

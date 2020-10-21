@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.hasItem;
@@ -14,7 +15,7 @@ import static org.hamcrest.Matchers.not;
 public class AutoscalingTests extends ESTestCase {
 
     public void testEnabledSettingRegisteredInSnapshotBuilds() {
-        final Autoscaling plugin = new Autoscaling() {
+        final Autoscaling plugin = new Autoscaling(Settings.EMPTY) {
 
             @Override
             protected boolean isSnapshot() {
@@ -26,7 +27,7 @@ public class AutoscalingTests extends ESTestCase {
     }
 
     public void testEnabledSettingNotRegisteredInNonSnapshotBuilds() {
-        final Autoscaling plugin = new Autoscaling() {
+        final Autoscaling plugin = new Autoscaling(Settings.EMPTY) {
 
             @Override
             protected boolean isSnapshot() {

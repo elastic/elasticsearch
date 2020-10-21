@@ -23,7 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StoredNumericValuesTests extends ESSingleNodeTestCase {
     public void testBytesAndNumericRepresentation() throws Exception {
-        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+        IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         String mapping = Strings
                 .toString(XContentFactory.jsonBuilder()
@@ -90,7 +90,7 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
         searcher.doc(0, fieldsVisitor);
 
-        fieldsVisitor.postProcess(mapperService);
+        fieldsVisitor.postProcess(mapperService::fieldType);
         assertThat(fieldsVisitor.fields().size(), equalTo(10));
         assertThat(fieldsVisitor.fields().get("field1").size(), equalTo(1));
         assertThat(fieldsVisitor.fields().get("field1").get(0), equalTo((byte) 1));

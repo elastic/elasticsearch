@@ -24,7 +24,7 @@ import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -129,7 +129,7 @@ public class LeafFieldsLookup implements Map<Object, Object> {
     private FieldLookup loadFieldData(String name) {
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
-            MappedFieldType fieldType = mapperService.fullName(name);
+            MappedFieldType fieldType = mapperService.fieldType(name);
             if (fieldType == null) {
                 throw new IllegalArgumentException("No field found for [" + name + "] in mapping");
             }
@@ -138,7 +138,7 @@ public class LeafFieldsLookup implements Map<Object, Object> {
         }
         if (data.fields() == null) {
             List<Object> values;
-            if (TypeFieldMapper.NAME.equals(data.fieldType().name())) {
+            if (TypeFieldType.NAME.equals(data.fieldType().name())) {
                 values = new ArrayList<>(1);
                 final DocumentMapper mapper = mapperService.documentMapper();
                 if (mapper != null) {

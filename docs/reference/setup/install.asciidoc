@@ -1,16 +1,16 @@
 [[install-elasticsearch]]
 == Installing Elasticsearch
 
-[float]
+[discrete]
 === Hosted Elasticsearch
 
 You can run Elasticsearch on your own hardware, or use our
 https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
 on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
-https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
+{ess-trial}[Try out the
 Elasticsearch Service for free].
 
-[float]
+[discrete]
 === Installing Elasticsearch Yourself
 
 Elasticsearch is provided in the following package formats:
@@ -66,7 +66,7 @@ Formulae are available from the Elastic Homebrew tap for installing
 +
 {ref}/brew.html[Install {es} on macOS with Homebrew]
 
-[float]
+[discrete]
 [[config-mgmt-tools]]
 === Configuration Management Tools
 

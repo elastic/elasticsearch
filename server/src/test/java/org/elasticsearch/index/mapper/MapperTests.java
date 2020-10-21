@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -28,7 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 public class MapperTests extends ESTestCase {
 
     public void testSuccessfulBuilderContext() {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         ContentPath contentPath = new ContentPath(1);
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, contentPath);
 

@@ -29,6 +29,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -213,7 +214,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         sourceBuilder().version(version);
         return this;
     }
-    
+
     /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
@@ -301,6 +302,27 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder addDocValueField(String name) {
         return addDocValueField(name, null);
+    }
+
+    /**
+     * Adds a field to load and return. The field must be present in the document _source.
+     *
+     * @param name The field to load
+     */
+    public SearchRequestBuilder addFetchField(String name) {
+        sourceBuilder().fetchField(name, null);
+        return this;
+    }
+
+    /**
+     * Adds a field to load and return. The field must be present in the document _source.
+     *
+     * @param name The field to load
+     * @param format an optional format string used when formatting values, for example a date format.
+     */
+    public SearchRequestBuilder addFetchField(String name, String format) {
+        sourceBuilder().fetchField(name, format);
+        return this;
     }
 
     /**
@@ -521,6 +543,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * If specified, Elasticsearch will execute this search request using reader contexts from that point in time.
+     */
+    public SearchRequestBuilder setPointInTime(PointInTimeBuilder pointInTimeBuilder) {
+        sourceBuilder().pointInTimeBuilder(pointInTimeBuilder);
+        return this;
+    }
+
     @Override
     public String toString() {
         if (request.source() != null) {
@@ -558,8 +588,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is {@code 128}
+     * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint.
+     *
+     * When unspecified, the pre-filter phase is executed if any of these conditions is met:
+     * <ul>
+     * <li>The request targets more than 128 shards</li>
+     * <li>The request targets one or more read-only index</li>
+     * <li>The primary sort of the query targets an indexed field</li>
+     * </ul>
      */
     public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
         this.request.setPreFilterShardSize(preFilterShardSize);

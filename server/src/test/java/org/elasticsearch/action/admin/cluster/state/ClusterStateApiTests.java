@@ -32,17 +32,17 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateApiTests extends ESSingleNodeTestCase {
 
-    public void testWaitForMetaDataVersion() throws Exception {
+    public void testWaitForMetadataVersion() throws Exception {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.waitForTimeout(TimeValue.timeValueHours(1));
         ActionFuture<ClusterStateResponse> future1 = client().admin().cluster().state(clusterStateRequest);
         assertThat(future1.isDone(), is(true));
         assertThat(future1.actionGet().isWaitForTimedOut(), is(false));
-        long metadataVersion = future1.actionGet().getState().getMetaData().version();
+        long metadataVersion = future1.actionGet().getState().getMetadata().version();
 
         // Verify that cluster state api returns after the cluster settings have been updated:
         clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.waitForMetaDataVersion(metadataVersion + 1);
+        clusterStateRequest.waitForMetadataVersion(metadataVersion + 1);
 
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(clusterStateRequest);
         assertThat(future2.isDone(), is(false));
@@ -57,11 +57,11 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         });
         ClusterStateResponse response = future2.actionGet();
         assertThat(response.isWaitForTimedOut(), is(false));
-        assertThat(response.getState().metaData().version(), equalTo(metadataVersion + 1));
+        assertThat(response.getState().metadata().version(), equalTo(metadataVersion + 1));
 
         // Verify that the timed out property has been set"
-        metadataVersion = response.getState().getMetaData().version();
-        clusterStateRequest.waitForMetaDataVersion(metadataVersion + 1);
+        metadataVersion = response.getState().getMetadata().version();
+        clusterStateRequest.waitForMetadataVersion(metadataVersion + 1);
         clusterStateRequest.waitForTimeout(TimeValue.timeValueMillis(500)); // Fail fast
         ActionFuture<ClusterStateResponse> future3 = client().admin().cluster().state(clusterStateRequest);
         assertBusy(() -> {

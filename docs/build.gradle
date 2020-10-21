@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
@@ -20,10 +22,11 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
  */
 
 apply plugin: 'elasticsearch.docs-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'reference/ml/anomaly-detection/transforms.asciidoc',
+  'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
   'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
   'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
   'reference/ml/anomaly-detection/apis/get-category.asciidoc',
@@ -39,9 +42,21 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/ml/anomaly-detection/apis/update-job.asciidoc'
 ]
 
+restResources {
+  restApi {
+    includeCore '*'
+  }
+}
+
 testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'indices.lifecycle.history_index_enabled', 'false'
+    if (BuildParams.isSnapshotBuild() == false) {
+      systemProperty 'es.autoscaling_feature_flag_registered', 'true'
+    }
+    setting 'xpack.autoscaling.enabled', 'true'
+    keystorePassword 's3cr3t'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
@@ -61,7 +76,6 @@ testClusters.integTest {
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-  setting 'index.lifecycle.history_index_enabled', 'false'
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
@@ -75,16 +89,10 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
     return
   }
   // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-  if (subproj.path.startsWith(':plugins:ingest-attachment') && Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+  if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
     return
   }
-  // FIXME
-  subproj.afterEvaluate { // need to wait until the project has been configured
-    testClusters.integTest {
-      plugin file(subproj.bundlePlugin.archiveFile)
-    }
-    tasks.integTest.dependsOn subproj.bundlePlugin
-  }
+  testClusters.integTest.plugin subproj.path
 }
 
 buildRestTests.docs = fileTree(projectDir) {
@@ -110,46 +118,106 @@ listSnippets.docs = buildRestTests.docs
 
 listConsoleCandidates.docs = buildRestTests.docs
 
-Closure setupTwitter = { String name, int count ->
+Closure setupMyIndex = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
         indices.create:
-          index: twitter
+          index: my-index-000001
           body:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
               properties:
-                user:
-                  type: keyword
-                  doc_values: true
-                date:
+                "@timestamp":
                   type: date
-                likes:
-                  type: long
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
   - do:
         bulk:
-          index: twitter
+          index: my-index-000001
           refresh: true
           body: |'''
   for (int i = 0; i < count; i++) {
-    String user, text
+    String ip, user_id
     if (i == 0) {
-      user = 'kimchy'
-      text = 'trying out Elasticsearch'
+      ip = '127.0.0.1'
+      user_id = 'kimchy'
     } else {
-      user = 'test'
-      text = "some message with the number $i"
+      ip = '10.42.42.42'
+      user_id= 'elkbee'
     }
     buildRestTests.setups[name] += """
-            {"index":{"_id": "$i"}}
-            {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
+            { "index":{"_id": "$i"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
   }
 }
-setupTwitter('twitter', 5)
-setupTwitter('big_twitter', 120)
-setupTwitter('huge_twitter', 1200)
+setupMyIndex('my_index', 5)
+setupMyIndex('my_index_big', 120)
+setupMyIndex('my_index_huge', 1200)
+
+// Used for several full-text search and agg examples
+buildRestTests.setups['messages'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4"}'''
+
+// Used for EQL
+buildRestTests.setups['sec_logs'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{}}
+            {"@timestamp": "2099-12-06T11:04:05.000Z", "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"index":{}}
+            {"@timestamp": "2099-12-06T11:04:07.000Z", "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2099-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"index":{}}
+            {"@timestamp": "2099-12-07T11:06:07.000Z", "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
+            {"index":{}}
+            {"@timestamp": "2099-12-07T11:07:09.000Z", "event": { "category": "process", "id": "aR3NWVOs", "sequence": 4 }, "process": { "pid": 2012, "name": "regsvr32.exe", "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}
+            {"index":{}}
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "file", "id": "tZ1NWVOs", "sequence": 5 }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }, "file": { "path": "C:\\\\Windows\\\\System32\\\\scrobj.dll", "name": "scrobj.dll" }}
+            {"index":{}}
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
 
 buildRestTests.setups['host'] = '''
   # Fetch the http host. We use the host of the master because we know there will always be a master.
@@ -271,7 +339,7 @@ buildRestTests.setups['user_hits'] = '''
             {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
 
 
-// Dummy bank account data used by getting-started.asciidoc
+// Fake bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
   - do:
         indices.create:
@@ -300,20 +368,6 @@ buildRestTests.doFirst {
     buildRestTests.setups['bank'].replace('#bank_data#', accounts)
 }
 
-// Used by index boost doc
-buildRestTests.setups['index_boost'] = '''
-  - do:
-      indices.create:
-          index:  index1
-  - do:
-      indices.create:
-          index:  index2
-
-  - do:
-      indices.put_alias:
-        index: index1
-        name: alias1
-'''
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
   - do:
@@ -524,6 +578,41 @@ for (int i = 0; i < 100; i++) {
             {"index":{}}
             {"load_time": "$value"}"""
 }
+
+// Used by t_test aggregations
+buildRestTests.setups['node_upgrade'] = '''
+  - do:
+        indices.create:
+          index: node_upgrade
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                group:
+                  type: keyword
+                startup_time_before:
+                  type: long
+                startup_time_after:
+                  type: long
+  - do:
+        bulk:
+          index: node_upgrade
+          refresh: true
+          body: |
+            {"index":{}}
+            {"group": "A", "startup_time_before": 102, "startup_time_after": 89}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 99, "startup_time_after": 93}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 111, "startup_time_after": 72}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 97, "startup_time_after": 98}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 101, "startup_time_after": 102}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 99, "startup_time_after": 98}'''
 
 // Used by iprange agg
 buildRestTests.setups['iprange'] = '''
@@ -931,7 +1020,7 @@ buildRestTests.setups['farequote_index'] = '''
                   airline:
                      type: keyword
                   doc_count:
-                     type: integer       
+                     type: integer
 '''
 buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index'] + '''
   - do:
@@ -943,7 +1032,7 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
             {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000", "doc_count": 5}
             {"index": {"_id":"2"}}
             {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000", "doc_count": 23}
-            {"index": {"_id":"3"}}            
+            {"index": {"_id":"3"}}
             {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
 '''
 buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
@@ -1102,7 +1191,7 @@ buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_
 buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
   - do:
       raw:
-        method: POST 
+        method: POST
         path: _ml/anomaly_detectors/total-requests/_open
 '''
 buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
@@ -1327,7 +1416,7 @@ buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + 
         id: "loganalytics"
         body:  >
           {
-            "source": { 
+            "source": {
               "index": "logdata"
               },
             "dest": {
@@ -1348,3 +1437,30 @@ buildRestTests.setups['setup-repository'] = '''
           settings:
             location: buildDir/cluster/shared/repo
 '''
+
+// Fake sec logs data used by EQL search
+buildRestTests.setups['atomic_red_regsvr32'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 5
+              number_of_routing_shards: 5
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+#atomic_red_data#
+'''
+/* Load the actual events only if we're going to use them. */
+File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
+buildRestTests.inputs.file(atomicRedRegsvr32File)
+buildRestTests.doFirst {
+  String events = atomicRedRegsvr32File.getText('UTF-8')
+  // Indent like a yaml test needs
+  events = events.replaceAll('(?m)^', '            ')
+  buildRestTests.setups['atomic_red_regsvr32'] =
+    buildRestTests.setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
+}

@@ -34,7 +34,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
 
 public class BroadcastResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.support.broadcast.BroadcastResponse,
     BroadcastResponse> {
@@ -80,7 +80,7 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
         if (clientInstance.shards().failed() > 0) {
             final DefaultShardOperationFailedException groupedFailure = clientInstance.shards().failures().iterator().next();
             assertThat(groupedFailure.index(), equalTo(index));
-            assertThat(groupedFailure.shardId(), isIn(shardIds));
+            assertThat(groupedFailure.shardId(), in(shardIds));
             assertThat(groupedFailure.reason(), containsString("reason=retention lease with ID [" + id + "] not found"));
         }
     }

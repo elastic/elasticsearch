@@ -12,6 +12,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -25,23 +27,33 @@ import java.sql.SQLException;
 public class VersionParityTests extends WebServerTestCase {
 
     public void testExceptionThrownOnIncompatibleVersions() throws IOException, SQLException {
-        Version version = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion());
-        logger.info("Checking exception is thrown for version {}", version);
-        prepareResponse(version);
-        
         String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
-        SQLException ex = expectThrows(SQLException.class, () -> new JdbcHttpClient(JdbcConfiguration.create(url, null, 0)));
-        assertEquals("This version of the JDBC driver is only compatible with Elasticsearch version "
-                + org.elasticsearch.xpack.sql.client.Version.CURRENT.toString()
-                + ", attempting to connect to a server version " + version.toString(), ex.getMessage());
+        Version firstVersion = VersionUtils.getFirstVersion();
+        Version version = Version.V_7_7_0;
+        do {
+            version = VersionUtils.getPreviousVersion(version);
+            logger.info("Checking exception is thrown for version {}", version);
+
+            prepareResponse(version);
+            // Client's version is wired up to patch level, excluding the qualifier => generate the test version as the server does it.
+            String versionString = SqlVersion.fromString(version.toString()).toString();
+
+            SQLException ex = expectThrows(SQLException.class, () -> new JdbcHttpClient(JdbcConfiguration.create(url, null, 0)));
+            assertEquals("This version of the JDBC driver is only compatible with Elasticsearch version " +
+                ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server " +
+                "version " + versionString, ex.getMessage());
+        } while (version.compareTo(firstVersion) > 0);
     }
     
     public void testNoExceptionThrownForCompatibleVersions() throws IOException {
-        prepareResponse(null);
-        
         String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
+        Version version = Version.CURRENT;
         try {
-            new JdbcHttpClient(JdbcConfiguration.create(url, null, 0));
+            do {
+                prepareResponse(version);
+                new JdbcHttpClient(JdbcConfiguration.create(url, null, 0));
+                version = VersionUtils.getPreviousVersion(version);
+            } while (version.compareTo(Version.V_7_7_0) >= 0);
         } catch (SQLException sqle) {
             fail("JDBC driver version and Elasticsearch server version should be compatible. Error: " + sqle);
         }

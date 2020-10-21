@@ -21,6 +21,7 @@ package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
@@ -44,15 +45,21 @@ import java.util.stream.StreamSupport;
 public class JsonLogsStream {
     private final XContentParser parser;
     private final BufferedReader reader;
+    private final ObjectParser<JsonLogLine, Void> logLineParser;
 
-    private JsonLogsStream(BufferedReader reader) throws IOException {
+    private JsonLogsStream(BufferedReader reader, ObjectParser<JsonLogLine, Void> logLineParser) throws IOException {
         this.reader = reader;
         this.parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
             reader);
+        this.logLineParser = logLineParser;
+    }
+
+    public static Stream<JsonLogLine> from(BufferedReader reader, ObjectParser<JsonLogLine, Void> logLineParser) throws IOException {
+        return new JsonLogsStream(reader, logLineParser).stream();
     }
 
     public static Stream<JsonLogLine> from(BufferedReader reader) throws IOException {
-        return new JsonLogsStream(reader).stream();
+        return new JsonLogsStream(reader, JsonLogLine.ECS_LOG_LINE).stream();
     }
 
     public static Stream<JsonLogLine> from(Path path) throws IOException {
@@ -60,7 +67,7 @@ public class JsonLogsStream {
     }
 
     public static Stream<Map<String, String>> mapStreamFrom(Path path) throws IOException {
-        return new JsonLogsStream(Files.newBufferedReader(path)).streamMap();
+        return new JsonLogsStream(Files.newBufferedReader(path), JsonLogLine.ECS_LOG_LINE).streamMap();
     }
 
     private Stream<JsonLogLine> stream() {
@@ -113,7 +120,7 @@ public class JsonLogsStream {
 
         @Override
         public JsonLogLine next() {
-            JsonLogLine apply = JsonLogLine.PARSER.apply(parser, null);
+            JsonLogLine apply = logLineParser.apply(parser, null);
             nextToken();
             return apply;
         }

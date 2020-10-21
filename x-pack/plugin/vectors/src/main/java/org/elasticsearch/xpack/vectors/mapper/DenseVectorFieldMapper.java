@@ -9,129 +9,118 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ArrayValueMapperParser;
+import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
-public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMapperParser {
+public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
     private static final byte INT_BYTES = 4;
 
-    public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new DenseVectorFieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
+    private static DenseVectorFieldMapper toType(FieldMapper in) {
+        return (DenseVectorFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, DenseVectorFieldMapper> {
-        private int dims = 0;
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
-        }
+        Parameter<Integer> dims
+            = new Parameter<>("dims", false, () -> null, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), m -> toType(m).dims)
+            .setValidator(dims -> {
+                if (dims == null) {
+                    throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
+                }
+                if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
+                    throw new MapperParsingException("The number of dimensions for field [" + name +
+                        "] should be in the range [1, " + MAX_DIMS_COUNT + "] but was [" + dims + "]");
+                }
+            });
+        Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder dims(int dims) {
-            if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
-                throw new MapperParsingException("The number of dimensions for field [" + name +
-                    "] should be in the range [1, " + MAX_DIMS_COUNT + "]");
-            }
-            this.dims = dims;
-            return this;
+        final Version indexVersionCreated;
+
+        public Builder(String name, Version indexVersionCreated) {
+            super(name);
+            this.indexVersionCreated = indexVersionCreated;
         }
 
         @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-            fieldType().setDims(dims);
-        }
-
-        @Override
-        public DenseVectorFieldType fieldType() {
-            return (DenseVectorFieldType) super.fieldType();
+        protected List<Parameter<?>> getParameters() {
+            return List.of(dims, meta);
         }
 
         @Override
         public DenseVectorFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
             return new DenseVectorFieldMapper(
-                    name, fieldType, defaultFieldType,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                name,
+                new DenseVectorFieldType(buildFullName(context), dims.getValue(), meta.getValue()),
+                dims.getValue(),
+                indexVersionCreated,
+                multiFieldsBuilder.build(this, context),
+                copyTo.build());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(name);
-            Object dimsField = node.remove("dims");
-            if (dimsField == null) {
-                throw new MapperParsingException("The [dims] property must be specified for field [" + name + "].");
-            }
-            int dims = XContentMapValues.nodeIntegerValue(dimsField);
-            return builder.dims(dims);
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()));
 
     public static final class DenseVectorFieldType extends MappedFieldType {
-        private int dims;
+        private final int dims;
 
-        public DenseVectorFieldType() {}
-
-        protected DenseVectorFieldType(DenseVectorFieldType ref) {
-            super(ref);
-        }
-
-        public DenseVectorFieldType clone() {
-            return new DenseVectorFieldType(this);
+        public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
+            super(name, false, false, true, TextSearchInfo.NONE, meta);
+            this.dims = dims;
         }
 
         int dims() {
             return dims;
         }
 
-        void setDims(int dims) {
-            this.dims = dims;
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new ArraySourceValueFetcher(name(), mapperService) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    return value;
+                }
+            };
         }
 
         @Override
@@ -141,26 +130,31 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
+        public boolean isAggregatable() {
+            return false;
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorDVIndexFieldData.Builder();
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
         }
     }
 
-    private DenseVectorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                   Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+    private final Version indexCreatedVersion;
+    private final int dims;
+
+    private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims,
+                                   Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions() == IndexOptions.NONE;
+        this.indexCreatedVersion = indexCreatedVersion;
+        this.dims = dims;
     }
 
     @Override
@@ -171,6 +165,11 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     @Override
     public DenseVectorFieldType fieldType() {
         return (DenseVectorFieldType) super.fieldType();
+    }
+
+    @Override
+    public boolean parsesArrayValue() {
+        return true;
     }
 
     @Override
@@ -193,7 +192,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
                     context.sourceToParse().id() + "] has exceeded the number of dimensions [" + dims + "] defined in mapping");
             }
-            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
+            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
             float value = context.parser().floatValue(true);
 
             byteBuffer.putFloat(value);
@@ -219,18 +218,27 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        builder.field("dims", fieldType().dims());
+    protected boolean indexedByDefault() {
+        return false;
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+    protected boolean docValuesByDefault() {
+        return true;
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), indexCreatedVersion).init(this);
     }
 }

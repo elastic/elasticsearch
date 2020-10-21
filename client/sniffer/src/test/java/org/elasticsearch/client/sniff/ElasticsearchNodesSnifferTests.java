@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -211,9 +212,20 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 attributes.put("attr" + j, values);
             }
 
+            final Set<String> nodeRoles = new TreeSet<>();
+            if (randomBoolean()) {
+                nodeRoles.add("master");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("ingest");
+            }
+
             Node node = new Node(publishHost, boundHosts, randomAsciiAlphanumOfLength(5),
                     randomAsciiAlphanumOfLength(5),
-                    new Node.Roles(randomBoolean(), randomBoolean(), randomBoolean()),
+                    new Node.Roles(nodeRoles),
                     attributes);
 
             generator.writeObjectFieldStart(nodeId);

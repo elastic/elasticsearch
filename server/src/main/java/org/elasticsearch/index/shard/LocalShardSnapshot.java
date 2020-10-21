@@ -25,7 +25,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.store.Store;
@@ -130,8 +130,8 @@ final class LocalShardSnapshot implements Closeable {
         }
     }
 
-    IndexMetaData getIndexMetaData() {
-        return shard.indexSettings.getIndexMetaData();
+    IndexMetadata getIndexMetadata() {
+        return shard.indexSettings.getIndexMetadata();
     }
 
     @Override

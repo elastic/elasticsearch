@@ -6,12 +6,9 @@
 
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -19,15 +16,23 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
 
+import java.util.Collections;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestStartTransformActionDeprecated extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(RestStartTransformActionDeprecated.class));
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
 
-    public RestStartTransformActionDeprecated(RestController controller) {
-        controller.registerAsDeprecatedHandler(RestRequest.Method.POST,
-                TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_start", this, TransformMessages.REST_DEPRECATED_ENDPOINT,
-                deprecationLogger);
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return singletonList(new DeprecatedRoute(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_start",
+                TransformMessages.REST_DEPRECATED_ENDPOINT));
     }
 
     @Override

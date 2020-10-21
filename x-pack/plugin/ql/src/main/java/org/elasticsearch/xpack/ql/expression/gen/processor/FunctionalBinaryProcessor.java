@@ -7,16 +7,15 @@
 package org.elasticsearch.xpack.ql.expression.gen.processor;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
- * Base class for definition binary processors based on functions (for applying) defined as enums (for serialization purposes).
+ * Base class for definition binary processors based on functions (for applying).
  */
-public abstract class FunctionalBinaryProcessor<T, U, R, F extends Enum<F> & BiFunction<T, U, R>> extends BinaryProcessor {
+public abstract class FunctionalBinaryProcessor<T, U, R, F extends BiFunction<T, U, R>> extends BinaryProcessor {
 
     private final F function;
 
@@ -32,11 +31,6 @@ public abstract class FunctionalBinaryProcessor<T, U, R, F extends Enum<F> & BiF
 
     public F function() {
         return function;
-    }
-
-    @Override
-    protected void doWrite(StreamOutput out) throws IOException {
-        out.writeEnum(function());
     }
 
     @SuppressWarnings("unchecked")

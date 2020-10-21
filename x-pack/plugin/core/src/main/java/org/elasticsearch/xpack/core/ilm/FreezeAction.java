@@ -59,9 +59,13 @@ public class FreezeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey freezeStepKey = new StepKey(phase, NAME, FreezeStep.NAME);
+
+        CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
+            freezeStepKey);
         FreezeStep freezeStep = new FreezeStep(freezeStepKey, nextStepKey, client);
-        return Arrays.asList(freezeStep);
+        return Arrays.asList(checkNoWriteIndexStep, freezeStep);
     }
 
     @Override

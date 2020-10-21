@@ -9,16 +9,15 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -26,27 +25,17 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.Request;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportActivateAutoFollowPatternAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     @Inject
     public TransportActivateAutoFollowPatternAction(TransportService transportService, ClusterService clusterService,
                                                     ThreadPool threadPool, ActionFilters actionFilters,
                                                     IndexNameExpressionResolver resolver) {
-        super(ActivateAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, resolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(final StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+        super(ActivateAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, resolver,
+                ThreadPool.Names.SAME);
     }
 
     @Override
@@ -62,7 +51,7 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
 
                 @Override
                 protected AcknowledgedResponse newResponse(final boolean acknowledged) {
-                    return new AcknowledgedResponse(acknowledged);
+                    return AcknowledgedResponse.of(acknowledged);
                 }
 
                 @Override
@@ -73,7 +62,7 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
     }
 
     static ClusterState innerActivate(final Request request, ClusterState currentState) {
-        final AutoFollowMetadata autoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
+        final AutoFollowMetadata autoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
             throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
         }
@@ -94,6 +83,7 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
                 previousAutoFollowPattern.getRemoteCluster(),
                 previousAutoFollowPattern.getLeaderIndexPatterns(),
                 previousAutoFollowPattern.getFollowIndexPattern(),
+                previousAutoFollowPattern.getSettings(),
                 request.isActive(),
                 previousAutoFollowPattern.getMaxReadRequestOperationCount(),
                 previousAutoFollowPattern.getMaxWriteRequestOperationCount(),
@@ -107,7 +97,7 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
                 previousAutoFollowPattern.getReadPollTimeout()));
 
         return ClusterState.builder(currentState)
-            .metaData(MetaData.builder(currentState.getMetaData())
+            .metadata(Metadata.builder(currentState.getMetadata())
                 .putCustom(AutoFollowMetadata.TYPE,
                     new AutoFollowMetadata(newPatterns, autoFollowMetadata.getFollowedLeaderIndexUUIDs(), autoFollowMetadata.getHeaders()))
                 .build())

@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -615,16 +616,16 @@ public class BulkByScrollTask extends CancellableTask {
             } else {
                 token = parser.nextToken();
             }
-            ensureExpectedToken(Token.START_OBJECT, token, parser::getTokenLocation);
+            ensureExpectedToken(Token.START_OBJECT, token, parser);
             token = parser.nextToken();
-            ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(Token.FIELD_NAME, token, parser);
             return innerFromXContent(parser);
         }
 
         public static Status innerFromXContent(XContentParser parser) throws IOException {
             Token token = parser.currentToken();
             String fieldName = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             StatusBuilder builder = new StatusBuilder();
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
@@ -958,12 +959,12 @@ public class BulkByScrollTask extends CancellableTask {
             if (token == Token.VALUE_NULL) {
                 return null;
             } else {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 token = parser.nextToken();
                 // This loop is present only to ignore unknown tokens. It breaks as soon as we find a field
                 // that is allowed.
                 while (token != Token.END_OBJECT) {
-                    ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+                    ensureExpectedToken(Token.FIELD_NAME, token, parser);
                     String fieldName = parser.currentName();
                     // weird way to ignore unknown tokens
                     if (Status.FIELDS_SET.contains(fieldName)) {
@@ -982,6 +983,15 @@ public class BulkByScrollTask extends CancellableTask {
                     }
                 }
                 throw new XContentParseException("Unable to parse StatusFromException. Expected fields not found.");
+            }
+        }
+
+        @Override
+        public String toString() {
+            if (exception != null) {
+                return "BulkByScrollTask{error=" + Strings.toString(this) + "}";
+            } else {
+                return "BulkByScrollTask{status=" + Strings.toString(this) + "}";
             }
         }
 

@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
@@ -43,14 +43,14 @@ public class MathProcessor implements Processor {
                 if ((int) lo == Integer.MIN_VALUE) {
                     throw new QlIllegalArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
                 }
-                return DataTypeConversion.safeToInt(lo);
+                return DataTypeConverter.safeToInt(lo);
             }
 
             if (l instanceof Short) {
-                return DataTypeConversion.safeToShort(lo);
+                return DataTypeConverter.safeToShort(lo);
             }
             if (l instanceof Byte) {
-                return DataTypeConversion.safeToByte(lo);
+                return DataTypeConverter.safeToByte(lo);
             }
 
             return lo;
@@ -86,13 +86,13 @@ public class MathProcessor implements Processor {
             long lo = Long.signum(((Number) l).longValue());
 
             if (l instanceof Integer) {
-                return DataTypeConversion.safeToInt(lo);
+                return DataTypeConverter.safeToInt(lo);
             }
             if (l instanceof Short) {
-                return DataTypeConversion.safeToShort(lo);
+                return DataTypeConverter.safeToShort(lo);
             }
             if (l instanceof Byte) {
-                return DataTypeConversion.safeToByte(lo);
+                return DataTypeConverter.safeToByte(lo);
             }
 
             //fallback to generic double

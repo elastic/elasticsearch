@@ -421,6 +421,10 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
             return in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
         }
 
+        public boolean getAsBoolean() {
+            return this == Orientation.RIGHT;
+        }
+
         public static Orientation fromString(String orientation) {
             orientation = orientation.toLowerCase(Locale.ROOT);
             switch (orientation) {

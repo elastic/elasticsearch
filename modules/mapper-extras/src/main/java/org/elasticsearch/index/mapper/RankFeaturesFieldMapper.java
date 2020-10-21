@@ -21,80 +21,55 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
  * vector of features.
  */
-public class RankFeaturesFieldMapper extends FieldMapper {
+public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "rank_features";
 
-    public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new RankFeaturesFieldType();
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends FieldMapper.Builder<Builder, RankFeaturesFieldMapper> {
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
         }
 
         @Override
-        public RankFeaturesFieldType fieldType() {
-            return (RankFeaturesFieldType) super.fieldType();
+        protected List<Parameter<?>> getParameters() {
+            return Collections.singletonList(meta);
         }
 
         @Override
         public RankFeaturesFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
             return new RankFeaturesFieldMapper(
-                    name, fieldType, defaultFieldType,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    name, new RankFeaturesFieldType(buildFullName(context), meta.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            RankFeaturesFieldMapper.Builder builder = new RankFeaturesFieldMapper.Builder(name);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class RankFeaturesFieldType extends MappedFieldType {
 
-        public RankFeaturesFieldType() {
+        public RankFeaturesFieldType(String name, Map<String, String> meta) {
+            super(name, false, false, false, TextSearchInfo.NONE, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected RankFeaturesFieldType(RankFeaturesFieldType ref) {
-            super(ref);
-        }
-
-        public RankFeaturesFieldType clone() {
-            return new RankFeaturesFieldType(this);
         }
 
         @Override
@@ -108,8 +83,13 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             throw new IllegalArgumentException("[rank_features] fields do not support sorting, scripting or aggregating");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), mapperService, format);
         }
 
         @Override
@@ -118,10 +98,15 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
     }
 
-    private RankFeaturesFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+    private RankFeaturesFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                    MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
 
     @Override
@@ -167,7 +152,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 

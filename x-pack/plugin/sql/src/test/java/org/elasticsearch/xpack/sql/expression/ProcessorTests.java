@@ -32,6 +32,7 @@ public class ProcessorTests extends ESTestCase {
 
     public void testProcessorRegistration() throws Exception {
         LinkedHashSet<String> registered = Processors.getNamedWriteables().stream()
+                .filter(e -> Processor.class == e.categoryClass)
                 .map(e -> e.name)
                 .collect(toCollection(LinkedHashSet::new));
 

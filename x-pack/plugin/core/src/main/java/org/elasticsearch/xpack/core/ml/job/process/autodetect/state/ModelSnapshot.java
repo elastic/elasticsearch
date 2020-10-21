@@ -21,8 +21,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -89,6 +89,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
      */
     private final Version minVersion;
 
+    /**
+     * This is model snapshot's creation wall clock time.
+     * Use {@code latestResultTimeStamp} if you need model time instead.
+     */
     private final Date timestamp;
     private final String description;
     private final String snapshotId;
@@ -118,11 +122,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public ModelSnapshot(StreamInput in) throws IOException {
         jobId = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            minVersion = Version.readVersion(in);
-        } else {
-            minVersion = Version.CURRENT.minimumCompatibilityVersion();
-        }
+        minVersion = Version.readVersion(in);
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         description = in.readOptionalString();
         snapshotId = in.readOptionalString();
@@ -137,9 +137,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            Version.writeVersion(minVersion, out);
-        }
+        Version.writeVersion(minVersion, out);
         if (timestamp != null) {
             out.writeBoolean(true);
             out.writeVLong(timestamp.getTime());
@@ -240,6 +238,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return latestResultTimeStamp;
     }
 
+    public boolean isRetain() {
+        return retain;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(jobId, minVersion, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats,
@@ -283,20 +285,12 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return stateDocumentIds;
     }
 
-    /**
-     * This is how the IDs were formed in v5.4
-     */
-    public List<String> legacyStateDocumentIds() {
-        List<String> stateDocumentIds = new ArrayList<>(snapshotDocCount);
-        // The state documents count suffices are 1-based
-        for (int i = 1; i <= snapshotDocCount; i++) {
-            stateDocumentIds.add(ModelState.v54DocumentId(jobId, snapshotId, i));
-        }
-        return stateDocumentIds;
-    }
-
     public static String documentIdPrefix(String jobId) {
         return jobId + "_" + TYPE + "_";
+    }
+
+    public static String annotationDocumentId(ModelSnapshot snapshot) {
+        return "annotation_for_" + documentId(snapshot);
     }
 
     public static String documentId(ModelSnapshot snapshot) {

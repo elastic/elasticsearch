@@ -20,9 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,7 +37,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
      * Instantiate a {@link InternalGeoGrid}-derived class using the same parameters as constructor.
      */
     protected abstract T createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
-                                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+                                               Map<String, Object> metadata);
 
     /**
      * Instantiate a {@link InternalGeoGridBucket}-derived class using the same parameters as constructor.
@@ -66,10 +65,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     }
 
     @Override
-    protected T createTestInstance(String name,
-                                   List<PipelineAggregator> pipelineAggregators,
-                                   Map<String, Object> metaData,
-                                   InternalAggregations aggregations) {
+    protected T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final int precision = randomPrecision();
         int size = randomNumberOfBuckets();
         List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
@@ -80,7 +76,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             long hashAsLong = longEncode(longitude, latitude, precision);
             buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
         }
-        return createInternalGeoGrid(name, size, buckets, pipelineAggregators, metaData);
+        return createInternalGeoGrid(name, size, buckets, metadata);
     }
 
     @Override
@@ -132,8 +128,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
         String name = instance.getName();
         int size = instance.getRequiredSize();
         List<InternalGeoGridBucket> buckets = instance.getBuckets();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -147,17 +142,17 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             size = size + between(1, 10);
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return createInternalGeoGrid(name, size, buckets, pipelineAggregators, metaData);
+        return createInternalGeoGrid(name, size, buckets, metadata);
     }
 
     public void testCreateFromBuckets() {

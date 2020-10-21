@@ -1,4 +1,4 @@
-/*
+/* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -13,9 +13,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Modifications copyright (C) 2020 Elasticsearch B.V.
  */
 
 package org.elasticsearch.core.internal.io;
+
+import org.elasticsearch.common.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -63,6 +67,15 @@ public final class IOUtils {
     }
 
     /**
+     * @see #close(Closeable...)
+     */
+    public static void close(@Nullable Closeable closeable) throws IOException {
+        if (closeable != null) {
+            closeable.close();
+        }
+    }
+
+    /**
      * Closes all given {@link Closeable}s. Some of the {@linkplain Closeable}s may be null; they are
      * ignored. After everything is closed, the method adds any exceptions as suppressed to the
      * original exception, or throws the first exception it hit if {@code Exception} is null. If
@@ -100,9 +113,7 @@ public final class IOUtils {
         Exception firstException = ex;
         for (final Closeable object : objects) {
             try {
-                if (object != null) {
-                    object.close();
-                }
+                close(object);
             } catch (final IOException | RuntimeException e) {
                 if (firstException == null) {
                     firstException = e;
@@ -140,14 +151,18 @@ public final class IOUtils {
      */
     public static void closeWhileHandlingException(final Iterable<? extends Closeable> objects) {
         for (final Closeable object : objects) {
-            // noinspection EmptyCatchBlock
-            try {
-                if (object != null) {
-                    object.close();
-                }
-            } catch (final IOException | RuntimeException e) {
+           closeWhileHandlingException(object);
+        }
+    }
 
-            }
+    /**
+     * @see #closeWhileHandlingException(Closeable...)
+     */
+    public static void closeWhileHandlingException(final Closeable closeable) {
+        // noinspection EmptyCatchBlock
+        try {
+            close(closeable);
+        } catch (final IOException | RuntimeException e) {
         }
     }
 

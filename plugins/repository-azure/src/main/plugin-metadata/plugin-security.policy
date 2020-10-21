@@ -20,4 +20,5 @@
 grant {
   // azure client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
+  permission java.lang.RuntimePermission "setFactory";
 };

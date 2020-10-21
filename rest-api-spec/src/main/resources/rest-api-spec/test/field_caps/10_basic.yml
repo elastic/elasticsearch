@@ -201,7 +201,6 @@ setup:
 ---
 "Get object and nested field caps":
 
-
   - do:
       field_caps:
         index: 'test1,test2,test3'

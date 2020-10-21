@@ -1,5 +1,8 @@
 [[analysis-pattern-replace-charfilter]]
-=== Pattern Replace Char Filter
+=== Pattern replace character filter
+++++
+<titleabbrev>Pattern replace</titleabbrev>
+++++
 
 The `pattern_replace` character filter uses a regular expression to match
 characters which should be replaced with the specified replacement string.
@@ -10,16 +13,16 @@ The replacement string can refer to capture groups in the regular expression.
 ========================================
 
 The pattern replace character filter uses
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
 
 A badly written regular expression could run very slowly or even throw a
 StackOverflowError and cause the node it is running on to exit suddenly.
 
-Read more about http://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
+Read more about https://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
 
 ========================================
 
-[float]
+[discrete]
 === Configuration
 
 The `pattern_replace` character filter accepts the following parameters:
@@ -27,20 +30,20 @@ The `pattern_replace` character filter accepts the following parameters:
 [horizontal]
 `pattern`::
 
-    A http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression]. Required.
+    A https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression]. Required.
 
 `replacement`::
 
     The replacement string, which can reference capture groups using the
     `$1`..`$9` syntax, as explained
-    http://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[here].
+    https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[here].
 
 `flags`::
 
-    Java regular expression http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
+    Java regular expression https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
     Flags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `pattern_replace` character filter to
@@ -49,7 +52,7 @@ replace any embedded dashes in numbers with underscores, i.e `123-456-789` ->
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -72,7 +75,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "My credit card is 123-456-789"
@@ -99,7 +102,7 @@ camelCase words to be queried individually:
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -133,7 +136,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "The fooBarBaz method"
@@ -200,12 +203,12 @@ the length of the original text:
 
 [source,console]
 ----------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "text": "The fooBarBaz method"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -242,7 +245,7 @@ The output from the above is:
     "max_score": 0.2876821,
     "hits": [
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {

@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public class TcpHeader {
-    
+
     public static final Version VERSION_WITH_HEADER_SIZE = Version.V_7_6_0;
 
     public static final int MARKER_BYTES_SIZE = 2;
@@ -40,7 +40,15 @@ public class TcpHeader {
 
     public static final int VARIABLE_HEADER_SIZE = 4;
 
-    private static final int PRE_76_HEADER_SIZE = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE;
+    public static final int BYTES_REQUIRED_FOR_MESSAGE_SIZE = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE;
+
+    public static final int VERSION_POSITION = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE + REQUEST_ID_SIZE + STATUS_SIZE;
+
+    public static final int VARIABLE_HEADER_SIZE_POSITION = VERSION_POSITION + VERSION_ID_SIZE;
+
+    private static final int PRE_76_HEADER_SIZE = VERSION_POSITION + VERSION_ID_SIZE;
+
+    public static final int BYTES_REQUIRED_FOR_VERSION = PRE_76_HEADER_SIZE;
 
     private static final int HEADER_SIZE = PRE_76_HEADER_SIZE + VARIABLE_HEADER_SIZE;
 
@@ -52,10 +60,11 @@ public class TcpHeader {
         }
     }
 
+    private static final byte[] PREFIX = {(byte) 'E', (byte) 'S'};
+
     public static void writeHeader(StreamOutput output, long requestId, byte status, Version version, int contentSize,
                                    int variableHeaderSize) throws IOException {
-        output.writeByte((byte)'E');
-        output.writeByte((byte)'S');
+        output.writeBytes(PREFIX);
         // write the size, the size indicates the remaining message size, not including the size int
         if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
             output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE + VARIABLE_HEADER_SIZE);

@@ -5,18 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import java.util.function.Function;
 
-public class AvgAgg extends LeafAgg {
+public class AvgAgg extends DefaultAggSourceLeafAgg {
 
-    public AvgAgg(String id, String fieldName) {
-        super(id, fieldName);
+    public AvgAgg(String id, AggSource source) {
+        super(id, source);
     }
 
     @Override
-    AggregationBuilder toBuilder() {
-        return avg(id()).field(fieldName());
+    Function<String, ValuesSourceAggregationBuilder<?>> builder() {
+        return AggregationBuilders::avg;
     }
 }

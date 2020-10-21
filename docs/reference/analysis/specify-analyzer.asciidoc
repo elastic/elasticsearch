@@ -1,0 +1,202 @@
+[[specify-analyzer]]
+=== Specify an analyzer
+
+{es} offers a variety of ways to specify built-in or custom analyzers:
+
+* By `text` field, index, or query
+* For <<analysis-index-search-time,index or search time>>
+
+[TIP]
+.Keep it simple
+====
+The flexibility to specify analyzers at different levels and for different times
+is great... _but only when it's needed_.
+
+In most cases, a simple approach works best: Specify an analyzer for each
+`text` field, as outlined in <<specify-index-field-analyzer>>.
+
+This approach works well with {es}'s default behavior, letting you use the same
+analyzer for indexing and search. It also lets you quickly see which analyzer
+applies to which field using the <<indices-get-mapping,get mapping API>>.
+
+If you don't typically create mappings for your indices, you can use
+<<indices-templates,index templates>> to achieve a similar effect.
+====
+
+[[specify-index-time-analyzer]]
+==== How {es} determines the index analyzer
+
+{es} determines which index analyzer to use by checking the following parameters
+in order:
+
+. The <<analyzer,`analyzer`>> mapping parameter for the field.
+  See <<specify-index-field-analyzer>>.
+. The `analysis.analyzer.default` index setting.
+  See <<specify-index-time-default-analyzer>>.
+
+If none of these parameters are specified, the
+<<analysis-standard-analyzer,`standard` analyzer>> is used.
+
+[[specify-index-field-analyzer]]
+==== Specify the analyzer for a field
+
+When mapping an index, you can use the <<analyzer,`analyzer`>> mapping parameter
+to specify an analyzer for each `text` field.
+
+The following <<indices-create-index,create index API>> request sets the
+`whitespace` analyzer as the analyzer for the `title` field.
+
+[source,console]
+----
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "analyzer": "whitespace"
+      }
+    }
+  }
+}
+----
+
+[[specify-index-time-default-analyzer]]
+==== Specify the default analyzer for an index
+
+In addition to a field-level analyzer, you can set a fallback analyzer for
+using the `analysis.analyzer.default` setting.
+
+The following <<indices-create-index,create index API>> request sets the
+`simple` analyzer as the fallback analyzer for `my-index-000001`.
+
+[source,console]
+----
+PUT my-index-000001
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "type": "simple"
+        }
+      }
+    }
+  }
+}
+----
+
+[[specify-search-analyzer]]
+==== How {es} determines the search analyzer
+
+// tag::search-analyzer-warning[]
+[WARNING]
+====
+In most cases, specifying a different search analyzer is unnecessary. Doing so
+could negatively impact relevancy and result in unexpected search results.
+
+If you choose to specify a separate search analyzer, we recommend you thoroughly
+<<test-analyzer,test your analysis configuration>> before deploying in
+production.
+====
+// end::search-analyzer-warning[]
+
+At search time, {es} determines which analyzer to use by checking the following
+parameters in order:
+
+. The <<analyzer,`analyzer`>> parameter in the search query.
+  See <<specify-search-query-analyzer>>.
+. The <<search-analyzer,`search_analyzer`>> mapping parameter for the field.
+  See <<specify-search-field-analyzer>>.
+. The `analysis.analyzer.default_search` index setting.
+  See <<specify-search-default-analyzer>>.
+. The <<analyzer,`analyzer`>> mapping parameter for the field.
+  See <<specify-index-field-analyzer>>.
+
+If none of these parameters are specified, the
+<<analysis-standard-analyzer,`standard` analyzer>> is used.
+
+[[specify-search-query-analyzer]]
+==== Specify the search analyzer for a query
+
+When writing a <<full-text-queries,full-text query>>, you can use the `analyzer`
+parameter to specify a search analyzer. If provided, this overrides any other
+search analyzers.
+
+The following <<search-search,search API>> request sets the `stop` analyzer as
+the search analyzer for a <<query-dsl-match-query,`match`>> query.
+
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "message": {
+        "query": "Quick foxes",
+        "analyzer": "stop"
+      }
+    }
+  }
+}
+----
+// TEST[s/^/PUT my-index-000001\n/]
+
+[[specify-search-field-analyzer]]
+==== Specify the search analyzer for a field
+
+When mapping an index, you can use the <<analyzer,`search_analyzer`>> mapping
+parameter to specify a search analyzer for each `text` field.
+
+If a search analyzer is provided, the index analyzer must also be specified
+using the `analyzer` parameter.
+
+The following <<indices-create-index,create index API>> request sets the
+`simple` analyzer as the search analyzer for the `title` field.
+
+[source,console]
+----
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "analyzer": "whitespace",
+        "search_analyzer": "simple"
+      }
+    }
+  }
+}
+----
+
+[[specify-search-default-analyzer]]
+==== Specify the default search analyzer for an index
+
+When <<indices-create-index,creating an index>>, you can set a default search
+analyzer using the `analysis.analyzer.default_search` setting.
+
+If a search analyzer is provided, a default index analyzer must also be
+specified using the `analysis.analyzer.default` setting.
+
+The following  <<indices-create-index,create index API>> request sets the
+`whitespace` analyzer as the default search analyzer for the `my-index-000001` index.
+
+[source,console]
+----
+PUT my-index-000001
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "type": "simple"
+        },
+        "default_search": {
+          "type": "whitespace"
+        }
+      }
+    }
+  }
+}
+----

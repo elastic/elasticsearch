@@ -133,6 +133,109 @@ by default, thus the related skip sections can be removed from the tests.
 The `features` field can either be a string or an array of strings.
 The skip section requires to specify either a `version` or a `features` list.
 
+=== Available Features
+
+=== `xpack`
+Requires x-pack to be enabled on the `Elasticsearch` instance the rest test is running against
+
+=== `no_xpack`
+Requires the test to run against an oss distribution of `Elasticsearch`
+
+=== `catch_unauthorized`
+
+Runner supports `catch: unauthorized` on a `do` operator.
+
+=== `default_shards`
+
+This test can only run if the cluster is running with the distributions default number of shards.
+
+The Java test runner introduces randomness and sometimes overrides the default number of shards to `2`.
+If the default number of shards is changed, test marked with this feature should *not* run
+
+=== `headers`
+
+The runner is able to set per request headers on the `do` operation
+
+=== `node_selector`
+
+Indicates the runner can parse `node_selector` under the `do` operator and use its metadata to select the node to
+perform the `do` operation on.
+
+=== `stash_in_key`
+
+Allows you to use a stashed value in any key of an object during a `match` assertion
+
+....
+- set: {nodes.$master.http.publish_address: host}
+- match:
+    $body:
+      {
+        "nodes": {
+          $host: {
+            ... stuff in here ...
+          }
+        }
+     }
+....
+
+=== `stash_in_path`
+
+Allows a stashed value to be referenced in path lookups as a single token. E.g:
+
+....
+path.$stash.value
+....
+
+=== `embedded_stash_key`
+
+Allows a stashed key to appear anywhere in the path (note the placeholder needs to be within curly brackets too in this case):
+
+....
+field1.e${placeholder}ments.element1
+....
+
+=== `stash_path_replace`
+Used only in the doc snippet tests. Allow you to do ease replacements using a special `$_path` marker.
+
+....
+// TESTRESPONSEs/somevalue/$body.${_path}/ to mean "replace
+somevalue with whatever is the response in the same position."
+....
+
+=== `warnings`
+
+The runner can assert the warnings headers returned by Elasticsearch through the `warning:` assertations
+under `do:`  operations.
+
+=== `yaml`
+
+The runner is able to send and receive `application/yaml` and perform all assertions on the returned data.
+
+=== `contains`
+
+Asserts an array of object contains an object with a property set to a certain value. e.g:
+
+...
+contains:  { nodes.$master.plugins: { name: painless-whitelist } }
+...
+
+Asserts the plugins array contains an object with a `name` property with the value `painless-whitelist`
+
+=== `transform_and_set`
+
+Supports the `transform_and_set` operator as described in this document.
+
+=== `arbitrary_key`
+
+Allows you to stash an arbitrary key from a returned map e.g:
+
+....
+- set:
+    nodes._arbitrary_key_: node_id
+....
+
+This means: Stash any of the keys returned under `nodes` as `$node_id`
+
 Required operators:
 -------------------
 
@@ -191,6 +294,23 @@ header. The warnings must match exactly. Using it looks like this:
             - '[index] is deprecated'
             - quotes are not required because yaml
             - but this argument is always a list, never a single string
+            - no matter how many warnings you expect
+        get:
+            index:    test
+            type:    test
+            id:        1
+....
+
+If the arguments to `do` include `allowed_warnings` then matching `Warning`
+headers do not fail the request. Unlike the `warnings` argument, these aren't
+expected so much as "allowed". This usually comes up in backwards compatibility
+testing. Using it looks like this:
+
+....
+    - do:
+        allowed_warnings:
+            - some warning
+            - this argument is also always a list, never a single string
             - no matter how many warnings you expect
         get:
             index:    test
@@ -361,7 +481,7 @@ Compares two numeric values, eg:
 
 === `length`
 
-This depends on the datatype of the value being examined, eg:
+This depends on the data type of the value being examined, eg:
 
 ....
     - length: { _id: 22    }   # the `_id` string is 22 chars long

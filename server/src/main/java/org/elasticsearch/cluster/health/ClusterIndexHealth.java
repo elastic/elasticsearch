@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.ParseField;
@@ -110,10 +110,10 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     private final ClusterHealthStatus status;
     private final Map<Integer, ClusterShardHealth> shards;
 
-    public ClusterIndexHealth(final IndexMetaData indexMetaData, final IndexRoutingTable indexRoutingTable) {
-        this.index = indexMetaData.getIndex().getName();
-        this.numberOfShards = indexMetaData.getNumberOfShards();
-        this.numberOfReplicas = indexMetaData.getNumberOfReplicas();
+    public ClusterIndexHealth(final IndexMetadata indexMetadata, final IndexRoutingTable indexRoutingTable) {
+        this.index = indexMetadata.getIndex().getName();
+        this.numberOfShards = indexMetadata.getNumberOfShards();
+        this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
 
         shards = new HashMap<>();
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
@@ -165,7 +165,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         relocatingShards = in.readVInt();
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
+        status = ClusterHealthStatus.readFrom(in);
 
         int size = in.readVInt();
         shards = new HashMap<>(size);
@@ -249,11 +249,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeByte(status.value());
-
-        out.writeVInt(shards.size());
-        for (ClusterShardHealth shardHealth : this) {
-            shardHealth.writeTo(out);
-        }
+        out.writeCollection(shards.values());
     }
 
     @Override
@@ -284,12 +280,12 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     }
 
     public static ClusterIndexHealth fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         String index = parser.currentName();
         ClusterIndexHealth parsed = innerFromXContent(parser, index);
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return parsed;
     }
 

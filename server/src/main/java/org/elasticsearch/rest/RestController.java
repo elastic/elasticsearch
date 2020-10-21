@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -52,6 +53,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
@@ -62,6 +64,20 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
+    private static final String ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
+
+    private static final BytesReference FAVICON_RESPONSE;
+
+    static {
+        try (InputStream stream = RestController.class.getResourceAsStream("/config/favicon.ico")) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Streams.copy(stream, out);
+            FAVICON_RESPONSE = new BytesArray(out.toByteArray());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
@@ -85,6 +101,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
+        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", (request, channel, clnt) ->
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE)));
     }
 
     /**
@@ -94,13 +112,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
-     * @param logger The existing deprecation logger to use
      */
-    public void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
-                                            String deprecationMessage, DeprecationLogger logger) {
+    protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler, String deprecationMessage) {
         assert (handler instanceof DeprecationRestHandler) == false;
 
-        registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, logger));
+        registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
     }
 
     /**
@@ -126,17 +142,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param deprecatedMethod GET, POST, etc.
      * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
-     * @param logger The existing deprecation logger to use
      */
-    public void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
-                                              RestRequest.Method deprecatedMethod, String deprecatedPath,
-                                              DeprecationLogger logger) {
+    protected void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
+                                              RestRequest.Method deprecatedMethod, String deprecatedPath) {
         // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
         final String deprecationMessage =
             "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
 
         registerHandler(method, path, handler);
-        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage, logger);
+        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
     }
 
     /**
@@ -146,21 +160,32 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      * @param method GET, POST, etc.
      */
-    public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
+    protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        final RestHandler maybeWrappedHandler = handlerWrapper.apply(handler);
+        registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
+    }
+
+    private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
     }
 
+    /**
+     * Registers a REST handler with the controller. The REST handler declares the {@code method}
+     * and {@code path} combinations.
+     */
+    public void registerHandler(final RestHandler restHandler) {
+        restHandler.routes().forEach(route -> registerHandler(route.getMethod(), route.getPath(), restHandler));
+        restHandler.deprecatedRoutes().forEach(route ->
+            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
+        restHandler.replacedRoutes().forEach(route -> registerWithDeprecatedHandler(route.getMethod(), route.getPath(),
+            restHandler, route.getDeprecatedMethod(), route.getDeprecatedPath()));
+    }
+
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-        if (request.rawPath().equals("/favicon.ico")) {
-            handleFavicon(request.method(), request.uri(), channel);
-            return;
-        }
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -222,6 +247,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
             }
+            if (handler.allowSystemIndexAccessByDefault() == false && request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER) == null) {
+                // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product with a plan
+                // to move away from direct access to system indices, and thus deprecation warnings should not be emitted.
+                // This header is intended for internal use only.
+                client.threadPool().getThreadContext().putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+            }
+
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
@@ -416,28 +448,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         return validMethods;
-    }
-
-    private void handleFavicon(RestRequest.Method method, String uri, final RestChannel channel) {
-        try {
-            if (method != RestRequest.Method.GET) {
-                handleUnsupportedHttpMethod(uri, method, channel, Set.of(RestRequest.Method.GET), null);
-            } else {
-                try {
-                    try (InputStream stream = getClass().getResourceAsStream("/config/favicon.ico")) {
-                        ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        Streams.copy(stream, out);
-                        BytesRestResponse restResponse = new BytesRestResponse(RestStatus.OK, "image/x-icon", out.toByteArray());
-                        channel.sendResponse(restResponse);
-                    }
-                } catch (IOException e) {
-                    channel.sendResponse(
-                        new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-                }
-            }
-        } catch (final IllegalArgumentException e) {
-            handleUnsupportedHttpMethod(uri, null, channel, Set.of(RestRequest.Method.GET), e);
-        }
     }
 
     private static final class ResourceHandlingHttpChannel implements RestChannel {

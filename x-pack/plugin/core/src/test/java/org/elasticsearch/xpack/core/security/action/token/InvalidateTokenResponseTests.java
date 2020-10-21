@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 
@@ -29,7 +30,8 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
             Arrays.asList(generateRandomStringArray(20, 15, false)),
             Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
-                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))));
+                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))),
+            RestStatus.OK);
         InvalidateTokenResponse response = new InvalidateTokenResponse(result);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
@@ -45,7 +47,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         }
 
         result = new TokensInvalidationResult(Arrays.asList(generateRandomStringArray(20, 15, false)),
-            Arrays.asList(generateRandomStringArray(20, 15, false)), Collections.emptyList());
+            Arrays.asList(generateRandomStringArray(20, 15, false)), Collections.emptyList(), RestStatus.OK);
         response = new InvalidateTokenResponse(result);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
@@ -64,7 +66,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         List previouslyInvalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
         TokensInvalidationResult result = new TokensInvalidationResult(invalidatedTokens, previouslyInvalidatedTokens,
             Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
-                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))));
+                new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))), RestStatus.OK);
         InvalidateTokenResponse response = new InvalidateTokenResponse(result);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);

@@ -7,7 +7,7 @@ metadata, such as the class that a document belongs to:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "_meta": { <1>
@@ -29,7 +29,7 @@ The `_meta` field can be updated on an existing type using the
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_mapping
+PUT my-index-000001/_mapping
 {
   "_meta": {
     "class": "MyApp2::User3",

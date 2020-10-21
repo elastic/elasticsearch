@@ -25,6 +25,13 @@ seconds).
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-timeouts]
 --------------------------------------------------
 
+Timeouts also can be set per request with RequestOptions, which overrides RestClient customizeRequestConfig.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-request-options-timeouts]
+--------------------------------------------------
+
 === Number of threads
 
 The Apache Http Async Client starts by default one dispatcher thread, and a
@@ -64,22 +71,76 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-disa
 --------------------------------------------------
 <1> Disable preemptive authentication
 
+=== Other authentication methods
+
+==== Elasticsearch Token Service tokens
+
+If you want the client to authenticate with an Elasticsearch access token, set the relevant HTTP request header.
+If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
+in the following example:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-auth-bearer-token]
+--------------------------------------------------
+
+==== Elasticsearch API keys
+
+If you want the client to authenticate with an Elasticsearch API key, set the relevant HTTP request header.
+If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
+in the following example:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-auth-api-key]
+--------------------------------------------------
+
 === Encrypted communication
 
-Encrypted communication can also be configured through the
+Encrypted communication using TLS can also be configured through the
 `HttpClientConfigCallback`. The
 https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  received as an argument exposes multiple methods to configure encrypted
  communication: `setSSLContext`, `setSSLSessionStrategy` and
  `setConnectionManager`, in order of precedence from the least important.
- The following is an example:
+
+When accessing an Elasticsearch cluster that is setup for TLS on the HTTP layer, the client needs to trust the certificate that
+Elasticsearch is using.
+ The following is an example of setting up the client to trust the CA that has signed the certificate that Elasticsearch is using, when
+ that CA certificate is available in a PKCS#12 keystore:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-encrypted-communication]
 --------------------------------------------------
 
-If no explicit configuration is provided, the http://docs.oracle.com/javase/7/docs/technotes/guides/security/jsse/JSSERefGuide.html#CustomizingStores[system default configuration]
+The following is an example of setting up the client to trust the CA that has signed the certificate that Elasticsearch is using, when
+that CA certificate is available as a PEM encoded file.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-trust-ca-pem]
+--------------------------------------------------
+
+When Elasticsearch is configured to require client TLS authentication, for example when a PKI realm is configured, the client needs to provide
+a client certificate during the TLS handshake in order to authenticate. The following is an example of setting up the client for TLS
+authentication with a certificate and a private key that are stored in a PKCS#12 keystore.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-mutual-tls-authentication]
+--------------------------------------------------
+
+If the client certificate and key are not available in a keystore but rather as PEM encoded files, you cannot use them
+directly to build an SSLContext. You must rely on external libraries to parse the PEM key into a PrivateKey instance. Alternatively, you
+can use external tools to build a keystore from your PEM files, as shown in the following example:
+
+```
+openssl pkcs12 -export -in client.crt -inkey private_key.pem \
+        -name "client" -out client.p12
+```
+
+If no explicit configuration is provided, the https://docs.oracle.com/javase/7/docs/technotes/guides/security/jsse/JSSERefGuide.html#CustomizingStores[system default configuration]
 will be used.
 
 === Others
@@ -93,11 +154,11 @@ indefinitely and negative hostname resolutions for ten seconds.  If the resolved
 addresses of the hosts to which you are connecting the client to vary with time
 then you might want to modify the default JVM behavior. These can be modified by
 adding
-http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
+https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
 and
-http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
+https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
 to your
-http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
+https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
 security policy].
 
 === Node selector

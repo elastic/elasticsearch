@@ -7,7 +7,7 @@ containing the new field.  For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1 <1>
+PUT my-index-000001/_doc/1 <1>
 {
   "username": "johnsmith",
   "name": {
@@ -16,9 +16,9 @@ PUT my_index/_doc/1 <1>
   }
 }
 
-GET my_index/_mapping <2>
+GET my-index-000001/_mapping <2>
 
-PUT my_index/_doc/2 <3>
+PUT my-index-000001/_doc/2 <3>
 {
   "username": "marywhite",
   "email": "mary@white.com",
@@ -29,7 +29,7 @@ PUT my_index/_doc/2 <3>
   }
 }
 
-GET my_index/_mapping <4>
+GET my-index-000001/_mapping <4>
 --------------------------------------------------
 
 <1> This document introduces the string field `username`, the object field
@@ -58,7 +58,7 @@ object or from the mapping type.  For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic": false, <1>

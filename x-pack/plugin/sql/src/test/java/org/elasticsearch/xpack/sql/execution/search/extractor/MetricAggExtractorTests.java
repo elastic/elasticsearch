@@ -55,8 +55,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
             instance.name() + "mutated",
             instance.property() + "mutated",
             instance.innerKey() + "mutated",
-            randomValueOtherThan(instance.zoneId(),
-                ESTestCase::randomZone), randomBoolean());
+                randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone), randomBoolean());
     }
 
     public void testNoAggs() {

@@ -19,41 +19,39 @@
 
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class GlobalAggregatorFactory extends AggregatorFactory {
 
     public GlobalAggregatorFactory(String name,
-                                    QueryShardContext queryShardContext,
+                                    AggregationContext context,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactories,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, subFactories, metadata);
     }
 
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        CardinalityUpperBound cardinality,
+                                        Map<String, Object> metadata) throws IOException {
         if (parent != null) {
             throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " + "sub-aggregation [" + name
                     + "]. Global aggregations can only be defined as top level aggregations");
         }
-        if (collectsFromSingleBucket == false) {
-            throw new IllegalStateException();
+        if (cardinality != CardinalityUpperBound.ONE) {
+            throw new AggregationExecutionException("Aggregation [" + name() + "] must have cardinality 1 but was [" + cardinality + "]");
         }
-        return new GlobalAggregator(name, factories, searchContext, pipelineAggregators, metaData);
+        return new GlobalAggregator(name, factories, searchContext, metadata);
     }
 }

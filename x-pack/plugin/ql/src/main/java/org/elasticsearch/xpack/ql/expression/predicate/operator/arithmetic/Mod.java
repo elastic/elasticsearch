@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -19,7 +18,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public class Mod extends ArithmeticOperation {
 
     public Mod(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryArithmeticOperation.MOD);
+        super(source, left, right, DefaultBinaryArithmeticOperation.MOD);
     }
 
     @Override

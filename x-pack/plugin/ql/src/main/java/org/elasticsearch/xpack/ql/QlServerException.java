@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.ql;
 
+/**
+ * Exception triggered inside server-side code.
+ * Typically a validation error or worse, a bug.
+ */
 public abstract class QlServerException extends QlException {
 
     protected QlServerException(String message, Object... args) {

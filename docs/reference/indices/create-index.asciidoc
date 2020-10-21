@@ -8,7 +8,7 @@ Creates a new index.
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 --------------------------------------------------
 
 
@@ -19,7 +19,7 @@ PUT /twitter
 
 [[indices-create-api-desc]]
 ==== {api-description-title}
-You can use the create index API to add a new index to an {es} cluster. When 
+You can use the create index API to add a new index to an {es} cluster. When
 creating an index, you can specify the following:
 
 * Settings for the index
@@ -33,7 +33,7 @@ creating an index, you can specify the following:
 `<index>`::
 +
 --
-(Optional, string) Name of the index you wish to create.
+(Required, string) Name of the index you wish to create.
 
 // tag::index-name-reqs[]
 Index names must meet the following criteria:
@@ -44,6 +44,7 @@ Index names must meet the following criteria:
 - Cannot start with `-`, `_`, `+`
 - Cannot be `.` or `..`
 - Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+- Names starting with `.` are deprecated, except for <<index-hidden,hidden indices>> and internal indices managed by plugins
 // end::index-name-reqs[]
 --
 
@@ -51,9 +52,9 @@ Index names must meet the following criteria:
 [[indices-create-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[indices-create-api-request-body]]
@@ -63,9 +64,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 (Optional, <<indices-aliases,alias object>>) Index aliases which include the
 index. See <<indices-aliases>>.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 [[indices-create-api-example]]
 ==== {api-examples-title}
@@ -78,14 +79,14 @@ associated with it, defined in the body:
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 {
-    "settings" : {
-        "index" : {
-            "number_of_shards" : 3, <1>
-            "number_of_replicas" : 2 <2>
-        }
+  "settings": {
+    "index": {
+      "number_of_shards": 3,  <1>
+      "number_of_replicas": 2 <2>
     }
+  }
 }
 --------------------------------------------------
 
@@ -96,12 +97,12 @@ or more simplified
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 {
-    "settings" : {
-        "number_of_shards" : 3,
-        "number_of_replicas" : 2
-    }
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 2
+  }
 }
 --------------------------------------------------
 
@@ -122,14 +123,14 @@ The create index API allows for providing a mapping definition:
 --------------------------------------------------
 PUT /test
 {
-    "settings" : {
-        "number_of_shards" : 1
-    },
-    "mappings" : {
-        "properties" : {
-            "field1" : { "type" : "text" }
-        }
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "properties": {
+      "field1": { "type": "text" }
     }
+  }
 }
 --------------------------------------------------
 
@@ -142,20 +143,20 @@ The create index API allows also to provide a set of <<indices-aliases,aliases>>
 --------------------------------------------------
 PUT /test
 {
-    "aliases" : {
-        "alias_1" : {},
-        "alias_2" : {
-            "filter" : {
-                "term" : {"user" : "kimchy" }
-            },
-            "routing" : "kimchy"
-        }
+  "aliases": {
+    "alias_1": {},
+    "alias_2": {
+      "filter": {
+        "term": { "user.id": "kimchy" }
+      },
+      "routing": "shard-1"
     }
+  }
 }
 --------------------------------------------------
 
 [[create-index-wait-for-active-shards]]
-===== Wait For active shards
+===== Wait for active shards
 
 By default, index creation will only return a response to the client when the primary copies of
 each shard have been started, or the request times out. The index creation response will indicate
@@ -164,9 +165,9 @@ what happened:
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged": true,
-    "shards_acknowledged": true,
-    "index": "test"
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "index": "test"
 }
 --------------------------------------------------
 
@@ -189,9 +190,9 @@ the `wait_for_active_shards` value on all subsequent write operations):
 --------------------------------------------------
 PUT /test
 {
-    "settings": {
-        "index.write.wait_for_active_shards": "2"
-    }
+  "settings": {
+    "index.write.wait_for_active_shards": "2"
+  }
 }
 --------------------------------------------------
 // TEST[skip:requires two nodes]

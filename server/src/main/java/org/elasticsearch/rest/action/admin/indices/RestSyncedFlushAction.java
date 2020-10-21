@@ -31,13 +31,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -45,14 +45,15 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSyncedFlushAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestSyncedFlushAction.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestSyncedFlushAction.class);
 
-    public RestSyncedFlushAction(RestController controller) {
-        controller.registerHandler(POST, "/_flush/synced", this);
-        controller.registerHandler(POST, "/{index}/_flush/synced", this);
-
-        controller.registerHandler(GET, "/_flush/synced", this);
-        controller.registerHandler(GET, "/{index}/_flush/synced", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_flush/synced"),
+            new Route(POST, "/_flush/synced"),
+            new Route(GET, "/{index}/_flush/synced"),
+            new Route(POST, "/{index}/_flush/synced"));
     }
 
     @Override
@@ -62,7 +63,7 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synced_flush",
+        DEPRECATION_LOGGER.deprecate("synced_flush",
             "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
         final FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));

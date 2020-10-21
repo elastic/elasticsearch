@@ -76,7 +76,8 @@ PUT _cluster/settings
 ==== Example configuration of cross cluster search
 
 In the following example, we will configure the user `alice` to have permissions
-to search any index starting with `logs-` in cluster `two` from cluster `one`.
+to search any data stream or index starting with `logs-` in cluster `two` from
+cluster `one`.
 
 First, enable cluster `one` to perform cross cluster search on remote cluster
 `two` by running the following request as the superuser on cluster `one`:

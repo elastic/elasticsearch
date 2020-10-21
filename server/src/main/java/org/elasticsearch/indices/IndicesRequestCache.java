@@ -21,13 +21,13 @@ package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -43,13 +43,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Supplier;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -70,7 +70,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     /**
      * A setting to enable or disable request caching on an index level. Its dynamic by default
-     * since we are checking on the cluster state IndexMetaData always.
+     * since we are checking on the cluster state IndexMetadata always.
      */
     public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING =
         Setting.boolSetting("index.requests.cache.enable", true, Property.Dynamic, Property.IndexScope);
@@ -112,20 +112,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         notification.getKey().entity.onRemoval(notification);
     }
 
-    // NORELEASE The cacheKeyRenderer has been added in order to debug
-    // https://github.com/elastic/elasticsearch/issues/32827, it should be
-    // removed when this issue is solved
-    BytesReference getOrCompute(CacheEntity cacheEntity, Supplier<BytesReference> loader,
-            DirectoryReader reader, BytesReference cacheKey, Supplier<String> cacheKeyRenderer) throws Exception {
+    BytesReference getOrCompute(CacheEntity cacheEntity, CheckedSupplier<BytesReference, IOException> loader,
+                                DirectoryReader reader, BytesReference cacheKey) throws Exception {
         assert reader.getReaderCacheHelper() != null;
         final Key key =  new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
-            if (logger.isTraceEnabled()) {
-                logger.trace("Cache miss for reader version [{}] and request:\n {}", reader.getVersion(), cacheKeyRenderer.get());
-            }
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
@@ -136,9 +130,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
         } else {
             key.entity.onHit();
-            if (logger.isTraceEnabled()) {
-                logger.trace("Cache hit for reader version [{}] and request:\n {}", reader.getVersion(), cacheKeyRenderer.get());
-            }
         }
         return value;
     }
@@ -157,10 +148,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     private static class Loader implements CacheLoader<Key, BytesReference> {
 
         private final CacheEntity entity;
-        private final Supplier<BytesReference> loader;
+        private final CheckedSupplier<BytesReference, IOException> loader;
         private boolean loaded;
 
-        Loader(CacheEntity entity, Supplier<BytesReference> loader) {
+        Loader(CacheEntity entity, CheckedSupplier<BytesReference, IOException> loader) {
             this.entity = entity;
             this.loader = loader;
         }

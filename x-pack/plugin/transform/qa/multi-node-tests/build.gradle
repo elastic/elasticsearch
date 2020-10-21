@@ -1,11 +1,9 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('transform'), configuration: 'runtime')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('transform'))
 }
 
 // location for keys and certificates
@@ -13,7 +11,7 @@ File keystoreDir = new File(project.buildDir, 'keystore')
 File nodeKey = file("$keystoreDir/testnode.pem")
 File nodeCert = file("$keystoreDir/testnode.crt")
 // Add key and certs to test classpath: it expects it there
-task copyKeyCerts(type: Copy) {
+tasks.register("copyKeyCerts", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }
@@ -21,15 +19,14 @@ task copyKeyCerts(type: Copy) {
 }
 // Add keys and cets to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
+tasks.named("processJavaRestTestResources").configure { dependsOn("copyKeyCerts") }
 
-integTest.dependsOn copyKeyCerts
+tasks.named("javaRestTest").configure { dependsOn "copyKeyCerts" }
 
-testClusters.integTest {
+testClusters.javaRestTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.key', nodeKey.name

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -41,9 +42,11 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
 
     @Override
     protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Query innerQuery = queryBuilder.innerQuery().toQuery(context);
+        Query innerQuery = queryBuilder.innerQuery().rewrite(context).toQuery(context);
         if (innerQuery == null) {
             assertThat(query, nullValue());
+        } else if (innerQuery instanceof MatchNoDocsQuery) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
@@ -106,5 +109,15 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(new MatchNoneQueryBuilder());
         QueryBuilder rewrite = constantScoreQueryBuilder.rewrite(createShardContext());
         assertEquals(rewrite, new MatchNoneQueryBuilder());
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        ConstantScoreQueryBuilder queryBuilder = new ConstantScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "foo"));
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

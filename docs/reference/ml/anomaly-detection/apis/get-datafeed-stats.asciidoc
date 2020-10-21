@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-datafeed-stats]]
-=== Get {dfeed} statistics API
+= Get {dfeed} statistics API
 
 [subs="attributes"]
 ++++
@@ -11,7 +11,7 @@
 Retrieves usage information for {dfeeds}.
 
 [[ml-get-datafeed-stats-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/datafeeds/<feed_id>/_stats` +
 
@@ -22,14 +22,14 @@ Retrieves usage information for {dfeeds}.
 `GET _ml/datafeeds/_all/_stats` 
 
 [[ml-get-datafeed-stats-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>>.
+<<security-privileges>> and {ml-docs-setup-privileges}.
 
 [[ml-get-datafeed-stats-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can get statistics for multiple {dfeeds} in a single API request by using a
 comma-separated list of {dfeeds} or a wildcard expression. You can get
@@ -42,11 +42,11 @@ If the {dfeed} is stopped, the only information you receive is the
 IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 
 [[ml-get-datafeed-stats-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<feed_id>`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
 +
 --
 If you do not specify one of these options, the API returns information about
@@ -54,69 +54,100 @@ all {dfeeds}.
 --
 
 [[ml-get-datafeed-stats-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
-`allow_no_datafeeds`::
+`allow_no_match`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
-
+[role="child_attributes"]
 [[ml-get-datafeed-stats-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of {dfeed} count objects. All of these properties are
 informational; you cannot update their values.
 
 `assignment_explanation`::
-(string) For started {dfeeds} only, contains messages relating to the selection of a node.
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
 
 `datafeed_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 `node`::
-(object) For started {dfeeds} only, the node upon which the {dfeed} is started.
-The {dfeed} and job will be on the same node.
-`node`.`id`::: The unique identifier of the node. For example, "0-o0tOoRTwKFZifatTWKNw".
-`node`.`name`::: The node name. For example, `0-o0tOo`.
-`node`.`ephemeral_id`::: The node ephemeral ID.
-`node`.`transport_address`::: The host and port where transport HTTP connections are
-accepted. For example, `127.0.0.1:9300`.
-`node`.`attributes`::: For example, `{"ml.machine_memory": "17179869184"}`.
-
-`state`::
-(string) The status of the {dfeed}, which can be one of the following values:
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
 +
 --
-* `started`: The {dfeed} is actively receiving data.
-* `stopped`: The {dfeed} is stopped and will not receive data until it is
-re-started.
+[%collapsible%open]
+====
+`attributes`:::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
+
+`ephemeral_id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+
+`id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
+
+`name`:::
+(string)
+The node name. For example, `0-o0tOo`.
+
+`transport_address`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+====
 --
+
+`state`::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=state-datafeed]
 
 `timing_stats`::
 (object) An object that provides statistical information about timing aspect of
 this {dfeed}.
-`timing_stats`.`average_search_time_per_bucket_ms`:::
-(double) Average of the {dfeed} search times in milliseconds.
-`timing_stats`.`bucket_count`:::
-(long) The number of buckets processed. 
-`timing_stats`.`exponential_average_search_time_per_hour_ms`:::
-(double) Exponential moving average of the {dfeed} search times in milliseconds.
-`timing_stats`.`job_id`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
-`timing_stats`.`search_count`::: Number of searches performed by this {dfeed}.
-`timing_stats`.`total_search_time_ms`::: Total time the {dfeed} spent searching in milliseconds.
++
+--
+[%collapsible%open]
+====
+`average_search_time_per_bucket_ms`:::
+(double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
+
+`bucket_count`:::
+(long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-count]
+
+`exponential_average_search_time_per_hour_ms`:::
+(double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-exp-avg-hour]
+
+`job_id`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`search_count`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-count]
+
+`total_search_time_ms`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-time]
+====
+--
 
 
 [[ml-get-datafeed-stats-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
-  If `allow_no_datafeeds` is `false`, this code indicates that there are no
+  If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request. 
 
 [[ml-get-datafeed-stats-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

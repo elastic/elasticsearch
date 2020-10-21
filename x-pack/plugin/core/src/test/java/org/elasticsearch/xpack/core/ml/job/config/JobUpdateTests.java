@@ -61,7 +61,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setDetectorUpdates(detectorUpdates);
         }
         if (randomBoolean()) {
-            update.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
+            update.setModelPlotConfig(ModelPlotConfigTests.createRandomized());
         }
         if (randomBoolean()) {
             update.setAnalysisLimits(AnalysisLimits.validateAndSetDefaults(AnalysisLimitsTests.createRandomized(), null,
@@ -73,14 +73,40 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
         }
-        if (randomBoolean()) {
-            update.setModelSnapshotRetentionDays(randomNonNegativeLong());
+        // It's quite complicated to ensure updates of the two model snapshot retention settings are valid:
+        // - We might be updating both, one or neither.
+        // - If we update both the values in the update must be consistent.
+        // - If we update just one then that one must be consistent with the value of the other one in the job that's being updated.
+        Long maxValidDailyModelSnapshotRetentionAfterDays = (job == null) ? null : job.getModelSnapshotRetentionDays();
+        boolean willSetModelSnapshotRetentionDays = randomBoolean();
+        boolean willSetDailyModelSnapshotRetentionAfterDays = randomBoolean();
+        if (willSetModelSnapshotRetentionDays) {
+            if (willSetDailyModelSnapshotRetentionAfterDays) {
+                maxValidDailyModelSnapshotRetentionAfterDays = randomNonNegativeLong();
+                update.setModelSnapshotRetentionDays(maxValidDailyModelSnapshotRetentionAfterDays);
+            } else {
+                if (job == null || job.getDailyModelSnapshotRetentionAfterDays() == null) {
+                    update.setModelSnapshotRetentionDays(randomNonNegativeLong());
+                } else {
+                    update.setModelSnapshotRetentionDays(randomLongBetween(job.getDailyModelSnapshotRetentionAfterDays(), Long.MAX_VALUE));
+                }
+            }
+        }
+        if (willSetDailyModelSnapshotRetentionAfterDays) {
+            if (maxValidDailyModelSnapshotRetentionAfterDays != null) {
+                update.setDailyModelSnapshotRetentionAfterDays(randomLongBetween(0, maxValidDailyModelSnapshotRetentionAfterDays));
+            } else {
+                update.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
+            }
         }
         if (randomBoolean()) {
             update.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean() && jobSupportsCategorizationFilters(job)) {
             update.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
+        }
+        if (randomBoolean() && jobSupportsPerPartitionCategorization(job)) {
+            update.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
         }
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
@@ -115,6 +141,13 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             return false;
         }
         return true;
+    }
+
+    private static boolean jobSupportsPerPartitionCategorization(@Nullable Job job) {
+        if (job == null) {
+            return true;
+        }
+        return job.getAnalysisConfig().getPerPartitionCategorizationConfig().isEnabled();
     }
 
     private static List<JobUpdate.DetectorUpdate> createRandomDetectorUpdates() {
@@ -199,7 +232,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
                 new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5))).build());
         detectorUpdates.add(new JobUpdate.DetectorUpdate(1, "description-2", detectionRules2));
 
-        ModelPlotConfig modelPlotConfig = new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10));
+        ModelPlotConfig modelPlotConfig = ModelPlotConfigTests.createRandomized();
         AnalysisLimits analysisLimits = new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong());
         List<String> categorizationFilters = Arrays.asList(generateRandomStringArray(10, 10, false));
         Map<String, Object> customSettings = Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -212,22 +245,28 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setAnalysisLimits(analysisLimits);
         updateBuilder.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
         updateBuilder.setResultsRetentionDays(randomNonNegativeLong());
-        updateBuilder.setModelSnapshotRetentionDays(randomNonNegativeLong());
+        // The createRandom() method tests the complex interactions between these next two, so this test can always update both
+        long newModelSnapshotRetentionDays = randomNonNegativeLong();
+        updateBuilder.setModelSnapshotRetentionDays(newModelSnapshotRetentionDays);
+        updateBuilder.setDailyModelSnapshotRetentionAfterDays(randomLongBetween(0, newModelSnapshotRetentionDays));
         updateBuilder.setRenormalizationWindowDays(randomNonNegativeLong());
         updateBuilder.setCategorizationFilters(categorizationFilters);
+        updateBuilder.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
         updateBuilder.setJobVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");
-        jobBuilder.setGroups(Arrays.asList("group-1"));
+        jobBuilder.setGroups(Collections.singletonList("group-1"));
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
         d1.setOverFieldName("mlcategory");
+        d1.setPartitionFieldName("host");
         Detector.Builder d2 = new Detector.Builder("min", "field");
         d2.setOverFieldName("host");
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
         ac.setCategorizationFieldName("cat_field");
+        ac.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
         jobBuilder.setAnalysisConfig(ac);
         jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setCreateTime(new Date());
@@ -244,6 +283,8 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getModelSnapshotRetentionDays(), updatedJob.getModelSnapshotRetentionDays());
         assertEquals(update.getResultsRetentionDays(), updatedJob.getResultsRetentionDays());
         assertEquals(update.getCategorizationFilters(), updatedJob.getAnalysisConfig().getCategorizationFilters());
+        assertEquals(update.getPerPartitionCategorizationConfig().isEnabled(),
+            updatedJob.getAnalysisConfig().getPerPartitionCategorizationConfig().isEnabled());
         assertEquals(update.getCustomSettings(), updatedJob.getCustomSettings());
         assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
         assertEquals(update.getJobVersion(), updatedJob.getJobVersion());
@@ -260,13 +301,12 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
     public void testMergeWithJob_GivenRandomUpdates_AssertImmutability() {
         for (int i = 0; i < 100; ++i) {
             Job job = JobTests.createRandomizedJob();
-            JobUpdate update = createRandom(job.getId(), job);
-            while (update.isNoop(job)) {
+            JobUpdate update;
+            do {
                 update = createRandom(job.getId(), job);
-            }
+            } while (update.isNoop(job));
 
             Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
-
             assertThat(job, not(equalTo(updatedJob)));
         }
     }
@@ -274,11 +314,14 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
     public void testIsAutodetectProcessUpdate() {
         JobUpdate update = new JobUpdate.Builder("foo").build();
         assertFalse(update.isAutodetectProcessUpdate());
-        update = new JobUpdate.Builder("foo").setModelPlotConfig(new ModelPlotConfig(true, "ff")).build();
+        update = new JobUpdate.Builder("foo").setModelPlotConfig(new ModelPlotConfig(true, "ff", false)).build();
         assertTrue(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder("foo").setDetectorUpdates(Collections.singletonList(mock(JobUpdate.DetectorUpdate.class))).build();
         assertTrue(update.isAutodetectProcessUpdate());
-        update = new JobUpdate.Builder("foo").setGroups(Arrays.asList("bar")).build();
+        update = new JobUpdate.Builder("foo").setGroups(Collections.singletonList("bar")).build();
+        assertTrue(update.isAutodetectProcessUpdate());
+        update = new JobUpdate.Builder("foo")
+            .setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, true)).build();
         assertTrue(update.isAutodetectProcessUpdate());
     }
 

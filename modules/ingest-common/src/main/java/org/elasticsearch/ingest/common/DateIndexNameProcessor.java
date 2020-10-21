@@ -50,10 +50,10 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
     private final ZoneId timezone;
     private final List<Function<String, ZonedDateTime>> dateFormats;
 
-    DateIndexNameProcessor(String tag, String field, List<Function<String, ZonedDateTime>> dateFormats, ZoneId timezone,
-                           TemplateScript.Factory indexNamePrefixTemplate, TemplateScript.Factory dateRoundingTemplate,
+    DateIndexNameProcessor(String tag, String description, String field, List<Function<String, ZonedDateTime>> dateFormats,
+                           ZoneId timezone, TemplateScript.Factory indexNamePrefixTemplate, TemplateScript.Factory dateRoundingTemplate,
                            TemplateScript.Factory indexNameFormatTemplate) {
-        super(tag);
+        super(tag, description);
         this.field = field;
         this.timezone = timezone;
         this.dateFormats = dateFormats;
@@ -102,7 +102,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
                     .append('}')
                 .append('>');
         String dynamicIndexName  = builder.toString();
-        ingestDocument.setFieldValue(IngestDocument.MetaData.INDEX.getFieldName(), dynamicIndexName);
+        ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), dynamicIndexName);
         return ingestDocument;
     }
 
@@ -145,7 +145,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
 
         @Override
         public DateIndexNameProcessor create(Map<String, Processor.Factory> registry, String tag,
-                                             Map<String, Object> config) throws Exception {
+                                             String description, Map<String, Object> config) throws Exception {
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "locale");
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");
             ZoneId timezone = timezoneString == null ? ZoneOffset.UTC : ZoneId.of(timezoneString);
@@ -177,7 +177,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             String indexNameFormat = ConfigurationUtils.readStringProperty(TYPE, tag, config, "index_name_format", "yyyy-MM-dd");
             TemplateScript.Factory indexNameFormatTemplate =
                 ConfigurationUtils.compileTemplate(TYPE, tag, "index_name_format", indexNameFormat, scriptService);
-            return new DateIndexNameProcessor(tag, field, dateFormats, timezone, indexNamePrefixTemplate,
+            return new DateIndexNameProcessor(tag, description, field, dateFormats, timezone, indexNamePrefixTemplate,
                 dateRoundingTemplate, indexNameFormatTemplate);
         }
     }

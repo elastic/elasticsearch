@@ -1,0 +1,7 @@
+# Required for CatIndicesWithSecurityIT
+cat_test_role:
+  cluster:
+    - monitor
+  indices:
+    - names: [ "index_allowed" ]
+      privileges: [ "read", "write", "monitor" ]

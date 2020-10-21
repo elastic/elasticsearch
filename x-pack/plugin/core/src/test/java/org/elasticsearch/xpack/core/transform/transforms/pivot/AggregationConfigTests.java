@@ -6,9 +6,9 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -119,7 +119,7 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
 
         // strict throws
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            expectThrows(NamedObjectNotFoundException.class, () -> AggregationConfig.fromXContent(parser, false));
+            expectThrows(ParsingException.class, () -> AggregationConfig.fromXContent(parser, false));
         }
     }
 

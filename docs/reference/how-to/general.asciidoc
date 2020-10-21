@@ -1,7 +1,7 @@
 [[general-recommendations]]
 == General recommendations
 
-[float]
+[discrete]
 [[large-size]]
 === Don't return large result sets
 
@@ -9,9 +9,9 @@ Elasticsearch is designed as a search engine, which makes it very good at
 getting back the top documents that match a query. However, it is not as good
 for workloads that fall into the database domain, such as retrieving all
 documents that match a particular query. If you need to do this, make sure to
-use the <<request-body-search-scroll,Scroll>> API.
+use the <<scroll-search-results,Scroll>> API.
 
-[float]
+[discrete]
 [[maximum-document-size]]
 === Avoid large documents
 
@@ -27,7 +27,7 @@ needs to fetch the `_id` of the document in all cases, and the cost of getting
 this field is bigger for large documents due to how the filesystem cache works.
 Indexing this document can use an amount of memory that is a multiplier of the
 original size of the document. Proximity search (phrase queries for instance)
-and <<request-body-search-highlighting,highlighting>> also become more expensive
+and <<highlighting,highlighting>> also become more expensive
 since their cost directly depends on the size of the original document.
 
 It is sometimes useful to reconsider what the unit of information should be.

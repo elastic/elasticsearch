@@ -14,15 +14,15 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -32,9 +32,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestPutWatchAction extends BaseRestHandler implements RestRequestFilter {
 
-    public RestPutWatchAction(RestController controller) {
-        controller.registerHandler(POST, "/_watcher/watch/{id}", this);
-        controller.registerHandler(PUT, "/_watcher/watch/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_watcher/watch/{id}"),
+            new Route(PUT, "/_watcher/watch/{id}"));
     }
 
     @Override

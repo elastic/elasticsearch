@@ -17,13 +17,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding> {
 
     @Override
     protected FrequencyEncoding doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? FrequencyEncoding.fromXContentLenient(parser) : FrequencyEncoding.fromXContentStrict(parser);
+        return lenient ?
+            FrequencyEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT) :
+            FrequencyEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
     }
 
     @Override
@@ -32,12 +35,19 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
     }
 
     public static FrequencyEncoding createRandom() {
+        return createRandom(randomBoolean() ? null : randomBoolean());
+    }
+
+    public static FrequencyEncoding createRandom(Boolean isCustom) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, Double> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new FrequencyEncoding(randomAlphaOfLength(10), randomAlphaOfLength(10), valueMap);
+        return new FrequencyEncoding(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            valueMap,
+            isCustom);
     }
 
     @Override
@@ -51,7 +61,7 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
         Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
             v -> randomDoubleBetween(0.0, 1.0, false)));
         String encodedFeatureName = "encoded";
-        FrequencyEncoding encoding = new FrequencyEncoding(field, encodedFeatureName, valueMap);
+        FrequencyEncoding encoding = new FrequencyEncoding(field, encodedFeatureName, valueMap, false);
         Object fieldValue = randomFrom(values);
         Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(encodedFeatureName,
             equalTo(valueMap.get(fieldValue.toString())));
@@ -65,22 +75,15 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
         testProcess(encoding, fieldValues, matchers);
     }
 
-    public void testProcessWithNestedField() {
-        String field = "categorical.child";
+    public void testInputOutputFields() {
+        String field = randomAlphaOfLength(10);
         List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.5);
         Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
             v -> randomDoubleBetween(0.0, 1.0, false)));
-        String encodedFeatureName = "encoded";
-        FrequencyEncoding encoding = new FrequencyEncoding(field, encodedFeatureName, valueMap);
-
-        Map<String, Object> fieldValues = new HashMap<>() {{
-            put("categorical", new HashMap<>(){{
-                put("child", "farequote");
-            }});
-        }};
-
-        encoding.process(fieldValues);
-        assertThat(fieldValues.get("encoded"), equalTo(valueMap.get("farequote")));
+        String encodedFeatureName = randomAlphaOfLength(10);
+        FrequencyEncoding encoding = new FrequencyEncoding(field, encodedFeatureName, valueMap, false);
+        assertThat(encoding.inputFields(), containsInAnyOrder(field));
+        assertThat(encoding.outputFields(), containsInAnyOrder(encodedFeatureName));
     }
 
 }

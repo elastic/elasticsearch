@@ -40,6 +40,6 @@ public class TestResponseHeaderPlugin extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return singletonList(new TestResponseHeaderRestAction(restController));
+        return singletonList(new TestResponseHeaderRestAction());
     }
 }

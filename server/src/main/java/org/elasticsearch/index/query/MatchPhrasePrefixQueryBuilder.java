@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,6 +41,7 @@ import java.util.Objects;
 public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhrasePrefixQueryBuilder> {
     public static final String NAME = "match_phrase_prefix";
     public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
+    public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
 
     private final String fieldName;
 
@@ -49,6 +52,8 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     private int slop = MatchQuery.DEFAULT_PHRASE_SLOP;
 
     private int maxExpansions = FuzzyQuery.defaultMaxExpansions;
+
+    private ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
     public MatchPhrasePrefixQueryBuilder(String fieldName, Object value) {
         if (fieldName == null) {
@@ -71,6 +76,9 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         slop = in.readVInt();
         maxExpansions = in.readVInt();
         analyzer = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            this.zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
+        }
     }
 
     @Override
@@ -80,6 +88,9 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         out.writeVInt(slop);
         out.writeVInt(maxExpansions);
         out.writeOptionalString(analyzer);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            zeroTermsQuery.writeTo(out);
+        }
     }
 
     /** Returns the field name used in this query. */
@@ -139,6 +150,23 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         return this.maxExpansions;
     }
 
+    /**
+     * Sets query to use in case no query terms are available, e.g. after analysis removed them.
+     * Defaults to {@link ZeroTermsQuery#NONE}, but can be set to
+     * {@link ZeroTermsQuery#ALL} instead.
+     */
+    public MatchPhrasePrefixQueryBuilder zeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+        if (zeroTermsQuery == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires zeroTermsQuery to be non-null");
+        }
+        this.zeroTermsQuery = zeroTermsQuery;
+        return this;
+    }
+
+    public ZeroTermsQuery zeroTermsQuery() {
+        return this.zeroTermsQuery;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -155,6 +183,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         }
         builder.field(MatchPhraseQueryBuilder.SLOP_FIELD.getPreferredName(), slop);
         builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -173,6 +202,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         }
         matchQuery.setPhraseSlop(slop);
         matchQuery.setMaxExpansions(maxExpansions);
+        matchQuery.setZeroTermsQuery(zeroTermsQuery);
 
         return matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, fieldName, value);
     }
@@ -183,12 +213,13 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
                 Objects.equals(value, other.value) &&
                 Objects.equals(analyzer, other.analyzer)&&
                 Objects.equals(slop, other.slop) &&
-                Objects.equals(maxExpansions, other.maxExpansions);
+                Objects.equals(maxExpansions, other.maxExpansions) &&
+                Objects.equals(zeroTermsQuery, other.zeroTermsQuery);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, analyzer, slop, maxExpansions);
+        return Objects.hash(fieldName, value, analyzer, slop, maxExpansions, zeroTermsQuery);
     }
 
     public static MatchPhrasePrefixQueryBuilder fromXContent(XContentParser parser) throws IOException {
@@ -201,6 +232,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         String queryName = null;
         XContentParser.Token token;
         String currentFieldName = null;
+        ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -223,6 +255,16 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
                             maxExpansion = parser.intValue();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
+                        } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            String zeroTermsValue = parser.text();
+                            if ("none".equalsIgnoreCase(zeroTermsValue)) {
+                                zeroTermsQuery = ZeroTermsQuery.NONE;
+                            } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
+                                zeroTermsQuery = ZeroTermsQuery.ALL;
+                            } else {
+                                throw new ParsingException(parser.getTokenLocation(),
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
+                            }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[" + NAME + "] query does not support [" + currentFieldName + "]");
@@ -245,6 +287,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         matchQuery.maxExpansions(maxExpansion);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
+        matchQuery.zeroTermsQuery(zeroTermsQuery);
         return matchQuery;
     }
 }

@@ -20,18 +20,21 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -61,8 +64,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -78,6 +79,7 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.loadPipeline;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
 import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
@@ -85,6 +87,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private static final Logger logger = LogManager.getLogger(LocalExporter.class);
 
     public static final String TYPE = "local";
+
+    /**
+     * Time to wait for the master node to setup local exporter for monitoring.
+     * After that, the non-master nodes will warn the user for possible missing configuration.
+     */
+    public static final Setting.AffixSetting<TimeValue> WAIT_MASTER_TIMEOUT_SETTING = Setting.affixKeySetting(
+        "xpack.monitoring.exporters.",
+        "wait_master.timeout",
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY
+    );
 
     private final Client client;
     private final ClusterService clusterService;
@@ -96,8 +108,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final AtomicBoolean installingSomething = new AtomicBoolean(false);
-    private final AtomicBoolean waitedForSetup = new AtomicBoolean(false);
     private final AtomicBoolean watcherSetup = new AtomicBoolean(false);
+    private final AtomicBoolean stateInitialized = new AtomicBoolean(false);
+
+    private long stateInitializedTime;
 
     public LocalExporter(Exporter.Config config, Client client, CleanerService cleanerService) {
         super(config);
@@ -116,6 +130,13 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        // Save the time right after the cluster state is initialized/recovered
+        // to use it later for LocalExporter#WAIT_MASTER_TIMEOUT_SETTING
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
+            if (stateInitialized.getAndSet(true) == false) {
+                stateInitializedTime = client.threadPool().relativeTimeInMillis();
+            }
+        }
         if (state.get() == State.INITIALIZED) {
             resolveBulk(event.state(), true);
         }
@@ -144,6 +165,17 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     @Override
     public void openBulk(final ActionListener<ExportBulk> listener) {
         if (state.get() != State.RUNNING) {
+            // wait for some time before informing the user for possible missing x-pack configuration on master
+            final TimeValue masterTimeout = WAIT_MASTER_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name())
+                .get(config.settings());
+            TimeValue timeElapsed = TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - stateInitializedTime);
+            if (timeElapsed.compareTo(masterTimeout) > 0) {
+                logger.info(
+                    "waiting for elected master node [{}] to setup local exporter [{}] (does it have x-pack installed?)",
+                    clusterService.state().nodes().getMasterNode(),
+                    config.name()
+                );
+            }
             listener.onResponse(null);
         } else {
             try {
@@ -170,23 +202,13 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             return null;
         }
 
-        // List of templates
-        final Map<String, String> templates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                .collect(Collectors.toMap(MonitoringTemplateUtils::templateName, MonitoringTemplateUtils::loadTemplate));
-
         boolean setup = true;
 
         // elected master node needs to setup templates; non-master nodes need to wait for it to be setup
         if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            setup = setupIfElectedMaster(clusterState, templates, clusterStateChange);
-        } else if (setupIfNotElectedMaster(clusterState, templates.keySet()) == false) {
-            // the first pass will be false so that we don't bother users if the master took one-go to setup
-            if (waitedForSetup.getAndSet(true)) {
-                logger.info("waiting for elected master node [{}] to setup local exporter [{}] (does it have x-pack installed?)",
-                            clusterService.state().nodes().getMasterNode(), config.name());
-            }
-
-            setup = false;
+            setup = setupIfElectedMaster(clusterState, clusterStateChange);
+        } else {
+            setup = setupIfNotElectedMaster(clusterState);
         }
 
         // any failure/delay to setup the local exporter stops it until the next pass (10s by default)
@@ -210,13 +232,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * monitoring cluster (this one, as the local exporter) is not setup yet.
      *
      * @param clusterState The current cluster state.
-     * @param templates All template names that should exist.
      * @return {@code true} indicates that all resources are available and the exporter can be used. {@code false} to stop and wait.
      */
-    private boolean setupIfNotElectedMaster(final ClusterState clusterState, final Set<String> templates) {
+    private boolean setupIfNotElectedMaster(final ClusterState clusterState) {
         // any required template is not yet installed in the given cluster state, we'll wait.
-        for (final String template : templates) {
-            if (hasTemplate(clusterState, template) == false) {
+        for (final String template : MonitoringTemplateUtils.TEMPLATE_IDS) {
+            if (hasTemplate(clusterState, MonitoringTemplateUtils.templateName(template)) == false) {
                 logger.debug("monitoring index template [{}] does not exist, so service cannot start (waiting on master)",
                              template);
                 return false;
@@ -245,12 +266,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * If those resources do not exist, then we will create them.
      *
      * @param clusterState The current cluster state.
-     * @param templates All template names that should exist.
      * @param clusterStateChange {@code true} if a cluster state change caused this call (don't block it!)
      * @return {@code true} indicates that all resources are "ready" and the exporter can be used. {@code false} to stop and wait.
      */
-    private boolean setupIfElectedMaster(final ClusterState clusterState, final Map<String, String> templates,
-                                         final boolean clusterStateChange) {
+    private boolean setupIfElectedMaster(final ClusterState clusterState, final boolean clusterStateChange) {
         // we are on the elected master
         // Check that there is nothing that could block metadata updates
         if (clusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_WRITE)) {
@@ -258,7 +277,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             return false;
         }
 
-        if (installingSomething.get() == true) {
+        if (installingSomething.get()) {
             logger.trace("already installing something, waiting for install to complete");
             return false;
         }
@@ -268,17 +287,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         final AtomicInteger pendingResponses = new AtomicInteger(0);
 
         // Check that each required template exists, installing it if needed
-        final List<Entry<String, String>> missingTemplates = templates.entrySet()
-                .stream()
-                .filter((e) -> hasTemplate(clusterState, e.getKey()) == false)
+        final List<String> missingTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+                .filter(id -> hasTemplate(clusterState, templateName(id)) == false)
                 .collect(Collectors.toList());
 
         if (missingTemplates.isEmpty() == false) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found",
-                    missingTemplates.stream().map(Map.Entry::getKey).collect(Collectors.toList())));
-            for (Entry<String, String> template : missingTemplates) {
-                asyncActions.add(() -> putTemplate(template.getKey(), template.getValue(),
-                        new ResponseActionListener<>("template", template.getKey(), pendingResponses)));
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found", missingTemplates));
+            for (String templateId : missingTemplates) {
+                final String templateName = MonitoringTemplateUtils.templateName(templateId);
+                asyncActions.add(() -> putTemplate(templateName, MonitoringTemplateUtils.loadTemplate(templateId),
+                        new ResponseActionListener<>("template", templateName, pendingResponses)));
             }
         }
 
@@ -356,7 +374,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      */
     private boolean hasIngestPipeline(final ClusterState clusterState, final String pipelineId) {
         final String pipelineName = MonitoringTemplateUtils.pipelineName(pipelineId);
-        final IngestMetadata ingestMetadata = clusterState.getMetaData().custom(IngestMetadata.TYPE);
+        final IngestMetadata ingestMetadata = clusterState.getMetadata().custom(IngestMetadata.TYPE);
 
         // we ensure that we both have the pipeline and its version represents the current (or later) version
         if (ingestMetadata != null) {
@@ -396,12 +414,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     private boolean hasTemplate(final ClusterState clusterState, final String templateName) {
-        final IndexTemplateMetaData template = clusterState.getMetaData().getTemplates().get(templateName);
+        final IndexTemplateMetadata template = clusterState.getMetadata().getTemplates().get(templateName);
 
         return template != null && hasValidVersion(template.getVersion(), LAST_UPDATED_VERSION);
     }
 
-    // FIXME this should use the IndexTemplateMetaDataUpgrader
+    // FIXME this should use the IndexTemplateMetadataUpgrader
     private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("installing template [{}]", template);
 
@@ -431,7 +449,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      */
     private void getClusterAlertsInstallationAsyncActions(final boolean indexExists, final List<Runnable> asyncActions,
                                                           final AtomicInteger pendingResponses) {
-        final boolean canAddWatches = licenseState.isMonitoringClusterAlertsAllowed();
+        final boolean canAddWatches = licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS);
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
@@ -510,7 +528,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 currents.add(".monitoring-alerts-" + TEMPLATE_VERSION);
 
                 Set<String> indices = new HashSet<>();
-                for (ObjectObjectCursor<String, IndexMetaData> index : clusterState.getMetaData().indices()) {
+                for (ObjectObjectCursor<String, IndexMetadata> index : clusterState.getMetadata().indices()) {
                     String indexName =  index.key;
 
                     if (Regex.simpleMatch(indexPatterns, indexName)) {
@@ -649,6 +667,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             }
         }
 
+    }
+
+    public static List<Setting.AffixSetting<?>> getSettings() {
+        return List.of(WAIT_MASTER_TIMEOUT_SETTING);
     }
 
 }

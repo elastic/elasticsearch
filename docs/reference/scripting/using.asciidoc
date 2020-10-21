@@ -18,16 +18,16 @@ the same pattern:
 <3> Any named parameters that should be passed into the script.
 
 For example, the following script is used in a search request to return a
-<<request-body-search-script-fields, scripted field>>:
+<<script-fields, scripted field>>:
 
 [source,console]
 -------------------------------------
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_field": 5
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "my_doubled_field": {
@@ -43,7 +43,7 @@ GET my_index/_search
 }
 -------------------------------------
 
-[float]
+[discrete]
 === Script parameters
 
 `lang`::
@@ -98,13 +98,15 @@ second version is only compiled once.
 
 If you compile too many unique scripts within a small amount of time,
 Elasticsearch will reject the new dynamic scripts with a
-`circuit_breaking_exception` error. By default, up to 15 inline scripts per
-minute will be compiled. You can change this setting dynamically by setting
-`script.max_compilations_rate`.
+`circuit_breaking_exception` error. For most contexts, you can compile up to 75
+scripts per 5 minutes by default. For ingest contexts, the default script
+compilation rate is unlimited. You can change these settings dynamically by
+setting `script.context.$CONTEXT.max_compilations_rate` eg.
+`script.context.field.max_compilations_rate=100/10m`.
 
 ========================================
 
-[float]
+[discrete]
 [[modules-scripting-short-script-form]]
 === Short script form
 A short script form can be used for brevity. In the short form, `script` is represented
@@ -114,7 +116,7 @@ Short form:
 
 [source,js]
 ----------------------
-  "script": "ctx._source.likes++"
+  "script": "ctx._source.my-int++"
 ----------------------
 // NOTCONSOLE
 
@@ -123,19 +125,27 @@ The same script in the normal form:
 [source,js]
 ----------------------
   "script": {
-    "source": "ctx._source.likes++"
+    "source": "ctx._source.my-int++"
   }
 ----------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[modules-scripting-stored-scripts]]
 === Stored scripts
 
 Scripts may be stored in and retrieved from the cluster state using the
 `_scripts` end-point.
 
-[float]
+If the {es} {security-features} are enabled, you must have the following 
+privileges to create, retrieve, and delete stored scripts:
+
+* cluster: `all` or `manage`
+
+For more information, see <<security-privileges>>.
+
+
+[discrete]
 ==== Request examples
 
 The following are examples of using a stored script that lives at
@@ -153,7 +163,7 @@ POST _scripts/calculate-score
   }
 }
 -----------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 You may also specify a context as part of the url path to compile a
 stored script against that specific context in the form of
@@ -169,7 +179,7 @@ POST _scripts/calculate-score/score
   }
 }
 -----------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 This same script can be retrieved with:
 
@@ -183,7 +193,7 @@ Stored scripts can be used by specifying the `id` parameters as follows:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -212,7 +222,7 @@ DELETE _scripts/calculate-score
 -----------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[modules-scripting-search-templates]]
 === Search templates
 You can also use the `_scripts` API to store **search templates**. Search
@@ -224,10 +234,10 @@ entire query. Just provide the stored template's ID and the template parameters.
 This is useful when you want to run a commonly used query quickly and without
 mistakes.
 
-Search templates use the http://mustache.github.io/mustache.5.html[mustache
+Search templates use the https://mustache.github.io/mustache.5.html[mustache
 templating language]. See <<search-template>> for more information and examples.
 
-[float]
+[discrete]
 [[modules-scripting-using-caching]]
 === Script caching
 
@@ -235,14 +245,175 @@ All scripts are cached by default so that they only need to be recompiled
 when updates occur. By default, scripts do not have a time-based expiration, but
 you can change this behavior by using the `script.cache.expire` setting.
 You can configure the size of this cache by using the `script.cache.max_size` setting.
-By default, the cache size is `100`.
+For most contexts, the default cache size is `100`. For ingest contexts, the
+default cache size is `200`.
 
 NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft
 limit, but if scripts are really large then a
 <<modules-scripting-engine,native script engine>> should be considered.
 
-[float]
+[[scripts-and-search-speed]]
+=== Scripts and search speed
+
+Scripts can't make use of {es}'s index structures or related optimizations. This
+can sometimes result in slower search speeds.
+
+If you often use scripts to transform indexed data, you can speed up search by
+making these changes during ingest instead. However, that often means slower
+index speeds.
+
+.*Example*
+[%collapsible]
+=====
+An index, `my_test_scores`, contains two `long` fields:
+
+* `math_score`
+* `verbal_score`
+
+When running searches, users often use a script to sort results by the sum of
+these two field's values.
+
+[source,console]
+----
+GET /my_test_scores/_search
+{
+  "query": {
+    "term": {
+      "grad_year": "2099"
+    }
+  },
+  "sort": [
+    {
+      "_script": {
+        "type": "number",
+        "script": {
+          "source": "doc['math_score'].value + doc['verbal_score'].value"
+        },
+        "order": "desc"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT my_test_scores\n/]
+
+To speed up search, you can perform this calculation during ingest and index the
+sum to a field instead.
+
+First, <<indices-put-mapping,add a new field>>, `total_score`, to the index. The
+`total_score` field will contain sum of the `math_score` and `verbal_score`
+field values.
+
+[source,console]
+----
+PUT /my_test_scores/_mapping
+{
+  "properties": {
+    "total_score": {
+      "type": "long"
+    }
+  }
+}
+----
+// TEST[continued]
+
+Next, use an <<ingest,ingest pipeline>> containing the
+<<script-processor,`script`>> processor to calculate the sum of `math_score` and
+`verbal_score` and index it in the `total_score` field.
+
+[source,console]
+----
+PUT _ingest/pipeline/my_test_scores_pipeline
+{
+  "description": "Calculates the total test score",
+  "processors": [
+    {
+      "script": {
+        "source": "ctx.total_score = (ctx.math_score + ctx.verbal_score)"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+To update existing data, use this pipeline to <<docs-reindex,reindex>> any
+documents from `my_test_scores` to a new index, `my_test_scores_2`.
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": "my_test_scores"
+  },
+  "dest": {
+    "index": "my_test_scores_2",
+    "pipeline": "my_test_scores_pipeline"
+  }
+}
+----
+// TEST[continued]
+
+Continue using the pipeline to index any new documents to `my_test_scores_2`.
+
+[source,console]
+----
+POST /my_test_scores_2/_doc/?pipeline=my_test_scores_pipeline
+{
+  "student": "kimchy",
+  "grad_year": "2099",
+  "math_score": 800,
+  "verbal_score": 800
+}
+----
+// TEST[continued]
+
+These changes may slow indexing but allow for faster searches. Users can now
+sort searches made on `my_test_scores_2` using the `total_score` field instead
+of using a script.
+
+[source,console]
+----
+GET /my_test_scores_2/_search
+{
+  "query": {
+    "term": {
+      "grad_year": "2099"
+    }
+  },
+  "sort": [
+    {
+      "total_score": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_ingest/pipeline/my_test_scores_pipeline
+----
+// TEST[continued]
+
+[source,console-result]
+----
+{
+"acknowledged": true
+}
+----
+////
+=====
+
+We recommend testing and benchmarking any indexing changes before deploying them
+in production.
+
+[discrete]
 [[modules-scripting-errors]]
 === Script errors
 Elasticsearch returns error details when there is a compliation or runtime

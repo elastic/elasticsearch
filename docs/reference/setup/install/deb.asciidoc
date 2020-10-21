@@ -11,7 +11,7 @@ The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
@@ -49,7 +49,7 @@ ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -58,7 +58,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -117,7 +117,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -126,7 +126,7 @@ ifeval::["{release-state}"!="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/oss-{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/oss-{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -172,14 +172,6 @@ ifdef::include-xpack[]
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
-
-[[deb-sysv-init-vs-systemd]]
-==== SysV `init` vs `systemd`
-
-include::init-systemd.asciidoc[]
-
-[[deb-running-init]]
-include::deb-init.asciidoc[]
 
 [[deb-running-systemd]]
 include::systemd.asciidoc[]

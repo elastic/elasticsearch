@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
 import java.util.Arrays;
@@ -58,6 +61,6 @@ public class InProcessorTests extends AbstractWireSerializingTestCase<InProcesso
     }
 
     private static Literal L(Object value) {
-        return Literal.of(EMPTY, value);
+        return TestUtils.of(EMPTY, value);
     }
 }

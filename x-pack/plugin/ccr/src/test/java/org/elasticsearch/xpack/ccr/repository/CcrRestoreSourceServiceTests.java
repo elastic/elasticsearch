@@ -18,7 +18,7 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.junit.Before;
 
@@ -151,24 +151,24 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         restoreSourceService.openSession(sessionUUID1, indexShard1);
 
-        ArrayList<StoreFileMetaData> files = new ArrayList<>();
+        ArrayList<StoreFileMetadata> files = new ArrayList<>();
         indexShard1.snapshotStoreMetadata().forEach(files::add);
 
-        StoreFileMetaData fileMetaData = files.get(0);
-        String fileName = fileMetaData.name();
+        StoreFileMetadata fileMetadata = files.get(0);
+        String fileName = fileMetadata.name();
 
-        byte[] expectedBytes = new byte[(int) fileMetaData.length()];
-        byte[] actualBytes = new byte[(int) fileMetaData.length()];
+        byte[] expectedBytes = new byte[(int) fileMetadata.length()];
+        byte[] actualBytes = new byte[(int) fileMetadata.length()];
         Engine.IndexCommitRef indexCommitRef = indexShard1.acquireSafeIndexCommit();
         try (IndexInput indexInput = indexCommitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE)) {
             indexInput.seek(0);
-            indexInput.readBytes(expectedBytes, 0, (int) fileMetaData.length());
+            indexInput.readBytes(expectedBytes, 0, (int) fileMetadata.length());
         }
 
         BytesArray byteArray = new BytesArray(actualBytes);
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
             long offset = sessionReader.readFileBytes(fileName, byteArray);
-            assertEquals(offset, fileMetaData.length());
+            assertEquals(offset, fileMetadata.length());
         }
 
         assertArrayEquals(expectedBytes, actualBytes);
@@ -187,7 +187,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         restoreSourceService.openSession(sessionUUID, indexShard);
 
-        ArrayList<StoreFileMetaData> files = new ArrayList<>();
+        ArrayList<StoreFileMetadata> files = new ArrayList<>();
         indexShard.snapshotStoreMetadata().forEach(files::add);
 
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {

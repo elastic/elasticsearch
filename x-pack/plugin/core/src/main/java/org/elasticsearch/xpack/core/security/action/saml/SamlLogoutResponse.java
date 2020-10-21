@@ -16,15 +16,22 @@ import java.io.IOException;
  */
 public final class SamlLogoutResponse extends ActionResponse {
 
-    private String redirectUrl;
+    private final String requestId;
+    private final String redirectUrl;
 
     public SamlLogoutResponse(StreamInput in) throws IOException {
         super(in);
+        requestId = in.readString();
         redirectUrl = in.readString();
     }
 
-    public SamlLogoutResponse(String redirectUrl) {
+    public SamlLogoutResponse(String requestId, String redirectUrl) {
+        this.requestId = requestId;
         this.redirectUrl = redirectUrl;
+    }
+
+    public String getRequestId() {
+        return requestId;
     }
 
     public String getRedirectUrl() {
@@ -33,7 +40,8 @@ public final class SamlLogoutResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(requestId);
         out.writeString(redirectUrl);
     }
 
-    }
+}

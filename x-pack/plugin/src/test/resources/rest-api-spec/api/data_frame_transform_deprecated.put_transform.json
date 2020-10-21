@@ -1,7 +1,8 @@
 {
   "data_frame_transform_deprecated.put_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-transform.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-transform.html",
+      "description":"Instantiates a transform."
     },
     "stability":"beta",
     "url":{
@@ -24,11 +25,11 @@
         }
       ]
     },
-    "params": {
-      "defer_validation": {
-        "type": "boolean",
-        "required": false,
-        "description": "If validations should be deferred until transform starts, defaults to false."
+    "params":{
+      "defer_validation":{
+        "type":"boolean",
+        "required":false,
+        "description":"If validations should be deferred until transform starts, defaults to false."
       }
     },
     "body":{

@@ -28,12 +28,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Holds all the information that is used to build the sort order of an index.
@@ -161,12 +164,17 @@ public final class IndexSortConfig {
         return sortSpecs.length > 0;
     }
 
+    public boolean hasPrimarySortOnField(String field) {
+        return sortSpecs.length > 0
+            && sortSpecs[0].field.equals(field);
+    }
+
     /**
      * Builds the {@link Sort} order from the settings for this index
      * or returns null if this index has no sort.
      */
     public Sort buildIndexSort(Function<String, MappedFieldType> fieldTypeLookup,
-                               Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+                               BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup) {
         if (hasIndexSort() == false) {
             return null;
         }
@@ -185,9 +193,11 @@ public final class IndexSortConfig {
             }
             IndexFieldData<?> fieldData;
             try {
-                fieldData = fieldDataLookup.apply(ft);
+                fieldData = fieldDataLookup.apply(ft, () -> {
+                    throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]");
+                });
             } catch (Exception e) {
-                throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
+                throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);
             }
             if (fieldData == null) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");

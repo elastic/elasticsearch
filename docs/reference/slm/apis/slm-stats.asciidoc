@@ -1,0 +1,48 @@
+[role="xpack"]
+[testenv="basic"]
+[[slm-api-get-stats]]
+=== Get snapshot lifecycle stats API
+++++
+<titleabbrev>Get snapshot lifecycle stats</titleabbrev>
+++++
+
+Returns global and policy-level statistics about actions taken by {slm}.
+
+[[slm-api-stats-request]]
+==== {api-request-title}
+
+`GET /_slm/stats`
+
+[[slm-api-stats-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the `manage_slm`
+cluster privilege to use this API. For more information, see
+<<security-privileges>>.
+
+[[slm-api-stats-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET /_slm/stats
+--------------------------------------------------
+
+The API returns the following response:
+
+[source,js]
+--------------------------------------------------
+{
+  "retention_runs": 13,
+  "retention_failed": 0,
+  "retention_timed_out": 0,
+  "retention_deletion_time": "1.4s",
+  "retention_deletion_time_millis": 1404,
+  "policy_stats": [ ],
+  "total_snapshots_taken": 1,
+  "total_snapshots_failed": 1,
+  "total_snapshots_deleted": 0,
+  "total_snapshot_deletion_failures": 0
+}
+--------------------------------------------------
+// TESTRESPONSE[s/runs": 13/runs": $body.retention_runs/ s/_failed": 0/_failed": $body.retention_failed/ s/_timed_out": 0/_timed_out": $body.retention_timed_out/ s/"1.4s"/$body.retention_deletion_time/ s/1404/$body.retention_deletion_time_millis/ s/total_snapshots_taken": 1/total_snapshots_taken": $body.total_snapshots_taken/ s/total_snapshots_failed": 1/total_snapshots_failed": $body.total_snapshots_failed/ s/"policy_stats": [.*]/"policy_stats": $body.policy_stats/]

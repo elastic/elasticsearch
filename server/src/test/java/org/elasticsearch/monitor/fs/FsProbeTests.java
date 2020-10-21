@@ -39,10 +39,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
 public class FsProbeTests extends ESTestCase {
@@ -52,7 +53,7 @@ public class FsProbeTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsProbe probe = new FsProbe(env);
 
-            FsInfo stats = probe.stats(null, null);
+            FsInfo stats = probe.stats(null);
             assertNotNull(stats);
             assertThat(stats.getTimestamp(), greaterThan(0L));
 
@@ -83,9 +84,9 @@ public class FsProbeTests extends ESTestCase {
 
             for (FsInfo.Path path : stats) {
                 assertNotNull(path);
-                assertThat(path.getPath(), not(isEmptyOrNullString()));
-                assertThat(path.getMount(), not(isEmptyOrNullString()));
-                assertThat(path.getType(), not(isEmptyOrNullString()));
+                assertThat(path.getPath(), is(not(emptyOrNullString())));
+                assertThat(path.getMount(), is(not(emptyOrNullString())));
+                assertThat(path.getType(), is(not(emptyOrNullString())));
                 assertThat(path.total, greaterThan(0L));
                 assertThat(path.free, greaterThan(0L));
                 assertThat(path.available, greaterThan(0L));

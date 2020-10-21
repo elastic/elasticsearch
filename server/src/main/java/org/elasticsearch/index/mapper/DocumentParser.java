@@ -22,49 +22,51 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
-import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
+
+import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
 
-    private final IndexSettings indexSettings;
-    private final DocumentMapperParser docMapperParser;
-    private final DocumentMapper docMapper;
+    private final NamedXContentRegistry xContentRegistry;
+    private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
 
-    DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
-        this.indexSettings = indexSettings;
-        this.docMapperParser = docMapperParser;
-        this.docMapper = docMapper;
+    DocumentParser(NamedXContentRegistry xContentRegistry,
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
+        this.xContentRegistry = xContentRegistry;
+        this.dateParserContext = dateParserContext;
     }
 
-    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
+    ParsedDocument parseDocument(SourceToParse source,
+                                 MetadataFieldMapper[] metadataFieldsMappers,
+                                 DocumentMapper docMapper) throws MapperParsingException {
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
 
-        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(),
+        try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);
+            context = new ParseContext.InternalParseContext(docMapper, dateParserContext, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, metadataFieldsMappers, context, parser);
             validateEnd(parser);
@@ -320,7 +322,7 @@ final class DocumentParser {
             // only prefix with parent mapper if the parent mapper isn't the root (which has a fake name)
             updateParentName = lastParent.name() + '.' + nameParts[i];
         }
-        ObjectMapper updateParent = docMapper.objectMappers().get(updateParentName);
+        ObjectMapper updateParent = docMapper.mappers().objectMappers().get(updateParentName);
         assert updateParent != null : updateParentName + " doesn't exist";
         return createUpdate(updateParent, nameParts, i + 1, newMapper);
     }
@@ -392,10 +394,7 @@ final class DocumentParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 paths = splitAndValidatePath(currentFieldName);
-                if (MapperService.isMetadataField(context.path().pathAsText(currentFieldName))) {
-                    throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside"
-                        + " a document. Use the index API request parameters.");
-                } else if (containsDisabledObjectMapper(mapper, paths)) {
+                if (containsDisabledObjectMapper(mapper, paths)) {
                     parser.nextToken();
                     parser.skipChildren();
                 }
@@ -483,7 +482,7 @@ final class DocumentParser {
                                     String[] paths) throws IOException {
         assert currentFieldName != null;
 
-        Mapper objectMapper = getMapper(mapper, currentFieldName, paths);
+        Mapper objectMapper = getMapper(context, mapper, currentFieldName, paths);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
             parseObjectOrField(context, objectMapper);
@@ -520,12 +519,12 @@ final class DocumentParser {
                                    String[] paths) throws IOException {
         String arrayFieldName = lastFieldName;
 
-        Mapper mapper = getMapper(parentMapper, lastFieldName, paths);
+        Mapper mapper = getMapper(context, parentMapper, lastFieldName, paths);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
             // we serialize the array components
-            if (mapper instanceof ArrayValueMapperParser) {
+            if (parsesArrayValue(mapper)) {
                 parseObjectOrField(context, mapper);
             } else {
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
@@ -546,7 +545,7 @@ final class DocumentParser {
                     Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
                     mapper = builder.build(builderContext);
                     assert mapper != null;
-                    if (mapper instanceof ArrayValueMapperParser) {
+                    if (parsesArrayValue(mapper)) {
                         context.addDynamicMapper(mapper);
                         context.path().add(arrayFieldName);
                         parseObjectOrField(context, mapper);
@@ -563,6 +562,10 @@ final class DocumentParser {
                 context.path().remove();
             }
         }
+    }
+
+    private static boolean parsesArrayValue(Mapper mapper) {
+        return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
     }
 
     private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper,
@@ -593,7 +596,7 @@ final class DocumentParser {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with"
                 + " no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
-        Mapper mapper = getMapper(parentMapper, currentFieldName, paths);
+        Mapper mapper = getMapper(context, parentMapper, currentFieldName, paths);
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
@@ -610,7 +613,7 @@ final class DocumentParser {
     private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName,
                                        String[] paths) throws IOException {
         // we can only handle null values if we have mappings for them
-        Mapper mapper = getMapper(parentMapper, lastFieldName, paths);
+        Mapper mapper = getMapper(context, parentMapper, lastFieldName, paths);
         if (mapper != null) {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
@@ -619,70 +622,15 @@ final class DocumentParser {
         }
     }
 
-    private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context,
-                                                                  MappedFieldType fieldType, String currentFieldName) {
-        Mapper.Builder builder = null;
-        if (fieldType instanceof TextFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "text", XContentFieldType.STRING);
-            if (builder == null) {
-                builder = new TextFieldMapper.Builder(currentFieldName)
-                        .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
-            }
-        } else if (fieldType instanceof KeywordFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", XContentFieldType.STRING);
-        } else {
-            switch (fieldType.typeName()) {
-            case DateFieldMapper.CONTENT_TYPE:
-                builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
-                break;
-            case "long":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "long", XContentFieldType.LONG);
-                break;
-            case "double":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "double", XContentFieldType.DOUBLE);
-                break;
-            case "integer":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "integer", XContentFieldType.LONG);
-                break;
-            case "float":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "float", XContentFieldType.DOUBLE);
-                break;
-            case BooleanFieldMapper.CONTENT_TYPE:
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean", XContentFieldType.BOOLEAN);
-                break;
-            default:
-                break;
-            }
-        }
-        if (builder == null) {
-            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
-            Mapper.TypeParser typeParser = parserContext.typeParser(fieldType.typeName());
-            if (typeParser == null) {
-                throw new MapperParsingException("Cannot generate dynamic mappings of type [" + fieldType.typeName()
-                    + "] for [" + currentFieldName + "]");
-            }
-            builder = typeParser.parse(currentFieldName, new HashMap<>(), parserContext);
-        }
-        return builder;
+    private static Mapper.Builder newLongBuilder(String name, Settings settings) {
+        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, settings);
     }
 
-    private static Mapper.Builder<?, ?> newLongBuilder(String name) {
-        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
+    private static Mapper.Builder newFloatBuilder(String name, Settings settings) {
+        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT, settings);
     }
 
-    private static Mapper.Builder<?, ?> newFloatBuilder(String name) {
-        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
-    }
-
-    private static Mapper.Builder<?, ?> newDateBuilder(String name, DateFormatter dateTimeFormatter) {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
-        if (dateTimeFormatter != null) {
-            builder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
-        }
-        return builder;
-    }
-
-    private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context,
+    private static Mapper.Builder createBuilderFromDynamicValue(final ParseContext context,
                                                                      XContentParser.Token token,
                                                                      String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
@@ -707,13 +655,13 @@ final class DocumentParser {
             if (parseableAsLong && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName);
+                    builder = newLongBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
             } else if (parseableAsDouble && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
                 if (builder == null) {
-                    builder = newFloatBuilder(currentFieldName);
+                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
             } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
@@ -727,23 +675,22 @@ final class DocumentParser {
                         // failure to parse this, continue
                         continue;
                     }
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
+                    Mapper.Builder builder
+                        = context.root().findTemplateBuilder(context, currentFieldName, dateTimeFormatter);
                     if (builder == null) {
-                        builder = newDateBuilder(currentFieldName, dateTimeFormatter);
-                    }
-                    if (builder instanceof DateFieldMapper.Builder) {
-                        DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
-                        if (dateBuilder.isFormatterSet() == false) {
-                            dateBuilder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
-                        }
+                        boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
+                        builder = new DateFieldMapper.Builder(currentFieldName, DateFieldMapper.Resolution.MILLISECONDS,
+                            dateTimeFormatter, ignoreMalformed, Version.indexCreated(context.indexSettings().getSettings()));
                     }
                     return builder;
+
                 }
             }
 
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);
             if (builder == null) {
-                builder = new TextFieldMapper.Builder(currentFieldName)
+                builder = new TextFieldMapper.Builder(currentFieldName,
+                    () -> context.indexAnalyzers().getDefaultIndexAnalyzer())
                         .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
             }
             return builder;
@@ -754,7 +701,7 @@ final class DocumentParser {
                     || numberType == XContentParser.NumberType.BIG_INTEGER) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName);
+                    builder = newLongBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
             } else if (numberType == XContentParser.NumberType.FLOAT
@@ -765,7 +712,7 @@ final class DocumentParser {
                     // no templates are defined, we use float by default instead of double
                     // since this is much more space-efficient and should be enough most of
                     // the time
-                    builder = newFloatBuilder(currentFieldName);
+                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
             }
@@ -801,21 +748,9 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
         }
-        final String path = context.path().pathAsText(currentFieldName);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-        final MappedFieldType existingFieldType = context.mapperService().fullName(path);
-        final Mapper.Builder builder;
-        if (existingFieldType != null) {
-            // create a builder of the same type
-            builder = createBuilderFromFieldType(context, existingFieldType, currentFieldName);
-        } else {
-            builder = createBuilderFromDynamicValue(context, token, currentFieldName);
-        }
+        final Mapper.Builder builder = createBuilderFromDynamicValue(context, token, currentFieldName);
         Mapper mapper = builder.build(builderContext);
-        if (existingFieldType != null) {
-            // try to not introduce a conflict
-            mapper = mapper.updateFieldType(Collections.singletonMap(path, existingFieldType));
-        }
         context.addDynamicMapper(mapper);
 
         parseObjectOrField(context, mapper);
@@ -887,7 +822,7 @@ final class DocumentParser {
                     "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",
                     null, String.join(".", paths), currentPath, existingFieldMapper.typeName());
         }
-        mapper = context.docMapper().objectMappers().get(currentPath);
+        mapper = context.docMapper().mappers().objectMappers().get(currentPath);
             if (mapper == null) {
                 // One mapping is missing, check if we are allowed to create a dynamic one.
                 ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
@@ -932,7 +867,7 @@ final class DocumentParser {
                 break;
             }
             String parentName = parentMapper.name().substring(0, lastDotNdx);
-            parentMapper = context.docMapper().objectMappers().get(parentName);
+            parentMapper = context.docMapper().mappers().objectMappers().get(parentName);
             if (parentMapper == null) {
                 // If parentMapper is ever null, it means the parent of the current mapper was dynamically created.
                 // But in order to be created dynamically, the dynamic setting of that parent was necessarily true
@@ -947,9 +882,16 @@ final class DocumentParser {
     }
 
     // looks up a child mapper, but takes into account field names that expand to objects
-    private static Mapper getMapper(ObjectMapper objectMapper, String fieldName, String[] subfields) {
+    private static Mapper getMapper(final ParseContext context, ObjectMapper objectMapper, String fieldName, String[] subfields) {
+        String fieldPath = context.path().pathAsText(fieldName);
+        // Check if mapper is a metadata mapper first
+        Mapper mapper = context.docMapper().mapping().getMetadataMapper(fieldPath);
+        if (mapper != null) {
+            return mapper;
+        }
+
         for (int i = 0; i < subfields.length - 1; ++i) {
-            Mapper mapper = objectMapper.getMapper(subfields[i]);
+            mapper = objectMapper.getMapper(subfields[i]);
             if (mapper == null || (mapper instanceof ObjectMapper) == false) {
                 return null;
             }

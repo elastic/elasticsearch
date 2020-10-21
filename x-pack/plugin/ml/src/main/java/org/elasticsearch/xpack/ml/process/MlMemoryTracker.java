@@ -12,11 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -102,6 +102,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void onMaster() {
         isMaster = true;
         logger.trace("ML memory tracker on master");
+        asyncRefresh();
     }
 
     @Override
@@ -129,11 +130,6 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         stopPhaser.arriveAndAwaitAdvance();
         assert stopPhaser.getPhase() > 0;
         logger.debug("ML memory tracker stopped");
-    }
-
-    @Override
-    public String executorName() {
-        return MachineLearning.UTILITY_THREAD_POOL_NAME;
     }
 
     /**
@@ -222,8 +218,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     aVoid -> logger.trace("Job memory requirement refresh request completed successfully"),
                     e -> logger.warn("Failed to refresh job memory requirements", e)
                 );
-                threadPool.executor(executorName()).execute(
-                    () -> refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE), listener));
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
+                    () -> refresh(clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE), listener));
                 return true;
             } catch (EsRejectedExecutionException e) {
                 logger.warn("Couldn't schedule ML memory update - node might be shutting down", e);
@@ -249,7 +245,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return;
         }
 
-        PersistentTasksCustomMetaData persistentTasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         refresh(persistentTasks,
             ActionListener.wrap(aVoid -> refreshAnomalyDetectorJobMemory(jobId, listener), listener::onFailure));
     }
@@ -271,7 +267,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         memoryRequirementByDataFrameAnalyticsJob.put(id, mem + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
 
-        PersistentTasksCustomMetaData persistentTasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         refresh(persistentTasks, listener);
     }
 
@@ -281,7 +277,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * to a race where a job was opened part way through the refresh.  (Instead, entries are removed when
      * jobs are deleted.)
      */
-    void refresh(PersistentTasksCustomMetaData persistentTasks, ActionListener<Void> onCompletion) {
+    void refresh(PersistentTasksCustomMetadata persistentTasks, ActionListener<Void> onCompletion) {
 
         synchronized (fullRefreshCompletionListeners) {
             fullRefreshCompletionListeners.add(onCompletion);
@@ -317,19 +313,19 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (persistentTasks == null) {
             refreshComplete.onResponse(null);
         } else {
-            List<PersistentTasksCustomMetaData.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks().stream()
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks().stream()
                 .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
             ActionListener<Void> refreshDataFrameAnalyticsJobs =
                 ActionListener.wrap(aVoid -> refreshAllDataFrameAnalyticsJobTasks(mlDataFrameAnalyticsJobTasks, refreshComplete),
                     refreshComplete::onFailure);
 
-            List<PersistentTasksCustomMetaData.PersistentTask<?>> mlAnomalyDetectorJobTasks = persistentTasks.tasks().stream()
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> mlAnomalyDetectorJobTasks = persistentTasks.tasks().stream()
                 .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
             iterateAnomalyDetectorJobTasks(mlAnomalyDetectorJobTasks.iterator(), refreshDataFrameAnalyticsJobs);
         }
     }
 
-    private void iterateAnomalyDetectorJobTasks(Iterator<PersistentTasksCustomMetaData.PersistentTask<?>> iterator,
+    private void iterateAnomalyDetectorJobTasks(Iterator<PersistentTasksCustomMetadata.PersistentTask<?>> iterator,
                                                 ActionListener<Void> refreshComplete) {
         if (iterator.hasNext()) {
             OpenJobAction.JobParams jobParams = (OpenJobAction.JobParams) iterator.next().getParams();
@@ -339,14 +335,15 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     // can occur if the searches happen to be on the local node, as the huge
                     // chain of listeners are all called in the same thread if only one node
                     // is involved
-                    mem -> threadPool.executor(executorName()).execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
+                    mem -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
                     refreshComplete::onFailure));
         } else {
             refreshComplete.onResponse(null);
         }
     }
 
-    private void refreshAllDataFrameAnalyticsJobTasks(List<PersistentTasksCustomMetaData.PersistentTask<?>> mlDataFrameAnalyticsJobTasks,
+    private void refreshAllDataFrameAnalyticsJobTasks(List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks,
                                                       ActionListener<Void> listener) {
         if (mlDataFrameAnalyticsJobTasks.isEmpty()) {
             listener.onResponse(null);
@@ -430,7 +427,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             if (memoryLimitMb == null) {
                 memoryLimitMb = AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB;
             }
-            Long memoryRequirementBytes = ByteSizeUnit.MB.toBytes(memoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+            Long memoryRequirementBytes = ByteSizeValue.ofMb(memoryLimitMb).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
             memoryRequirementByAnomalyDetectorJob.put(jobId, memoryRequirementBytes);
             listener.onResponse(memoryRequirementBytes);
         }, e -> {

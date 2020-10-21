@@ -27,10 +27,10 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node;
+import org.elasticsearch.client.Node.Roles;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.Node.Roles;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
@@ -152,9 +153,7 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
         final Map<String, String> protoAttributes = new HashMap<String, String>();
 
         boolean sawRoles = false;
-        boolean master = false;
-        boolean data = false;
-        boolean ingest = false;
+        final Set<String> roles = new TreeSet<>();
 
         String fieldName = null;
         while (parser.nextToken() != JsonToken.END_OBJECT) {
@@ -207,19 +206,7 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
                 if ("roles".equals(fieldName)) {
                     sawRoles = true;
                     while (parser.nextToken() != JsonToken.END_ARRAY) {
-                        switch (parser.getText()) {
-                        case "master":
-                            master = true;
-                            break;
-                        case "data":
-                            data = true;
-                            break;
-                        case "ingest":
-                            ingest = true;
-                            break;
-                        default:
-                            logger.warn("unknown role [" + parser.getText() + "] on node [" + nodeId + "]");
-                        }
+                        roles.add(parser.getText());
                     }
                 } else {
                     parser.skipChildren();
@@ -268,15 +255,19 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
             boolean clientAttribute = v2RoleAttributeValue(realAttributes, "client", false);
             Boolean masterAttribute = v2RoleAttributeValue(realAttributes, "master", null);
             Boolean dataAttribute = v2RoleAttributeValue(realAttributes, "data", null);
-            master = masterAttribute == null ? false == clientAttribute : masterAttribute;
-            data = dataAttribute == null ? false == clientAttribute : dataAttribute;
+            if ((masterAttribute == null && false == clientAttribute) || masterAttribute) {
+                roles.add("master");
+            }
+            if ((dataAttribute == null && false == clientAttribute) || dataAttribute) {
+                roles.add("data");
+            }
         } else {
             assert sawRoles : "didn't see roles for [" + nodeId + "]";
         }
         assert boundHosts.contains(publishedHost) :
                 "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
         logger.trace("adding node [" + nodeId + "]");
-        return new Node(publishedHost, boundHosts, name, version, new Roles(master, data, ingest),
+        return new Node(publishedHost, boundHosts, name, version, new Roles(roles),
                 unmodifiableMap(realAttributes));
     }
 

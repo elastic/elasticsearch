@@ -12,7 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.IndexId;
@@ -33,23 +33,23 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
-                              ClusterStateObserver observer, Listener listener) {
+    public final void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
+                                    ClusterStateObserver observer, Listener listener) {
         // Wrap the original listener to handle exceptions caused by ongoing snapshots
-        SnapshotExceptionListener snapshotExceptionListener = new SnapshotExceptionListener(indexMetaData.getIndex(), listener, observer);
-        performDuringNoSnapshot(indexMetaData, currentClusterState, snapshotExceptionListener);
+        SnapshotExceptionListener snapshotExceptionListener = new SnapshotExceptionListener(indexMetadata.getIndex(), listener, observer);
+        performDuringNoSnapshot(indexMetadata, currentClusterState, snapshotExceptionListener);
     }
 
     /**
      * Method to be performed during which no snapshots for the index are already underway.
      */
-    abstract void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener);
+    abstract void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener);
 
     /**
      * SnapshotExceptionListener is an injected listener wrapper that checks to see if a particular
      * action failed due to a {@code SnapshotInProgressException}. If it did, then it registers a
      * ClusterStateObserver listener waiting for the next time the snapshot is not running,
-     * re-running the step's {@link #performAction(IndexMetaData, ClusterState, ClusterStateObserver, Listener)}
+     * re-running the step's {@link #performAction(IndexMetadata, ClusterState, ClusterStateObserver, Listener)}
      * method when the snapshot is no longer running.
      */
     class SnapshotExceptionListener implements AsyncActionStep.Listener {
@@ -76,7 +76,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
                         index.getName());
                     observer.waitForNextChange(
                         new NoSnapshotRunningListener(observer, index.getName(), state -> {
-                            IndexMetaData idxMeta = state.metaData().index(index);
+                            IndexMetadata idxMeta = state.metadata().index(index);
                             if (idxMeta == null) {
                                 // The index has since been deleted, mission accomplished!
                                 originalListener.onResponse(true);
@@ -134,13 +134,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
         }
 
         private boolean snapshotInProgress(ClusterState state) {
-            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
-                // No snapshots are running, new state is acceptable to proceed
-                return false;
-            }
-
-            for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
+            for (SnapshotsInProgress.Entry snapshot : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
                 if (snapshot.indices().stream()
                     .map(IndexId::getName)
                     .anyMatch(name -> name.equals(indexName))) {
@@ -148,7 +142,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
                     return true;
                 }
             }
-            // There are snapshots, but none for this index, so it's okay to proceed with this state
+            // There are no snapshots for this index, so it's okay to proceed with this state
             return false;
         }
 

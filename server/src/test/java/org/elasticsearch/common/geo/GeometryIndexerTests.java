@@ -19,6 +19,18 @@
 
 package org.elasticsearch.common.geo;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,17 +45,10 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
-
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
-import static org.hamcrest.Matchers.instanceOf;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 public class GeometryIndexerTests extends ESTestCase {
 
@@ -52,7 +57,7 @@ public class GeometryIndexerTests extends ESTestCase {
     public void testCircle() {
         UnsupportedOperationException ex =
             expectThrows(UnsupportedOperationException.class, () -> indexer.prepareForIndexing(new Circle(2, 1, 3)));
-        assertEquals("CIRCLE geometry is not supported", ex.getMessage());
+        assertEquals(GeoShapeType.CIRCLE + " geometry is not supported", ex.getMessage());
     }
 
     public void testCollection() {
@@ -293,6 +298,24 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(indexed, indexer.prepareForIndexing(multiPoint));
     }
 
+    public void testRectangle() {
+        Rectangle indexed = new Rectangle(-179, -178, 10, -10);
+        Geometry processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // a rectangle is broken into two triangles
+        List<IndexableField> fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 2);
+
+        indexed = new Rectangle(179, -179, 10, -10);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // a rectangle crossing the dateline is broken into 4 triangles
+        fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 4);
+    }
+
     public void testPolygon() {
         Polygon polygon = new Polygon(new LinearRing(new double[]{160, 200, 200, 160, 160}, new double[]{10, 10, 20, 20, 10}));
         Geometry indexed = new MultiPolygon(Arrays.asList(
@@ -336,6 +359,15 @@ public class GeometryIndexerTests extends ESTestCase {
 
         assertEquals(expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
             actual(polygon(randomBoolean() ? null : randomBoolean(), 20, 0, 20, 10, -20, 10, -20, 0, 20, 0), randomBoolean()));
+    }
+
+    public void testInvalidSelfCrossingPolygon() {
+        Polygon polygon = new Polygon(new LinearRing(
+            new double[]{0, 0, 1, 0.5, 1.5, 1, 2, 2, 0}, new double[]{0, 2, 1.9, 1.8, 1.8, 1.9, 2, 0, 0}
+        ));
+        Exception e = expectThrows(InvalidShapeException.class, () -> indexer.prepareForIndexing(polygon));
+        assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+        assertThat(e.getMessage(), not(containsString("NaN")));
     }
 
     private XContentBuilder polygon(Boolean orientation, double... val) throws IOException {

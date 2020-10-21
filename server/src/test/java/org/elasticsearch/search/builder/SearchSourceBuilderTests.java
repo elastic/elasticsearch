@@ -105,6 +105,14 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testShallowCopy() {
+        for (int i = 0; i < 10; i++) {
+            SearchSourceBuilder original = createSearchSourceBuilder();
+            SearchSourceBuilder copy = original.shallowCopy();
+            assertEquals(original, copy);
+        }
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         // TODO add test checking that changing any member of this class produces an object that is not equal to the original
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createSearchSourceBuilder(), this::copyBuilder);
@@ -352,7 +360,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
-    public void testToXContent() throws  IOException {
+    public void testToXContent() throws IOException {
         //verify that only what is set gets printed out through toXContent
         XContentType xContentType = randomFrom(XContentType.values());
         {
@@ -375,18 +383,29 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
-    public void testParseIndicesBoost() throws IOException {
-        {
-            String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
-                assertEquals(2, searchSourceBuilder.indexBoosts().size());
-                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
-                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
-                assertWarnings("Object format in indices_boost is deprecated, please use array format instead");
-            }
+    public void testToXContentWithPointInTime() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        TimeValue keepAlive = randomBoolean() ? TimeValue.timeValueHours(1) : null;
+        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("id").setKeepAlive(keepAlive));
+        XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+        searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        BytesReference bytes = BytesReference.bytes(builder);
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(bytes, false, xContentType).v2();
+        assertEquals(1, sourceAsMap.size());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pit = (Map<String, Object>) sourceAsMap.get("pit");
+        assertEquals("id", pit.get("id"));
+        if (keepAlive != null) {
+            assertEquals("1h", pit.get("keep_alive"));
+            assertEquals(2, pit.size());
+        } else {
+            assertNull(pit.get("keep_alive"));
+            assertEquals(1, pit.size());
         }
+    }
 
+    public void testParseIndicesBoost() throws IOException {
         {
             String restContent = "{" +
                 "    \"indices_boost\" : [\n" +
@@ -441,8 +460,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeFromErrors() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(-2));
-        assertEquals("[from] parameter cannot be negative", expected.getMessage());
+        int from = randomIntBetween(-10, -1);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(from));
+        assertEquals("[from] parameter cannot be negative but was [" + from + "]", expected.getMessage());
     }
 
     public void testNegativeSizeErrors() {

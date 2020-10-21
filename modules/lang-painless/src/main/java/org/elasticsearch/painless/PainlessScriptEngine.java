@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -44,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -92,6 +92,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      */
     public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
+        defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
         Map<ScriptContext<?>, PainlessLookup> contextsToLookups = new HashMap<>();
@@ -141,14 +142,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         });
 
-        Set<String> extractedVariables = new HashSet<>();
-        ScriptRoot scriptRoot = compile(contextsToCompilers.get(context), loader, extractedVariables, scriptName, scriptSource, params);
+        ScriptScope scriptScope = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
 
         if (context.statefulFactoryClazz != null) {
-            return generateFactory(loader, context, extractedVariables, generateStatefulFactory(loader, context, extractedVariables),
-                scriptRoot);
+            return generateFactory(loader, context, generateStatefulFactory(loader, context, scriptScope), scriptScope);
         } else {
-            return generateFactory(loader, context, extractedVariables, WriterConstants.CLASS_TYPE, scriptRoot);
+            return generateFactory(loader, context, WriterConstants.CLASS_TYPE, scriptScope);
         }
     }
 
@@ -171,7 +170,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private <T> Type generateStatefulFactory(
         Loader loader,
         ScriptContext<T> context,
-        Set<String> extractedVariables
+        ScriptScope scriptScope
     ) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
@@ -253,7 +252,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.returnValue();
         adapter.endMethod();
 
-        writeNeedsMethods(context.statefulFactoryClazz, writer, extractedVariables);
+        writeNeedsMethods(context.statefulFactoryClazz, writer, scriptScope.getUsedVariables());
         writer.visitEnd();
 
         loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
@@ -270,16 +269,15 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param context The {@link ScriptContext}'s semantics are used to define the factory class.
      * @param classType The type to be instaniated in the newFactory or newInstance method.  Depends
      *                  on whether a {@link ScriptContext#statefulFactoryClazz} is specified.
-     * @param scriptRoot the {@link ScriptRoot} used to do the compilation
+     * @param scriptScope the {@link ScriptScope} used to do the compilation
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
     private <T> T generateFactory(
         Loader loader,
         ScriptContext<T> context,
-        Set<String> extractedVariables,
         Type classType,
-        ScriptRoot scriptRoot
+        ScriptScope scriptScope
     ) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
@@ -302,16 +300,15 @@ public final class PainlessScriptEngine implements ScriptEngine {
         constructor.endMethod();
 
         Method reflect = null;
+        Method docFieldsReflect = null;
 
         for (Method method : context.factoryClazz.getMethods()) {
             if ("newInstance".equals(method.getName())) {
                 reflect = method;
-
-                break;
             } else if ("newFactory".equals(method.getName())) {
                 reflect = method;
-
-                break;
+            } else if ("docFields".equals(method.getName())) {
+                docFieldsReflect = method;
             }
         }
 
@@ -331,7 +328,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.returnValue();
         adapter.endMethod();
 
-        writeNeedsMethods(context.factoryClazz, writer, extractedVariables);
+        writeNeedsMethods(context.factoryClazz, writer, scriptScope.getUsedVariables());
 
         String methodName = "isResultDeterministic";
         org.objectweb.asm.commons.Method isResultDeterministic = new org.objectweb.asm.commons.Method(methodName,
@@ -340,9 +337,35 @@ public final class PainlessScriptEngine implements ScriptEngine {
         GeneratorAdapter deterAdapter = new GeneratorAdapter(Opcodes.ASM5, isResultDeterministic,
             writer.visitMethod(Opcodes.ACC_PUBLIC, methodName, isResultDeterministic.getDescriptor(), null, null));
         deterAdapter.visitCode();
-        deterAdapter.push(scriptRoot.deterministic);
+        deterAdapter.push(scriptScope.isDeterministic());
         deterAdapter.returnValue();
         deterAdapter.endMethod();
+
+        if (docFieldsReflect != null) {
+            if (false == docFieldsReflect.getReturnType().equals(List.class)) {
+                throw new IllegalArgumentException("doc_fields must return a List");
+            }
+            if (docFieldsReflect.getParameterCount() != 0) {
+                throw new IllegalArgumentException("doc_fields may not take parameters");
+            }
+            org.objectweb.asm.commons.Method docFields = new org.objectweb.asm.commons.Method(docFieldsReflect.getName(),
+                MethodType.methodType(List.class).toMethodDescriptorString());
+            GeneratorAdapter docAdapter = new GeneratorAdapter(Opcodes.ASM5, docFields,
+                writer.visitMethod(Opcodes.ACC_PUBLIC, docFieldsReflect.getName(), docFields.getDescriptor(), null, null));
+            docAdapter.visitCode();
+            docAdapter.newInstance(WriterConstants.ARRAY_LIST_TYPE);
+            docAdapter.dup();
+            docAdapter.push(scriptScope.docFields().size());
+            docAdapter.invokeConstructor(WriterConstants.ARRAY_LIST_TYPE, WriterConstants.ARRAY_LIST_CTOR_WITH_SIZE);
+            for (int i = 0; i < scriptScope.docFields().size(); i++) {
+                docAdapter.dup();
+                docAdapter.push(scriptScope.docFields().get(i));
+                docAdapter.invokeInterface(WriterConstants.LIST_TYPE, WriterConstants.LIST_ADD);
+                docAdapter.pop(); // Don't want the result of calling add
+            }
+            docAdapter.returnValue();
+            docAdapter.endMethod();
+        }
 
         writer.visitEnd();
         Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
@@ -377,17 +400,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
-    ScriptRoot compile(Compiler compiler, Loader loader, Set<String> extractedVariables,
-                 String scriptName, String source, Map<String, String> params) {
+    ScriptScope compile(Compiler compiler, Loader loader, String scriptName, String source, Map<String, String> params) {
         final CompilerSettings compilerSettings = buildCompilerSettings(params);
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<ScriptRoot>() {
+            return AccessController.doPrivileged(new PrivilegedAction<ScriptScope>() {
                 @Override
-                public ScriptRoot run() {
+                public ScriptScope run() {
                     String name = scriptName == null ? source : scriptName;
-                    return compiler.compile(loader, extractedVariables, name, source, compilerSettings);
+                    return compiler.compile(loader, name, source, compilerSettings);
                 }
             }, COMPILATION_CONTEXT);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
@@ -407,6 +429,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             // Except regexes enabled - this is a node level setting and can't be changed in the request.
             compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
+
+            compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getRegexLimitFactor());
 
             Map<String, String> copy = new HashMap<>(params);
 
@@ -428,6 +452,11 @@ public final class PainlessScriptEngine implements ScriptEngine {
             value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());
             if (value != null) {
                 throw new IllegalArgumentException("[painless.regex.enabled] can only be set on node startup.");
+            }
+
+            value = copy.remove(CompilerSettings.REGEX_LIMIT_FACTOR.getKey());
+            if (value != null) {
+                throw new IllegalArgumentException("[painless.regex.limit-factor] can only be set on node startup.");
             }
 
             if (!copy.isEmpty()) {

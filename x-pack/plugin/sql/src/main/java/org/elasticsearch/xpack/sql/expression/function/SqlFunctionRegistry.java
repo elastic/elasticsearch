@@ -8,14 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.Case;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.Coalesce;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.Greatest;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfNull;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.Iif;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.Least;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.NullIf;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
@@ -27,9 +20,11 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevSamp;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.VarSamp;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
@@ -40,11 +35,15 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTi
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateParse;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormat;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Format;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.HourOfDay;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoDayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
@@ -54,6 +53,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthName
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
@@ -110,7 +110,16 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 
 public class SqlFunctionRegistry extends FunctionRegistry {
 
@@ -138,8 +147,10 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(PercentileRank.class, PercentileRank::new, "PERCENTILE_RANK"),
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
                 def(StddevPop.class, StddevPop::new, "STDDEV_POP"),
+                def(StddevSamp.class, StddevSamp::new, "STDDEV_SAMP"),
                 def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
-                def(VarPop.class, VarPop::new, "VAR_POP")
+                def(VarPop.class, VarPop::new, "VAR_POP"),
+                def(VarSamp.class, VarSamp::new, "VAR_SAMP")
                 },
         // histogram
             new FunctionDefinition[] {
@@ -167,8 +178,12 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
-                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
+                def(DateParse.class, DateParse::new, "DATE_PARSE"),
+                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"), 
+                def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
+                def(DateTimeParse.class, DateTimeParse::new, "DATETIME_PARSE"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
+                def(Format.class, Format::new, "FORMAT"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
                 def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISO_DAY_OF_WEEK", "ISODAYOFWEEK", "ISODOW", "IDOW"),
                 def(IsoWeekOfYear.class, IsoWeekOfYear::new, "ISO_WEEK_OF_YEAR", "ISOWEEKOFYEAR", "ISOWEEK", "IWOY", "IW"),
@@ -177,6 +192,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(MonthName.class, MonthName::new, "MONTH_NAME", "MONTHNAME"),
                 def(MonthOfYear.class, MonthOfYear::new, "MONTH_OF_YEAR", "MONTH"),
                 def(SecondOfMinute.class, SecondOfMinute::new, "SECOND_OF_MINUTE", "SECOND"),
+                def(TimeParse.class, TimeParse::new, "TIME_PARSE"),
                 def(Quarter.class, Quarter::new, "QUARTER"),
                 def(Year.class, Year::new, "YEAR"),
                 def(WeekOfYear.class, WeekOfYear::new, "WEEK_OF_YEAR", "WEEK")
@@ -234,7 +250,9 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Right.class, Right::new, "RIGHT"),
                 def(RTrim.class, RTrim::new, "RTRIM"),
                 def(Space.class, Space::new, "SPACE"),
+                def(StartsWith.class, StartsWith::new, "STARTS_WITH"),
                 def(Substring.class, Substring::new, "SUBSTRING"),
+                def(Trim.class, Trim::new, "TRIM"),
                 def(UCase.class, UCase::new, "UCASE")
             },
         // DataType conversion
@@ -262,4 +280,5 @@ public class SqlFunctionRegistry extends FunctionRegistry {
             }
         };
     }
+
 }

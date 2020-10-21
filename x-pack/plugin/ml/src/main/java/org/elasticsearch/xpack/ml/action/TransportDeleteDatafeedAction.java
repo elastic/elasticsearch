@@ -9,7 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -17,10 +17,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,12 +34,10 @@ import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<DeleteDatafeedAction.Request, AcknowledgedResponse> {
+public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNodeAction<DeleteDatafeedAction.Request> {
 
     private final Client client;
     private final DatafeedConfigProvider datafeedConfigProvider;
@@ -55,22 +52,12 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                                          Client client, PersistentTasksService persistentTasksService,
                                          NamedXContentRegistry xContentRegistry) {
         super(DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteDatafeedAction.Request::new, indexNameExpressionResolver);
+                DeleteDatafeedAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = client;
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.persistentTasksService = persistentTasksService;
         this.clusterService = clusterService;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -106,15 +93,15 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     }
 
     private void removeDatafeedTask(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<Boolean> listener) {
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
             persistentTasksService.sendRemoveRequest(datafeedTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                         @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
                             listener.onResponse(Boolean.TRUE);
                         }
 
@@ -133,7 +120,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
 
     private void deleteDatafeedConfig(DeleteDatafeedAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         // Check datafeed is stopped
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (MlTasks.getDatafeedTask(request.getDatafeedId(), tasks) != null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException(
                     Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, request.getDatafeedId(), DatafeedState.STARTED)));
@@ -154,7 +141,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                                 datafeedConfigProvider.deleteDatafeedConfig(
                                     datafeedId,
                                     ActionListener.wrap(
-                                        unused2 -> listener.onResponse(new AcknowledgedResponse(true)),
+                                        unused2 -> listener.onResponse(AcknowledgedResponse.TRUE),
                                         listener::onFailure));
                             },
                             listener::onFailure));

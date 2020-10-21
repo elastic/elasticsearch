@@ -12,11 +12,16 @@ import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * A collection of messy feature extractors
  */
 public final class FeatureUtils {
+
+    private static final Pattern NOT_UNICODE_OR_IS_SPECIAL = Pattern.compile("[^\\p{L}|\\p{M}|\\s]|\\||\\p{InSpacing_Modifier_Letters}");
+    private static final Pattern ONE_OR_MORE_WHITESPACE = Pattern.compile("\\p{IsWhite_Space}+");
+    private static final Pattern TURKISH_I = Pattern.compile("\\u0130");
 
     private FeatureUtils() {}
 
@@ -56,20 +61,18 @@ public final class FeatureUtils {
         String newText = text.startsWith(" ") ? "" : " ";
 
         // 2. Replace punctuation and whitespace with ' '
-        // NOTE: we capture unicode letters AND marks as Nepalese and other languages
-        newText += text.replaceAll("[^\\p{L}|\\p{M}|\\s]|\\|", " ");
-
         // 2.1. Replace spacing modifier characters
-        newText = newText.replaceAll("\\p{InSpacing_Modifier_Letters}", " ");
+        // NOTE: we capture unicode letters AND marks as Nepalese and other languages
+        newText += NOT_UNICODE_OR_IS_SPECIAL.matcher(text).replaceAll(" ");
 
         // 3. Add space at end
         newText += text.endsWith(" ") ? "" : " ";
 
         // 4. Remove multiple spaces (2 or more) with a single space
-        newText = newText.replaceAll("\\p{IsWhite_Space}+", " ");
+        newText = ONE_OR_MORE_WHITESPACE.matcher(newText).replaceAll(" ");
 
         // 5. Replace Turkish İ with I (TODO - check this out better...)
-        newText = newText.replaceAll("\\u0130", "I");
+        newText = TURKISH_I.matcher(newText).replaceAll("I");
 
         return newText.toLowerCase(Locale.ROOT);
     }

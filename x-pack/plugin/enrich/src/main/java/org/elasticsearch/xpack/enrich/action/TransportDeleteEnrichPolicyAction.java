@@ -9,18 +9,19 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
@@ -33,11 +34,12 @@ import org.elasticsearch.xpack.enrich.AbstractEnrichProcessor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction<DeleteEnrichPolicyAction.Request, AcknowledgedResponse> {
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
+
+public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMasterNodeAction<DeleteEnrichPolicyAction.Request> {
 
     private final EnrichPolicyLocks enrichPolicyLocks;
     private final IngestService ingestService;
@@ -64,25 +66,12 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             DeleteEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         this.client = client;
         this.enrichPolicyLocks = enrichPolicyLocks;
         this.ingestService = ingestService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -128,7 +117,12 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             return;
         }
 
-        deleteIndicesAndPolicy(request.getName(), ActionListener.wrap((response) -> {
+        GetIndexRequest indices = new GetIndexRequest().indices(EnrichPolicy.getBaseName(request.getName()) + "-*")
+            .indicesOptions(IndicesOptions.lenientExpand());
+
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, indices);
+
+        deleteIndicesAndPolicy(concreteIndices, request.getName(), ActionListener.wrap((response) -> {
             enrichPolicyLocks.releasePolicy(request.getName());
             listener.onResponse(response);
         }, (exc) -> {
@@ -137,12 +131,17 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
         }));
     }
 
-    private void deleteIndicesAndPolicy(String name, ActionListener<AcknowledgedResponse> listener) {
-        // delete all enrich indices for this policy
-        DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(EnrichPolicy.getBaseName(name) + "-*")
-            .indicesOptions(LENIENT_OPTIONS);
+    private void deleteIndicesAndPolicy(String[] indices, String name, ActionListener<AcknowledgedResponse> listener) {
+        if (indices.length == 0) {
+            deletePolicy(name, listener);
+            return;
+        }
 
-        client.admin().indices().delete(deleteRequest, ActionListener.wrap((response) -> {
+        // delete all enrich indices for this policy, we delete concrete indices here but not a wildcard index expression
+        // as the setting 'action.destructive_requires_name' may be set to true
+        DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(indices).indicesOptions(LENIENT_OPTIONS);
+
+        new OriginSettingClient(client, ENRICH_ORIGIN).admin().indices().delete(deleteRequest, ActionListener.wrap((response) -> {
             if (response.isAcknowledged() == false) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -160,7 +159,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
     private void deletePolicy(String name, ActionListener<AcknowledgedResponse> listener) {
         EnrichStore.deletePolicy(name, clusterService, e -> {
             if (e == null) {
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 listener.onFailure(e);
             }

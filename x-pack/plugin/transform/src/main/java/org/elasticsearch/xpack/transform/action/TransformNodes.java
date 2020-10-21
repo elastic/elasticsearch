@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.util.Collection;
@@ -17,8 +17,7 @@ import java.util.Set;
 
 public final class TransformNodes {
 
-    private TransformNodes() {
-    }
+    private TransformNodes() {}
 
     /**
      * Get the list of nodes transforms are executing on
@@ -31,16 +30,17 @@ public final class TransformNodes {
 
         Set<String> executorNodes = new HashSet<>();
 
-        PersistentTasksCustomMetaData tasksMetaData =
-                PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterState);
+        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
 
-        if (tasksMetaData != null) {
+        if (tasksMetadata != null) {
             Set<String> transformIdsSet = new HashSet<>(transformIds);
 
-            Collection<PersistentTasksCustomMetaData.PersistentTask<?>> tasks =
-                    tasksMetaData.findTasks(TransformField.TASK_NAME, t -> transformIdsSet.contains(t.getId()));
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = tasksMetadata.findTasks(
+                TransformField.TASK_NAME,
+                t -> transformIdsSet.contains(t.getId()) && t.isAssigned()
+            );
 
-            for (PersistentTasksCustomMetaData.PersistentTask<?> task : tasks) {
+            for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
                 executorNodes.add(task.getExecutorNode());
             }
         }

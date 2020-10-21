@@ -19,6 +19,9 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
+
 import java.lang.reflect.Method;
 
 /**
@@ -68,8 +71,18 @@ public final class ScriptContext<FactoryType> {
     /** A class that is an instance of a script. */
     public final Class<?> instanceClazz;
 
-    /** Construct a context with the related instance and compiled classes. */
-    public ScriptContext(String name, Class<FactoryType> factoryClazz) {
+    /** The default size of the cache for the context if not overridden */
+    public final int cacheSizeDefault;
+
+    /** The default expiration of a script in the cache for the context, if not overridden */
+    public final TimeValue cacheExpireDefault;
+
+    /** The default max compilation rate for scripts in this context.  Script compilation is throttled if this is exceeded */
+    public final Tuple<Integer, TimeValue> maxCompilationRateDefault;
+
+    /** Construct a context with the related instance and compiled classes with caller provided cache defaults */
+    public ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
+                        Tuple<Integer, TimeValue> maxCompilationRateDefault) {
         this.name = name;
         this.factoryClazz = factoryClazz;
         Method newInstanceMethod = findMethod("FactoryType", factoryClazz, "newInstance");
@@ -90,6 +103,17 @@ public final class ScriptContext<FactoryType> {
                 + factoryClazz.getName() + "] for script context [" + name + "]");
         }
         instanceClazz = newInstanceMethod.getReturnType();
+
+        this.cacheSizeDefault = cacheSizeDefault;
+        this.cacheExpireDefault = cacheExpireDefault;
+        this.maxCompilationRateDefault = maxCompilationRateDefault;
+    }
+
+    /** Construct a context with the related instance and compiled classes with defaults for cacheSizeDefault, cacheExpireDefault and
+     *  maxCompilationRateDefault */
+    public ScriptContext(String name, Class<FactoryType> factoryClazz) {
+        // cache size default, cache expire default, max compilation rate are defaults from ScriptService.
+        this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), new Tuple<>(75, TimeValue.timeValueMinutes(5)));
     }
 
     /** Returns a method with the given name, or throws an exception if multiple are found. */

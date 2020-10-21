@@ -12,7 +12,7 @@ example, the filter can change the token stream `[ one, two, three ]` to
 `[ one ]`.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/LimitTokenCountFilter.html[LimitTokenCountFilter].
+{lucene-analysis-docs}/miscellaneous/LimitTokenCountFilter.html[LimitTokenCountFilter].
 
 [TIP]
 ====

@@ -86,15 +86,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             if (source.length() == 0) {
                 source = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                documentFields = readFields(in);
-                metaFields = readFields(in);
-            } else {
-                Map<String, DocumentField> fields = readFields(in);
-                documentFields = new HashMap<>();
-                metaFields = new HashMap<>();
-                splitFieldsByMetadata(fields, documentFields, metaFields);
-            }
+            documentFields = readFields(in);
+            metaFields = readFields(in);
         } else {
             metaFields = Collections.emptyMap();
             documentFields = Collections.emptyMap();
@@ -315,13 +308,13 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
     public static GetResult fromXContentEmbedded(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         return fromXContentEmbedded(parser, null, null);
     }
 
     public static GetResult fromXContentEmbedded(XContentParser parser, String index, String id) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String currentFieldName = parser.currentName();
         long version = -1;
@@ -380,16 +373,16 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
     public static GetResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         return fromXContentEmbedded(parser);
     }
 
     private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
-        Map<String, DocumentField> fields = null;
+        Map<String, DocumentField> fields;
         int size = in.readVInt();
         if (size == 0) {
-            fields = new HashMap<>();
+            fields = emptyMap();
         } else {
             fields = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
@@ -398,20 +391,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             }
         }
         return fields;
-    }
-
-    static void splitFieldsByMetadata(Map<String, DocumentField> fields, Map<String, DocumentField> outOther,
-                                       Map<String, DocumentField> outMetadata) {
-        if (fields == null) {
-            return;
-        }
-        for (Map.Entry<String, DocumentField> fieldEntry: fields.entrySet()) {
-            if (fieldEntry.getValue().isMetadataField()) {
-                outMetadata.put(fieldEntry.getKey(), fieldEntry.getValue());
-            } else {
-                outOther.put(fieldEntry.getKey(), fieldEntry.getValue());
-            }
-        }
     }
 
     @Override
@@ -427,12 +406,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         out.writeBoolean(exists);
         if (exists) {
             out.writeBytesReference(source);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                writeFields(out, documentFields);
-                writeFields(out, metaFields);
-            } else {
-                writeFields(out, this.getFields());
-            }
+            writeFields(out, documentFields);
+            writeFields(out, metaFields);
         }
     }
 

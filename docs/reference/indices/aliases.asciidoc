@@ -6,18 +6,18 @@
 
 Adds or removes index aliases.
 
-include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
+include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "twitter", "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "my-index-000001", "alias" : "alias1" } }
+  ]
 }
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[indices-aliases-api-request]]
@@ -42,7 +42,7 @@ searching, and routing values. An alias cannot have the same name as an index.
 [[indices-aliases-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[indices-aliases-api-request-body]]
@@ -75,6 +75,8 @@ used to perform the action.
 +
 If the `indices` parameter is not specified,
 this parameter is required.
++
+NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `indices`::
 (Array)
@@ -83,6 +85,8 @@ used to perform the action.
 +
 If the `index` parameter is not specified,
 this parameter is required.
++
+NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `alias`::
 (String)
@@ -93,8 +97,8 @@ If the `aliases` parameter is not specified,
 this parameter is required for the `add` or `remove` action.
 
 `aliases`::
-(String)
-Comma-separated list or wildcard expression of index alias names to
+(Array of strings)
+Array of index alias names to
 add, remove, or delete.
 +
 If the `alias` parameter is not specified,
@@ -102,9 +106,20 @@ this parameter is required for the `add` or `remove` action.
 
 `filter`::
 (Optional, query object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 +
 See <<filtered>> for an example.
+
+`is_hidden`::
+(Optional, boolean)
+If `true`, the alias will be excluded from wildcard expressions by default,
+unless overriden in the request using the `expand_wildcards` parameter,
+similar to <<index-hidden,hidden indices>>. This property must be set to the
+same value on all indices that share an alias. Defaults to `false`.
+
+`must_exist`::
+(Optional, boolean)
+If `true`, the alias to remove must exist. Defaults to `false`.
 
 `is_write_index`::
 (Optional, boolean)
@@ -123,7 +138,7 @@ until an additional index is referenced. At that point, there will be no write i
 writes will be rejected.
 ====
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 +
 See <<aliases-routing>> for an example.
 
@@ -135,7 +150,6 @@ for the alias's indexing operations.
 See <<aliases-routing>> for an example.
 
 `search_routing`::
-`index_routing`::
 (Optional, string)
 Custom <<mapping-routing-field, routing value>> used
 for the alias's search operations.
@@ -156,9 +170,9 @@ The following request adds the `alias1` alias to the `test1` index.
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "test1", "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "test1", "alias" : "alias1" } }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test1\nPUT test2\n/]
@@ -172,9 +186,9 @@ The following request removes the `alias1` alias.
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "remove" : { "index" : "test1", "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "remove" : { "index" : "test1", "alias" : "alias1" } }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -190,10 +204,10 @@ period of time where the alias does not point to an index:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "remove" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test1", "alias" : "alias2" } }
-    ]
+  "actions" : [
+    { "remove" : { "index" : "test1", "alias" : "alias1" } },
+    { "add" : { "index" : "test1", "alias" : "alias2" } }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -208,10 +222,10 @@ actions:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test2", "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "test1", "alias" : "alias1" } },
+    { "add" : { "index" : "test2", "alias" : "alias1" } }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test1\nPUT test2\n/]
@@ -222,9 +236,9 @@ Multiple indices can be specified for an action with the `indices` array syntax:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test1\nPUT test2\n/]
@@ -239,9 +253,9 @@ more than one index that share a common name:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test1\nPUT test2\n/]
@@ -252,7 +266,11 @@ indices that match this pattern are added/removed.
 
 It is an error to index to an alias which points to more than one index.
 
-It is also possible to swap an index with an alias in one operation:
+It is also possible to swap an index with an alias in one, atomic operation.
+This means there will be no point in time where the alias points to no
+index in the cluster state. However, as indexing and searches involve multiple
+steps, it is possible for the in-flight or queued requests to fail
+due to a temporarily non-existent index.
 
 [source,console]
 --------------------------------------------------
@@ -260,10 +278,10 @@ PUT test     <1>
 PUT test_2   <2>
 POST /_aliases
 {
-    "actions" : [
-        { "add":  { "index": "test_2", "alias": "test" } },
-        { "remove_index": { "index": "test" } }  <3>
-    ]
+  "actions" : [
+    { "add":  { "index": "test_2", "alias": "test" } },
+    { "remove_index": { "index": "test" } }  <3>
+  ]
 }
 --------------------------------------------------
 
@@ -284,33 +302,37 @@ exist in the mapping:
 
 [source,console]
 --------------------------------------------------
-PUT /test1
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
-      "user" : {
-        "type": "keyword"
+      "user": {
+        "properties": {
+          "id": {
+            "type": "keyword"
+          }
+        }
       }
     }
   }
 }
 --------------------------------------------------
 
-Now we can create an alias that uses a filter on field `user`:
+Now we can create an alias that uses a filter on field `user.id`:
 
 [source,console]
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test1",
-                 "alias" : "alias2",
-                 "filter" : { "term" : { "user" : "kimchy" } }
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "my-index-000001",
+        "alias": "alias2",
+        "filter": { "term": { "user.id": "kimchy" } }
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -330,15 +352,15 @@ automatically modified to use value `1` for routing:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias1",
-                 "routing" : "1"
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "test",
+        "alias": "alias1",
+        "routing": "1"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\n/]
@@ -350,16 +372,16 @@ and indexing operations:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias2",
-                 "search_routing" : "1,2",
-                 "index_routing" : "2"
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "test",
+        "alias": "alias2",
+        "search_routing": "1,2",
+        "index_routing": "2"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\n/]
@@ -374,7 +396,7 @@ routing value:
 
 [source,console]
 --------------------------------------------------
-GET /alias2/_search?q=user:kimchy&routing=2,3
+GET /alias2/_search?q=user.id:kimchy&routing=2,3
 --------------------------------------------------
 // TEST[continued]
 
@@ -397,21 +419,21 @@ Rollover (see <<indices-rollover-index, Rollover With Write Index>>).
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias1",
-                 "is_write_index" : true
-            }
-        },
-        {
-            "add" : {
-                 "index" : "test2",
-                 "alias" : "alias1"
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "test",
+        "alias": "alias1",
+        "is_write_index": true
+      }
+    },
+    {
+      "add": {
+        "index": "test2",
+        "alias": "alias1"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\nPUT test2\n/]
@@ -423,7 +445,7 @@ In this example, we associate the alias `alias1` to both `test` and `test2`, whe
 --------------------------------------------------
 PUT /alias1/_doc/1
 {
-    "foo": "bar"
+  "foo": "bar"
 }
 --------------------------------------------------
 // TEST[continued]
@@ -444,21 +466,21 @@ do an atomic swap. The swap is not dependent on the ordering of the actions.
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias1",
-                 "is_write_index" : false
-            }
-        }, {
-            "add" : {
-                 "index" : "test2",
-                 "alias" : "alias1",
-                 "is_write_index" : true
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "test",
+        "alias": "alias1",
+        "is_write_index": false
+      }
+    }, {
+      "add": {
+        "index": "test2",
+        "alias": "alias1",
+        "is_write_index": true
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\nPUT test2\n/]

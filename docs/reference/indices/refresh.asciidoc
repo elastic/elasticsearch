@@ -4,21 +4,22 @@
 <titleabbrev>Refresh</titleabbrev>
 ++++
 
-Refreshes one or more indices.
+Refreshes one or more indices. For data streams, the API refreshes the stream's
+backing indices.
 
 [source,console]
 ----
-POST /twitter/_refresh
+POST /my-index-000001/_refresh
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[refresh-api-request]]
 ==== {api-request-title}
 
-`POST <index>/_refresh`
+`POST <target>/_refresh`
 
-`GET <index>/_refresh`
+`GET <target>/_refresh`
 
 `POST /_refresh`
 
@@ -29,6 +30,7 @@ POST /twitter/_refresh
 ==== {api-description-title}
 
 Use the refresh API to explicitly refresh one or more indices.
+If the request targets a data stream, it refreshes the stream's backing indices.
 A _refresh_ makes all operations performed on an index
 since the last refresh
 available for search.
@@ -40,11 +42,14 @@ indices that have received one search request or more in the last 30 seconds.
 You can change this default interval
 using the <<index-refresh-interval-setting,`index.refresh_interval`>> setting.
 
+Refresh requests are synchronous and do not return a response until the
+refresh operation completes.
+
 [IMPORTANT]
 ====
 Refreshes are resource-intensive.
 To ensure good cluster performance,
-we recommend waiting for {es}'s periodic refresh 
+we recommend waiting for {es}'s periodic refresh
 rather than performing an explicit refresh
 when possible.
 
@@ -61,7 +66,7 @@ before running the search.
 [[refresh-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 To refresh all indices in the cluster,
 omit this parameter
@@ -71,13 +76,15 @@ or use a value of `_all` or `*`.
 [[refresh-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 
 [[refresh-api-example]]
@@ -85,17 +92,17 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 
 [[refresh-api-multiple-ex]]
-===== Refresh several indices
+===== Refresh several data streams and indices
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_refresh
+POST /my-index-000001,my-index-000002/_refresh
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[refresh-api-all-ex]]
-===== Refresh all indices
+===== Refresh all data streams and indices in a cluster
 
 [source,console]
 ----

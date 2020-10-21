@@ -14,14 +14,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -43,14 +45,14 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     private static final Set<String> META_FIELDS;
     static {
-        final Set<String> metaFields = new HashSet<>(Arrays.asList(MapperService.getAllMetaFields()));
+        final Set<String> metaFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
         metaFields.add(SourceFieldMapper.NAME);
         metaFields.add(FieldNamesFieldMapper.NAME);
         metaFields.add(SeqNoFieldMapper.NAME);
         META_FIELDS = Collections.unmodifiableSet(metaFields);
     }
 
-    private ThreadContext threadContext;
+    private SecurityContext securityContext;
     private ScriptService scriptService;
     private SecurityIndexReaderWrapper securityIndexReaderWrapper;
     private ElasticsearchDirectoryReader esIn;
@@ -63,8 +65,9 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
-        threadContext = new ThreadContext(Settings.EMPTY);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
 
@@ -84,7 +87,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     public void testDefaultMetaFields() throws Exception {
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, scriptService) {
+                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
@@ -112,9 +115,9 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     }
 
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, scriptService);
+                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }
@@ -148,7 +151,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     public void testFieldPermissionsWithFieldExceptions() throws Exception {
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, null);
+                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, null);
         String[] grantedFields = new String[]{};
         String[] deniedFields;
         Set<String> expected = new HashSet<>(META_FIELDS);

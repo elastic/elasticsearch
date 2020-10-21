@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanQuery;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -103,7 +105,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             if (boost != DEFAULT_BOOST) {
                 if (query instanceof SpanQuery) {
                     query = new SpanBoostQuery((SpanQuery) query, boost);
-                } else {
+                } else if (query instanceof MatchNoDocsQuery == false) {
                     query = new BoostQuery(query, boost);
                 }
             }
@@ -203,6 +205,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             return BytesRefs.toBytesRef(obj);
         } else if (obj instanceof CharBuffer) {
             return new BytesRef((CharBuffer) obj);
+        } else if (obj instanceof BigInteger) {
+            return BytesRefs.toBytesRef(obj);
         }
         return obj;
     }
@@ -232,7 +236,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
         for (QueryBuilder queryBuilder : queryBuilders) {
-            Query query = queryBuilder.toQuery(context);
+            Query query = queryBuilder.rewrite(context).toQuery(context);
             if (query != null) {
                 queries.add(query);
             }

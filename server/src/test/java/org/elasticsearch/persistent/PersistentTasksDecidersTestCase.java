@@ -21,7 +21,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -101,21 +101,21 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
             nodes.add(new DiscoveryNode("_node_" + i, buildNewFakeTransportAddress(), Version.CURRENT));
         }
 
-        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
         for (int i = 0; i < nbTasks; i++) {
-            tasks.addTask("_task_" + i, "test", null, new PersistentTasksCustomMetaData.Assignment(null, "initialized"));
+            tasks.addTask("_task_" + i, "test", null, new PersistentTasksCustomMetadata.Assignment(null, "initialized"));
         }
 
-        MetaData metaData = MetaData.builder()
-            .putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build())
+        Metadata metadata = Metadata.builder()
+            .putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build())
             .build();
 
-        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metaData(metaData).build();
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).build();
     }
 
     /** Asserts that the given cluster state contains nbTasks tasks that are assigned **/
     protected static void assertNbAssignedTasks(final long nbTasks, final ClusterState clusterState) {
-        assertPersistentTasks(nbTasks, clusterState, PersistentTasksCustomMetaData.PersistentTask::isAssigned);
+        assertPersistentTasks(nbTasks, clusterState, PersistentTasksCustomMetadata.PersistentTask::isAssigned);
     }
 
     /** Asserts that the given cluster state contains nbTasks tasks that are NOT assigned **/
@@ -126,8 +126,8 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     /** Asserts that the cluster state contains nbTasks tasks that verify the given predicate **/
     protected static void assertPersistentTasks(final long nbTasks,
                                               final ClusterState clusterState,
-                                              final Predicate<PersistentTasksCustomMetaData.PersistentTask> predicate) {
-        PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                                              final Predicate<PersistentTasksCustomMetadata.PersistentTask> predicate) {
+        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertNotNull("Persistent tasks must be not null", tasks);
         assertEquals(nbTasks, tasks.tasks().stream().filter(predicate).count());
     }

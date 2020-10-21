@@ -10,7 +10,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 
-import java.util.Date;
+import java.time.Instant;
 
 public class FlushAcknowledgementTests extends AbstractSerializingTestCase<FlushAcknowledgement> {
 
@@ -21,7 +21,11 @@ public class FlushAcknowledgementTests extends AbstractSerializingTestCase<Flush
 
     @Override
     protected FlushAcknowledgement createTestInstance() {
-        return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), new Date(randomNonNegativeLong()));
+        if (randomBoolean()) {
+            return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomFrom(randomNonNegativeLong(), 0L, null));
+        } else {
+            return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomFrom(randomInstant(), Instant.EPOCH, null));
+        }
     }
 
     @Override

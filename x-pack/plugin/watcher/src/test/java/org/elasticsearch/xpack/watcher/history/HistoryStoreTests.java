@@ -105,7 +105,7 @@ public class HistoryStoreTests extends ESTestCase {
     }
 
     public void testIndexNameGeneration() {
-        String indexTemplateVersion = INDEX_TEMPLATE_VERSION;
+        String indexTemplateVersion = Integer.toString(INDEX_TEMPLATE_VERSION);
         assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli((long) 0).atZone(ZoneOffset.UTC)),
             equalTo(".watcher-history-"+ indexTemplateVersion +"-1970.01.01"));
         assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(100000000000L).atZone(ZoneOffset.UTC)),

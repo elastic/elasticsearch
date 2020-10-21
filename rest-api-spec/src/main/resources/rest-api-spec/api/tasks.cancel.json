@@ -39,6 +39,10 @@
       "parent_task_id":{
         "type":"string",
         "description":"Cancel tasks with specified parent task id (node_id:task_number). Set to -1 to cancel all."
+      },
+      "wait_for_completion": {
+        "type":"boolean",
+        "description":"Should the request block until the cancellation of the task and its descendant tasks is completed. Defaults to false"
       }
     }
   }

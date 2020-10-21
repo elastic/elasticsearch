@@ -330,8 +330,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final boolean isSnapshot,
         final String pluginId,
         final String platform
-    ) throws IOException,
-        UserException {
+    ) throws IOException, UserException {
         final String baseUrl;
         if (isSnapshot && stagingHash == null) {
             throw new UserException(
@@ -506,9 +505,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path tmpDir,
         final boolean officialPlugin,
         boolean isBatch
-    ) throws IOException,
-        PGPException,
-        UserException {
+    ) throws IOException, PGPException, UserException {
         Path zip = downloadZip(terminal, urlString, tmpDir, isBatch);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
@@ -545,21 +542,24 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
                 final String checksumLine = checksumReader.readLine();
                 final String[] fields = checksumLine.split(" {2}");
-                if (fields.length != 2) {
+                if (officialPlugin && fields.length != 2 || officialPlugin == false && fields.length > 2) {
                     throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
                 }
                 expectedChecksum = fields[0];
-                final String[] segments = URI.create(urlString).getPath().split("/");
-                final String expectedFile = segments[segments.length - 1];
-                if (fields[1].equals(expectedFile) == false) {
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "checksum file at [%s] is not for this plugin, expected [%s] but was [%s]",
-                        checksumUrl,
-                        expectedFile,
-                        fields[1]
-                    );
-                    throw new UserException(ExitCodes.IO_ERROR, message);
+                if (fields.length == 2) {
+                    // checksum line contains filename as well
+                    final String[] segments = URI.create(urlString).getPath().split("/");
+                    final String expectedFile = segments[segments.length - 1];
+                    if (fields[1].equals(expectedFile) == false) {
+                        final String message = String.format(
+                            Locale.ROOT,
+                            "checksum file at [%s] is not for this plugin, expected [%s] but was [%s]",
+                            checksumUrl,
+                            expectedFile,
+                            fields[1]
+                        );
+                        throw new UserException(ExitCodes.IO_ERROR, message);
+                    }
                 }
                 if (checksumReader.readLine() != null) {
                     throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);

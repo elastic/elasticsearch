@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -52,12 +53,36 @@ public class NetworkAddressTests extends ESTestCase {
         assertEquals("[::1]:1234", NetworkAddress.format(new InetSocketAddress(forge(null, "::1"), 1234)));
     }
 
+    public void testFormatPortsRangeV4() throws Exception {
+        assertEquals("127.0.0.1", NetworkAddress.format(forge("localhost", "127.0.0.1"), new PortsRange("")));
+        assertEquals("127.0.0.1", NetworkAddress.format(forge(null, "127.0.0.1"), new PortsRange("")));
+
+        assertEquals("127.0.0.1:9300", NetworkAddress.format(forge("localhost", "127.0.0.1"), new PortsRange("9300")));
+        assertEquals("127.0.0.1:9300", NetworkAddress.format(forge(null, "127.0.0.1"), new PortsRange("9300")));
+
+        assertEquals("127.0.0.1:[9300-9400]", NetworkAddress.format(forge("localhost", "127.0.0.1"), new PortsRange("9300-9400")));
+        assertEquals("127.0.0.1:[9300-9400]", NetworkAddress.format(forge(null, "127.0.0.1"), new PortsRange("9300-9400")));
+    }
+
+    public void testFormatPortsRangeV6() throws Exception {
+        assertEquals("::1", NetworkAddress.format(forge("localhost", "::1"), new PortsRange("")));
+        assertEquals("::1", NetworkAddress.format(forge(null, "::1"), new PortsRange("")));
+
+        assertEquals("[::1]:9300", NetworkAddress.format(forge("localhost", "::1"), new PortsRange("9300")));
+        assertEquals("[::1]:9300", NetworkAddress.format(forge(null, "::1"), new PortsRange("9300")));
+
+        assertEquals("[::1]:[9300-9400]", NetworkAddress.format(forge("localhost", "::1"), new PortsRange("9300-9400")));
+        assertEquals("[::1]:[9300-9400]", NetworkAddress.format(forge(null, "::1"), new PortsRange("9300-9400")));
+    }
+
     public void testNoScopeID() throws Exception {
         assertEquals("::1", NetworkAddress.format(forgeScoped(null, "::1", 5)));
         assertEquals("::1", NetworkAddress.format(forgeScoped("localhost", "::1", 5)));
+        assertEquals("::1", NetworkAddress.format(forgeScoped("localhost", "::1", 5), new PortsRange("")));
 
         assertEquals("[::1]:1234", NetworkAddress.format(new InetSocketAddress(forgeScoped(null, "::1", 5), 1234)));
         assertEquals("[::1]:1234", NetworkAddress.format(new InetSocketAddress(forgeScoped("localhost", "::1", 5), 1234)));
+        assertEquals("[::1]:[9300-9400]", NetworkAddress.format(forgeScoped("localhost", "::1", 5), new PortsRange("9300-9400")));
     }
 
     /** Test that ipv4 address formatting round trips */

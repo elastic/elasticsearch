@@ -14,12 +14,16 @@ import org.owasp.html.ElementPolicy;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.PolicyFactory;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 public class HtmlSanitizer {
 
@@ -47,23 +51,43 @@ public class HtmlSanitizer {
     private static Setting<List<String>> SETTING_SANITIZATION_DISALLOW =
             Setting.listSetting("xpack.notification.email.html.sanitization.disallow", Collections.emptyList(), Function.identity(),
                     Property.NodeScope);
+    private static final MethodHandle sanitizeHandle;
+    static {
+        try {
+            MethodHandles.Lookup methodLookup = MethodHandles.publicLookup();
+            MethodType sanitizeSignature = MethodType.methodType(String.class, String.class);
+            sanitizeHandle = methodLookup.findVirtual(PolicyFactory.class, "sanitize", sanitizeSignature);
+        } catch (NoSuchMethodException|IllegalAccessException e) {
+            throw new RuntimeException("Missing guava on runtime classpath", e);
+        }
+    }
 
     private final boolean enabled;
-    @SuppressForbidden( reason = "PolicyFactory uses guava Function")
-    private final PolicyFactory policy;
-    
+    private final UnaryOperator<String> sanitizer;
+
     public HtmlSanitizer(Settings settings) {
         enabled = SETTING_SANITIZATION_ENABLED.get(settings);
         List<String> allow = SETTING_SANITIZATION_ALLOW.get(settings);
         List<String> disallow = SETTING_SANITIZATION_DISALLOW.get(settings);
-        policy = createCommonPolicy(allow, disallow);
+
+        // The sanitize method of PolicyFactory pulls in guava dependencies, which we want to isolate to
+        // runtime only rather than compile time where more guava uses can be accidentally pulled in.
+        // Here we lookup the sanitize method at runtime and grab a method handle to invoke.
+        PolicyFactory policy = createCommonPolicy(allow, disallow);
+        sanitizer = s -> {
+            try {
+                return (String) sanitizeHandle.invokeExact(policy, s);
+            } catch (Throwable e) {
+                throw new RuntimeException("Failed to invoke sanitize method of PolicyFactory", e);
+            }
+        };
     }
 
     public String sanitize(String html) {
         if (!enabled) {
             return html;
         }
-        return policy.sanitize(html);
+        return sanitizer.apply(html);
     }
 
     @SuppressForbidden( reason = "PolicyFactory uses guava Function")

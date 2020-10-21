@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -46,24 +45,15 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isMonitoringAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
-    public void testEnabledSetting() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        settings.put("xpack.monitoring.enabled", enabled);
+    public void testMonitoringEnabledByDefault() {
         MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(enabled));
-    }
-
-    public void testEnabledDefault() {
-        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         assertThat(featureSet.enabled(), is(true));
     }
 
@@ -103,7 +93,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
         var usageAction = new MonitoringUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, Settings.EMPTY,licenseState,
+            mock(ActionFilters.class), null, licenseState,
             new MonitoringUsageServices(monitoring, exporters));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);

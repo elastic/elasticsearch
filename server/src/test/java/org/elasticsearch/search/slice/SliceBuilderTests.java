@@ -27,17 +27,17 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchShardIterator;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -51,9 +51,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -99,11 +103,11 @@ public class SliceBuilderTests extends ESTestCase {
 
     private IndexSettings createIndexSettings(Version indexVersionCreated, int numShards) {
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        IndexMetaData indexState = IndexMetaData.builder("index").settings(settings).build();
+        IndexMetadata indexState = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(indexState, Settings.EMPTY);
     }
 
@@ -118,10 +122,12 @@ public class SliceBuilderTests extends ESTestCase {
 
     private QueryShardContext createShardContext(Version indexVersionCreated, IndexReader reader,
                                                  String fieldName, DocValuesType dvType, int numShards, int shardId) {
-        MappedFieldType fieldType = new MappedFieldType() {
+        MappedFieldType fieldType = new MappedFieldType(fieldName, true, false, dvType != null,
+            TextSearchInfo.NONE, Collections.emptyMap()) {
+
             @Override
-            public MappedFieldType clone() {
-                return null;
+            public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -138,16 +144,13 @@ public class SliceBuilderTests extends ESTestCase {
                 return null;
             }
         };
-        fieldType.setName(fieldName);
         QueryShardContext context = mock(QueryShardContext.class);
-        when(context.fieldMapper(fieldName)).thenReturn(fieldType);
+        when(context.getFieldType(fieldName)).thenReturn(fieldType);
         when(context.getIndexReader()).thenReturn(reader);
         when(context.getShardId()).thenReturn(shardId);
         IndexSettings indexSettings = createIndexSettings(indexVersionCreated, numShards);
         when(context.getIndexSettings()).thenReturn(indexSettings);
         if (dvType != null) {
-            fieldType.setHasDocValues(true);
-            fieldType.setDocValuesType(dvType);
             IndexNumericFieldData fd = mock(IndexNumericFieldData.class);
             when(context.getForField(fieldType)).thenReturn(fd);
         }
@@ -204,7 +207,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     public void testToFilterSimple() throws IOException {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
             writer.commit();
         }
@@ -224,7 +227,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     public void testToFilterRandom() throws IOException {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
             writer.commit();
         }
@@ -307,7 +310,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     public void testInvalidField() throws IOException {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
             writer.commit();
         }
@@ -321,18 +324,18 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     public void testToFilterWithRouting() throws IOException {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
             writer.commit();
         }
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
-        when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
+        when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(state);
         OperationRouting routing = mock(OperationRouting.class);
         GroupShardsIterator<ShardIterator> it = new GroupShardsIterator<>(
             Collections.singletonList(
-                new SearchShardIterator(null, new ShardId("index", "index", 1), null, null)
+                new PlainShardIterator(new ShardId("index", "index", 1), Collections.emptyList())
             )
         );
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(it);

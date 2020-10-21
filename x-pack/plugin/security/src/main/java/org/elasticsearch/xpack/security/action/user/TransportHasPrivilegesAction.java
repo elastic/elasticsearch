@@ -58,8 +58,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     @Override
     protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
-
-        final Authentication authentication = Authentication.getAuthentication(threadPool.getThreadContext());
+        final Authentication authentication = securityContext.getAuthentication();
         final User user = authentication.getUser();
         if (user.principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));

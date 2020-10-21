@@ -35,8 +35,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry> {
 
-    public static final int TYPE = 999;
-
     public static final ParseField DUMMY = new ParseField("dummy");
 
     private String dummy;
@@ -60,11 +58,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
     @Override
     public String getWriteableName() {
         return CustomSuggestionBuilder.SUGGESTION_NAME;
-    }
-
-    @Override
-    public int getWriteableType() {
-        return TYPE;
     }
 
     /**
@@ -95,7 +88,11 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
         static {
             declareCommonFields(PARSER);
             PARSER.declareString((entry, dummy) -> entry.dummy = dummy, DUMMY);
-            PARSER.declareObjectArray(Entry::addOptions, (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+            /*
+             * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+             * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+             */
+            PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }
 
         private String dummy;

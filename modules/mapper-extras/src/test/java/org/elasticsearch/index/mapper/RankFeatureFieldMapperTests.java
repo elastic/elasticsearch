@@ -23,35 +23,49 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.hamcrest.Matchers;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
-public class RankFeatureFieldMapperTests extends ESSingleNodeTestCase {
+import static org.hamcrest.Matchers.instanceOf;
 
-    IndexService indexService;
-    DocumentMapperParser parser;
+public class RankFeatureFieldMapperTests extends MapperTestCase {
 
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
+    @Override
+    protected Object getSampleValueForDocument() {
+        return 10;
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperExtrasPlugin.class);
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
+    }
+
+    @Override
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+        assertThat(query, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) query;
+        assertEquals("_feature", termQuery.getTerm().field());
+        assertEquals("field", termQuery.getTerm().text());
+        assertNotNull(fields.getField("_feature"));
+    }
+
+    @Override
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new MapperExtrasPlugin());
     }
 
     static int getFrequency(TokenStream tk) throws IOException {
@@ -63,34 +77,22 @@ public class RankFeatureFieldMapperTests extends ESSingleNodeTestCase {
         return freq;
     }
 
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "rank_feature");
+    }
+
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
-                .endObject().endObject());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 10)
-                        .endObject()),
-                XContentType.JSON));
-
+        ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
         IndexableField[] fields = doc1.rootDoc().getFields("_feature");
         assertEquals(1, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        assertThat(fields[0], instanceOf(FeatureField.class));
         FeatureField featureField1 = (FeatureField) fields[0];
 
-        ParsedDocument doc2 = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 12)
-                        .endObject()),
-                XContentType.JSON));
-
+        ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", 12)));
         FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature")[0];
 
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
@@ -99,34 +101,17 @@ public class RankFeatureFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNegativeScoreImpact() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "rank_feature")
-                .field("positive_score_impact", false).endObject().endObject()
-                .endObject().endObject());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "rank_feature").field("positive_score_impact", false))
+        );
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 10)
-                        .endObject()),
-                XContentType.JSON));
-
+        ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
         IndexableField[] fields = doc1.rootDoc().getFields("_feature");
         assertEquals(1, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        assertThat(fields[0], instanceOf(FeatureField.class));
         FeatureField featureField1 = (FeatureField) fields[0];
 
-        ParsedDocument doc2 = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 12)
-                        .endObject()),
-                XContentType.JSON));
-
+        ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", 12)));
         FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature")[0];
 
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
@@ -135,39 +120,30 @@ public class RankFeatureFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "rank_feature").endObject().startObject("foo")
-                .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
-                .endObject().endObject().endObject().endObject());
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("field").field("type", "rank_feature").endObject();
+            b.startObject("foo").startObject("properties");
+            {
+                b.startObject("field").field("type", "rank_feature").endObject();
+            }
+            b.endObject().endObject();
+        }));
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(new SourceToParse("test", "1", BytesReference
-                        .bytes(XContentFactory.jsonBuilder()
-                                .startObject()
-                                .field("field", Arrays.asList(10, 20))
-                                .endObject()),
-                        XContentType.JSON)));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Arrays.asList(10, 20))))
+        );
         assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [field] in the same document",
                 e.getCause().getMessage());
 
-        e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(new SourceToParse("test", "1", BytesReference
-                        .bytes(XContentFactory.jsonBuilder()
-                                .startObject()
-                                    .startArray("foo")
-                                        .startObject()
-                                            .field("field", 10)
-                                        .endObject()
-                                        .startObject()
-                                            .field("field", 20)
-                                        .endObject()
-                                    .endArray()
-                                .endObject()),
-                        XContentType.JSON)));
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("foo");
+            {
+                b.startObject().field("field", 10).endObject();
+                b.startObject().field("field", 20).endObject();
+            }
+            b.endArray();
+        })));
         assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
                 e.getCause().getMessage());
     }

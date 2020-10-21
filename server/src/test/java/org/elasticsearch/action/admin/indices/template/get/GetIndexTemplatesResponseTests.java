@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -39,14 +39,14 @@ public class GetIndexTemplatesResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected GetIndexTemplatesResponse createTestInstance() {
-        List<IndexTemplateMetaData> templates = new ArrayList<>();
+        List<IndexTemplateMetadata> templates = new ArrayList<>();
         int numTemplates = between(0, 10);
         for (int t = 0; t < numTemplates; t++) {
-            IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder("template-" + t);
+            IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("template-" + t);
             templateBuilder.patterns(IntStream.range(0, between(1, 5)).mapToObj(i -> "pattern-" + i).collect(Collectors.toList()));
             int numAlias = between(0, 5);
             for (int i = 0; i < numAlias; i++) {
-                templateBuilder.putAlias(AliasMetaData.builder(randomAlphaOfLengthBetween(1, 10)));
+                templateBuilder.putAlias(AliasMetadata.builder(randomAlphaOfLengthBetween(1, 10)));
             }
             if (randomBoolean()) {
                 templateBuilder.settings(Settings.builder().put("index.setting-1", randomLong()));

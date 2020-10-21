@@ -10,19 +10,38 @@ process so upgrading does not interrupt service. Rolling upgrades are supported:
 * From 5.6 to 6.8
 * From 6.8 to {prev-major-version}
 * From {prev-major-version} to {version}
+ifeval::[ "{version}" != "{minor-version}.0" ]
+* From any version since {minor-version}.0 to {version}
+endif::[]
 
+[TIP]
+====
+For rolling upgrades between major versions (e.g., 5.6 to 6.8), we recommend
+using the {kibana-ref}/upgrade-assistant.html[Kibana Upgrade Assistant].
+
+The upgrade assistant identifies deprecated settings in your cluster and guides
+you through the process of resolving issues, including reindexing.
+
+We also recommend checking your <<deprecation-logging,deprecation logs>> for any
+other functionality that may have changed.
+====
 
 The following table shows the recommended upgrade paths to {version}.
 
-[cols="<1m,3",options="header",]
+[cols="<1,3",options="header",]
 |====
 |Upgrade from   
-|Recommended upgrade path  to {version}
+|Recommended upgrade path to {version}
+
+ifeval::[ "{version}" != "{minor-version}.0" ]
+|A previous {minor-version} version (e.g., {minor-version}.0)
+|<<rolling-upgrades,Rolling upgrade>> to {version}
+endif::[]
 
 |{prev-major-version}
 |<<rolling-upgrades,Rolling upgrade>> to {version}
 
-|7.0–7.3
+|7.0–7.7
 a|
 . https://www.elastic.co/guide/en/elasticsearch/reference/{prev-major-version}/rolling-upgrades.html[Rolling upgrade] to {prev-major-version}
 . <<rolling-upgrades,Rolling upgrade>> to {version}
@@ -43,10 +62,18 @@ a|
 
 [WARNING]
 ====
-The following upgrade paths are *not* supported:
+The upgrade path from 6.8 to 7.0 is *not* supported (both full cluster restart and rolling upgrade).
+====
 
-* 6.8 to 7.0.
-* 6.7 to 7.1.–{prev-major-version}.
+To upgrade directly to {version} from 6.7 or earlier, you must shut down the
+cluster, install {version}, and restart. For more information, see
+<<restart-upgrade, Full cluster restart upgrade>>.
+
+[WARNING]
+====
+In-place downgrades to earlier versions are *not* supported. To downgrade to an
+earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
+to the version upgrade.
 ====
 
 {es} can read indices created in the previous major version. If you
@@ -59,10 +86,6 @@ information about upgrading old indices, see <<reindex-upgrade, Reindex to upgra
 When upgrading to a new version of {es}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
-
-To upgrade directly to {version} from 6.6 or earlier, you must shut down the
-cluster, install {version}, and restart. For more information, see
-<<restart-upgrade, Full cluster restart upgrade>>.
 
 --
 

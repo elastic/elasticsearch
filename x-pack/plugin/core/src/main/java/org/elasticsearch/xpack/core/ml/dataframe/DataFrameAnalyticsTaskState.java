@@ -10,11 +10,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
@@ -37,12 +36,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState {
                 a -> new DataFrameAnalyticsTaskState((DataFrameAnalyticsState) a[0], (long) a[1], (String) a[2]));
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-           if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-               return DataFrameAnalyticsState.fromString(p.text());
-           }
-           throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsState::fromString, STATE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), ALLOCATION_ID);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
     }
@@ -76,7 +70,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState {
         return reason;
     }
 
-    public boolean isStatusStale(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+    public boolean isStatusStale(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         return allocationId != task.getAllocationId();
     }
 

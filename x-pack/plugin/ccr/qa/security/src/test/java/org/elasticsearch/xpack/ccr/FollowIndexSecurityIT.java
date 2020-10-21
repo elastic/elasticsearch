@@ -132,8 +132,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
     public void testAutoFollowPatterns() throws Exception {
         assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
-        String allowedIndex = "logs-eu-20190101";
-        String disallowedIndex = "logs-us-20190101";
+        String allowedIndex = "logs-eu_20190101";
+        String disallowedIndex = "logs-us_20190101";
 
         {
             Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
@@ -143,7 +143,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
 
         Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu-*\"], \"remote_cluster\": \"leader_cluster\"}");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu*\"], \"remote_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {
@@ -222,6 +222,34 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                     assertThat(((Map<?, ?>) lease).get("source"), equalTo(ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
                 }
             }
+        }
+    }
+
+    public void testCleanShardFollowTaskAfterDeleteFollower() throws Exception {
+        final String cleanLeader = "clean-leader";
+        final String cleanFollower = "clean-follower";
+        if ("leader".equals(targetCluster)) {
+            logger.info("running against leader cluster");
+            final Settings indexSettings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.soft_deletes.enabled", true)
+                .build();
+            createIndex(cleanLeader, indexSettings);
+        } else {
+            logger.info("running against follower cluster");
+            followIndex(client(), "leader_cluster", cleanLeader, cleanFollower);
+
+            final Request request = new Request("DELETE", "/" + cleanFollower);
+            final Response response = client().performRequest(request);
+            assertOK(response);
+            // the shard follow task should have been cleaned up on behalf of the user, see ShardFollowTaskCleaner
+            assertBusy(() -> {
+                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
+                List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
+                assertThat(tasks.size(), equalTo(0));
+                assertThat(countCcrNodeTasks(), equalTo(0));
+            });
         }
     }
 

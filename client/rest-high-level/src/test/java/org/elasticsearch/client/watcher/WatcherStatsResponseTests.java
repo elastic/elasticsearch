@@ -52,7 +52,7 @@ public class WatcherStatsResponseTests extends ESTestCase {
     private void toXContent(WatcherStatsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         NodesResponseHeaderTestUtils.toXContent(response.getHeader(), response.getClusterName(), builder);
-        toXContent(response.getWatcherMetaData(), builder);
+        toXContent(response.getWatcherMetadata(), builder);
         builder.startArray("stats");
         for (WatcherStatsResponse.Node node : response.getNodes()) {
             toXContent(node, builder);
@@ -61,8 +61,8 @@ public class WatcherStatsResponseTests extends ESTestCase {
         builder.endObject();
     }
 
-    private void toXContent(WatcherMetaData metaData, XContentBuilder builder) throws IOException {
-        builder.field("manually_stopped", metaData.manuallyStopped());
+    private void toXContent(WatcherMetadata metadata, XContentBuilder builder) throws IOException {
+        builder.field("manually_stopped", metadata.manuallyStopped());
     }
 
     private void toXContent(WatcherStatsResponse.Node node, XContentBuilder builder) throws IOException {
@@ -182,7 +182,7 @@ public class WatcherStatsResponseTests extends ESTestCase {
         }
         NodesResponseHeader nodesResponseHeader = new NodesResponseHeader(randomInt(10), randomInt(10),
             randomInt(10), Collections.emptyList());
-        WatcherMetaData watcherMetaData = new WatcherMetaData(randomBoolean());
-        return new WatcherStatsResponse(nodesResponseHeader, randomAlphaOfLength(10), watcherMetaData, nodes);
+        WatcherMetadata watcherMetadata = new WatcherMetadata(randomBoolean());
+        return new WatcherStatsResponse(nodesResponseHeader, randomAlphaOfLength(10), watcherMetadata, nodes);
     }
 }

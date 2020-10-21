@@ -22,10 +22,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,12 +67,20 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         public Object getKey() {
-            return term;
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                return format.format(term);
+            } else {
+                return term;
+            }
         }
 
         @Override
         public Number getKeyAsNumber() {
-            return term;
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                return (Number) format.format(term);
+            } else {
+                return term;
+            }
         }
 
         @Override
@@ -83,8 +90,12 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-            builder.field(CommonFields.KEY.getPreferredName(), term);
-            if (format != DocValueFormat.RAW) {
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                builder.field(CommonFields.KEY.getPreferredName(), format.format(term));
+            } else {
+                builder.field(CommonFields.KEY.getPreferredName(), term);
+            }
+            if (format != DocValueFormat.RAW && format != DocValueFormat.UNSIGNED_LONG_SHIFTED) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term).toString());
             }
             return builder;
@@ -101,10 +112,10 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
     }
 
-    public LongTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
+    public LongTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
+            Map<String, Object> metadata, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize, showTermDocCountError,
+        super(name, reduceOrder, order, requiredSize, minDocCount, metadata, format, shardSize, showTermDocCountError,
                 otherDocCount, buckets, docCountError);
     }
 
@@ -122,7 +133,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public LongTerms create(List<Bucket> buckets) {
-        return new LongTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData, format, shardSize,
+        return new LongTerms(name, reduceOrder, order, requiredSize, minDocCount, metadata, format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -133,8 +144,8 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    protected LongTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
-        return new LongTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, shardSize,
+    protected LongTerms create(String name, List<Bucket> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount) {
+        return new LongTerms(name, reduceOrder, order, requiredSize, minDocCount, getMetadata(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -145,10 +156,31 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        boolean unsignedLongFormat = false;
+        boolean rawFormat = false;
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof DoubleTerms) {
                 return agg.reduce(aggregations, reduceContext);
             }
+            if (agg instanceof LongTerms) {
+                if (((LongTerms) agg).format == DocValueFormat.RAW) {
+                    rawFormat = true;
+                } else if (((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                    unsignedLongFormat = true;
+                }
+            }
+        }
+        if (rawFormat && unsignedLongFormat) { // if we have mixed formats, convert results to double format
+            List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
+            for (InternalAggregation agg : aggregations) {
+                if (agg instanceof LongTerms) {
+                    DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
+                    newAggs.add(dTerms);
+                } else {
+                    newAggs.add(agg);
+                }
+            }
+            return newAggs.get(0).reduce(newAggs, reduceContext);
         }
         return super.reduce(aggregations, reduceContext);
     }
@@ -169,9 +201,9 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
                 bucket.getDocCount(), (InternalAggregations) bucket.getAggregations(), longTerms.showTermDocCountError,
                 longTerms.showTermDocCountError ? bucket.getDocCountError() : 0, decimalFormat));
         }
-        return new DoubleTerms(longTerms.getName(), longTerms.order, longTerms.requiredSize,
-            longTerms.minDocCount, longTerms.pipelineAggregators(),
-            longTerms.metaData, longTerms.format, longTerms.shardSize,
+        return new DoubleTerms(longTerms.getName(), longTerms.reduceOrder, longTerms.order, longTerms.requiredSize,
+            longTerms.minDocCount,
+            longTerms.metadata, longTerms.format, longTerms.shardSize,
             longTerms.showTermDocCountError, longTerms.otherDocCount,
             newBuckets, longTerms.docCountError);
     }

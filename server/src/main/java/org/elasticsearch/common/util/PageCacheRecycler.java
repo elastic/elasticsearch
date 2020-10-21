@@ -74,7 +74,7 @@ public class PageCacheRecycler {
     public PageCacheRecycler(Settings settings) {
         final Type type = TYPE_SETTING.get(settings);
         final long limit = LIMIT_HEAP_SETTING.get(settings).getBytes();
-        final int availableProcessors = EsExecutors.numberOfProcessors(settings);
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
 
         // We have a global amount of memory that we need to divide across data types.
         // Since some types are more useful than other ones we give them different weights.
@@ -98,7 +98,7 @@ public class PageCacheRecycler {
         final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / PAGE_SIZE_IN_BYTES);
 
         final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
-        bytePage = build(type, maxBytePageCount, availableProcessors, new AbstractRecyclerC<byte[]>() {
+        bytePage = build(type, maxBytePageCount, allocatedProcessors, new AbstractRecyclerC<byte[]>() {
             @Override
             public byte[] newInstance() {
                 return new byte[BYTE_PAGE_SIZE];
@@ -110,7 +110,7 @@ public class PageCacheRecycler {
         });
 
         final int maxIntPageCount = (int) (intsWeight * maxPageCount / totalWeight);
-        intPage = build(type, maxIntPageCount, availableProcessors, new AbstractRecyclerC<int[]>() {
+        intPage = build(type, maxIntPageCount, allocatedProcessors, new AbstractRecyclerC<int[]>() {
             @Override
             public int[] newInstance() {
                 return new int[INT_PAGE_SIZE];
@@ -122,7 +122,7 @@ public class PageCacheRecycler {
         });
 
         final int maxLongPageCount = (int) (longsWeight * maxPageCount / totalWeight);
-        longPage = build(type, maxLongPageCount, availableProcessors, new AbstractRecyclerC<long[]>() {
+        longPage = build(type, maxLongPageCount, allocatedProcessors, new AbstractRecyclerC<long[]>() {
             @Override
             public long[] newInstance() {
                 return new long[LONG_PAGE_SIZE];
@@ -134,7 +134,7 @@ public class PageCacheRecycler {
         });
 
         final int maxObjectPageCount = (int) (objectsWeight * maxPageCount / totalWeight);
-        objectPage = build(type, maxObjectPageCount, availableProcessors, new AbstractRecyclerC<Object[]>() {
+        objectPage = build(type, maxObjectPageCount, allocatedProcessors, new AbstractRecyclerC<Object[]>() {
             @Override
             public Object[] newInstance() {
                 return new Object[OBJECT_PAGE_SIZE];

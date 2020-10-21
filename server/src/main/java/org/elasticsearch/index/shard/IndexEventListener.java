@@ -167,4 +167,15 @@ public interface IndexEventListener {
      * @param shardId the shard ID the store belongs to
      */
     default void onStoreClosed(ShardId shardId) {}
+
+    /**
+     * Called before the index shard starts to recover.
+     * Note: unlike all other methods in this class, this method is not called using the cluster state update thread. When this method is
+     * called the shard already transitioned to the RECOVERING state.
+     *
+     * @param indexShard    the shard that is about to recover
+     * @param indexSettings the shard's index settings
+     */
+    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
+    }
 }

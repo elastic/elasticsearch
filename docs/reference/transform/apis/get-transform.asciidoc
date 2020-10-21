@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-transform]]
-=== Get {transforms} API
+= Get {transforms} API
 
 [subs="attributes"]
 ++++
@@ -10,10 +10,8 @@
 
 Retrieves configuration information for {transforms}.
 
-beta[]
-
 [[get-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _transform/<transform_id>` +
 
@@ -26,15 +24,19 @@ beta[]
 `GET _transform/*`
 
 [[get-transform-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_transform` 
-cluster privileges to use this API. The built-in `transform_user` role has these 
-privileges. For more information, see <<security-privileges>> and 
-<<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following
+privileges:
+
+* `monitor_transform`
+
+The built-in `transform_user` role has this privilege.
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 [[get-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can get information for multiple {transforms} in a single API
 request by using a comma-separated list of identifiers or a wildcard expression.
@@ -42,29 +44,35 @@ You can get information for all {transforms} by using `_all`, by
 specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`.
 
 [[get-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
-  
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
+
 [[get-transform-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
 `from`::
 (Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 
 `size`::
 (Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+
+`exclude_generated`::
+(Optional, boolean)
+Excludes fields that were automatically added when creating the transform.
+This allows the configuration to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
 
 [[get-transform-response]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of {transform} resources, which are sorted by the `id`
 value in ascending order. For the full list of properties, see
@@ -77,16 +85,16 @@ This property is informational; you cannot change its value.
 `version`::
 (string) The version of {es} that existed on the node when the {transform} was
 created.
-  
+
 [[get-transform-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
-  resources that match the request or only partial matches for the request.  
+  resources that match the request or only partial matches for the request.
 
 [[get-transform-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The following example retrieves information about a maximum of ten {transforms}:
 
@@ -147,6 +155,7 @@ The API returns the following results:
         }
       },
       "description" : "Maximum priced ecommerce data by customer_id in Asia",
+      "settings" : { },
       "version" : "7.5.0",
       "create_time" : 1576094542936
     }

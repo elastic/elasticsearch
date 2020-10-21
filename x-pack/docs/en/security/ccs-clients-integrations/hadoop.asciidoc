@@ -19,5 +19,5 @@ instead through `es.net.ssl.keystore.location` and `es.net.truststore.location`
 For secured transport, enable SSL/TLS through the `es.net.ssl` property by
 setting it to `true`. Depending on your SSL configuration (keystore, truststore, etc...)
 you might need to set other parameters as well - please refer to the
-http://www.elastic.co/guide/en/elasticsearch/hadoop/current/configuration.html[ES-Hadoop] documentation,
+https://www.elastic.co/guide/en/elasticsearch/hadoop/current/configuration.html[ES-Hadoop] documentation,
 specifically the `Configuration` and `Security` chapters.

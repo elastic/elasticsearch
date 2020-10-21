@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,12 +49,9 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
             this.jobId = jobId;
             this.update = update;
             this.isInternal = isInternal;
-            if (MetaData.ALL.equals(jobId)) {
+            if (Strings.isAllOrWildcard(jobId)) {
                 throw ExceptionsHelper.badRequestException("Cannot update more than 1 job at a time");
             }
-        }
-
-        public Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -123,12 +117,4 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
             return Strings.toString(this);
         }
     }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, PutJobAction.Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, UpdateJobAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

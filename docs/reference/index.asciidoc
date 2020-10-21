@@ -2,51 +2,57 @@
 = Elasticsearch Reference
 
 :include-xpack:         true
-:es-test-dir:           {docdir}/../src/test
-:plugins-examples-dir:  {docdir}/../../plugins/examples
-:xes-repo-dir:          {docdir}/../../x-pack/docs/{lang}
-:es-repo-dir:           {docdir}
-
+:es-test-dir:           {elasticsearch-root}/docs/src/test
+:plugins-examples-dir:  {elasticsearch-root}/plugins/examples
+:xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
+:es-repo-dir:           {elasticsearch-root}/docs/reference
 
 include::../Versions.asciidoc[]
+include::links.asciidoc[]
 
 include::intro.asciidoc[]
+
+include::release-notes/highlights.asciidoc[]
 
 include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::setup/bootstrap-checks-xes.asciidoc[]
-
 include::upgrade.asciidoc[]
 
-include::aggregations.asciidoc[]
-
-include::query-dsl.asciidoc[]
-
-include::modules/cross-cluster-search.asciidoc[]
-
-include::scripting.asciidoc[]
+include::index-modules.asciidoc[]
 
 include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]
 
-include::modules.asciidoc[]
+include::indices/index-templates.asciidoc[]
 
-include::index-modules.asciidoc[]
+include::data-streams/data-streams.asciidoc[]
+
+include::datatiers.asciidoc[]
 
 include::ingest.asciidoc[]
 
+include::search/search-your-data/search-your-data.asciidoc[]
+
+include::query-dsl.asciidoc[]
+
+include::aggregations.asciidoc[]
+
+include::eql/eql.asciidoc[]
+
+include::sql/index.asciidoc[]
+
+include::scripting.asciidoc[]
+
 include::ilm/index.asciidoc[]
 
-ifeval::["{release-state}"=="unreleased"]
+ifdef::permanently-unreleased-branch[]
 
 include::autoscaling/index.asciidoc[]
 
 endif::[]
-
-include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
@@ -66,13 +72,9 @@ include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
 
-include::testing.asciidoc[]
-
 include::glossary.asciidoc[]
 
 include::rest-api/index.asciidoc[]
-
-include::release-notes/highlights.asciidoc[]
 
 include::migration/index.asciidoc[]
 

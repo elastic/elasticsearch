@@ -75,14 +75,13 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
 
         GlobalAggregationBuilder aggregationBuilder = new GlobalAggregationBuilder("_name");
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_global").field("number"));
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
 
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
-        InternalGlobal result = (InternalGlobal) aggregator.buildAggregation(0L);
+        InternalGlobal result = (InternalGlobal) aggregator.buildTopLevel();
         verify.accept(result, (InternalMin) result.getAggregations().asMap().get("in_global"));
 
         indexReader.close();

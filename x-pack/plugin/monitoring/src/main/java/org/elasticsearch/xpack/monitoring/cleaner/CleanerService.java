@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
@@ -86,11 +87,11 @@ public class CleanerService extends AbstractLifecycleComponent {
      * This will ignore the global retention if the license does not allow retention updates.
      *
      * @return Never {@code null}
-     * @see XPackLicenseState#isUpdateRetentionAllowed()
+     * @see XPackLicenseState.Feature#MONITORING_UPDATE_RETENTION
      */
     public TimeValue getRetention() {
         // we only care about their value if they are allowed to set it
-        if (licenseState.isUpdateRetentionAllowed() && globalRetention != null) {
+        if (licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION) && globalRetention != null) {
             return globalRetention;
         }
         else {
@@ -108,7 +109,7 @@ public class CleanerService extends AbstractLifecycleComponent {
      */
     public void setGlobalRetention(TimeValue globalRetention) {
         // notify the user that their setting will be ignored until they get the right license
-        if (licenseState.isUpdateRetentionAllowed() == false) {
+        if (licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION) == false) {
             logger.warn("[{}] setting will be ignored until an appropriate license is applied", MonitoringField.HISTORY_DURATION.getKey());
         }
 
@@ -165,7 +166,7 @@ public class CleanerService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRunInLifecycle() throws Exception {
-            if (licenseState.isMonitoringAllowed() == false) {
+            if (licenseState.checkFeature(Feature.MONITORING) == false) {
                 logger.debug("cleaning service is disabled due to invalid license");
                 return;
             }

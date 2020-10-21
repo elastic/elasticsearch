@@ -21,6 +21,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -36,9 +38,12 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.Executor;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -52,10 +57,10 @@ class ClientTransformIndexer extends TransformIndexer {
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
 
     ClientTransformIndexer(
-        Executor executor,
+        ThreadPool threadPool,
+        String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
-        TransformProgressGatherer progressGatherer,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
         Client client,
@@ -71,10 +76,10 @@ class ClientTransformIndexer extends TransformIndexer {
         boolean shouldStopAtCheckpoint
     ) {
         super(
-            ExceptionsHelper.requireNonNull(executor, "executor"),
+            ExceptionsHelper.requireNonNull(threadPool, "threadPool"),
+            executorName,
             transformsConfigManager,
             checkpointProvider,
-            progressGatherer,
             auditor,
             transformConfig,
             fieldMappings,
@@ -93,36 +98,8 @@ class ClientTransformIndexer extends TransformIndexer {
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
     }
 
-    void persistShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
-        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint
-            || getState() == IndexerState.STOPPED
-            || getState() == IndexerState.STOPPING) {
-            shouldStopAtCheckpointListener.onResponse(null);
-            return;
-        }
-        TransformState state = new TransformState(
-            context.getTaskState(),
-            getState(),
-            getPosition(),
-            context.getCheckpoint(),
-            context.getStateReason(),
-            getProgress(),
-            null, // Node attributes
-            shouldStopAtCheckpoint
-        );
-        doSaveState(state, ActionListener.wrap(r -> {
-            // We only want to update this internal value if it is persisted as such
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-            logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]", getJobId(), shouldStopAtCheckpoint);
-            shouldStopAtCheckpointListener.onResponse(null);
-        }, statsExc -> {
-            logger.warn("[{}] failed to persist should_stop_at_checkpoint update [{}]", getJobId(), shouldStopAtCheckpoint);
-            shouldStopAtCheckpointListener.onFailure(statsExc);
-        }));
-    }
-
     @Override
-    protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+    protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] attempted to search while failed.", getJobId());
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a search request for failed transform [{}].", getJobId()));
@@ -133,7 +110,7 @@ class ClientTransformIndexer extends TransformIndexer {
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
-            request,
+            buildSearchRequest(),
             nextPhase
         );
     }
@@ -154,36 +131,80 @@ class ClientTransformIndexer extends TransformIndexer {
             ActionListener.wrap(bulkResponse -> {
                 if (bulkResponse.hasFailures()) {
                     int failureCount = 0;
+                    // dedup the failures by the type of the exception, as they most likely have the same cause
+                    Map<String, BulkItemResponse> deduplicatedFailures = new LinkedHashMap<>();
+
                     for (BulkItemResponse item : bulkResponse.getItems()) {
                         if (item.isFailed()) {
+                            deduplicatedFailures.putIfAbsent(item.getFailure().getCause().getClass().getSimpleName(), item);
                             failureCount++;
                         }
-                        // TODO gather information on irrecoverable failures and update isIrrecoverableFailure
                     }
-                    if (auditBulkFailures) {
-                        String failureMessage = bulkResponse.buildFailureMessage();
-                        logger.debug("[{}] Bulk index failure encountered: {}", getJobId(), failureMessage);
-                        auditor.warning(
-                            getJobId(),
-                            "Experienced at least ["
-                                + failureCount
-                                + "] bulk index failures. See the logs of the node running the transform for details. "
-                                + failureMessage
-                        );
-                        auditBulkFailures = false;
-                    }
+
+                    // note: bulk failures are audited/logged in {@link TransformIndexer#handleFailure(Exception)}
+
                     // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
-                    // It increments the indexing failure, and then calls the `onFailure` logic
-                    nextPhase.onFailure(
-                        new BulkIndexingException(
-                            "Bulk index experienced failures. " + "See the logs of the node running the transform for details."
-                        )
+                    // Determine whether the failure is irrecoverable (transform should go into failed state) or not (transform increments
+                    // the indexing failure counter
+                    // and possibly retries)
+                    Throwable irrecoverableException = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(
+                        deduplicatedFailures.values()
                     );
+                    if (irrecoverableException == null) {
+                        String failureMessage = getBulkIndexDetailedFailureMessage(" Significant failures: ", deduplicatedFailures);
+                        logger.debug("[{}] Bulk index experienced [{}] failures.{}", getJobId(), failureCount, failureMessage);
+
+                        Exception firstException = deduplicatedFailures.values().iterator().next().getFailure().getCause();
+                        nextPhase.onFailure(
+                            new BulkIndexingException(
+                                "Bulk index experienced [{}] failures. Significant falures: {}",
+                                firstException,
+                                false,
+                                failureCount,
+                                failureMessage
+                            )
+                        );
+                    } else {
+                        deduplicatedFailures.remove(irrecoverableException.getClass().getSimpleName());
+                        String failureMessage = getBulkIndexDetailedFailureMessage(" Other failures: ", deduplicatedFailures);
+                        irrecoverableException = decorateBulkIndexException(irrecoverableException);
+
+                        logger.debug(
+                            "[{}] Bulk index experienced [{}] failures and at least 1 irrecoverable [{}].{}",
+                            getJobId(),
+                            failureCount,
+                            ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
+                            failureMessage
+                        );
+
+                        nextPhase.onFailure(
+                            new BulkIndexingException(
+                                "Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. Other failures: {}",
+                                irrecoverableException,
+                                true,
+                                failureCount,
+                                ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
+                                failureMessage
+                            )
+                        );
+                    }
                 } else {
                     auditBulkFailures = true;
                     nextPhase.onResponse(bulkResponse);
                 }
             }, nextPhase::onFailure)
+        );
+    }
+
+    @Override
+    void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            request,
+            responseListener
         );
     }
 
@@ -201,6 +222,9 @@ class ClientTransformIndexer extends TransformIndexer {
             return;
         }
 
+        // getting the listeners that registered till now, in theory a new listener could sneak in between this line
+        // and the next, however this is benign: we would store `shouldStopAtCheckpoint = true` twice which is ok
+        Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.getAndSet(null);
         boolean shouldStopAtCheckpoint = context.shouldStopAtCheckpoint();
 
         // If we should stop at the next checkpoint, are STARTED, and with `initialRun()` we are in one of two states
@@ -219,6 +243,9 @@ class ClientTransformIndexer extends TransformIndexer {
         // If the state is `STOPPED` this means that TransformTask#stop was called while we were checking for changes.
         // Allow the stop call path to continue
         if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
+            if (saveStateListenersAtTheMomentOfCalling != null) {
+                ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, null);
+            }
             next.run();
             return;
         }
@@ -260,11 +287,33 @@ class ClientTransformIndexer extends TransformIndexer {
         );
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
-        doSaveState(state, ActionListener.wrap(r -> next.run(), e -> next.run()));
+        // we might need to call the save state listeners, but do not want to stop rolling
+        doSaveState(state, ActionListener.wrap(r -> {
+            try {
+                if (saveStateListenersAtTheMomentOfCalling != null) {
+                    ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, r);
+                }
+            } catch (Exception onResponseException) {
+                String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
+                logger.warn(msg, onResponseException);
+            } finally {
+                next.run();
+            }
+        }, e -> {
+            try {
+                if (saveStateListenersAtTheMomentOfCalling != null) {
+                    ActionListener.onFailure(saveStateListenersAtTheMomentOfCalling, e);
+                }
+            } catch (Exception onFailureException) {
+                String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
+                logger.warn(msg, onFailureException);
+            } finally {
+                next.run();
+            }
+        }));
     }
 
     private void doSaveState(TransformState state, ActionListener<Void> listener) {
-
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = getSeqNoPrimaryTermAndIndex();
 
@@ -280,6 +329,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
                     context.shutdown();
                 }
+
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
                     transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {
@@ -320,11 +370,31 @@ class ClientTransformIndexer extends TransformIndexer {
         return seqNoPrimaryTermAndIndex.get();
     }
 
-    // Considered a recoverable indexing failure
-    private static class BulkIndexingException extends ElasticsearchException {
-        BulkIndexingException(String msg, Object... args) {
-            super(msg, args);
+    private static String getBulkIndexDetailedFailureMessage(String prefix, Map<String, BulkItemResponse> failures) {
+        if (failures.isEmpty()) {
+            return "";
         }
+
+        StringBuilder failureMessageBuilder = new StringBuilder(prefix);
+        for (Entry<String, BulkItemResponse> failure : failures.entrySet()) {
+            failureMessageBuilder.append("\n[")
+                .append(failure.getKey())
+                .append("] message [")
+                .append(failure.getValue().getFailureMessage())
+                .append("]");
+        }
+        String failureMessage = failureMessageBuilder.toString();
+        return failureMessage;
     }
 
+    private static Throwable decorateBulkIndexException(Throwable irrecoverableException) {
+        if (irrecoverableException instanceof MapperParsingException) {
+            return new TransformException(
+                "Destination index mappings are incompatible with the transform configuration.",
+                irrecoverableException
+            );
+        }
+
+        return irrecoverableException;
+    }
 }

@@ -76,9 +76,9 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                                                      ExecutorService executorService,
                                                      Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AutodetectBuilder.AUTODETECT, job.getId(),
-                true, false, true, true, params.modelSnapshot() != null,
-                !AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AutodetectBuilder.AUTODETECT,
+            job.getId(), null, false, true, true, params.modelSnapshot() != null,
+            AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings) == false);
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
                 && job.getAnalysisConfig().getCategorizationFieldName() != null;
@@ -89,19 +89,20 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER,
             NamedXContentRegistry.EMPTY);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
-                job.getId(), nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
-                processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields,
-                filesToDelete, resultsParser, onProcessCrash, processConnectTimeout);
+                job.getId(), nativeController, processPipes, numberOfFields,
+                filesToDelete, resultsParser, onProcessCrash);
         try {
-            autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());
+            autodetect.start(executorService, stateProcessor);
             return autodetect;
-        } catch (EsRejectedExecutionException e) {
+        } catch (IOException | EsRejectedExecutionException e) {
+            String msg = "Failed to connect to autodetect for job " + job.getId();
+            LOGGER.error(msg);
             try {
                 IOUtils.close(autodetect);
             } catch (IOException ioe) {
                 LOGGER.error("Can't close autodetect", ioe);
             }
-            throw e;
+            throw ExceptionsHelper.serverError(msg, e);
         }
     }
 
@@ -126,9 +127,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                 autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
             autodetectBuilder.build();
-            processPipes.connectStreams(processConnectTimeout);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("[{}] Interrupted while launching autodetect", job.getId());
         } catch (IOException e) {
-            String msg = "Failed to launch autodetect for job " + job.getId();
+            String msg = "[" + job.getId() + "] Failed to launch autodetect";
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

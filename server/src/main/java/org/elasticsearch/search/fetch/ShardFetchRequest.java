@@ -23,9 +23,14 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -39,7 +44,7 @@ import java.util.Map;
  */
 public class ShardFetchRequest extends TransportRequest {
 
-    private long id;
+    private ShardSearchContextId contextId;
 
     private int[] docIds;
 
@@ -47,11 +52,8 @@ public class ShardFetchRequest extends TransportRequest {
 
     private ScoreDoc lastEmittedDoc;
 
-    public ShardFetchRequest() {
-    }
-
-    public ShardFetchRequest(long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
-        this.id = id;
+    public ShardFetchRequest(ShardSearchContextId contextId, IntArrayList list, ScoreDoc lastEmittedDoc) {
+        this.contextId = contextId;
         this.docIds = list.buffer;
         this.size = list.size();
         this.lastEmittedDoc = lastEmittedDoc;
@@ -59,7 +61,7 @@ public class ShardFetchRequest extends TransportRequest {
 
     public ShardFetchRequest(StreamInput in) throws IOException {
         super(in);
-        id = in.readLong();
+        contextId = new ShardSearchContextId(in);
         size = in.readVInt();
         docIds = new int[size];
         for (int i = 0; i < size; i++) {
@@ -78,7 +80,7 @@ public class ShardFetchRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        contextId.writeTo(out);
         out.writeVInt(size);
         for (int i = 0; i < size; i++) {
             out.writeVInt(docIds[i]);
@@ -94,8 +96,8 @@ public class ShardFetchRequest extends TransportRequest {
         }
     }
 
-    public long id() {
-        return id;
+    public ShardSearchContextId contextId() {
+        return contextId;
     }
 
     public int[] docIds() {
@@ -117,7 +119,21 @@ public class ShardFetchRequest extends TransportRequest {
 
     @Override
     public String getDescription() {
-        return "id[" + id + "], size[" + size + "], lastEmittedDoc[" + lastEmittedDoc + "]";
+        return "id[" + contextId + "], size[" + size + "], lastEmittedDoc[" + lastEmittedDoc + "]";
     }
 
+    @Nullable
+    public ShardSearchRequest getShardSearchRequest() {
+        return null;
+    }
+
+    @Nullable
+    public RescoreDocIds getRescoreDocIds() {
+        return null;
+    }
+
+    @Nullable
+    public AggregatedDfs getAggregatedDfs() {
+        return null;
+    }
 }

@@ -80,7 +80,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.oneOf;
 
 public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -429,7 +429,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest(config.getRollupIndex()).waitForYellowStatus();
         ClusterHealthResponse healthResponse = client.cluster().health(healthRequest, RequestOptions.DEFAULT);
         assertFalse(healthResponse.isTimedOut());
-        assertThat(healthResponse.getStatus(), isOneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
+        assertThat(healthResponse.getStatus(), oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
 
         // Now that the job is created, we should have a rollup index with metadata.
         // We can test out the caps API now.
@@ -546,7 +546,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest(config.getRollupIndex()).waitForYellowStatus();
         ClusterHealthResponse healthResponse = client.cluster().health(healthRequest, RequestOptions.DEFAULT);
         assertFalse(healthResponse.isTimedOut());
-        assertThat(healthResponse.getStatus(), isOneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
+        assertThat(healthResponse.getStatus(), oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
 
         // Now that the job is created, we should have a rollup index with metadata.
         // We can test out the caps API now.

@@ -69,9 +69,7 @@ public class Netty4UtilsTests extends ESTestCase {
         BytesReference ref = getRandomizedBytesReference(randomIntBetween(1, 3 * PAGE_SIZE));
         ByteBuf buffer = Netty4Utils.toByteBuf(ref);
         BytesReference bytesReference = Netty4Utils.toBytesReference(buffer);
-        if (ref instanceof ByteBufBytesReference) {
-            assertEquals(buffer, ((ByteBufBytesReference) ref).toByteBuf());
-        } else if (AbstractBytesReferenceTestCase.getNumPages(ref) > 1) { // we gather the buffers into a channel buffer
+        if (AbstractBytesReferenceTestCase.getNumPages(ref) > 1) { // we gather the buffers into a channel buffer
             assertTrue(buffer instanceof CompositeByteBuf);
         }
         assertArrayEquals(BytesReference.toBytes(ref), BytesReference.toBytes(bytesReference));

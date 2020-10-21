@@ -12,22 +12,24 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,9 +43,9 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
-import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
-import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
-import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
+import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
+import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -51,9 +53,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -65,12 +71,22 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.Fields.APPLICATION;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
 /**
  * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
  * from an Elasticsearch index.
  */
 public class NativePrivilegeStore {
+
+
+    public static final Setting<Integer> CACHE_MAX_APPLICATIONS_SETTING =
+        Setting.intSetting("xpack.security.authz.store.privileges.cache.max_size",
+            10_000, Setting.Property.NodeScope);
+
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authz.store.privileges.cache.ttl",
+        TimeValue.timeValueHours(24L), Setting.Property.NodeScope);
 
     private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
         Tuple::v1,
@@ -83,47 +99,97 @@ public class NativePrivilegeStore {
     private final Settings settings;
     private final Client client;
     private final SecurityIndexManager securityIndexManager;
+    private final Cache<String, Set<ApplicationPrivilegeDescriptor>> descriptorsCache;
+    private final Cache<Set<String>, Set<String>> applicationNamesCache;
+    private final AtomicLong numInvalidation = new AtomicLong();
+    private final ReadWriteLock invalidationLock = new ReentrantReadWriteLock();
+    private final ReleasableLock invalidationReadLock = new ReleasableLock(invalidationLock.readLock());
+    private final ReleasableLock invalidationWriteLock = new ReleasableLock(invalidationLock.writeLock());
+
 
     public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
         this.settings = settings;
         this.client = client;
         this.securityIndexManager = securityIndexManager;
+        final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
+        if (ttl.getNanos() > 0) {
+            final int cacheSize = CACHE_MAX_APPLICATIONS_SETTING.get(settings);
+            descriptorsCache = CacheBuilder.<String, Set<ApplicationPrivilegeDescriptor>>builder()
+                .setMaximumWeight(cacheSize)
+                .weigher((k, v) -> v.size())
+                .setExpireAfterWrite(ttl).build();
+            applicationNamesCache = CacheBuilder.<Set<String>, Set<String>>builder()
+                .setMaximumWeight(cacheSize)
+                .weigher((k, v) -> k.size() + v.size())
+                .setExpireAfterWrite(ttl).build();
+        } else {
+            descriptorsCache = null;
+            applicationNamesCache = null;
+        }
+        assert (descriptorsCache == null && applicationNamesCache == null)
+            || (descriptorsCache != null && applicationNamesCache != null)
+            : "descriptor and application names cache must be enabled or disabled together";
     }
 
     public void getPrivileges(Collection<String> applications, Collection<String> names,
                               ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+
+        final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*")) ?
+            Set.of("*") : Set.copyOf(applications);
+
+        // Always fetch for the concrete application names even when the passed-in application names has no wildcard.
+        // This serves as a negative lookup, i.e. when a passed-in non-wildcard application does not exist.
+        Set<String> concreteApplicationNames = applicationNamesCache == null ? null : applicationNamesCache.get(applicationNamesCacheKey);
+
+        if (concreteApplicationNames != null && concreteApplicationNames.isEmpty()) {
+            logger.debug("returning empty application privileges for [{}] as application names result in empty list",
+                applicationNamesCacheKey);
+            listener.onResponse(Collections.emptySet());
+        } else {
+            final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = cachedDescriptorsForApplicationNames(
+                concreteApplicationNames != null ? concreteApplicationNames : applicationNamesCacheKey);
+            if (cachedDescriptors != null) {
+                logger.debug("All application privileges for [{}] found in cache", applicationNamesCacheKey);
+                listener.onResponse(filterDescriptorsForPrivilegeNames(cachedDescriptors, names));
+            } else {
+                final long invalidationCounter = numInvalidation.get();
+                // Always fetch all privileges of an application for caching purpose
+                logger.debug("Fetching application privilege documents for: {}", applicationNamesCacheKey);
+                innerGetPrivileges(applicationNamesCacheKey, ActionListener.wrap(fetchedDescriptors -> {
+                    final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
+                        .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
+                    if (descriptorsCache != null) {
+                        // Use RWLock and atomic counter to:
+                        // 1. Avoid caching potential stale results as much as possible
+                        // 2. If stale results are cached, ensure they will be invalidated as soon as possible
+                        try (ReleasableLock ignored = invalidationReadLock.acquire()) {
+                            if (invalidationCounter == numInvalidation.get()) {
+                                cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors);
+                            }
+                        }
+                    }
+                    listener.onResponse(filterDescriptorsForPrivilegeNames(fetchedDescriptors, names));
+                }, listener::onFailure));
+            }
+        }
+    }
+
+    private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+        assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
+
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
-        } else if (isSinglePrivilegeMatch(applications, names)) {
-            getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
-                ActionListener.wrap(privilege ->
-                        listener.onResponse(privilege == null ? Collections.emptyList() : Collections.singletonList(privilege)),
-                    listener::onFailure));
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final QueryBuilder query;
+
                 final TermQueryBuilder typeQuery = QueryBuilders
                     .termQuery(ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(), DOC_TYPE_VALUE);
-                if (isEmpty(applications) && isEmpty(names)) {
-                    query = typeQuery;
-                } else if (isEmpty(names)) {
-                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(getApplicationNameQuery(applications));
-                } else if (isEmpty(applications)) {
-                    query = QueryBuilders.boolQuery().filter(typeQuery)
-                        .filter(getPrivilegeNameQuery(names));
-                } else if (hasWildcard(applications)) {
-                    query = QueryBuilders.boolQuery().filter(typeQuery)
-                        .filter(getApplicationNameQuery(applications))
-                        .filter(getPrivilegeNameQuery(names));
-                } else {
-                    final String[] docIds = applications.stream()
-                        .flatMap(a -> names.stream().map(n -> toDocId(a, n)))
-                        .toArray(String[]::new);
-                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(QueryBuilders.idsQuery().addIds(docIds));
-                }
+                final QueryBuilder query = QueryBuilders.boolQuery().filter(typeQuery)
+                    .filter(getApplicationNameQuery(applications));
+
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
                     SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
@@ -133,25 +199,14 @@ public class NativePrivilegeStore {
                         .setFetchSource(true)
                         .request();
                     logger.trace(() ->
-                        new ParameterizedMessage("Searching for privileges [{}] with query [{}]", names, Strings.toString(query)));
+                        new ParameterizedMessage("Searching for [{}] privileges with query [{}]",
+                            applications, Strings.toString(query)));
                     request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
                         hit -> buildPrivilege(hit.getId(), hit.getSourceRef()));
                 }
             });
         }
-    }
-
-    private boolean isSinglePrivilegeMatch(Collection<String> applications, Collection<String> names) {
-        return applications != null && applications.size() == 1 && hasWildcard(applications) == false && names != null && names.size() == 1;
-    }
-
-    private boolean hasWildcard(Collection<String> applications) {
-        return applications.stream().anyMatch(n -> n.endsWith("*"));
-    }
-
-    private QueryBuilder getPrivilegeNameQuery(Collection<String> names) {
-        return QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.NAME.getPreferredName(), names);
     }
 
     private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
@@ -186,44 +241,82 @@ public class NativePrivilegeStore {
         return boolQuery;
     }
 
-    private static boolean isEmpty(Collection<String> collection) {
-        return collection == null || collection.isEmpty();
+    private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
+        logger.trace("Building privilege from [{}] [{}]", docId, source == null ? "<<null>>" : source.utf8ToString());
+        if (source == null) {
+            return null;
+        }
+        final Tuple<String, String> name = nameFromDocId(docId);
+        try {
+            // EMPTY is safe here because we never use namedObject
+
+            try (StreamInput input = source.streamInput();
+                XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, input)) {
+                final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, null, null, true);
+                assert privilege.getApplication().equals(name.v1())
+                    : "Incorrect application name for privilege. Expected [" + name.v1() + "] but was " + privilege.getApplication();
+                assert privilege.getName().equals(name.v2())
+                    : "Incorrect name for application privilege. Expected [" + name.v2() + "] but was " + privilege.getName();
+                return privilege;
+            }
+        } catch (IOException | XContentParseException e) {
+            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
+            return null;
+        }
     }
 
-    void getPrivilege(String application, String name, ActionListener<ApplicationPrivilegeDescriptor> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
-        if (frozenSecurityIndex.isAvailable() == false) {
-            logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name),
-                frozenSecurityIndex.getUnavailableReason());
-            listener.onResponse(null);
-        } else {
-            securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
-                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_MAIN_ALIAS, toDocId(application, name))
-                            .request(),
-                    new ActionListener<GetResponse>() {
-                        @Override
-                        public void onResponse(GetResponse response) {
-                            if (response.isExists()) {
-                                listener.onResponse(buildPrivilege(response.getId(), response.getSourceAsBytesRef()));
-                            } else {
-                                listener.onResponse(null);
-                            }
-                        }
+    /**
+     * Try resolve all privileges for given application names from the cache.
+     * It returns non-null result only when privileges of ALL applications are
+     * found in the cache, i.e. it returns null if any of application name is
+     * NOT found in the cache. Since the cached is keyed by concrete application
+     * name, this means any wildcard will result in null.
+     */
+    private Set<ApplicationPrivilegeDescriptor> cachedDescriptorsForApplicationNames(Set<String> applicationNames) {
+        if (descriptorsCache == null) {
+            return null;
+        }
+        final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = new HashSet<>();
+        for (String applicationName: applicationNames) {
+            if (applicationName.endsWith("*")) {
+                return null;
+            } else {
+                final Set<ApplicationPrivilegeDescriptor> descriptors = descriptorsCache.get(applicationName);
+                if (descriptors == null) {
+                    return null;
+                } else {
+                    cachedDescriptors.addAll(descriptors);
+                }
+            }
+        }
+        return Collections.unmodifiableSet(cachedDescriptors);
+    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            // if the index or the shard is not there / available we just claim the privilege is not there
-                            if (TransportActions.isShardNotAvailableException(e)) {
-                                logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name), e);
-                                listener.onResponse(null);
-                            } else {
-                                logger.error(new ParameterizedMessage("failed to load privilege [{}]", name), e);
-                                listener.onFailure(e);
-                            }
-                        }
-                    },
-                    client::get));
+    /**
+     * Filter to get all privilege descriptors that have any of the given privilege names.
+     */
+    private Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForPrivilegeNames(
+        Collection<ApplicationPrivilegeDescriptor> descriptors, Collection<String> privilegeNames) {
+        // empty set of names equals to retrieve everything
+        if (isEmpty(privilegeNames)) {
+            return descriptors;
+        }
+        return descriptors.stream().filter(d -> privilegeNames.contains(d.getName())).collect(Collectors.toUnmodifiableSet());
+    }
+
+    // protected for tests
+    protected void cacheFetchedDescriptors(Set<String> applicationNamesCacheKey,
+        Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors) {
+        final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
+        // Do not cache the names if expansion has no effect
+        if (fetchedApplicationNames.equals(applicationNamesCacheKey) == false) {
+            logger.debug("Caching application names query: {} = {}", applicationNamesCacheKey, fetchedApplicationNames);
+            applicationNamesCache.put(applicationNamesCacheKey, fetchedApplicationNames);
+        }
+        for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
+            logger.debug("Caching descriptors for application: {}", entry.getKey());
+            descriptorsCache.put(entry.getKey(), entry.getValue());
         }
     }
 
@@ -237,7 +330,9 @@ public class NativePrivilegeStore {
                         .map(r -> r.getId())
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
-                    clearRolesCache(listener, createdNames);
+                    clearCaches(listener,
+                        privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toUnmodifiableSet()),
+                        createdNames);
                 }, listener::onFailure), privileges.size());
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
                 innerPutPrivilege(privilege, refreshPolicy, groupListener);
@@ -259,7 +354,6 @@ public class NativePrivilegeStore {
             logger.warn("Failed to put privilege {} - {}", Strings.toString(privilege), e.toString());
             listener.onFailure(e);
         }
-
     }
 
     public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
@@ -278,7 +372,7 @@ public class NativePrivilegeStore {
                             .map(r -> r.getId())
                             .map(NativePrivilegeStore::nameFromDocId)
                             .collect(TUPLES_TO_MAP);
-                        clearRolesCache(listener, deletedNames);
+                        clearCaches(listener, Collections.singleton(application), deletedNames);
                     }, listener::onFailure), names.size());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
@@ -290,48 +384,25 @@ public class NativePrivilegeStore {
         }
     }
 
-    private <T> void clearRolesCache(ActionListener<T> listener, T value) {
+    private <T> void clearCaches(ActionListener<T> listener, Set<String> applicationNames, T value) {
         // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
-        ClearRolesCacheRequest request = new ClearRolesCacheRequest();
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRolesCacheAction.INSTANCE, request,
+        final ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest()
+            .applicationNames(applicationNames.toArray(String[]::new)).clearRolesCache(true);
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearPrivilegesCacheAction.INSTANCE, request,
             new ActionListener<>() {
                 @Override
-                public void onResponse(ClearRolesCacheResponse nodes) {
+                public void onResponse(ClearPrivilegesCacheResponse nodes) {
                     listener.onResponse(value);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("unable to clear role cache", e);
+                    logger.error("unable to clear application privileges and role cache", e);
                     listener.onFailure(
-                        new ElasticsearchException("clearing the role cache failed. please clear the role cache manually", e));
+                        new ElasticsearchException("clearing the application privileges and role cache failed. " +
+                            "please clear the caches manually", e));
                 }
             });
-    }
-
-    private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
-        logger.trace("Building privilege from [{}] [{}]", docId, source == null ? "<<null>>" : source.utf8ToString());
-        if (source == null) {
-            return null;
-        }
-        final Tuple<String, String> name = nameFromDocId(docId);
-        try {
-            // EMPTY is safe here because we never use namedObject
-
-            try (StreamInput input = source.streamInput();
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, input)) {
-                final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, null, null, true);
-                assert privilege.getApplication().equals(name.v1())
-                    : "Incorrect application name for privilege. Expected [" + name.v1() + "] but was " + privilege.getApplication();
-                assert privilege.getName().equals(name.v2())
-                    : "Incorrect name for application privilege. Expected [" + name.v2() + "] but was " + privilege.getName();
-                return privilege;
-            }
-        } catch (IOException | XContentParseException e) {
-            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
-            return null;
-        }
     }
 
     private static Tuple<String, String> nameFromDocId(String docId) {
@@ -346,4 +417,60 @@ public class NativePrivilegeStore {
         return DOC_TYPE_VALUE + "_" + application + ":" + name;
     }
 
+    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)
+            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
+            invalidateAll();
+        }
+    }
+
+    public void invalidate(Collection<String> updatedApplicationNames) {
+        if (descriptorsCache == null) {
+            return;
+        }
+        // Increment the invalidation count to avoid caching stale results
+        // Release the lock as soon as we increment the counter so the actual invalidation
+        // does not have to block other threads. In theory, there could be very rare edge
+        // cases that we would invalidate more than necessary. But we consider less locking
+        // duration is overall better.
+        try (ReleasableLock ignored = invalidationWriteLock.acquire()) {
+            numInvalidation.incrementAndGet();
+        }
+        logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
+        final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
+        // Always completely invalidate application names cache due to wildcard
+        applicationNamesCache.invalidateAll();
+        uniqueNames.forEach(descriptorsCache::invalidate);
+    }
+
+    public void invalidateAll() {
+        if (descriptorsCache == null) {
+            return;
+        }
+        try (ReleasableLock ignored = invalidationWriteLock.acquire()) {
+            numInvalidation.incrementAndGet();
+        }
+        logger.debug("Invalidating all application privileges caches");
+        applicationNamesCache.invalidateAll();
+        descriptorsCache.invalidateAll();
+    }
+
+    private static boolean isEmpty(Collection<String> collection) {
+        return collection == null || collection.isEmpty();
+    }
+
+    // Package private for tests
+    Cache<Set<String>, Set<String>> getApplicationNamesCache() {
+        return applicationNamesCache;
+    }
+
+    // Package private for tests
+    Cache<String, Set<ApplicationPrivilegeDescriptor>> getDescriptorsCache() {
+        return descriptorsCache;
+    }
+
+    // Package private for tests
+    AtomicLong getNumInvalidation() {
+        return numInvalidation;
+    }
 }

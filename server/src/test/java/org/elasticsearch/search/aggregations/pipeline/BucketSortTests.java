@@ -19,8 +19,6 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
-import org.elasticsearch.search.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -28,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BucketSortTests extends BasePipelineAggregationTestCase<BucketSortPipelineAggregationBuilder> {
@@ -84,5 +84,11 @@ public class BucketSortTests extends BasePipelineAggregationTestCase<BucketSortP
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).gapPolicy(null));
         assertThat(e.getMessage(), equalTo("[gap_policy] must not be null: [foo]"));
+    }
+
+    public void testNoParent() {
+        List<FieldSortBuilder> sorts = singletonList(new FieldSortBuilder("bar"));
+        assertThat(validate(emptyList(), new BucketSortPipelineAggregationBuilder("foo", sorts)), 
+            equalTo("Validation Failed: 1: bucket_sort aggregation [foo] must be declared inside of another aggregation;"));
     }
 }

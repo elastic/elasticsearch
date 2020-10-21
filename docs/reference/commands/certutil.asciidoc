@@ -4,9 +4,9 @@
 == elasticsearch-certutil
 
 The `elasticsearch-certutil` command simplifies the creation of certificates for
-use with Transport Layer Security (TLS) in the Elastic Stack.
+use with Transport Layer Security (TLS) in the {stack}.
 
-[float]
+[discrete]
 === Synopsis
 
 [source,shell]
@@ -26,17 +26,20 @@ bin/elasticsearch-certutil
 [-E <KeyValuePair>] [--keysize <bits>] [--out <file_path>]
 [--pass <password>]
 )
+
+| http
+
 [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
-[float]
+[discrete]
 === Description
 
-You can specify one of the following modes: `ca`, `cert`, `csr`. The
+You can specify one of the following modes: `ca`, `cert`, `csr`, `http`. The
 `elasticsearch-certutil` command also supports a silent mode of operation to
 enable easier batch operations.
 
-[float]
+[discrete]
 [[certutil-ca]]
 ==== CA mode
 
@@ -48,7 +51,7 @@ format.
 
 You can subsequently use these files as input for the `cert` mode of the command.
 
-[float]
+[discrete]
 [[certutil-cert]]
 ==== CERT mode
 
@@ -87,7 +90,7 @@ certificates and keys and packages them into a zip file.
 If you specify the `--keep-ca-key`, `--multiple` or `--in` parameters,
 the command produces a zip file containing the generated certificates and keys.
 
-[float]
+[discrete]
 [[certutil-csr]]
 ==== CSR mode
 
@@ -108,7 +111,20 @@ private keys for each instance. Each CSR is provided as a standard PEM
 encoding of a PKCS#10 CSR. Each key is provided as a PEM encoding of an RSA
 private key.
 
-[float]
+[discrete]
+[[certutil-http]]
+==== HTTP mode
+
+The `http` mode guides you through the process of generating certificates for
+use on the HTTP (REST) interface for {es}. It asks you a number of questions in
+order to generate the right set of files for your needs. For example, depending
+on your choices, it might generate a zip file that contains a certificate
+authority (CA), a certificate signing request (CSR), or certificates and keys
+for use in {es} and {kib}. Each folder in the zip file contains a readme that
+explains how to use the files.
+
+[discrete]
+[[certutil-parameters]]
 === Parameters
 
 `ca`:: Specifies to generate a new local certificate authority (CA). This
@@ -119,6 +135,9 @@ This parameter cannot be used with the `csr` or `ca` parameters.
 
 `csr`:: Specifies to generate certificate signing requests. This parameter
 cannot be used with the `ca` or `cert` parameters.
+
+`http`:: Generates a new certificate or certificate request for the {es} HTTP
+interface.
 
 `--ca <file_path>`:: Specifies the path to an existing CA key pair
 (in PKCS#12 format). This parameter cannot be used with the `ca` or `csr` parameters.
@@ -196,7 +215,7 @@ parameter cannot be used with the `csr` parameter.
 
 `-v, --verbose`:: Shows verbose output.
 
-[float]
+[discrete]
 === Examples
 
 The following command generates a CA certificate and private key in PKCS#12
@@ -226,7 +245,7 @@ which you can copy to the relevant configuration directory for each Elastic
 product that you want to configure. For more information, see
 <<ssl-tls>>.
 
-[float]
+[discrete]
 [[certutil-silent]]
 ==== Using `elasticsearch-certutil` in Silent Mode
 
@@ -272,7 +291,7 @@ parameter to specify the location of the file. For example:
 
 [source, sh]
 --------------------------------------------------
-bin/elasticsearch-certutil cert --silent --in instances.yml --out test1.zip --pass testpassword
+bin/elasticsearch-certutil cert --silent --in instances.yml --out test1.zip --pass testpassword --keep-ca-key
 --------------------------------------------------
 
 This command generates a compressed `test1.zip` file. After you decompress the

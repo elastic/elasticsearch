@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -225,7 +226,7 @@ public class Tree implements TrainedModel {
             for (int i = nodes.size(); i < nodeIndex + 1; i++) {
                 nodes.add(null);
             }
-            nodes.set(nodeIndex, TreeNode.builder(nodeIndex).setLeafValue(value));
+            nodes.set(nodeIndex, TreeNode.builder(nodeIndex).setLeafValue(Collections.singletonList(value)));
             return this;
         }
 

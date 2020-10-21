@@ -20,19 +20,8 @@
 lexer grammar PainlessLexer;
 
 @members {
-/**
- * Check against the current whitelist to determine whether a token is a type
- * or not. Called by the {@code TYPE} token defined in {@code PainlessLexer.g4}.
- * See also
- * <a href="https://en.wikipedia.org/wiki/The_lexer_hack">The lexer hack</a>.
- */
-protected abstract boolean isType(String name);
-
-/**
- * Is the preceding {@code /} a the beginning of a regex (true) or a division
- * (false).
- */
-protected abstract boolean slashIsRegex();
+/** Is the preceding {@code /} a the beginning of a regex (true) or a division (false). */
+protected abstract boolean isSlashRegex();
 }
 
 WS: [ \t\n\r]+ -> skip;
@@ -71,7 +60,7 @@ INSTANCEOF: 'instanceof';
 BOOLNOT: '!';
 BWNOT:   '~';
 MUL:     '*';
-DIV:     '/' { false == slashIsRegex() }?;
+DIV:     '/' { isSlashRegex() == false }?;
 REM:     '%';
 ADD:     '+';
 SUB:     '-';
@@ -120,23 +109,19 @@ INTEGER: ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
 DECIMAL: ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fFdD]?;
 
 STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
-REGEX: '/' ( '\\' ~'\n' | ~('/' | '\n') )+? '/' [cilmsUux]* { slashIsRegex() }?;
+REGEX: '/' ( '\\' ~'\n' | ~('/' | '\n') )+? '/' [cilmsUux]* { isSlashRegex() }?;
 
 TRUE:  'true';
 FALSE: 'false';
 
 NULL: 'null';
 
-// The predicate here allows us to remove ambiguities when
-// dealing with types versus identifiers.  We check against
-// the current whitelist to determine whether a token is a type
-// or not.  Note this works by processing one character at a time
-// and the rule is added or removed as this happens.  This is also known
-// as "the lexer hack."  See (https://en.wikipedia.org/wiki/The_lexer_hack).
-TYPE: ID ( DOT ID )* { isType(getText()) }?;
+PRIMITIVE: 'boolean' | 'byte' | 'short' | 'char' | 'int' | 'long' | 'float' | 'double';
+DEF: 'def';
+
 ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
 mode AFTER_DOT;
 
-DOTINTEGER: ( '0' | [1-9] [0-9]* )                        -> mode(DEFAULT_MODE);
-DOTID: [_a-zA-Z] [_a-zA-Z0-9]*                            -> mode(DEFAULT_MODE);
+DOTINTEGER: ( '0' | [1-9] [0-9]* ) -> mode(DEFAULT_MODE);
+DOTID: [_a-zA-Z] [_a-zA-Z0-9]*     -> mode(DEFAULT_MODE);

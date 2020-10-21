@@ -21,10 +21,12 @@ package org.elasticsearch.repositories.s3;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -33,19 +35,21 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -64,7 +68,7 @@ import java.util.function.Function;
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-class S3Repository extends BlobStoreRepository {
+class S3Repository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
 
     static final String TYPE = "s3";
@@ -187,11 +191,19 @@ class S3Repository extends BlobStoreRepository {
      * Constructs an s3 backed repository
      */
     S3Repository(
-        final RepositoryMetaData metadata,
+        final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final S3Service service,
-        final ClusterService clusterService) {
-        super(metadata, namedXContentRegistry, clusterService, buildBasePath(metadata));
+        final ClusterService clusterService,
+        final BigArrays bigArrays,
+        final RecoverySettings recoverySettings) {
+        super(metadata,
+            namedXContentRegistry,
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            buildBasePath(metadata),
+            buildLocation(metadata));
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting
@@ -226,6 +238,11 @@ class S3Repository extends BlobStoreRepository {
                 storageClass);
     }
 
+    private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
+        return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()),
+            "bucket", BUCKET_SETTING.get(metadata.settings()));
+    }
+
     /**
      * Holds a reference to delayed repository operation {@link Scheduler.Cancellable} so it can be cancelled should the repository be
      * closed concurrently.
@@ -233,23 +250,24 @@ class S3Repository extends BlobStoreRepository {
     private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
 
     @Override
-    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
-                                 List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                 MetaData clusterMetaData, Map<String, Object> userMetadata, boolean writeShardGens,
-                                 ActionListener<SnapshotInfo> listener) {
-        if (writeShardGens == false) {
+    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                                 Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<RepositoryData> listener) {
+        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
-        super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, clusterMetaData, userMetadata, writeShardGens, listener);
+        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion,
+            stateTransformer, listener);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
-        if (writeShardGens == false) {
+    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                ActionListener<RepositoryData> listener) {
+        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
-        super.deleteSnapshot(snapshotId, repositoryStateId, writeShardGens, listener);
+        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }
 
     /**
@@ -290,7 +308,7 @@ class S3Repository extends BlobStoreRepository {
             SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
     }
 
-    private static BlobPath buildBasePath(RepositoryMetaData metadata) {
+    private static BlobPath buildBasePath(RepositoryMetadata metadata) {
         final String basePath = BASE_PATH_SETTING.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             return new BlobPath().add(basePath);

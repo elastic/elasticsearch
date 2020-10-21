@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
@@ -33,9 +34,9 @@ import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
-import org.elasticsearch.search.aggregations.bucket.significant.InternalSignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.UnmappedSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
@@ -121,6 +122,10 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalAutoDateHistogram agg) {
+        return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
+    }
+
+    public static boolean hasValue(InternalVariableWidthHistogram agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 

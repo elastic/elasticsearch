@@ -25,7 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -222,6 +223,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * {@link IndexSettings#FILE_BASED_RECOVERY_THRESHOLD_SETTING}.
      */
     private final double fileBasedRecoveryThreshold;
+
+    private final Consumer<ReplicationGroup> onReplicationGroupUpdated;
 
     /**
      * Get all retention leases tracked on this shard.
@@ -859,16 +862,31 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         return value.isPresent() ? value.getAsLong() : SequenceNumbers.UNASSIGNED_SEQ_NO;
     }
 
+    public ReplicationTracker(
+        final ShardId shardId,
+        final String allocationId,
+        final IndexSettings indexSettings,
+        final long operationPrimaryTerm,
+        final long globalCheckpoint,
+        final LongConsumer onGlobalCheckpointUpdated,
+        final LongSupplier currentTimeMillisSupplier,
+        final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
+        final Supplier<SafeCommitInfo> safeCommitInfoSupplier) {
+        this(shardId, allocationId, indexSettings, operationPrimaryTerm, globalCheckpoint, onGlobalCheckpointUpdated,
+            currentTimeMillisSupplier, onSyncRetentionLeases, safeCommitInfoSupplier, x -> {});
+    }
+
     /**
      * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
      * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
      *
-     * @param shardId               the shard ID
-     * @param allocationId          the allocation ID
-     * @param indexSettings         the index settings
-     * @param operationPrimaryTerm  the current primary term
-     * @param globalCheckpoint      the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
-     * @param onSyncRetentionLeases a callback when a new retention lease is created or an existing retention lease expires
+     * @param shardId                   the shard ID
+     * @param allocationId              the allocation ID
+     * @param indexSettings             the index settings
+     * @param operationPrimaryTerm      the current primary term
+     * @param globalCheckpoint          the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
+     * @param onSyncRetentionLeases     a callback when a new retention lease is created or an existing retention lease expires
+     * @param onReplicationGroupUpdated a callback when the replica group changes
      */
     public ReplicationTracker(
             final ShardId shardId,
@@ -879,7 +897,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
             final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
-            final Supplier<SafeCommitInfo> safeCommitInfoSupplier) {
+            final Supplier<SafeCommitInfo> safeCommitInfoSupplier,
+            final Consumer<ReplicationGroup> onReplicationGroupUpdated) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
@@ -898,10 +917,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_6_0)
             || (indexSettings.isSoftDeleteEnabled() &&
                 indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0) &&
-                indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN);
+                indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN);
 
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
+        this.onReplicationGroupUpdated = onReplicationGroupUpdated;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
@@ -916,10 +936,24 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         return replicationGroup;
     }
 
+    private void updateReplicationGroupAndNotify() {
+        assert Thread.holdsLock(this);
+        ReplicationGroup newReplicationGroup = calculateReplicationGroup();
+        replicationGroup = newReplicationGroup;
+        onReplicationGroupUpdated.accept(newReplicationGroup);
+    }
+
     private ReplicationGroup calculateReplicationGroup() {
+        long newVersion;
+        if (replicationGroup == null) {
+            newVersion = 0;
+        } else {
+            newVersion = replicationGroup.getVersion() + 1;
+        }
         return new ReplicationGroup(routingTable,
             checkpoints.entrySet().stream().filter(e -> e.getValue().inSync).map(Map.Entry::getKey).collect(Collectors.toSet()),
-            checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).map(Map.Entry::getKey).collect(Collectors.toSet()));
+            checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).map(Map.Entry::getKey).collect(Collectors.toSet()),
+            newVersion);
     }
 
     /**
@@ -1089,7 +1123,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
             appliedClusterStateVersion = applyingClusterStateVersion;
             this.routingTable = routingTable;
-            replicationGroup = calculateReplicationGroup();
+            updateReplicationGroupAndNotify();
             if (primaryMode && removedEntries) {
                 updateGlobalCheckpointOnPrimary();
                 // notify any waiter for local checkpoint advancement to recheck that their shard is still being tracked.
@@ -1115,7 +1149,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             throw new IllegalStateException("no local checkpoint tracking information available");
         }
         cps.tracked = true;
-        replicationGroup = calculateReplicationGroup();
+        updateReplicationGroupAndNotify();
         assert invariant();
     }
 
@@ -1160,7 +1194,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             }
         } else {
             cps.inSync = true;
-            replicationGroup = calculateReplicationGroup();
+            updateReplicationGroupAndNotify();
             logger.trace("marked [{}] as in-sync", allocationId);
             updateGlobalCheckpointOnPrimary();
         }
@@ -1205,7 +1239,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             pendingInSync.remove(allocationId);
             pending = false;
             cps.inSync = true;
-            replicationGroup = calculateReplicationGroup();
+            updateReplicationGroupAndNotify();
             logger.trace("marked [{}] as in-sync", allocationId);
             notifyAllWaiters();
         }
@@ -1328,7 +1362,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             checkpoints.put(entry.getKey(), entry.getValue().copy());
         }
         routingTable = primaryContext.getRoutingTable();
-        replicationGroup = calculateReplicationGroup();
+        updateReplicationGroupAndNotify();
         updateGlobalCheckpointOnPrimary();
         // reapply missed cluster state update
         // note that if there was no cluster state update between start of the engine of this shard and the call to

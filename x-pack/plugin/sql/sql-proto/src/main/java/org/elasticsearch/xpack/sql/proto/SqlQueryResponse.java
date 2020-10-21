@@ -18,6 +18,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNS_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.ROWS_NAME;
 
 /**
  * Response to perform an sql query for JDBC/CLI client
@@ -31,9 +34,9 @@ public class SqlQueryResponse {
                     (List<ColumnInfo>) objects[1],
                     (List<List<Object>>) objects[2]));
 
-    public static final ParseField CURSOR = new ParseField("cursor");
-    public static final ParseField COLUMNS = new ParseField("columns");
-    public static final ParseField ROWS = new ParseField("rows");
+    public static final ParseField CURSOR = new ParseField(CURSOR_NAME);
+    public static final ParseField COLUMNS = new ParseField(COLUMNS_NAME);
+    public static final ParseField ROWS = new ParseField(ROWS_NAME);
 
     static {
         PARSER.declareString(optionalConstructorArg(), CURSOR);

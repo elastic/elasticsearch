@@ -10,13 +10,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.instanceOf;

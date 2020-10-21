@@ -43,9 +43,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
-    @Deprecated
-    public static final int TYPE = 1;
-
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
 
@@ -98,11 +95,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             // third criteria: term text
             return first.getText().compareTo(second.getText());
         }
-    }
-
-    @Override
-    public int getWriteableType() {
-        return TYPE;
     }
 
     public void setSort(SortBy sort) {
@@ -182,7 +174,11 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
         static {
             declareCommonFields(PARSER);
-            PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+            /*
+             * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+             * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+             */
+            PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }
 
         public static Entry fromXContent(XContentParser parser) {

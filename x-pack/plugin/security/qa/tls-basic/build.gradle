@@ -1,30 +1,21 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-forbiddenPatterns {
-  exclude '**/*.key'
-  exclude '**/*.p12'
-}
-
-
-testClusters.integTest {
+testClusters.javaRestTest {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
-  extraConfigFile 'http.key', file('src/test/resources/ssl/http.key')
-  extraConfigFile 'http.crt', file('src/test/resources/ssl/http.crt')
-  extraConfigFile 'transport.key', file('src/test/resources/ssl/transport.key')
-  extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
-  extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
+  extraConfigFile 'http.key', file('src/javaRestTest/resources/ssl/http.key')
+  extraConfigFile 'http.crt', file('src/javaRestTest/resources/ssl/http.crt')
+  extraConfigFile 'transport.key', file('src/javaRestTest/resources/ssl/transport.key')
+  extraConfigFile 'transport.crt', file('src/javaRestTest/resources/ssl/transport.crt')
+  extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
 
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.http.ssl.enabled', 'true'

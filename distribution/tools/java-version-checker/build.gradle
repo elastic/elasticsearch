@@ -3,7 +3,7 @@ apply plugin: 'elasticsearch.build'
 targetCompatibility = JavaVersion.VERSION_1_7
 
 // java_version_checker do not depend on core so only JDK signatures should be checked
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 

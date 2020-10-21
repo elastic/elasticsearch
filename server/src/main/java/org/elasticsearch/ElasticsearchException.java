@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
@@ -88,7 +88,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String REASON = "reason";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
-    private static final String STACK_TRACE = "stack_trace";
+    public static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";
@@ -276,7 +276,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(this.getMessage());
         out.writeException(this.getCause());
-        writeStackTraces(this, out);
+        writeStackTraces(this, out, StreamOutput::writeException);
         out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
     }
@@ -403,13 +403,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         return innerFromXContent(parser, false);
     }
 
     public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;
@@ -596,7 +596,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             return new ElasticsearchException(buildMessage("exception", parser.text(), null));
         }
 
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         token = parser.nextToken();
 
         // Root causes are parsed in the innerFromXContent() and are added as suppressed exceptions.
@@ -631,7 +631,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
              * parsing exception because that is generally the most interesting
              * exception to return to the user. If that exception is caused by
              * an ElasticsearchException we'd like to keep unwrapping because
-             * ElasticserachExceptions tend to contain useful information for
+             * ElasticsearchExceptions tend to contain useful information for
              * the user.
              */
             Throwable cause = ex.getCause();
@@ -694,16 +694,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * adds it to the given exception.
      */
     public static <T extends Throwable> T readStackTrace(T throwable, StreamInput in) throws IOException {
-        final int stackTraceElements = in.readVInt();
-        StackTraceElement[] stackTrace = new StackTraceElement[stackTraceElements];
-        for (int i = 0; i < stackTraceElements; i++) {
-            final String declaringClasss = in.readString();
-            final String fileName = in.readOptionalString();
-            final String methodName = in.readString();
-            final int lineNumber = in.readVInt();
-            stackTrace[i] = new StackTraceElement(declaringClasss, methodName, fileName, lineNumber);
-        }
-        throwable.setStackTrace(stackTrace);
+        throwable.setStackTrace(in.readArray(i -> {
+            final String declaringClasss = i.readString();
+            final String fileName = i.readOptionalString();
+            final String methodName = i.readString();
+            final int lineNumber = i.readVInt();
+            return new StackTraceElement(declaringClasss, methodName, fileName, lineNumber);
+        }, StackTraceElement[]::new));
 
         int numSuppressed = in.readVInt();
         for (int i = 0; i < numSuppressed; i++) {
@@ -715,20 +712,15 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Serializes the given exceptions stacktrace elements as well as it's suppressed exceptions to the given output stream.
      */
-    public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out) throws IOException {
-        StackTraceElement[] stackTrace = throwable.getStackTrace();
-        out.writeVInt(stackTrace.length);
-        for (StackTraceElement element : stackTrace) {
-            out.writeString(element.getClassName());
-            out.writeOptionalString(element.getFileName());
-            out.writeString(element.getMethodName());
-            out.writeVInt(element.getLineNumber());
-        }
-        Throwable[] suppressed = throwable.getSuppressed();
-        out.writeVInt(suppressed.length);
-        for (Throwable t : suppressed) {
-            out.writeException(t);
-        }
+    public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out,
+                                                           Writer<Throwable> exceptionWriter) throws IOException {
+        out.writeArray((o, v) -> {
+            o.writeString(v.getClassName());
+            o.writeOptionalString(v.getFileName());
+            o.writeString(v.getMethodName());
+            o.writeVInt(v.getLineNumber());
+        }, throwable.getStackTrace());
+        out.writeArray(exceptionWriter, throwable.getSuppressed());
         return throwable;
     }
 
@@ -1007,8 +999,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.tasks.TaskCancelledException::new, 146, UNKNOWN_VERSION_ADDED),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(org.elasticsearch.env.ShardLockObtainFailedException.class,
                                            org.elasticsearch.env.ShardLockObtainFailedException::new, 147, UNKNOWN_VERSION_ADDED),
-        UNKNOWN_NAMED_OBJECT_EXCEPTION(org.elasticsearch.common.xcontent.UnknownNamedObjectException.class,
-                org.elasticsearch.common.xcontent.UnknownNamedObjectException::new, 148, UNKNOWN_VERSION_ADDED),
+        // 148 was UnknownNamedObjectException
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
             MultiBucketConsumerService.TooManyBucketsException::new, 149, UNKNOWN_VERSION_ADDED),
         COORDINATION_STATE_REJECTED_EXCEPTION(org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
@@ -1041,7 +1032,22 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.ingest.IngestProcessorException.class,
                 org.elasticsearch.ingest.IngestProcessorException::new,
                 157,
-                Version.V_7_5_0);
+                Version.V_7_5_0),
+        PEER_RECOVERY_NOT_FOUND_EXCEPTION(
+                org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
+                org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
+                158,
+                Version.V_7_9_0),
+        NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
+                org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
+                org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
+                159,
+                Version.V_8_0_0),
+        NO_SEED_NODE_LEFT_EXCEPTION(
+                org.elasticsearch.transport.NoSeedNodeLeftException.class,
+                org.elasticsearch.transport.NoSeedNodeLeftException::new,
+                160,
+                Version.V_7_10_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

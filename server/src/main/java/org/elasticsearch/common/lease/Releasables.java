@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lease;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -46,13 +47,22 @@ public enum Releasables {
         close(releasables, false);
     }
 
+    /** Release the provided {@link Releasable}. */
+    public static void close(@Nullable Releasable releasable) {
+        try {
+            IOUtils.close(releasable);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     /** Release the provided {@link Releasable}s. */
     public static void close(Releasable... releasables) {
         close(Arrays.asList(releasables));
     }
 
     /** Release the provided {@link Releasable}s, ignoring exceptions. */
-    public static void closeWhileHandlingException(Iterable<Releasable> releasables) {
+    public static void closeWhileHandlingException(Iterable<? extends Releasable> releasables) {
         close(releasables, true);
     }
 
@@ -96,13 +106,13 @@ public enum Releasables {
     }
 
     /**
-     * Equivalent to {@link #wrap(Releasable...)} but can be called multiple times without double releasing.
+     * Wraps a {@link Releasable} such that its {@link Releasable#close()} method can be called multiple times without double releasing.
      */
-    public static Releasable releaseOnce(final Releasable... releasables) {
+    public static Releasable releaseOnce(final Releasable releasable) {
         final AtomicBoolean released = new AtomicBoolean(false);
         return () -> {
             if (released.compareAndSet(false, true)) {
-                close(releasables);
+                releasable.close();
             }
         };
     }

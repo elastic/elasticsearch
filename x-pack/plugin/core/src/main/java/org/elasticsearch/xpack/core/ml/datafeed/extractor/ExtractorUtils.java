@@ -5,17 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed.extractor;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -23,9 +18,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
-import java.io.IOException;
 import java.time.ZoneOffset;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
@@ -34,7 +27,6 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ExtractorUtils {
 
-    private static final Logger LOGGER = LogManager.getLogger(ExtractorUtils.class);
     private static final String EPOCH_MILLIS = "epoch_millis";
 
     private ExtractorUtils() {}
@@ -45,25 +37,6 @@ public final class ExtractorUtils {
     public static QueryBuilder wrapInTimeRangeQuery(QueryBuilder userQuery, String timeField, long start, long end) {
         QueryBuilder timeQuery = new RangeQueryBuilder(timeField).gte(start).lt(end).format(EPOCH_MILLIS);
         return new BoolQueryBuilder().filter(userQuery).filter(timeQuery);
-    }
-
-    /**
-     * Checks that a {@link SearchResponse} has an OK status code and no shard failures
-     */
-    public static void checkSearchWasSuccessful(String jobId, SearchResponse searchResponse) throws IOException {
-        if (searchResponse.status() != RestStatus.OK) {
-            throw new IOException("[" + jobId + "] Search request returned status code: " + searchResponse.status()
-                    + ". Response was:\n" + searchResponse.toString());
-        }
-        ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
-        if (shardFailures != null && shardFailures.length > 0) {
-            LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
-            throw new IOException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures));
-        }
-        int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-        if (unavailableShards > 0) {
-            throw new IOException("[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards");
-        }
     }
 
     /**

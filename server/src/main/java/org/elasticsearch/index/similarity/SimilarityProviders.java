@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.similarities.AfterEffect;
 import org.apache.lucene.search.similarities.AfterEffectB;
 import org.apache.lucene.search.similarities.AfterEffectL;
@@ -63,7 +62,7 @@ final class SimilarityProviders {
 
     private SimilarityProviders() {} // no instantiation
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SimilarityProviders.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityProviders.class);
     static final String DISCOUNT_OVERLAPS = "discount_overlaps";
 
     private static final Map<String, BasicModel> BASIC_MODELS = Map.of(
@@ -115,8 +114,8 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
                         "please use another model.");
                 } else {
-                    deprecationLogger.deprecated("Basic model [" + basicModel +
-                        "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
+                    deprecationLogger.deprecate(basicModel + "_similarity_model_replaced", "Basic model [" + basicModel +
+                                    "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     model = BASIC_MODELS.get(replacement);
                     assert model != null;
                 }
@@ -146,8 +145,8 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("After effect [" + afterEffect +
                         "] isn't supported anymore, please use another effect.");
                 } else {
-                    deprecationLogger.deprecated("After effect [" + afterEffect +
-                        "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
+                    deprecationLogger.deprecate(afterEffect + "_after_effect_replaced", "After effect [" + afterEffect +
+                                    "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     effect = AFTER_EFFECTS.get(replacement);
                     assert effect != null;
                 }
@@ -236,7 +235,8 @@ final class SimilarityProviders {
             if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
-                deprecationLogger.deprecated("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
+                deprecationLogger.deprecate("unknown_similarity_setting",
+                    "Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             }
         }
     }

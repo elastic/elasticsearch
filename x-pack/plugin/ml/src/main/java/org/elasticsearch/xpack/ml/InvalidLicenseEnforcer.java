@@ -48,7 +48,7 @@ public class InvalidLicenseEnforcer implements LicenseStateListener {
     @Override
     public void licenseStateChanged() {
         assert licenseStateListenerRegistered;
-        if (licenseState.isMachineLearningAllowed() == false) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             // if the license has expired, close jobs and datafeeds
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override

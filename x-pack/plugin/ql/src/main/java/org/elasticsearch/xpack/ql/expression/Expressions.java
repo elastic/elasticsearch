@@ -5,20 +5,18 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AttributeInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -32,8 +30,21 @@ public final class Expressions {
         FIRST,
         SECOND,
         THIRD,
-        FOURTH
+        FOURTH,
+        FIFTH;
+
+        public static ParamOrdinal fromIndex(int index) {
+            switch (index) {
+                case 0: return ParamOrdinal.FIRST;
+                case 1: return ParamOrdinal.SECOND;
+                case 2: return ParamOrdinal.THIRD;
+                case 3: return ParamOrdinal.FOURTH;
+                case 4: return ParamOrdinal.FIFTH;
+                default: return ParamOrdinal.DEFAULT;
+            }
+        }
     }
+
 
     private Expressions() {}
 
@@ -95,6 +106,15 @@ public final class Expressions {
         return true;
     }
 
+    public static List<Object> fold(List<? extends Expression> exps) {
+        List<Object> folded = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            folded.add(exp.fold());
+        }
+
+        return folded;
+    }
+
     public static AttributeSet references(List<? extends Expression> exps) {
         if (exps.isEmpty()) {
             return AttributeSet.EMPTY;
@@ -112,7 +132,7 @@ public final class Expressions {
     }
 
     public static boolean isNull(Expression e) {
-        return e.dataType() == DataType.NULL || (e.foldable() && e.fold() == null);
+        return e.dataType() == DataTypes.NULL || (e.foldable() && e.fold() == null);
     }
 
     public static List<String> names(Collection<? extends Expression> e) {
@@ -131,6 +151,10 @@ public final class Expressions {
         return null;
     }
 
+    public static boolean isPresent(NamedExpression e) {
+        return e instanceof EmptyAttribute == false;
+    }
+
     public static boolean equalsAsAttribute(Expression left, Expression right) {
         if (!left.semanticEquals(right)) {
             Attribute l = attribute(left);
@@ -139,14 +163,15 @@ public final class Expressions {
         return true;
     }
 
-    public static AttributeMap<Expression> aliases(List<? extends NamedExpression> named) {
-        Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
+    public static List<Tuple<Attribute, Expression>> aliases(List<? extends NamedExpression> named) {
+        // an alias of same name and data type can be reused (by mistake): need to use a list to collect all refs (and later report them)
+        List<Tuple<Attribute, Expression>> aliases = new ArrayList<>();
         for (NamedExpression ne : named) {
             if (ne instanceof Alias) {
-                aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
+                aliases.add(new Tuple<>(ne.toAttribute(), ((Alias) ne).child()));
             }
         }
-        return new AttributeMap<>(aliasMap);
+        return aliases;
     }
 
     public static boolean hasReferenceAttribute(Collection<Attribute> output) {
@@ -165,7 +190,7 @@ public final class Expressions {
         Set<Attribute> seenMultiFields = new LinkedHashSet<>();
 
         for (Attribute a : attributes) {
-            if (!DataTypes.isUnsupported(a.dataType()) && a.dataType().isPrimitive()) {
+            if (DataTypes.isUnsupported(a.dataType()) == false && DataTypes.isPrimitive(a.dataType())) {
                 if (a instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) a;
                     // skip nested fields and seen multi-fields

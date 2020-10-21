@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
@@ -30,28 +29,24 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * Derived {@link AbstractGeometryQueryBuilder} that builds a lat, lon GeoShape Query
+ * Derived {@link AbstractGeometryQueryBuilder} that builds a lat, lon GeoShape Query. It
+ * can be applied to any {@link MappedFieldType} that implements {@link GeoShapeQueryable}.
+ *
+ * GeoJson and WKT shape definitions are supported
  */
 public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(GeoShapeQueryBuilder.class));
-
     protected static final ParseField STRATEGY_FIELD = new ParseField("strategy");
 
     private SpatialStrategy strategy;
@@ -168,16 +163,6 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    protected List validContentTypes() {
-        return Arrays.asList(GeoShapeFieldMapper.CONTENT_TYPE);
-    }
-
-    @Override
-    public String queryFieldType() {
-        return GeoShapeFieldMapper.CONTENT_TYPE;
-    }
-
-    @Override
     public void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException {
         if (strategy != null) {
             builder.field(STRATEGY_FIELD.getPreferredName(), strategy.getStrategyName());
@@ -197,13 +182,12 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
     @Override
     public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
-        if (fieldType.typeName().equals(GeoShapeFieldMapper.CONTENT_TYPE) == false) {
+        if ((fieldType instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(context,
-                "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }
-
-        final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;
-        return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, fieldName, strategy, relation, context));
+        final GeoShapeQueryable ft = (GeoShapeQueryable) fieldType;
+        return new ConstantScoreQuery(ft.geoShapeQuery(shape, fieldName, strategy, relation, context));
     }
 
     @Override

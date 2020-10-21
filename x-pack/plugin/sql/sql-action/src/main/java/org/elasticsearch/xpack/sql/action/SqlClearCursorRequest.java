@@ -21,6 +21,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CLIENT_ID;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.VERSION;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.MODE;
 
@@ -42,6 +43,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
         PARSER.declareString(constructorArg(), CURSOR);
         PARSER.declareString(optionalConstructorArg(), MODE);
         PARSER.declareString(optionalConstructorArg(), CLIENT_ID);
+        PARSER.declareString(optionalConstructorArg(), VERSION);
     }
 
     private String cursor;

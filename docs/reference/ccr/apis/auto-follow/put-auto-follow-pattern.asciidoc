@@ -94,6 +94,9 @@ PUT /_ccr/auto_follow/my_auto_follow_pattern
     "leader_index*"
   ],
   "follow_index_pattern" : "{{leader_index}}-follower",
+  "settings": {
+    "index.number_of_replicas": 0
+  },
   "max_read_request_operation_count" : 1024,
   "max_outstanding_read_requests" : 16,
   "max_read_request_size" : "1024k",

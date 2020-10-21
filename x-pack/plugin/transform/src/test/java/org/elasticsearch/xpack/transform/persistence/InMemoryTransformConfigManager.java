@@ -214,4 +214,9 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
         listener.onResponse(docs);
     }
 
+    @Override
+    public void refresh(ActionListener<Boolean> listener) {
+        listener.onResponse(true);
+    }
+
 }

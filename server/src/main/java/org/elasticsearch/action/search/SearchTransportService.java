@@ -19,12 +19,17 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,10 +45,12 @@ import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
@@ -55,9 +62,9 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
@@ -79,16 +86,18 @@ public class SearchTransportService {
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
 
     private final TransportService transportService;
+    private final NodeClient client;
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public SearchTransportService(TransportService transportService,
+    public SearchTransportService(TransportService transportService, NodeClient client,
                                   BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
         this.transportService = transportService;
+        this.client = client;
         this.responseWrapper = responseWrapper;
     }
 
-    public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
+    public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
         transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {
                 @Override
@@ -103,7 +112,8 @@ public class SearchTransportService {
             }, SearchFreeContextResponse::new));
     }
 
-    public void sendFreeContext(Transport.Connection connection, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
+    public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId,
+                                ActionListener<SearchFreeContextResponse> listener) {
         transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
     }
@@ -195,39 +205,33 @@ public class SearchTransportService {
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {
-        private long id;
+        private ShardSearchContextId contextId;
 
-        ScrollFreeContextRequest() {
-        }
-
-        ScrollFreeContextRequest(long id) {
-            this.id = id;
+        ScrollFreeContextRequest(ShardSearchContextId contextId) {
+            this.contextId = Objects.requireNonNull(contextId);
         }
 
         ScrollFreeContextRequest(StreamInput in) throws IOException {
             super(in);
-            id = in.readLong();
+            contextId = new ShardSearchContextId(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeLong(id);
+            contextId.writeTo(out);
         }
 
-        public long id() {
-            return this.id;
+        public ShardSearchContextId id() {
+            return this.contextId;
         }
 
-        }
+    }
 
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private OriginalIndices originalIndices;
 
-        SearchFreeContextRequest() {
-        }
-
-        SearchFreeContextRequest(OriginalIndices originalIndices, long id) {
+        SearchFreeContextRequest(OriginalIndices originalIndices, ShardSearchContextId id) {
             super(id);
             this.originalIndices = originalIndices;
         }
@@ -283,16 +287,20 @@ public class SearchTransportService {
         }
     }
 
+    static boolean keepStatesInContext(Version version) {
+        return version.before(Version.V_7_10_0);
+    }
+
     public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
         transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ScrollFreeContextRequest::new,
             (request, channel, task) -> {
-                boolean freed = searchService.freeContext(request.id());
+                boolean freed = searchService.freeReaderContext(request.id());
                 channel.sendResponse(new SearchFreeContextResponse(freed));
         });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, ThreadPool.Names.SAME, SearchFreeContextRequest::new,
             (request, channel, task) -> {
-                boolean freed = searchService.freeContext(request.id());
+                boolean freed = searchService.freeReaderContext(request.id());
                 channel.sendResponse(new SearchFreeContextResponse(freed));
         });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
@@ -306,32 +314,16 @@ public class SearchTransportService {
             (in) -> TransportResponse.Empty.INSTANCE);
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeDfsPhase(request, (SearchShardTask) task, new ActionListener<SearchPhaseResult>() {
-                    @Override
-                    public void onResponse(SearchPhaseResult searchPhaseResult) {
-                        try {
-                            channel.sendResponse(searchPhaseResult);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
+            (request, channel, task) ->
+                searchService.executeDfsPhase(request, keepStatesInContext(channel.getVersion()), (SearchShardTask) task,
+                    new ChannelActionListener<>(channel, DFS_ACTION_NAME, request))
+        );
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
-                    }
-                });
-            });
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchShardTask) task,
+                searchService.executeQueryPhase(request, keepStatesInContext(channel.getVersion()), (SearchShardTask) task,
                     new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request));
             });
         TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME,
@@ -388,7 +380,7 @@ public class SearchTransportService {
      * @param node the node to resolve
      * @return a connection to the given node belonging to the cluster with the provided alias.
      */
-    Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
+    public Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
         if (clusterAlias == null) {
             return transportService.getConnection(node);
         } else {
@@ -437,5 +429,13 @@ public class SearchTransportService {
             // can be skipped when assertions are not enabled
             return true;
         }
+    }
+
+    public void cancelSearchTask(SearchTask task, String reason) {
+        CancelTasksRequest req = new CancelTasksRequest()
+            .setTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
+            .setReason("Fatal failure during search: " + reason);
+        // force the origin to execute the cancellation as a system user
+        new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }
 }

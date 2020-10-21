@@ -24,10 +24,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -95,7 +96,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
 
         new TransportClearVotingConfigExclusionsAction(transportService, clusterService, threadPool, new ActionFilters(emptySet()),
-            new IndexNameExpressionResolver()); // registers action
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))); // registers action
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -103,8 +104,8 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         final ClusterState.Builder builder = builder(new ClusterName("cluster"))
             .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2)
                 .localNodeId(localNode.getId()).masterNodeId(localNode.getId()));
-        builder.metaData(MetaData.builder()
-                .coordinationMetaData(CoordinationMetaData.builder()
+        builder.metadata(Metadata.builder()
+                .coordinationMetadata(CoordinationMetadata.builder()
                         .addVotingConfigExclusion(otherNode1Exclusion)
                         .addVotingConfigExclusion(otherNode2Exclusion)
                 .build()));

@@ -8,7 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -44,21 +44,21 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license, null));
-                return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
             }
 
             @Override
             public void onFailure(String source, @Nullable Exception e) {
-                logger.error("error on metaData cleanup after test", e);
+                logger.error("error on metadata cleanup after test", e);
             }
         });
         latch.await();
     }
 
     protected void putLicenseTombstone() throws InterruptedException {
-        putLicense(LicensesMetaData.LICENSE_TOMBSTONE);
+        putLicense(LicensesMetadata.LICENSE_TOMBSTONE);
     }
 
     protected void wipeAllLicenses() throws InterruptedException {
@@ -72,14 +72,14 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                mdBuilder.removeCustom(LicensesMetaData.TYPE);
-                return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                mdBuilder.removeCustom(LicensesMetadata.TYPE);
+                return ClusterState.builder(currentState).metadata(mdBuilder).build();
             }
 
             @Override
             public void onFailure(String source, @Nullable Exception e) {
-                logger.error("error on metaData cleanup after test", e);
+                logger.error("error on metadata cleanup after test", e);
             }
         });
         latch.await();

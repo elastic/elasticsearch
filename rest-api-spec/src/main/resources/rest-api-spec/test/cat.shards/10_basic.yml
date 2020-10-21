@@ -1,8 +1,8 @@
 ---
 "Help":
   - skip:
-      version: " - 7.1.99"
-      reason:  external refresh stats were added in 7.2.0
+      version: " - 7.99.99"
+      reason:  bulk stats were added in 8.0.0
   - do:
       cat.shards:
         help: true
@@ -78,6 +78,13 @@
                     warmer.current                   .+   \n
                     warmer.total                     .+   \n
                     warmer.total_time                .+   \n
+                    path.data                        .+   \n
+                    path.state                       .+   \n
+                    bulk.total_operations            .+   \n
+                    bulk.total_time                  .+   \n
+                    bulk.total_size_in_bytes         .+   \n
+                    bulk.avg_time                    .+   \n
+                    bulk.avg_size_in_bytes           .+   \n
                $/
 ---
 "Test cat shards output":

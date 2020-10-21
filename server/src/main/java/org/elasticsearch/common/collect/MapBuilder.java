@@ -33,7 +33,7 @@ public class MapBuilder<K, V> {
         return new MapBuilder<>(map);
     }
 
-    private Map<K, V> map = new HashMap<>();
+    private final Map<K, V> map;
 
     public MapBuilder() {
         this.map = new HashMap<>();

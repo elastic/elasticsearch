@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.authc.ldap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.CompositeRoleMapperSettings;
@@ -46,7 +46,7 @@ public final class LdapRealmSettings {
             settings.addAll(LdapUserSearchSessionFactorySettings.getSettings());
             settings.addAll(DelegatedAuthorizationSettings.getSettings(type));
         }
-        settings.addAll(LdapMetaDataResolverSettings.getSettings(type));
+        settings.addAll(LdapMetadataResolverSettings.getSettings(type));
         settings.addAll(RealmSettings.getStandardSettings(type));
         return settings;
     }

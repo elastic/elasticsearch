@@ -72,7 +72,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
     @Override
     public String getColumnLabel(int column) throws SQLException {
         JdbcColumnInfo info = column(column);
-        return true == EMPTY.equals(info.label) ? info.name : info.label;
+        return EMPTY.equals(info.label) ? info.name : info.label;
     }
 
     @Override

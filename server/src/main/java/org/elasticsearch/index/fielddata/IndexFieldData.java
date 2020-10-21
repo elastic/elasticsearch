@@ -35,14 +35,15 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.NestedSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
@@ -50,12 +51,18 @@ import java.io.IOException;
  * Thread-safe utility class that allows to get per-segment values via the
  * {@link #load(LeafReaderContext)} method.
  */
-public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
+public interface IndexFieldData<FD extends LeafFieldData> {
 
     /**
      * The field name.
      */
     String getFieldName();
+
+    /**
+     * The ValuesSourceType of the underlying data.  It's possible for fields that use the same IndexFieldData implementation to have
+     * different ValuesSourceTypes, such as in the case of Longs and Dates.
+     */
+    ValuesSourceType getValuesSourceType();
 
     /**
      * Loads the atomic field data for the reader, possibly cached.
@@ -73,9 +80,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
 
     /**
-     * Clears any resources associated with this field data.
+     * Build a sort implementation specialized for aggregations.
      */
-    void clear();
+    BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode,
+            Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra);
 
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
@@ -227,20 +235,24 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         public Object missingValue(boolean reversed) {
             return null;
         }
+
+        /**
+         * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
+         */
+        public abstract BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+                int bucketSize, BucketedSort.ExtraData extra);
     }
 
     interface Builder {
 
-        IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                             CircuitBreakerService breakerService, MapperService mapperService);
+        IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService);
     }
 
-    interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
+    interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 
-        IndexFieldData<FD> localGlobalDirect(DirectoryReader indexReader) throws Exception;
+        IndexFieldData<FD> loadGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     }
-
 }

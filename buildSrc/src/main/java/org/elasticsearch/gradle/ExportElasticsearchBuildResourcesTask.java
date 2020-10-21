@@ -56,7 +56,6 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
 
     public ExportElasticsearchBuildResourcesTask() {
         outputDir = getProject().getObjects().directoryProperty();
-        outputDir.set(new File(getProject().getBuildDir(), "build-tools-exported"));
     }
 
     @OutputDirectory
@@ -80,14 +79,13 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
         this.outputDir.set(outputDir);
     }
 
-    public File copy(String resource) {
+    public void copy(String resource) {
         if (getState().getExecuted() || getState().getExecuting()) {
             throw new GradleException(
                 "buildResources can't be configured after the task ran. " + "Make sure task is not used after configuration time"
             );
         }
         resources.add(resource);
-        return outputDir.file(resource).get().getAsFile();
     }
 
     @TaskAction

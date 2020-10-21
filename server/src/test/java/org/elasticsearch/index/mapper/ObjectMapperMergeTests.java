@@ -19,10 +19,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.FieldMapper.CopyTo;
-import org.elasticsearch.index.mapper.FieldMapper.MultiFields;
-import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 
@@ -31,7 +30,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ObjectMapperMergeTests extends ESTestCase {
@@ -83,23 +83,50 @@ public class ObjectMapperMergeTests extends ESTestCase {
         // WHEN merging mappings
         // THEN a MapperException is thrown with an excepted message
         MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("Can't update attribute for type [type1.foo.enabled] in index mapping", e.getMessage());
+        assertEquals("the [enabled] parameter can't be updated for the object mapping [foo]", e.getMessage());
     }
 
-    public void testMergeWhenEnablingField() {
-        // GIVEN a mapping with "disabled" field enabled
+    public void testMergeEnabled() {
         ObjectMapper mergeWith = createMapping(true, true, true, false);
 
-        // WHEN merging mappings
-        // THEN a MapperException is thrown with an excepted message
         MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("Can't update attribute for type [type1.disabled.enabled] in index mapping", e.getMessage());
+        assertEquals("the [enabled] parameter can't be updated for the object mapping [disabled]", e.getMessage());
+
+        ObjectMapper result = rootObjectMapper.merge(mergeWith, MapperService.MergeReason.INDEX_TEMPLATE);
+        assertTrue(result.isEnabled());
+    }
+
+    public void testMergeEnabledForRootMapper() {
+        String type = MapperService.SINGLE_MAPPING_NAME;
+        ObjectMapper firstMapper = createRootObjectMapper(type, true, Collections.emptyMap());
+        ObjectMapper secondMapper = createRootObjectMapper(type, false, Collections.emptyMap());
+
+        MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
+        assertEquals("the [enabled] parameter can't be updated for the object mapping [" + type + "]", e.getMessage());
+
+        ObjectMapper result = firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
+        assertFalse(result.isEnabled());
+    }
+
+    public void testMergeNested() {
+        String type = MapperService.SINGLE_MAPPING_NAME;
+        ObjectMapper firstMapper = createNestedMapper(type,
+            ObjectMapper.Nested.newNested(new Explicit<>(true, true), new Explicit<>(true, true)));
+        ObjectMapper secondMapper = createNestedMapper(type,
+            ObjectMapper.Nested.newNested(new Explicit<>(false, true), new Explicit<>(false, false)));
+
+        MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
+        assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
+
+        ObjectMapper result = firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
+        assertFalse(result.nested().isIncludeInParent());
+        assertTrue(result.nested().isIncludeInRoot());
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
         final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
         final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder(name).enabled(enabled).build(context);
+        final RootObjectMapper rootObjectMapper = (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled).build(context);
 
         mappers.values().forEach(rootObjectMapper::putMapper);
 
@@ -116,10 +143,17 @@ public class ObjectMapperMergeTests extends ESTestCase {
         return mapper;
     }
 
-    private static TextFieldMapper createTextFieldMapper(String name) {
-        final TextFieldType fieldType = new TextFieldType();
+    private static ObjectMapper createNestedMapper(String name, ObjectMapper.Nested nested) {
         final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        return new ObjectMapper.Builder(name)
+            .nested(nested)
+            .build(context);
+    }
 
-        return new TextFieldMapper(name, fieldType, fieldType, -1, null, indexSettings, MultiFields.empty(), CopyTo.empty());
+    private static TextFieldMapper createTextFieldMapper(String name) {
+        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        return new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).build(context);
     }
 }

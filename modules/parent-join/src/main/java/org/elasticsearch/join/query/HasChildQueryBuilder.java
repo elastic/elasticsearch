@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +36,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -45,13 +46,14 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A query builder for {@code has_child} query.
@@ -295,8 +297,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
-        if (joinFieldMapper == null) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[joining] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
+
+        Joiner joiner = Joiner.getJoiner(context);
+        if (joiner == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
@@ -304,30 +311,37 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             }
         }
 
-        ParentIdFieldMapper parentIdFieldMapper = joinFieldMapper.getParentIdFieldMapper(type, false);
-        if (parentIdFieldMapper != null) {
-            Query parentFilter = parentIdFieldMapper.getParentFilter();
-            Query childFilter = parentIdFieldMapper.getChildFilter(type);
-            Query innerQuery = Queries.filtered(query.toQuery(context), childFilter);
-            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
-            return new LateParsingQuery(parentFilter, innerQuery, minChildren(), maxChildren(),
-                fieldType.name(), scoreMode, fieldData, context.getSearchSimilarity());
-        } else {
+        if (joiner.childTypeExists(type) == false) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "[" + NAME + "] join field [" + joinFieldMapper.name() +
+                throw new QueryShardException(context, "[" + NAME + "] join field [" + joiner.getJoinField() +
                     "] doesn't hold [" + type + "] as a child");
             }
         }
+
+        String parentJoinField = joiner.parentJoinField(type);
+        if (context.isFieldMapped(parentJoinField) == false) {
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            }
+            throw new QueryShardException(context, "[" + NAME + "] no parent join field [" + parentJoinField + "] configured");
+        }
+
+        Query parentFilter = joiner.parentFilter(type);
+        Query childFilter = joiner.filter(type);
+        Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);
+        MappedFieldType ft = context.getFieldType(parentJoinField);
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft);
+        return new LateParsingQuery(parentFilter, filteredQuery, minChildren, maxChildren,
+            parentJoinField, scoreMode, fieldData, context.getSearchSimilarity());
     }
 
     /**
      * A query that rewrites into another query using
      * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, OrdinalMap, int, int)}
      * that executes the actual join.
-     *
+     * <p>
      * This query is exclusively used by the {@link HasChildQueryBuilder} and {@link HasParentQueryBuilder} to get access
      * to the {@link DirectoryReader} used by the current search in order to retrieve the {@link OrdinalMap}.
      * The {@link OrdinalMap} is required by {@link JoinUtil} to execute the join.
@@ -341,12 +355,12 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         private final int maxChildren;
         private final String joinField;
         private final ScoreMode scoreMode;
-        private final SortedSetDVOrdinalsIndexFieldData fieldDataJoin;
+        private final SortedSetOrdinalsIndexFieldData fieldDataJoin;
         private final Similarity similarity;
 
         LateParsingQuery(Query toQuery, Query innerQuery, int minChildren, int maxChildren,
                          String joinField, ScoreMode scoreMode,
-                         SortedSetDVOrdinalsIndexFieldData fieldData, Similarity similarity) {
+                         SortedSetOrdinalsIndexFieldData fieldData, Similarity similarity) {
             this.toQuery = toQuery;
             this.innerQuery = innerQuery;
             this.minChildren = minChildren;

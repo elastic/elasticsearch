@@ -50,12 +50,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
                     args -> new RollupJobStatus((IndexerState) args[0], (HashMap<String, Object>) args[1]));
 
     static {
-        PARSER.declareField(constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return IndexerState.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(constructorArg(), IndexerState::fromString, STATE);
         PARSER.declareField(optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 return p.map();

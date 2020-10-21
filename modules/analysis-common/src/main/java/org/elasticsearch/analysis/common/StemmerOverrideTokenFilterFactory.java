@@ -22,7 +22,6 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter;
 import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter.StemmerOverrideMap;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -57,19 +56,23 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
 
     static void parseRules(List<String> rules, StemmerOverrideFilter.Builder builder, String mappingSep) {
         for (String rule : rules) {
-            String key, override;
-            List<String> mapping = Strings.splitSmart(rule, mappingSep, false);
-            if (mapping.size() == 2) {
-                key = mapping.get(0).trim();
-                override = mapping.get(1).trim();
-            } else {
+            String[] sides = rule.split(mappingSep, -1);
+            if (sides.length != 2) {
                 throw new RuntimeException("Invalid Keyword override Rule:" + rule);
             }
 
-            if (key.isEmpty() || override.isEmpty()) {
+            String[] keys = sides[0].split(",", -1);
+            String override = sides[1].trim();
+            if (override.isEmpty() || override.indexOf(',') != -1) {
                 throw new RuntimeException("Invalid Keyword override Rule:" + rule);
-            } else {
-                builder.add(key, override);
+            }
+
+            for (String key : keys) {
+                String trimmedKey = key.trim();
+                if (trimmedKey.isEmpty()) {
+                    throw new RuntimeException("Invalid Keyword override Rule:" + rule);
+                }
+                builder.add(trimmedKey, override);
             }
         }
     }

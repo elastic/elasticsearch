@@ -5,13 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.rest.calendar;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -20,31 +17,21 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestGetCalendarsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetCalendarsAction.class));
-
-    public RestGetCalendarsAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "calendars/", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/", deprecationLogger);
-
-        // endpoints that support body parameters must also accept POST
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "calendars/", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            new Route(GET, MachineLearning.BASE_PATH + "calendars/"),
+            new Route(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            new Route(POST, MachineLearning.BASE_PATH + "calendars/")
+        );
     }
 
     @Override

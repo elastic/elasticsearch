@@ -6,13 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -36,14 +32,17 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
-public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedResponse> {
+public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedResponse> {
 
     public static final StartDataFrameAnalyticsAction INSTANCE = new StartDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/start";
 
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
+
     private StartDataFrameAnalyticsAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, NodeAcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -69,7 +68,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         }
 
         private String id;
-        private TimeValue timeout = TimeValue.timeValueSeconds(20);
+        private TimeValue timeout = DEFAULT_TIMEOUT;
 
         public Request(String id) {
             setId(id);
@@ -143,16 +142,10 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        RequestBuilder(ElasticsearchClient client, StartDataFrameAnalyticsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class TaskParams implements PersistentTaskParams {
 
         public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
+        public static final Version VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = Version.V_7_10_0;
 
         private static final ParseField PROGRESS_ON_START = new ParseField("progress_on_start");
 
@@ -192,20 +185,16 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         public TaskParams(StreamInput in) throws IOException {
             this.id = in.readString();
             this.version = Version.readVersion(in);
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                progressOnStart = in.readList(PhaseProgress::new);
-            } else {
-                progressOnStart = Collections.emptyList();
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                allowLazyStart = in.readBoolean();
-            } else {
-                allowLazyStart = false;
-            }
+            this.progressOnStart = in.readList(PhaseProgress::new);
+            this.allowLazyStart = in.readBoolean();
         }
 
         public String getId() {
             return id;
+        }
+
+        public Version getVersion() {
+            return version;
         }
 
         public List<PhaseProgress> getProgressOnStart() {
@@ -230,12 +219,8 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
             Version.writeVersion(version, out);
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-                out.writeList(progressOnStart);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-                out.writeBoolean(allowLazyStart);
-            }
+            out.writeList(progressOnStart);
+            out.writeBoolean(allowLazyStart);
         }
 
         @Override
@@ -271,7 +256,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
 
         static boolean match(Task task, String expectedId) {
             if (task instanceof TaskMatcher) {
-                if (MetaData.ALL.equals(expectedId)) {
+                if (Strings.isAllOrWildcard(expectedId)) {
                     return true;
                 }
                 String expectedDescription = MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + expectedId;

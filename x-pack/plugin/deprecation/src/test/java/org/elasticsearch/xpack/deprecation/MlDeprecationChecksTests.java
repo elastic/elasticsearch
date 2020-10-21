@@ -44,7 +44,7 @@ public class MlDeprecationChecksTests extends ESTestCase {
         qs.put("use_dis_max", true);
         Map<String, Object> query = Collections.singletonMap("query_string", qs);
         deprecatedDatafeed.setQuery(query);
-        
+
         DeprecationIssue issue = MlDeprecationChecks.checkDataFeedQuery(deprecatedDatafeed.build());
         assertNotNull(issue);
         assertThat(issue.getDetails(), equalTo("[Deprecated field [use_dis_max] used, replaced by [Set [tie_breaker] to 1 instead]]"));

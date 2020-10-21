@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
@@ -14,8 +14,8 @@ public class GetDatafeedStatsActionRequestTests extends AbstractWireSerializingT
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomBoolean() ? MetaData.ALL : randomAlphaOfLengthBetween(1, 20));
-        request.setAllowNoDatafeeds(randomBoolean());
+        Request request = new Request(randomBoolean() ? Metadata.ALL : randomAlphaOfLengthBetween(1, 20));
+        request.setAllowNoMatch(randomBoolean());
         return request;
     }
 

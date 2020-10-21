@@ -40,8 +40,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             defaultMapper.parse(new SourceToParse("test", "1", new BytesArray(" {\n" +
                 "      \"object\": {\n" +
@@ -58,14 +57,14 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                 "    }"),
                     XContentType.JSON));
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("different type"));
+        assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
     }
 
     public void testEmptyArrayProperties() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("properties").endArray()
                 .endObject().endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
     }
 
     public void testEmptyFieldsArrayMultiFields() throws Exception {
@@ -82,7 +81,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
     }
 
     public void testFieldsArrayMultiFieldsShouldThrowException() throws Exception {
@@ -101,7 +100,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject());
         try {
-            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
             fail("Expected MapperParsingException");
         } catch(MapperParsingException e) {
             assertThat(e.getMessage(), containsString("expected map for property [fields]"));
@@ -119,7 +118,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
     }
 
     public void testFieldsWithFilledArrayShouldThrowException() throws Exception {
@@ -135,7 +134,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject());
         try {
-            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("Expected map for property [fields]"));
@@ -158,10 +157,11 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject());
-        createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
     }
 
     public void testMerge() throws IOException {
+        MergeReason reason = randomFrom(MergeReason.values());
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .startObject("properties")
@@ -171,14 +171,162 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
         assertNull(mapper.root().dynamic());
         String update = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .field("dynamic", "strict")
                 .endObject().endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.MAPPING_UPDATE);
+        mapper = mapperService.merge("type", new CompressedXContent(update), reason);
         assertEquals(Dynamic.STRICT, mapper.root().dynamic());
+    }
+
+    public void testMergeEnabledForIndexTemplates() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .field("type", "object")
+                    .field("enabled", false)
+                .endObject()
+            .endObject().endObject());
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+        assertNull(mapper.root().dynamic());
+
+        // If we don't explicitly set 'enabled', then the mapping should not change.
+        String update = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .field("type", "object")
+                    .field("dynamic", false)
+                .endObject()
+            .endObject().endObject());
+        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+
+        ObjectMapper objectMapper = mapper.mappers().objectMappers().get("object");
+        assertNotNull(objectMapper);
+        assertFalse(objectMapper.isEnabled());
+
+        // Setting 'enabled' to true is allowed, and updates the mapping.
+        update = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .field("type", "object")
+                    .field("enabled", true)
+                .endObject()
+            .endObject().endObject());
+        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+
+        objectMapper = mapper.mappers().objectMappers().get("object");
+        assertNotNull(objectMapper);
+        assertTrue(objectMapper.isEnabled());
+    }
+
+    public void testFieldReplacementForIndexTemplates() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("field2")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+
+        String update = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field2")
+                            .field("type", "integer")
+                        .endObject()
+                        .startObject("field3")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        DocumentMapper mapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME,
+            new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+
+        String expected = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                    .startObject("object")
+                        .startObject("properties")
+                            .startObject("field1")
+                                .field("type", "keyword")
+                            .endObject()
+                            .startObject("field2")
+                                .field("type", "integer")
+                            .endObject()
+                            .startObject("field3")
+                                .field("type", "text")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        assertEquals(expected, mapper.mappingSource().toString());
+    }
+
+    public void testDisallowFieldReplacementForIndexTemplates() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "object")
+                        .endObject()
+                        .startObject("field2")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+
+        String firstUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field2")
+                            .field("type", "nested")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstUpdate), MergeReason.INDEX_TEMPLATE));
+        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field2] with an object mapping"));
+
+        String secondUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        e = expectThrows(IllegalArgumentException.class, () -> mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(secondUpdate), MergeReason.INDEX_TEMPLATE));
+        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field1] with an object mapping"));
     }
 
     public void testEmptyName() throws Exception {
@@ -194,7 +342,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
 
         // Empty name not allowed in index created after 5.0
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
+            createIndex("test").mapperService().parse("", new CompressedXContent(mapping));
         });
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }

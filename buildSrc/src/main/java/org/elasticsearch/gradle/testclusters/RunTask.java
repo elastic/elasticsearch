@@ -1,5 +1,24 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.gradle.testclusters;
 
+import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
@@ -16,6 +35,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,6 +47,8 @@ public class RunTask extends DefaultTestClustersTask {
     private Boolean debug = false;
 
     private Path dataDir = null;
+
+    private String keystorePassword = "";
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
@@ -41,6 +63,17 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
     public void setDataDir(String dataDirStr) {
         dataDir = Paths.get(dataDirStr).toAbsolutePath();
+    }
+
+    @Option(option = "keystore-password", description = "Set the elasticsearch keystore password")
+    public void setKeystorePassword(String password) {
+        keystorePassword = password;
+    }
+
+    @Input
+    @Optional
+    public String getKeystorePassword() {
+        return keystorePassword;
     }
 
     @Input
@@ -86,9 +119,12 @@ public class RunTask extends DefaultTestClustersTask {
                     node.setDataPath(getDataPath.apply(node));
                 }
                 if (debug) {
-                    logger.lifecycle("Running elasticsearch in debug mode, {} suspending until connected on debugPort {}", node, debugPort);
+                    logger.lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}", node, debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
                     debugPort += 1;
+                }
+                if (keystorePassword.length() > 0) {
+                    node.keystorePassword(keystorePassword);
                 }
             }
         }
@@ -97,11 +133,13 @@ public class RunTask extends DefaultTestClustersTask {
     @TaskAction
     public void runAndWait() throws IOException {
         List<BufferedReader> toRead = new ArrayList<>();
+        List<BooleanSupplier> aliveChecks = new ArrayList<>();
         try {
             for (ElasticsearchCluster cluster : getClusters()) {
                 for (ElasticsearchNode node : cluster.getNodes()) {
                     BufferedReader reader = Files.newBufferedReader(node.getEsStdoutFile());
                     toRead.add(reader);
+                    aliveChecks.add(node::isProcessAlive);
                 }
             }
 
@@ -112,6 +150,10 @@ public class RunTask extends DefaultTestClustersTask {
                         readData = true;
                         logger.lifecycle(bufferedReader.readLine());
                     }
+                }
+
+                if (aliveChecks.stream().allMatch(BooleanSupplier::getAsBoolean) == false) {
+                    throw new GradleException("Elasticsearch cluster died");
                 }
 
                 if (readData == false) {

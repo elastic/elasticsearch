@@ -13,7 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
@@ -43,7 +43,7 @@ public class CursorTests extends ESTestCase {
         Client clientMock = mock(Client.class);
         Cursor cursor = Cursor.EMPTY;
         PlainActionFuture<Boolean> future = newFuture();
-        cursor.clear(TestUtils.TEST_CFG, clientMock, future);
+        cursor.clear(SqlTestUtils.TEST_CFG, clientMock, future);
         assertFalse(future.actionGet());
         verifyZeroInteractions(clientMock);
     }
@@ -55,7 +55,7 @@ public class CursorTests extends ESTestCase {
         String cursorString = randomAlphaOfLength(10);
         Cursor cursor = new ScrollCursor(cursorString, Collections.emptyList(), new BitSet(0), randomInt());
 
-        cursor.clear(TestUtils.TEST_CFG, clientMock, listenerMock);
+        cursor.clear(SqlTestUtils.TEST_CFG, clientMock, listenerMock);
 
         ArgumentCaptor<ClearScrollRequest> request = ArgumentCaptor.forClass(ClearScrollRequest.class);
         verify(clientMock).clearScroll(request.capture(), any(ActionListener.class));
@@ -104,15 +104,19 @@ public class CursorTests extends ESTestCase {
 
     public void testVersionHandling() {
         Cursor cursor = randomNonEmptyCursor();
-        assertEquals(cursor, Cursors.decodeFromString(Cursors.encodeToString(cursor, randomZone())));
+        assertEquals(cursor, decodeFromString(Cursors.encodeToString(cursor, randomZone())));
 
         Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
 
         String encodedWithWrongVersion = CursorsTestUtil.encodeToString(cursor, nextMinorVersion, randomZone());
         SqlIllegalArgumentException exception = expectThrows(SqlIllegalArgumentException.class,
-                () -> Cursors.decodeFromString(encodedWithWrongVersion));
+                () -> decodeFromString(encodedWithWrongVersion));
 
         assertEquals(LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", nextMinorVersion, Version.CURRENT),
                 exception.getMessage());
+    }
+
+    public static Cursor decodeFromString(String base64) {
+        return Cursors.decodeFromStringWithZone(base64).v1();
     }
 }

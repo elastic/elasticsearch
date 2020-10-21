@@ -46,7 +46,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGetSourceAction(controller());
+        controller().registerHandler(new RestGetSourceAction());
     }
 
     @AfterClass

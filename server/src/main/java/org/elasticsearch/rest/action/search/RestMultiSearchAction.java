@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -32,8 +33,8 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -60,13 +61,17 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    public RestMultiSearchAction(Settings settings, RestController controller) {
-        controller.registerHandler(GET, "/_msearch", this);
-        controller.registerHandler(POST, "/_msearch", this);
-        controller.registerHandler(GET, "/{index}/_msearch", this);
-        controller.registerHandler(POST, "/{index}/_msearch", this);
-
+    public RestMultiSearchAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_msearch"),
+            new Route(POST, "/_msearch"),
+            new Route(GET, "/{index}/_msearch"),
+            new Route(POST, "/{index}/_msearch"));
     }
 
     @Override
@@ -76,8 +81,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex);
-        return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
+        final MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex);
+        return channel -> {
+            final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestToXContentListener<>(channel));
+        };
     }
 
     /**
@@ -91,7 +99,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
-        int preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
+        Integer preFilterShardSize = null;
+        if (restRequest.hasParam("pre_filter_shard_size")) {
+            preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
+        }
 
         final Integer maxConcurrentShardRequests;
         if (restRequest.hasParam("max_concurrent_shard_requests")) {
@@ -108,10 +119,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
-        preFilterShardSize = Math.max(1, preFilterShardSize / (requests.size()+1));
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
-            request.setPreFilterShardSize(Math.min(preFilterShardSize, request.getPreFilterShardSize()));
+            if (preFilterShardSize != null && request.getPreFilterShardSize() == null) {
+                request.setPreFilterShardSize(preFilterShardSize);
+            }
             if (maxConcurrentShardRequests != null) {
                 request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
             }

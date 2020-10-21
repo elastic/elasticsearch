@@ -47,7 +47,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -234,10 +234,10 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-repository-execute
 
         // tag::get-repository-response
-        List<RepositoryMetaData> repositoryMetaDataResponse = response.repositories();
+        List<RepositoryMetadata> repositoryMetadataResponse = response.repositories();
         // end::get-repository-response
-        assertThat(1, equalTo(repositoryMetaDataResponse.size()));
-        assertThat(repositoryName, equalTo(repositoryMetaDataResponse.get(0).name()));
+        assertThat(1, equalTo(repositoryMetadataResponse.size()));
+        assertThat(repositoryName, equalTo(repositoryMetadataResponse.get(0).name()));
     }
 
     public void testSnapshotGetRepositoryAsync() throws InterruptedException {
@@ -455,14 +455,14 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::verify-repository-execute
 
         // tag::verify-repository-response
-        List<VerifyRepositoryResponse.NodeView> repositoryMetaDataResponse = response.getNodes();
+        List<VerifyRepositoryResponse.NodeView> repositoryMetadataResponse = response.getNodes();
         // end::verify-repository-response
-        assertThat(1, equalTo(repositoryMetaDataResponse.size()));
+        assertThat(1, equalTo(repositoryMetadataResponse.size()));
         final boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
         if (async) {
-            assertThat("asyncIntegTest-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
+            assertThat("asyncIntegTest-0", equalTo(repositoryMetadataResponse.get(0).getName()));
         } else {
-            assertThat("integTest-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
+            assertThat("integTest-0", equalTo(repositoryMetadataResponse.get(0).getName()));
         }
     }
 
@@ -753,7 +753,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
         // tag::delete-snapshot-request
         DeleteSnapshotRequest request = new DeleteSnapshotRequest(repositoryName);
-        request.snapshot(snapshotName);
+        request.snapshots(snapshotName);
         // end::delete-snapshot-request
 
         // tag::delete-snapshot-request-masterTimeout

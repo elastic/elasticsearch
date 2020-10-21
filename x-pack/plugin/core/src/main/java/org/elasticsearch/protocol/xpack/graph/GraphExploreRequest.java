@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
 import java.io.IOException;

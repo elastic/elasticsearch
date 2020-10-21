@@ -13,9 +13,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
@@ -34,6 +34,10 @@ import java.util.function.Supplier;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.is;
 
@@ -65,7 +69,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         return new FieldHitExtractor(
             instance.fieldName() + "mutated",
             instance.fullFieldName() + "mutated",
-            randomValueOtherThan(instance.dataType(), () -> randomFrom(DataType.values())),
+            randomValueOtherThan(instance.dataType(), () -> randomFrom(SqlDataTypes.types())),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
             randomBoolean(),
             instance.hitName() + "mutated",
@@ -88,9 +92,8 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
                 documentFieldValues.add(randomValue());
             }
 
-            SearchHit hit = new SearchHit(1);
             DocumentField field = new DocumentField(fieldName, documentFieldValues);
-            hit.fields(singletonMap(fieldName, field));
+            SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
             Object result = documentFieldValues.isEmpty() ? null : documentFieldValues.get(0);
             assertEquals(result, extractor.extract(hit));
         }
@@ -149,9 +152,8 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
             if (randomBoolean()) {
                 documentFieldValues.add(randomValue());
             }
-            SearchHit hit = new SearchHit(1);
             DocumentField field = new DocumentField(fieldName, documentFieldValues);
-            hit.fields(singletonMap(fieldName, field));
+            SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
             Object result = documentFieldValues.isEmpty() ? null : documentFieldValues.get(0);
             assertEquals(result, extractor.extract(hit));
         }
@@ -161,10 +163,9 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         ZoneId zoneId = randomZone();
         long millis = 1526467911780L;
         List<Object> documentFieldValues = Collections.singletonList(Long.toString(millis));
-        SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField("my_date_field", documentFieldValues);
-        hit.fields(singletonMap("my_date_field", field));
-        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATETIME, zoneId, true);
+        SearchHit hit = new SearchHit(1, null, singletonMap("my_date_field", field), null);
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DATETIME, zoneId, true);
         assertEquals(DateUtils.asDateTime(millis, zoneId), extractor.extract(hit));
     }
 
@@ -200,9 +201,8 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     public void testMultiValuedDocValue() {
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fe = getFieldHitExtractor(fieldName, true);
-        SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
-        hit.fields(singletonMap(fieldName, field));
+        SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
@@ -462,7 +462,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
         Map<String, Object> map = new HashMap<>();
         map.put(fieldName, "POINT (1 2)");
         assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
@@ -474,7 +474,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testMultipleGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
         Map<String, Object> map = new HashMap<>();
         map.put(fieldName, "POINT (1 2)");
         assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
@@ -488,7 +488,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName,
-            randomBoolean() ? DataType.GEO_SHAPE : DataType.SHAPE, UTC, false, true);
+                randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false, true);
         assertEquals(new GeoShape(1, 2), lenientFe.extractFromSource(map2));
     }
 
@@ -525,7 +525,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
 
-        FieldHitExtractor fe = new FieldHitExtractor(pathCombined, DataType.GEO_POINT, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(pathCombined, GEO_POINT, UTC, false);
         assertEquals(new GeoShape(lon, lat), fe.extract(hit));
     }
 
@@ -548,20 +548,19 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
 
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, false);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
-        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, false, true);
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, false, true);
         assertEquals(new GeoShape(lon, lat), lenientFe.extract(hit));
     }
 
     public void testGeoPointExtractionFromDocValues() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
-        SearchHit hit = new SearchHit(1);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, true);
         DocumentField field = new DocumentField(fieldName, singletonList("2, 1"));
-        hit.fields(singletonMap(fieldName, field));
+        SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
         assertEquals(new GeoShape(1, 2), fe.extract(hit));
         hit = new SearchHit(1);
         assertNull(fe.extract(hit));
@@ -569,14 +568,13 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testGeoPointExtractionFromMultipleDocValues() {
         String fieldName = randomAlphaOfLength(5);
-        SearchHit hit = new SearchHit(1);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
-
-        hit.fields(singletonMap(fieldName, new DocumentField(fieldName, Arrays.asList("2,1", "3,4"))));
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, true);
+        SearchHit hit = new SearchHit(1, null, singletonMap(fieldName,
+            new DocumentField(fieldName, Arrays.asList("2,1", "3,4"))), null);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
-        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true, true);
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, true, true);
         assertEquals(new GeoShape(1, 2), lenientFe.extract(hit));
     }
 

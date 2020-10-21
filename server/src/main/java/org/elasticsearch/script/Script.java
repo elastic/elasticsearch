@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -403,6 +404,84 @@ public final class Script implements ToXContentObject, Writeable {
         }
 
         return PARSER.apply(parser, null).build(defaultLang);
+    }
+
+    /**
+     * Parse a {@link Script} from an {@link Object}, that can either be a {@link String} or a {@link Map}.
+     * @see #parse(XContentParser, String)
+     * @param config  The object to parse the script from.
+     * @return        The parsed {@link Script}.
+     */
+    @SuppressWarnings("unchecked")
+    public static Script parse(Object config) {
+        Objects.requireNonNull(config, "Script must not be null");
+        if (config instanceof String) {
+            return new Script((String) config);
+        } else if (config instanceof Map) {
+            Map<String,Object> configMap = (Map<String, Object>) config;
+            String script = null;
+            ScriptType type = null;
+            String lang = null;
+            Map<String, Object> params = Collections.emptyMap();
+            Map<String, String> options = Collections.emptyMap();
+            for (Map.Entry<String, Object> entry : configMap.entrySet()) {
+                String parameterName = entry.getKey();
+                Object parameterValue = entry.getValue();
+                if (Script.LANG_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        lang = (String) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else if (Script.PARAMS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof Map || parameterValue == null) {
+                        params = (Map<String, Object>) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type Map: [" + parameterName + "]");
+                    }
+                } else if (Script.OPTIONS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof Map || parameterValue == null) {
+                        options = (Map<String, String>) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type Map: [" + parameterName + "]");
+                    }
+                } else if (ScriptType.INLINE.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        script = (String) parameterValue;
+                        type = ScriptType.INLINE;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else if (ScriptType.STORED.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        script = (String) parameterValue;
+                        type = ScriptType.STORED;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else {
+                    throw new ElasticsearchParseException("Unsupported field [" + parameterName + "]");
+                }
+            }
+            if (script == null) {
+                throw new ElasticsearchParseException("Expected one of [{}] or [{}] fields, but found none",
+                    ScriptType.INLINE.getParseField().getPreferredName(), ScriptType.STORED.getParseField().getPreferredName());
+            }
+            assert type != null : "if script is not null, type should definitely not be null";
+
+            if (type == ScriptType.STORED) {
+                if (lang != null) {
+                    throw new IllegalArgumentException("[" + Script.LANG_PARSE_FIELD.getPreferredName() +
+                        "] cannot be specified for stored scripts");
+                }
+
+                return new Script(type, null, script, null, params);
+            } else {
+                return new Script(type, lang == null ? DEFAULT_SCRIPT_LANG : lang, script, options, params);
+            }
+        } else {
+            throw new IllegalArgumentException("Script value should be a String or a Map");
+        }
     }
 
     private final ScriptType type;

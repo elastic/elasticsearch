@@ -21,14 +21,19 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +44,7 @@ import static java.util.Collections.emptyMap;
 public class SourceLookup implements Map<String, Object> {
 
     private LeafReader reader;
+    CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
 
     private int docId = -1;
 
@@ -54,7 +60,15 @@ public class SourceLookup implements Map<String, Object> {
         return sourceContentType;
     }
 
-    private Map<String, Object> loadSourceIfNeeded() {
+    public int docId() {
+        return docId;
+    }
+
+    // Scripting requires this method to be public. Using source()
+    // is not possible because certain checks use source == null as
+    // as a determination if source is enabled/disabled, but it should
+    // never be a null Map for scripting even when disabled.
+    public Map<String, Object> loadSourceIfNeeded() {
         if (source != null) {
             return source;
         }
@@ -66,7 +80,7 @@ public class SourceLookup implements Map<String, Object> {
         }
         try {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
-            reader.document(docId, sourceFieldVisitor);
+            fieldReader.accept(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
             if (source == null) {
                 this.source = emptyMap();
@@ -82,7 +96,7 @@ public class SourceLookup implements Map<String, Object> {
         return this.source;
     }
 
-    public static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
+    private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
         return XContentHelper.convertToMap(source, false);
     }
 
@@ -90,12 +104,32 @@ public class SourceLookup implements Map<String, Object> {
         return sourceAsMapAndType(source).v2();
     }
 
-    public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+    public void setSegmentAndDocument(
+        LeafReaderContext context,
+        int docId
+    ) {
         if (this.reader == context.reader() && this.docId == docId) {
             // if we are called with the same document, don't invalidate source
             return;
         }
-        this.reader = context.reader();
+        if (this.reader != context.reader()) {
+            this.reader = context.reader();
+            // only reset reader and fieldReader when reader changes
+            try {
+                if (context.reader() instanceof SequentialStoredFieldsLeafReader) {
+                    // All the docs to fetch are adjacent but Lucene stored fields are optimized
+                    // for random access and don't optimize for sequential access - except for merging.
+                    // So we do a little hack here and pretend we're going to do merges in order to
+                    // get better sequential access.
+                    SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+                    fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+                } else {
+                    fieldReader = context.reader()::document;
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
         this.source = null;
         this.sourceAsBytes = null;
         this.docId = docId;
@@ -128,12 +162,24 @@ public class SourceLookup implements Map<String, Object> {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
     }
 
-    public Object filter(FetchSourceContext context) {
-        return context.getFilter().apply(loadSourceIfNeeded());
+    /**
+     * For the provided path, return its value in the source.
+     *
+     * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
+     * can be returned.
+     *
+     * @param path the value's path in the source.
+     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
+     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
+     *
+     * @return the value associated with the path in the source or 'null' if the path does not exist.
+     */
+    public Object extractValue(String path, @Nullable Object nullValue) {
+        return XContentMapValues.extractValue(path, loadSourceIfNeeded(), nullValue);
     }
 
-    public Object extractValue(String path) {
-        return XContentMapValues.extractValue(path, loadSourceIfNeeded());
+    public Object filter(FetchSourceContext context) {
+        return context.getFilter().apply(loadSourceIfNeeded());
     }
 
     @Override

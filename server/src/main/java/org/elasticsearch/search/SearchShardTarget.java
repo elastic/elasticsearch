@@ -63,7 +63,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     @Nullable
     public String getNodeId() {
-        return nodeId.string();
+        return nodeId != null ? nodeId.string() : null;
     }
 
     public Text getNodeIdText() {

@@ -22,12 +22,13 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
+
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -36,8 +37,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestRepositoriesAction extends AbstractCatAction {
 
-    public RestRepositoriesAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/repositories", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/repositories"));
     }
 
     @Override
@@ -78,11 +80,11 @@ public class RestRepositoriesAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest req, GetRepositoriesResponse getRepositoriesResponse) {
         Table table = getTableWithHeader(req);
-        for (RepositoryMetaData repositoryMetaData : getRepositoriesResponse.repositories()) {
+        for (RepositoryMetadata repositoryMetadata : getRepositoriesResponse.repositories()) {
             table.startRow();
 
-            table.addCell(repositoryMetaData.name());
-            table.addCell(repositoryMetaData.type());
+            table.addCell(repositoryMetadata.name());
+            table.addCell(repositoryMetadata.type());
 
             table.endRow();
         }

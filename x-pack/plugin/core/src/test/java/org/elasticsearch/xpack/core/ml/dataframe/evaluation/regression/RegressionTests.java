@@ -14,7 +14,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
@@ -23,10 +25,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RegressionTests extends AbstractSerializingTestCase<Regression> {
+
+    private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -70,6 +77,25 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         assertThat(e.getMessage(), equalTo("[regression] must have one or more metrics"));
     }
 
+    public void testConstructor_GivenDefaultMetrics() {
+        Regression regression = new Regression("actual", "predicted", null);
+
+        List<EvaluationMetric> metrics = regression.getMetrics();
+
+        assertThat(metrics, containsInAnyOrder(new Huber(), new MeanSquaredError(), new RSquared()));
+    }
+
+    public void testGetFields() {
+        Regression evaluation = new Regression("foo", "bar", null);
+        EvaluationFields fields = evaluation.getFields();
+        assertThat(fields.getActualField(), is(equalTo("foo")));
+        assertThat(fields.getPredictedField(), is(equalTo("bar")));
+        assertThat(fields.getTopClassesField(), is(nullValue()));
+        assertThat(fields.getPredictedClassField(), is(nullValue()));
+        assertThat(fields.getPredictedProbabilityField(), is(nullValue()));
+        assertThat(fields.isPredictedProbabilityFieldNested(), is(false));
+    }
+
     public void testBuildSearch() {
         QueryBuilder userProvidedQuery =
             QueryBuilders.boolQuery()
@@ -85,7 +111,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
 
         Regression evaluation = new Regression("act", "pred", Arrays.asList(new MeanSquaredError()));
 
-        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(userProvidedQuery);
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
         assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }

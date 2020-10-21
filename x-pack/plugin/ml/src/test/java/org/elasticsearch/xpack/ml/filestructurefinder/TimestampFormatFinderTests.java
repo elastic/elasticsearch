@@ -219,6 +219,44 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
             "XX2018.05.15 17:14:56Z"));
     }
 
+    public void testMatchHasNanosecondPrecision() {
+
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56Z"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56-0100"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56+01:00"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374Z"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56.374+0100"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374-01:00"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56.374123Z"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374123-0100"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56.374123+01:00"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374123456Z"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56.374123456+0100"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374123456-01:00"));
+
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("UNIX_MS", "1526400896374"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("UNIX", "1526400896"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("TAI64N", "400000005afb078a164ac980"));
+
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy-MM-dd HH:mm:ss,SSS XX",
+            "2018-05-15 17:14:56,374 +0100"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy-MM-dd HH:mm:ss.SSSSSS XX",
+            "2018-05-15 17:14:56.374123 +0100"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy-MM-dd HH:mm:ss,SSSSSSSSS XX",
+            "2018-05-15 17:14:56,374123456 +0100"));
+
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("'SSSS'yyyy.MM.dd HH:mm:ssXX",
+            "SSSS2018.05.15 17:14:56Z"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy.MM.dd HH:mm:ss,SSS'SSSS'",
+            "2018.05.15 17:14:56,374SSSS"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy.MM.dd HH:mm:ss,SSSS'SSSS'",
+            "2018.05.15 17:14:56,3741SSSS"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy.MM.dd'SSSS'HH:mm:ss.SSS",
+            "2018.05.15SSSS17:14:56.374"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy.MM.dd'SSSS'HH:mm:ss.SSSS",
+            "2018.05.15SSSS17:14:56.3741"));
+    }
+
     public void testParseIndeterminateDateNumbers() {
 
         // Simplest case - nothing is indeterminate
@@ -237,10 +275,26 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         assertEquals(5, indeterminateDateNumbers[0]);
         assertEquals(15, indeterminateDateNumbers[1]);
 
+        // US with padding, 2 digit year
+        indeterminateDateNumbers =
+            TimestampFormatFinder.TimestampMatch.parseIndeterminateDateNumbers("05/15/18 16:14:56",
+                Collections.singletonList("??/??/yy HH:mm:ss"));
+        assertEquals(2, indeterminateDateNumbers.length);
+        assertEquals(5, indeterminateDateNumbers[0]);
+        assertEquals(15, indeterminateDateNumbers[1]);
+
         // US without padding
         indeterminateDateNumbers =
             TimestampFormatFinder.TimestampMatch.parseIndeterminateDateNumbers("5/15/2018 16:14:56",
                 Collections.singletonList("?/?/yyyy HH:mm:ss"));
+        assertEquals(2, indeterminateDateNumbers.length);
+        assertEquals(5, indeterminateDateNumbers[0]);
+        assertEquals(15, indeterminateDateNumbers[1]);
+
+        // US without padding, 2 digit year
+        indeterminateDateNumbers =
+            TimestampFormatFinder.TimestampMatch.parseIndeterminateDateNumbers("5/15/18 16:14:56",
+                Collections.singletonList("?/?/yy HH:mm:ss"));
         assertEquals(2, indeterminateDateNumbers.length);
         assertEquals(5, indeterminateDateNumbers[0]);
         assertEquals(15, indeterminateDateNumbers[1]);
@@ -253,10 +307,26 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         assertEquals(15, indeterminateDateNumbers[0]);
         assertEquals(5, indeterminateDateNumbers[1]);
 
+        // EU with padding, 2 digit year
+        indeterminateDateNumbers =
+            TimestampFormatFinder.TimestampMatch.parseIndeterminateDateNumbers("15/05/18 16:14:56",
+                Collections.singletonList("??/??/yy HH:mm:ss"));
+        assertEquals(2, indeterminateDateNumbers.length);
+        assertEquals(15, indeterminateDateNumbers[0]);
+        assertEquals(5, indeterminateDateNumbers[1]);
+
         // EU without padding
         indeterminateDateNumbers =
             TimestampFormatFinder.TimestampMatch.parseIndeterminateDateNumbers("15/5/2018 16:14:56",
                 Collections.singletonList("?/?/yyyy HH:mm:ss"));
+        assertEquals(2, indeterminateDateNumbers.length);
+        assertEquals(15, indeterminateDateNumbers[0]);
+        assertEquals(5, indeterminateDateNumbers[1]);
+
+        // EU without padding, 2 digit year
+        indeterminateDateNumbers =
+            TimestampFormatFinder.TimestampMatch.parseIndeterminateDateNumbers("15/5/18 16:14:56",
+                Collections.singletonList("?/?/yy HH:mm:ss"));
         assertEquals(2, indeterminateDateNumbers.length);
         assertEquals(15, indeterminateDateNumbers[0]);
         assertEquals(5, indeterminateDateNumbers[1]);
@@ -293,6 +363,14 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
 
+        timestampFormatFinder.addSample("05/5/18 16:14:56");
+        timestampFormatFinder.addSample("06/6/18 17:14:56");
+        timestampFormatFinder.addSample("07/7/18 18:14:56");
+
+        assertTrue(timestampFormatFinder.guessIsDayFirstFromFormats(timestampFormatFinder.getRawJavaTimestampFormats()));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+
         timestampFormatFinder.addSample("5/05/2018 16:14:56");
         timestampFormatFinder.addSample("6/06/2018 17:14:56");
         timestampFormatFinder.addSample("7/07/2018 18:14:56");
@@ -302,11 +380,27 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
 
+        timestampFormatFinder.addSample("5/05/18 16:14:56");
+        timestampFormatFinder.addSample("6/06/18 17:14:56");
+        timestampFormatFinder.addSample("7/07/18 18:14:56");
+
+        assertFalse(timestampFormatFinder.guessIsDayFirstFromFormats(timestampFormatFinder.getRawJavaTimestampFormats()));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+
         timestampFormatFinder.addSample("5/05/2018 16:14:56");
         timestampFormatFinder.addSample("06/6/2018 17:14:56");
         timestampFormatFinder.addSample("7/07/2018 18:14:56");
 
         // Inconsistent so no decision
+        assertNull(timestampFormatFinder.guessIsDayFirstFromFormats(timestampFormatFinder.getRawJavaTimestampFormats()));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+
+        timestampFormatFinder.addSample("5/05/18 16:14:56");
+        timestampFormatFinder.addSample("06/6/18 17:14:56");
+        timestampFormatFinder.addSample("7/07/18 18:14:56");
+
         assertNull(timestampFormatFinder.guessIsDayFirstFromFormats(timestampFormatFinder.getRawJavaTimestampFormats()));
     }
 
@@ -323,9 +417,27 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
 
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("05/15/18 17:14:56");
+        timestampFormatFinder.addSample("05/25/18 18:14:56");
+
+        assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+        assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+
         timestampFormatFinder.addSample("05/05/2018 16:14:56");
         timestampFormatFinder.addSample("15/05/2018 17:14:56");
         timestampFormatFinder.addSample("25/05/2018 18:14:56");
+
+        assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+        assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("15/05/18 17:14:56");
+        timestampFormatFinder.addSample("25/05/18 18:14:56");
 
         assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(null));
         assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(null));
@@ -337,6 +449,13 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         timestampFormatFinder.addSample("05/07/2018 18:14:56");
 
         // Second number has 3 values, first only 1, so guess second is day
+        assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+        assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("05/06/18 17:14:56");
+        timestampFormatFinder.addSample("05/07/18 18:14:56");
+
         assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(null));
         assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(null));
 
@@ -352,11 +471,29 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
 
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("06/05/18 17:14:56");
+        timestampFormatFinder.addSample("07/05/18 18:14:56");
+
+        assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+        assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+
         timestampFormatFinder.addSample("05/05/2018 16:14:56");
         timestampFormatFinder.addSample("06/06/2018 17:14:56");
         timestampFormatFinder.addSample("07/07/2018 18:14:56");
 
         // Insufficient evidence to decide
+        assertNull(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+        assertNull(timestampFormatFinder.guessIsDayFirstFromMatches(null));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("06/06/18 17:14:56");
+        timestampFormatFinder.addSample("07/07/18 18:14:56");
+
         assertNull(timestampFormatFinder.guessIsDayFirstFromMatches(null));
         assertNull(timestampFormatFinder.guessIsDayFirstFromMatches(null));
     }
@@ -366,9 +503,11 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         // Similar to the test above, but with the possibility that the secondary
         // ISO8601 formats cause confusion - this test proves that they don't
 
+        // DATESTAMP supports both 2 and 4 digit years, so each test is repeated for both lengths
         TimestampFormatFinder.TimestampFormat expectedPrimaryFormat =
             new TimestampFormatFinder.TimestampFormat(Collections.singletonList("??/??/yyyy HH:mm:ss"),
-                Pattern.compile("\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b"), "DATESTAMP", Collections.emptyMap(), "");
+                Pattern.compile("\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b"), "DATESTAMP",
+                Collections.emptyMap(), "");
 
         TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
 
@@ -383,11 +522,33 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
 
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("2018-05-15T17:14:56");
+        timestampFormatFinder.addSample("05/15/18 17:14:56");
+        timestampFormatFinder.addSample("2018-05-25T18:14:56");
+        timestampFormatFinder.addSample("05/25/18 18:14:56");
+
+        assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+        assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
+
         timestampFormatFinder.addSample("05/05/2018 16:14:56");
         timestampFormatFinder.addSample("2018-05-15T17:14:56");
         timestampFormatFinder.addSample("15/05/2018 17:14:56");
         timestampFormatFinder.addSample("2018-05-25T18:14:56");
         timestampFormatFinder.addSample("25/05/2018 18:14:56");
+
+        assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+        assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
+
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("2018-05-15T17:14:56");
+        timestampFormatFinder.addSample("15/05/18 17:14:56");
+        timestampFormatFinder.addSample("2018-05-25T18:14:56");
+        timestampFormatFinder.addSample("25/05/18 18:14:56");
 
         assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
         assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
@@ -406,6 +567,17 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
 
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("2018-05-06T17:14:56");
+        timestampFormatFinder.addSample("05/06/18 17:14:56");
+        timestampFormatFinder.addSample("2018-05-07T18:14:56");
+        timestampFormatFinder.addSample("05/07/18 18:14:56");
+
+        assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+        assertFalse(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
+
         timestampFormatFinder.addSample("05/05/2018 16:14:56");
         timestampFormatFinder.addSample("2018-05-06T17:14:56");
         timestampFormatFinder.addSample("06/05/2018 17:14:56");
@@ -418,6 +590,17 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
 
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("2018-05-06T17:14:56");
+        timestampFormatFinder.addSample("06/05/18 17:14:56");
+        timestampFormatFinder.addSample("2018-05-07T18:14:56");
+        timestampFormatFinder.addSample("07/05/18 18:14:56");
+
+        assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+        assertTrue(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
+
         timestampFormatFinder.addSample("05/05/2018 16:14:56");
         timestampFormatFinder.addSample("2018-06-06T17:14:56");
         timestampFormatFinder.addSample("06/06/2018 17:14:56");
@@ -425,6 +608,17 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         timestampFormatFinder.addSample("07/07/2018 18:14:56");
 
         // Insufficient evidence to decide
+        assertNull(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+        assertNull(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
+
+        timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
+
+        timestampFormatFinder.addSample("05/05/18 16:14:56");
+        timestampFormatFinder.addSample("2018-06-06T17:14:56");
+        timestampFormatFinder.addSample("06/06/18 17:14:56");
+        timestampFormatFinder.addSample("2018-07-07T18:14:56");
+        timestampFormatFinder.addSample("07/07/18 18:14:56");
+
         assertNull(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
         assertNull(timestampFormatFinder.guessIsDayFirstFromMatches(expectedPrimaryFormat));
     }
@@ -675,31 +869,35 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
             Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"), 1526400896000L);
 
         validateTimestampMatch("05/15/2018 17:14:56,374", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM/dd/yyyy HH:mm:ss,SSS", 1526400896374L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM/dd/yyyy HH:mm:ss,SSS", 1526400896374L);
         validateTimestampMatch("05-15-2018-17:14:56.374", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM-dd-yyyy-HH:mm:ss.SSS", 1526400896374L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM-dd-yyyy-HH:mm:ss.SSS", 1526400896374L);
         validateTimestampMatch("15/05/2018 17:14:56.374", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd/MM/yyyy HH:mm:ss.SSS", 1526400896374L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd/MM/yyyy HH:mm:ss.SSS", 1526400896374L);
         validateTimestampMatch("15-05-2018-17:14:56,374", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd-MM-yyyy-HH:mm:ss,SSS", 1526400896374L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd-MM-yyyy-HH:mm:ss,SSS", 1526400896374L);
         validateTimestampMatch("15.05.2018 17:14:56.374", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd.MM.yyyy HH:mm:ss.SSS", 1526400896374L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd.MM.yyyy HH:mm:ss.SSS", 1526400896374L);
         validateTimestampMatch("05/15/2018 17:14:56", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM/dd/yyyy HH:mm:ss", 1526400896000L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM/dd/yyyy HH:mm:ss", 1526400896000L);
         validateTimestampMatch("05-15-2018-17:14:56", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM-dd-yyyy-HH:mm:ss", 1526400896000L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM-dd-yyyy-HH:mm:ss", 1526400896000L);
         validateTimestampMatch("15/05/2018 17:14:56", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd/MM/yyyy HH:mm:ss", 1526400896000L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd/MM/yyyy HH:mm:ss", 1526400896000L);
         validateTimestampMatch("15-05-2018-17:14:56", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd-MM-yyyy-HH:mm:ss", 1526400896000L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd-MM-yyyy-HH:mm:ss", 1526400896000L);
         validateTimestampMatch("15.05.2018 17:14:56", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd.MM.yyyy HH:mm:ss", 1526400896000L);
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "dd.MM.yyyy HH:mm:ss", 1526400896000L);
 
-        validateTimestampMatch("05/15/2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}\\b", "MM/dd/yyyy", 1526338800000L);
-        validateTimestampMatch("05-15-2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}\\b", "MM-dd-yyyy", 1526338800000L);
-        validateTimestampMatch("15/05/2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}\\b", "dd/MM/yyyy", 1526338800000L);
-        validateTimestampMatch("15-05-2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}\\b", "dd-MM-yyyy", 1526338800000L);
-        validateTimestampMatch("15.05.2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}\\b", "dd.MM.yyyy", 1526338800000L);
+        validateTimestampMatch("05/15/2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "MM/dd/yyyy", 1526338800000L);
+        validateTimestampMatch("05-15-2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "MM-dd-yyyy", 1526338800000L);
+        validateTimestampMatch("15/05/2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd/MM/yyyy", 1526338800000L);
+        validateTimestampMatch("15-05-2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd-MM-yyyy", 1526338800000L);
+        validateTimestampMatch("15.05.2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd.MM.yyyy", 1526338800000L);
+
+        // The Kibana export format doesn't correspond to a built-in Grok pattern, so it has to be custom
+        validateTimestampMatch("May 15, 2018 @ 17:14:56.374", "CUSTOM_TIMESTAMP",
+            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b", "MMM dd, yyyy @ HH:mm:ss.SSS", 1526400896374L);
     }
 
     public void testFindFormatGivenOnlySystemDate() {
@@ -812,7 +1010,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         validateFindInFullMessage("10-28-2016 16:22:47.636 +0200 ERROR Network - " +
             "Error encountered for connection from src=192.168.0.1:12345. Local side shutting down", "", "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM-dd-yyyy HH:mm:ss.SSS");
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "MM-dd-yyyy HH:mm:ss.SSS");
 
         validateFindInFullMessage("2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client " +
             " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)", "",

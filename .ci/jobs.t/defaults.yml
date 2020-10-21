@@ -49,6 +49,7 @@
             JAVA11_HOME=$HOME/.java/java11
             JAVA12_HOME=$HOME/.java/openjdk12
             JAVA13_HOME=$HOME/.java/openjdk13
+            JAVA14_HOME=$HOME/.java/openjdk14
             GRADLE_OPTS=-XX:+HeapDumpOnOutOfMemoryError -Xmx128m -Xms128m
     properties:
         - github:

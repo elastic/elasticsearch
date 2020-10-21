@@ -34,4 +34,4 @@ public class XPackUsageFeatureResponse extends ActionResponse {
         out.writeNamedWriteable(usage);
     }
 
-    }
+}

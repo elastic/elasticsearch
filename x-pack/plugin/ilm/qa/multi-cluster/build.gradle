@@ -4,30 +4,26 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(':x-pack:plugin:ccr:qa')
-  testCompile project(':x-pack:plugin:core')
-  testCompile project(':x-pack:plugin:ilm')
+  testImplementation project(':x-pack:plugin:ccr:qa')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':x-pack:plugin:ilm')
 }
 
 File repoDir = file("$buildDir/testclusters/repo")
 
 task 'leader-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  runner {
     systemProperty 'tests.target_cluster', 'leader'
     /* To support taking index snapshots, we have to set path.repo setting */
     systemProperty 'tests.path.repo', repoDir.absolutePath
-  }
 }
 
 testClusters.'leader-cluster' {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
-  setting 'xpack.ilm.enabled', 'true'
   setting 'xpack.ccr.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.poll_interval', '1000ms'
@@ -35,7 +31,6 @@ testClusters.'leader-cluster' {
 
 task 'follow-cluster'(type: RestIntegTestTask) {
   dependsOn 'leader-cluster'
-  runner {
     useCluster testClusters.'leader-cluster'
     systemProperty 'tests.target_cluster', 'follow'
     nonInputProperties.systemProperty 'tests.leader_host',
@@ -44,17 +39,14 @@ task 'follow-cluster'(type: RestIntegTestTask) {
       "${-> testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}"
     /* To support taking index snapshots, we have to set path.repo setting */
     systemProperty 'tests.path.repo', repoDir.absolutePath
-  }
 }
 
 testClusters.'follow-cluster' {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
-  setting 'xpack.ilm.enabled', 'true'
   setting 'xpack.ccr.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.poll_interval', '1000ms'

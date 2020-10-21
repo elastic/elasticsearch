@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -70,12 +68,12 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
     @Override
     public NativeAnalyticsProcess createAnalyticsProcess(DataFrameAnalyticsConfig config, AnalyticsProcessConfig analyticsProcessConfig,
-                                                         @Nullable BytesReference state, ExecutorService executorService,
+                                                         boolean hasState, ExecutorService executorService,
                                                          Consumer<String> onProcessCrash) {
         String jobId = config.getId();
         List<Path> filesToDelete = new ArrayList<>();
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
-                true, false, true, true, state != null, config.getAnalysis().persistsState());
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AnalyticsBuilder.ANALYTICS, jobId,
+            null, false, true, true, hasState, config.getAnalysis().persistsState());
 
         // The extra 2 are for the checksum and the control field
         int numberOfFields = analyticsProcessConfig.cols() + 2;
@@ -84,28 +82,29 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
         NativeAnalyticsProcess analyticsProcess =
             new NativeAnalyticsProcess(
-                jobId, nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
-                processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields, filesToDelete,
-                onProcessCrash, processConnectTimeout, analyticsProcessConfig, namedXContentRegistry);
+                jobId, nativeController, processPipes, numberOfFields, filesToDelete,
+                onProcessCrash, analyticsProcessConfig, namedXContentRegistry);
 
         try {
-            startProcess(config, executorService, processPipes, analyticsProcess);
+            startProcess(config, executorService, analyticsProcess);
             return analyticsProcess;
-        } catch (EsRejectedExecutionException e) {
+        } catch (IOException | EsRejectedExecutionException e) {
+            String msg = "Failed to connect to data frame analytics process for job " + jobId;
+            LOGGER.error(msg);
             try {
                 IOUtils.close(analyticsProcess);
             } catch (IOException ioe) {
                 LOGGER.error("Can't close data frame analytics process", ioe);
             }
-            throw e;
+            throw ExceptionsHelper.serverError(msg, e);
         }
     }
 
-    private void startProcess(DataFrameAnalyticsConfig config, ExecutorService executorService, ProcessPipes processPipes,
-                                                NativeAnalyticsProcess process) {
+    private void startProcess(DataFrameAnalyticsConfig config, ExecutorService executorService,
+                              NativeAnalyticsProcess process) throws IOException {
         if (config.getAnalysis().persistsState()) {
             IndexingStateProcessor stateProcessor = new IndexingStateProcessor(config.getId(), resultsPersisterService, auditor);
-            process.start(executorService, stateProcessor, processPipes.getPersistStream().get());
+            process.start(executorService, stateProcessor);
         } else {
             process.start(executorService);
         }
@@ -117,9 +116,11 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
             new AnalyticsBuilder(env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
         try {
             analyticsBuilder.build();
-            processPipes.connectStreams(processConnectTimeout);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("[{}] Interrupted while launching data frame analytics process", jobId);
         } catch (IOException e) {
-            String msg = "Failed to launch data frame analytics process for job " + jobId;
+            String msg = "[" + jobId + "] Failed to launch data frame analytics process";
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

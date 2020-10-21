@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
 
 import java.util.concurrent.TimeUnit
@@ -14,8 +15,13 @@ buildScan {
 
   tag OS.current().name()
 
+  // Tag if this build is run in FIPS mode
+  if (BuildParams.inFipsJvm) {
+    tag 'FIPS'
+  }
+
   // Automatically publish scans from Elasticsearch CI
-  if (jenkinsUrl?.host?.endsWith('elastic.co')) {
+  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
     publishAlways()
     buildScan.server = 'https://gradle-enterprise.elastic.co'
   }
@@ -34,6 +40,9 @@ buildScan {
 
   // Jenkins-specific build scan metadata
   if (jenkinsUrl) {
+    // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+    uploadInBackground = false
+
     // Parse job name in the case of matrix builds
     // Matrix job names come in the form of "base-job-name/matrix_param1=value1,matrix_param2=value2"
     def splitJobName = jobName.split('/')
@@ -52,7 +61,7 @@ buildScan {
     }
 
     tag 'CI'
-    link 'Jenkins Build', buildUrl
+    link 'CI Build', buildUrl
     link 'GCP Upload', "https://console.cloud.google.com/storage/elasticsearch-ci-artifacts/jobs/${jobName}/build/${buildNumber}.tar.bz2"
     value 'Job Number', buildNumber
 
@@ -76,14 +85,8 @@ buildScan {
         value 'Git Branch', branch
         tag branch
       }
-      if (System.getenv('GIT_COMMIT')) {
-        value 'Git Commit ID', System.getenv('GIT_COMMIT')
-        link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('GIT_COMMIT')}"
-        background {
-          def changes = "git diff --name-only ${System.getenv('GIT_PREVIOUS_COMMIT')}..${System.getenv('GIT_COMMIT')}".execute().text.trim()
-          value 'Git Changes', changes
-        }
-      }
+      value 'Git Commit ID', BuildParams.gitRevision
+      link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
     }
   } else {
     tag 'LOCAL'

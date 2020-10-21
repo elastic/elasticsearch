@@ -37,7 +37,8 @@
                 "segments",
                 "store",
                 "warmer",
-                "suggest"
+                "suggest",
+                "bulk"
               ],
               "description":"Limit the information returned the specific metrics."
             }
@@ -83,7 +84,8 @@
                 "segments",
                 "store",
                 "warmer",
-                "suggest"
+                "suggest",
+                "bulk"
               ],
               "description":"Limit the information returned the specific metrics."
             }
@@ -137,6 +139,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],

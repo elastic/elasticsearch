@@ -23,7 +23,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 /**
  * Used by all field data based aggregators. This determine the context of the field data the aggregators are operating
- * in. I holds both the field names and the index field datas that are associated with them.
+ * in. It holds both the field names and the index field datas that are associated with them.
  */
 public class FieldContext {
 

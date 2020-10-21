@@ -21,7 +21,7 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -296,10 +296,10 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         Version randomVersion = VersionUtils.randomIndexCompatibleVersion(random());
         Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
 
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);

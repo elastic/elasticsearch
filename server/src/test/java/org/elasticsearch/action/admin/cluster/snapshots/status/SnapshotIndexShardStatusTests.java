@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.Index;
@@ -37,7 +37,7 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
     }
 
     protected SnapshotIndexShardStatus createForIndex(String indexName) {
-        ShardId shardId = new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), randomIntBetween(0, 500));
+        ShardId shardId = new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), randomIntBetween(0, 500));
         SnapshotIndexShardStage stage = randomFrom(SnapshotIndexShardStage.values());
         SnapshotStats stats = new SnapshotStatsTests().createTestInstance();
         String nodeId = randomAlphaOfLength(20);
@@ -56,10 +56,10 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
 
     @Override
     protected SnapshotIndexShardStatus doParseInstance(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         SnapshotIndexShardStatus status = SnapshotIndexShardStatus.fromXContent(parser, parser.currentName());
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return status;
     }
 

@@ -34,9 +34,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -45,29 +44,29 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.greaterThan;
 
 public class DiversifiedSamplerTests extends AggregatorTestCase {
 
-    public void testDiversifiedSampler() throws Exception {
+    private void writeBooks(RandomIndexWriter iw) throws IOException {
         String data[] = {
-                // "id,cat,name,price,inStock,author_t,series_t,sequence_i,genre_s,genre_id",
-                "0553573403,book,A Game of Thrones,7.99,true,George R.R. Martin,A Song of Ice and Fire,1,fantasy,0",
-                "0553579908,book,A Clash of Kings,7.99,true,George R.R. Martin,A Song of Ice and Fire,2,fantasy,0",
-                "055357342X,book,A Storm of Swords,7.99,true,George R.R. Martin,A Song of Ice and Fire,3,fantasy,0",
-                "0553293354,book,Foundation,17.99,true,Isaac Asimov,Foundation Novels,1,scifi,1",
-                "0812521390,book,The Black Company,6.99,false,Glen Cook,The Chronicles of The Black Company,1,fantasy,0",
-                "0812550706,book,Ender's Game,6.99,true,Orson Scott Card,Ender,1,scifi,1",
-                "0441385532,book,Jhereg,7.95,false,Steven Brust,Vlad Taltos,1,fantasy,0",
-                "0380014300,book,Nine Princes In Amber,6.99,true,Roger Zelazny,the Chronicles of Amber,1,fantasy,0",
-                "0805080481,book,The Book of Three,5.99,true,Lloyd Alexander,The Chronicles of Prydain,1,fantasy,0",
-                "080508049X,book,The Black Cauldron,5.99,true,Lloyd Alexander,The Chronicles of Prydain,2,fantasy,0"
-        };
+            // "id,cat,name,price,inStock,author_t,series_t,sequence_i,genre_s,genre_id",
+            "0553573403,book,A Game of Thrones,7.99,true,George R.R. Martin,A Song of Ice and Fire,1,fantasy,0",
+            "0553579908,book,A Clash of Kings,7.99,true,George R.R. Martin,A Song of Ice and Fire,2,fantasy,0",
+            "055357342X,book,A Storm of Swords,7.99,true,George R.R. Martin,A Song of Ice and Fire,3,fantasy,0",
+            "0553293354,book,Foundation,17.99,true,Isaac Asimov,Foundation Novels,1,scifi,1",
+            "0812521390,book,The Black Company,6.99,false,Glen Cook,The Chronicles of The Black Company,1,fantasy,0",
+            "0812550706,book,Ender's Game,6.99,true,Orson Scott Card,Ender,1,scifi,1",
+            "0441385532,book,Jhereg,7.95,false,Steven Brust,Vlad Taltos,1,fantasy,0",
+            "0380014300,book,Nine Princes In Amber,6.99,true,Roger Zelazny,the Chronicles of Amber,1,fantasy,0",
+            "0805080481,book,The Book of Three,5.99,true,Lloyd Alexander,The Chronicles of Prydain,1,fantasy,0",
+            "080508049X,book,The Black Cauldron,5.99,true,Lloyd Alexander,The Chronicles of Prydain,2,fantasy,0" };
 
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        List<Document> docs = new ArrayList<>();
         for (String entry : data) {
             String[] parts = entry.split(",");
             Document document = new Document();
@@ -81,16 +80,25 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
             document.add(new StringField("sequence", parts[7], Field.Store.NO));
             document.add(new SortedDocValuesField("genre", new BytesRef(parts[8])));
             document.add(new NumericDocValuesField("genre_id", Long.valueOf(parts[9])));
-            indexWriter.addDocument(document);
+            docs.add(document);
         }
+        /*
+         * Add all documents at once to force the test to aggregate all
+         * values together at the same time. *That* is required because
+         * the tests assume that all books are on a shard together. And
+         * they aren't always if they end up in separate leaves.
+         */
+        iw.addDocuments(docs);
+    }
 
+    public void testDiversifiedSampler() throws Exception {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
+        writeBooks(indexWriter);
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-
-        MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType();
-        genreFieldType.setName("genre");
-        genreFieldType.setHasDocValues(true);
         Consumer<InternalSampler> verify = result -> {
             Terms terms = result.getAggregations().get("terms");
             assertEquals(2, terms.getBuckets().size());
@@ -101,14 +109,11 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         testCase(indexSearcher, genreFieldType, "global_ordinals", verify);
         testCase(indexSearcher, genreFieldType, "bytes_hash", verify);
 
-        genreFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        genreFieldType.setName("genre_id");
+        genreFieldType = new NumberFieldMapper.NumberFieldType("genre_id", NumberFieldMapper.NumberType.LONG);
         testCase(indexSearcher, genreFieldType, null, verify);
 
         // wrong field:
-        genreFieldType = new KeywordFieldMapper.KeywordFieldType();
-        genreFieldType.setName("wrong_field");
-        genreFieldType.setHasDocValues(true);
+        genreFieldType = new KeywordFieldMapper.KeywordFieldType("wrong_field");
         testCase(indexSearcher, genreFieldType, null, result -> {
             Terms terms = result.getAggregations().get("terms");
             assertEquals(1, terms.getBuckets().size());
@@ -120,45 +125,14 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
     }
 
     public void testRidiculousSize() throws Exception {
-        String[] data = {
-            // "id,cat,name,price,inStock,author_t,series_t,sequence_i,genre_s,genre_id",
-            "0553573403,book,A Game of Thrones,7.99,true,George R.R. Martin,A Song of Ice and Fire,1,fantasy,0",
-            "0553579908,book,A Clash of Kings,7.99,true,George R.R. Martin,A Song of Ice and Fire,2,fantasy,0",
-            "055357342X,book,A Storm of Swords,7.99,true,George R.R. Martin,A Song of Ice and Fire,3,fantasy,0",
-            "0553293354,book,Foundation,17.99,true,Isaac Asimov,Foundation Novels,1,scifi,1",
-            "0812521390,book,The Black Company,6.99,false,Glen Cook,The Chronicles of The Black Company,1,fantasy,0",
-            "0812550706,book,Ender's Game,6.99,true,Orson Scott Card,Ender,1,scifi,1",
-            "0441385532,book,Jhereg,7.95,false,Steven Brust,Vlad Taltos,1,fantasy,0",
-            "0380014300,book,Nine Princes In Amber,6.99,true,Roger Zelazny,the Chronicles of Amber,1,fantasy,0",
-            "0805080481,book,The Book of Three,5.99,true,Lloyd Alexander,The Chronicles of Prydain,1,fantasy,0",
-            "080508049X,book,The Black Cauldron,5.99,true,Lloyd Alexander,The Chronicles of Prydain,2,fantasy,0"
-        };
-
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        for (String entry : data) {
-            String[] parts = entry.split(",");
-            Document document = new Document();
-            document.add(new SortedDocValuesField("id", new BytesRef(parts[0])));
-            document.add(new StringField("cat", parts[1], Field.Store.NO));
-            document.add(new TextField("name", parts[2], Field.Store.NO));
-            document.add(new DoubleDocValuesField("price", Double.valueOf(parts[3])));
-            document.add(new StringField("inStock", parts[4], Field.Store.NO));
-            document.add(new StringField("author", parts[5], Field.Store.NO));
-            document.add(new StringField("series", parts[6], Field.Store.NO));
-            document.add(new StringField("sequence", parts[7], Field.Store.NO));
-            document.add(new SortedDocValuesField("genre", new BytesRef(parts[8])));
-            document.add(new NumericDocValuesField("genre_id", Long.valueOf(parts[9])));
-            indexWriter.addDocument(document);
-        }
-
+        writeBooks(indexWriter);
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-        MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType();
-        genreFieldType.setName("genre");
-        genreFieldType.setHasDocValues(true);
+        MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
         Consumer<InternalSampler> verify = result -> {
             Terms terms = result.getAggregations().get("terms");
             assertThat(terms.getBuckets().size(), greaterThan(0));
@@ -187,12 +161,9 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
 
     private void testCase(IndexSearcher indexSearcher, MappedFieldType genreFieldType, String executionHint,
                           Consumer<InternalSampler> verify, int shardSize, int maxDocsPerValue) throws IOException {
-        MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType();
-        idFieldType.setName("id");
-        idFieldType.setHasDocValues(true);
+        MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
 
-        SortedNumericDVIndexFieldData fieldData = new SortedNumericDVIndexFieldData(new Index("index", "index"), "price",
-                IndexNumericFieldData.NumericType.DOUBLE);
+        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData("price", IndexNumericFieldData.NumericType.DOUBLE);
         FunctionScoreQuery query = new FunctionScoreQuery(new MatchAllDocsQuery(),
                 new FieldValueFactorFunction("price", 1, FieldValueFactorFunction.Modifier.RECIPROCAL, null, fieldData));
 
@@ -201,9 +172,9 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
                 .executionHint(executionHint)
                 .maxDocsPerValue(maxDocsPerValue)
                 .shardSize(shardSize)
-                .subAggregation(new TermsAggregationBuilder("terms", null).field("id"));
+                .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = search(indexSearcher, query, builder, genreFieldType, idFieldType);
+        InternalSampler result = searchAndReduce(indexSearcher, query, builder, genreFieldType, idFieldType);
         verify.accept(result);
     }
 
@@ -214,19 +185,15 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-        MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType();
-        idFieldType.setName("id");
-        idFieldType.setHasDocValues(true);
+        MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
 
-        MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType();
-        genreFieldType.setName("genre");
-        genreFieldType.setHasDocValues(true);
+        MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
 
         DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name")
                 .field(genreFieldType.name())
-                .subAggregation(new TermsAggregationBuilder("terms", null).field("id"));
+                .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = search(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType);
+        InternalSampler result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType);
         Terms terms = result.getAggregations().get("terms");
         assertEquals(0, terms.getBuckets().size());
         indexReader.close();

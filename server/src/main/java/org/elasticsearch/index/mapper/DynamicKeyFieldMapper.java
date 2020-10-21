@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.Settings;
-
 /**
  * A field mapper that supports lookup of dynamic sub-keys. If the field mapper is named 'my_field',
  * then a user is able to search on the field in both of the following ways:
@@ -39,14 +37,12 @@ import org.elasticsearch.common.settings.Settings;
  * Note: we anticipate that 'flattened' fields will be the only implementation of this
  * interface. Flattened object fields live in the 'mapper-flattened' module.
  */
-public abstract class DynamicKeyFieldMapper extends FieldMapper {
+public abstract class DynamicKeyFieldMapper extends ParametrizedFieldMapper {
 
     public DynamicKeyFieldMapper(String simpleName,
-                                 MappedFieldType fieldType,
                                  MappedFieldType defaultFieldType,
-                                 Settings indexSettings,
                                  CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), copyTo);
+        super(simpleName, defaultFieldType, MultiFields.empty(), copyTo);
     }
 
     public abstract MappedFieldType keyedFieldType(String key);

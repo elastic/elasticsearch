@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitterFactory;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.util.List;
@@ -21,10 +22,12 @@ public class DataFrameDataExtractorContext {
     final int scrollSize;
     final Map<String, String> headers;
     final boolean includeSource;
-    final boolean includeRowsWithMissingValues;
+    final boolean supportsRowsWithMissingValues;
+    final TrainTestSplitterFactory trainTestSplitterFactory;
 
     DataFrameDataExtractorContext(String jobId, ExtractedFields extractedFields, List<String> indices, QueryBuilder query, int scrollSize,
-                                  Map<String, String> headers, boolean includeSource, boolean includeRowsWithMissingValues) {
+                                  Map<String, String> headers, boolean includeSource, boolean supportsRowsWithMissingValues,
+                                  TrainTestSplitterFactory trainTestSplitterFactory) {
         this.jobId = Objects.requireNonNull(jobId);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -32,6 +35,7 @@ public class DataFrameDataExtractorContext {
         this.scrollSize = scrollSize;
         this.headers = headers;
         this.includeSource = includeSource;
-        this.includeRowsWithMissingValues = includeRowsWithMissingValues;
+        this.supportsRowsWithMissingValues = supportsRowsWithMissingValues;
+        this.trainTestSplitterFactory = Objects.requireNonNull(trainTestSplitterFactory);
     }
 }

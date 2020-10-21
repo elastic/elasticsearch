@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -100,18 +101,12 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
-            .withAllDeprecated("Decision is now made by the analyzer");
-    private static final ParseField LOCALE_FIELD = new ParseField("locale")
-            .withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField FLAGS_FIELD = new ParseField("flags");
     private static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
     private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
-    private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields")
-            .withAllDeprecated("Set [fields] to `*` instead");
     private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
     private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
     private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
@@ -268,7 +263,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
      * none are specified.
      */
     public SimpleQueryStringBuilder flags(SimpleQueryStringFlag... flags) {
-        if (flags != null && flags.length > 0) {
+        if (CollectionUtils.isEmpty(flags) == false) {
             int value = 0;
             for (SimpleQueryStringFlag flag : flags) {
                 value |= flag.value;
@@ -521,10 +516,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                             flags = SimpleQueryStringFlag.ALL.value();
                         }
                     }
-                } else if (LOCALE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // ignore, deprecated setting
-                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // ignore, deprecated setting
                 } else if (LENIENT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     lenient = parser.booleanValue();
                 } else if (ANALYZE_WILDCARD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -535,8 +526,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     minimumShouldMatch = parser.textOrNull();
                 } else if (QUOTE_FIELD_SUFFIX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     quoteFieldSuffix = parser.textOrNull();
-                } else if (ALL_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // Ignore deprecated option
                 } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                     autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                 } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

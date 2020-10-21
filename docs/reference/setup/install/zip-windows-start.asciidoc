@@ -7,5 +7,8 @@ Elasticsearch can be started from the command line as follows:
 .\bin\elasticsearch.bat
 --------------------------------------------
 
+If you have password-protected the {es} keystore, you will be prompted to
+enter the keystore's password. See <<secure-settings>> for more details.
+
 By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT`,
 and can be stopped by pressing `Ctrl-C`.

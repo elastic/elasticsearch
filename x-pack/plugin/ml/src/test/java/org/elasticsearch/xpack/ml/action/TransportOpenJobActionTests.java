@@ -12,10 +12,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -25,14 +25,16 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -47,7 +49,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -91,20 +93,21 @@ public class TransportOpenJobActionTests extends ESTestCase {
     }
 
     public void testVerifyIndicesPrimaryShardsAreActive() {
-        MetaData.Builder metaData = MetaData.builder();
+        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
+        addIndices(metadata, routingTable);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.routingTable(routingTable.build());
-        csBuilder.metaData(metaData);
+        csBuilder.metadata(metadata);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0, TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", cs).size());
+        assertEquals(0, TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", cs, resolver).size());
 
-        metaData = new MetaData.Builder(cs.metaData());
+        metadata = new Metadata.Builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         String indexToRemove = randomFrom(indexNameExpressionResolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
             TransportOpenJobAction.indicesOfInterest(".ml-anomalies-shared")));
         if (randomBoolean()) {
@@ -120,8 +123,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
         }
 
         csBuilder.routingTable(routingTable.build());
-        csBuilder.metaData(metaData);
-        List<String> result = TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", csBuilder.build());
+        csBuilder.metadata(metadata);
+        List<String> result =
+            TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", csBuilder.build(), resolver);
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
     }
@@ -148,12 +152,13 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
             Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE)
+                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
-                Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class));
+                Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
         assertEquals(TransportOpenJobAction.AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
@@ -165,20 +170,21 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE)
+                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        MetaData.Builder metaData = MetaData.builder();
+        Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
+        addIndices(metadata, routingTable);
         routingTable.remove(".ml-state");
-        csBuilder.metaData(metaData);
+        csBuilder.metadata(metadata);
         csBuilder.routingTable(routingTable.build());
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
-            settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class));
+            settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("unavailable_index_with_lazy_node");
         params.setJob(mock(Job.class));
@@ -192,19 +198,20 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE)
+                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        MetaData.Builder metaData = MetaData.builder();
+        Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metaData, routingTable);
-        csBuilder.metaData(metaData);
+        addIndices(metadata, routingTable);
+        csBuilder.metadata(metadata);
         csBuilder.routingTable(routingTable.build());
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
-            settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class));
+            settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
         Job job = mock(Job.class);
         when(job.allowLazyOpen()).thenReturn(true);
@@ -216,11 +223,11 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
     }
 
-    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
+    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetadata.Builder builder) {
         addJobTask(jobId, nodeId, jobState, builder, false);
     }
 
-    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder,
+    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetadata.Builder builder,
                                   boolean isStale) {
         builder.addTask(MlTasks.jobTaskId(jobId), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams(jobId),
             new Assignment(nodeId, "test assignment"));
@@ -230,24 +237,24 @@ public class TransportOpenJobActionTests extends ESTestCase {
         }
     }
 
-    private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
+    private void addIndices(Metadata.Builder metadata, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
-        indices.add(AnomalyDetectorsIndex.configIndexName());
+        indices.add(MlConfigIndex.indexName());
         indices.add(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
-        indices.add(MlMetaIndex.INDEX_NAME);
-        indices.add(AuditorField.NOTIFICATIONS_INDEX);
+        indices.add(MlMetaIndex.indexName());
+        indices.add(NotificationsIndex.NOTIFICATIONS_INDEX);
         indices.add(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         for (String indexName : indices) {
-            IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
-            indexMetaData.settings(Settings.builder()
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
+            indexMetadata.settings(Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             );
             if (indexName.equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
-                indexMetaData.putAlias(new AliasMetaData.Builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
+                indexMetadata.putAlias(new AliasMetadata.Builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
             }
-            metaData.put(indexMetaData);
+            metadata.put(indexMetadata);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
             ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,

@@ -61,7 +61,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         }
 
         final long timestamp = System.currentTimeMillis();
-        final String cluster = clusterService.state().metaData().clusterUUID();
+        final String cluster = clusterService.state().metadata().clusterUUID();
 
         final DiscoveryNode discoveryNode = clusterService.localNode();
         final MonitoringDoc.Node node = new MonitoringDoc.Node(discoveryNode.getId(),

@@ -11,7 +11,7 @@ setup:
       index:
           index:  test_1
           id:     1
-          body:   { foo: bar }
+          body:   { foo: bar, foo2: bar, foo3: bar }
 
   - do:
       indices.refresh: {}
@@ -26,13 +26,33 @@ setup:
         from: 10000
 
 ---
-"Request with negative from value":
+"Request with negative from value url parameter":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: waiting for backport
+
   - do:
-      catch:      /\[from\] parameter cannot be negative/
+      catch:      /\[from\] parameter cannot be negative but was \[-1\]/
       search:
         rest_total_hits_as_int: true
         index: test_1
-        from: -2
+        from: -1
+
+---
+"Request with negative from value in body":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: waiting for backport
+
+  - do:
+      catch:      /\[from\] parameter cannot be negative but was \[-1\]/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          from: -1
 
 ---
 "Request window limits with scroll":
@@ -74,9 +94,9 @@ setup:
           query:
             match_all: {}
           docvalue_fields:
-            - "one"
-            - "two"
-            - "three"
+            - "foo"
+            - "foo2"
+            - "foo3"
 
 ---
 "Script_fields size limit":

@@ -29,7 +29,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import java.util.List;
  * complies with geojson specification: https://tools.ietf.org/html/rfc7946
  */
 abstract class GeoJsonParser {
-    protected static ShapeBuilder parse(XContentParser parser, AbstractGeometryFieldMapper shapeMapper)
+    protected static ShapeBuilder parse(XContentParser parser, AbstractShapeGeometryFieldMapper shapeMapper)
         throws IOException {
         GeoShapeType shapeType = null;
         DistanceUnit.Distance radius = null;
@@ -50,13 +50,13 @@ abstract class GeoJsonParser {
         GeometryCollectionBuilder geometryCollections = null;
 
         Orientation orientation = (shapeMapper == null)
-            ? AbstractGeometryFieldMapper.Defaults.ORIENTATION.value()
+            ? AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value()
             : shapeMapper.orientation();
         Explicit<Boolean> coerce = (shapeMapper == null)
-            ? AbstractGeometryFieldMapper.Defaults.COERCE
+            ? AbstractShapeGeometryFieldMapper.Defaults.COERCE
             : shapeMapper.coerce();
         Explicit<Boolean> ignoreZValue = (shapeMapper == null)
-            ? AbstractGeometryFieldMapper.Defaults.IGNORE_Z_VALUE
+            ? AbstractShapeGeometryFieldMapper.Defaults.IGNORE_Z_VALUE
             : shapeMapper.ignoreZValue();
 
         String malformedException = null;
@@ -208,7 +208,7 @@ abstract class GeoJsonParser {
      * @return Geometry[] geometries of the GeometryCollection
      * @throws IOException Thrown if an error occurs while reading from the XContentParser
      */
-    static GeometryCollectionBuilder parseGeometries(XContentParser parser, AbstractGeometryFieldMapper mapper) throws
+    static GeometryCollectionBuilder parseGeometries(XContentParser parser, AbstractShapeGeometryFieldMapper mapper) throws
         IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException("geometries must be an array of geojson objects");

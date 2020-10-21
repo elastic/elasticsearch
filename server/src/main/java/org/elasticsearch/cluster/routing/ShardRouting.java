@@ -529,7 +529,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /** returns true if the current routing is identical to the other routing in all but meta fields, i.e., unassigned info */
-    public boolean equalsIgnoringMetaData(ShardRouting other) {
+    public boolean equalsIgnoringMetadata(ShardRouting other) {
         if (primary != other.primary) {
             return false;
         }
@@ -566,11 +566,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (unassignedInfo != null ? !unassignedInfo.equals(that.unassignedInfo) : that.unassignedInfo != null) {
             return false;
         }
-        return equalsIgnoringMetaData(that);
+        return equalsIgnoringMetadata(that);
     }
 
     /**
-     * Cache hash code in same same way as {@link String#hashCode()}) using racy single-check idiom
+     * Cache hash code in the same way as {@link String#hashCode()}) using racy single-check idiom
      * as it is mainly used in single-threaded code ({@link BalancedShardsAllocator}).
      */
     private int hashCode; // default to 0

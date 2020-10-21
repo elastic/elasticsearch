@@ -25,7 +25,7 @@ public class UppercaseProcessorTests extends AbstractStringProcessorTestCase<Str
 
     @Override
     protected AbstractStringProcessor<String> newProcessor(String field, boolean ignoreMissing, String targetField) {
-        return new UppercaseProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
+        return new UppercaseProcessor(randomAlphaOfLength(10), null, field, ignoreMissing, targetField);
     }
 
     @Override

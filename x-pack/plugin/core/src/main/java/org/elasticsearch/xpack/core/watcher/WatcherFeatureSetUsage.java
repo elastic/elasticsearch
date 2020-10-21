@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.watcher;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,6 +27,11 @@ public class WatcherFeatureSetUsage extends XPackFeatureSet.Usage {
     public WatcherFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> stats) {
         super(XPackField.WATCHER, available, enabled);
         this.stats = stats;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
     }
 
     public Map<String, Object> stats() {

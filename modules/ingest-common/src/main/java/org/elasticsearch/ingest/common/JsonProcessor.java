@@ -48,8 +48,8 @@ public final class JsonProcessor extends AbstractProcessor {
     private final String targetField;
     private final boolean addToRoot;
 
-    JsonProcessor(String tag, String field, String targetField, boolean addToRoot) {
-        super(tag);
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.addToRoot = addToRoot;
@@ -124,7 +124,7 @@ public final class JsonProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
         @Override
         public JsonProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
+                                    String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
@@ -138,7 +138,7 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, field, targetField, addToRoot);
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot);
         }
     }
 }

@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'x-pack-rollup'
@@ -9,15 +7,10 @@ esplugin {
 }
 archivesBaseName = 'x-pack-rollup'
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
-
 dependencies {
   compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-integTest.enabled = false

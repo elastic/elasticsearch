@@ -53,9 +53,9 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTextAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTextAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Avg;
@@ -105,7 +105,7 @@ public class AggregationBuilders {
      * Create a new {@link ValueCount} aggregation with the given name.
      */
     public static ValueCountAggregationBuilder count(String name) {
-        return new ValueCountAggregationBuilder(name, null);
+        return new ValueCountAggregationBuilder(name);
     }
 
     /**
@@ -217,7 +217,7 @@ public class AggregationBuilders {
      * Create a new {@link Missing} aggregation with the given name.
      */
     public static MissingAggregationBuilder missing(String name) {
-        return new MissingAggregationBuilder(name, null);
+        return new MissingAggregationBuilder(name);
     }
 
     /**
@@ -266,7 +266,7 @@ public class AggregationBuilders {
      * Create a new {@link SignificantTerms} aggregation with the given name.
      */
     public static SignificantTermsAggregationBuilder significantTerms(String name) {
-        return new SignificantTermsAggregationBuilder(name, null);
+        return new SignificantTermsAggregationBuilder(name);
     }
 
 
@@ -313,7 +313,7 @@ public class AggregationBuilders {
      * Create a new {@link Terms} aggregation with the given name.
      */
     public static TermsAggregationBuilder terms(String name) {
-        return new TermsAggregationBuilder(name, null);
+        return new TermsAggregationBuilder(name);
     }
 
     /**
@@ -341,7 +341,7 @@ public class AggregationBuilders {
      * Create a new {@link Cardinality} aggregation with the given name.
      */
     public static CardinalityAggregationBuilder cardinality(String name) {
-        return new CardinalityAggregationBuilder(name, null);
+        return new CardinalityAggregationBuilder(name);
     }
 
     /**

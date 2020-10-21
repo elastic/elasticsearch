@@ -13,9 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -41,12 +41,14 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
 
     public void testBasicLicense() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        final RestGetUserPrivilegesAction action = new RestGetUserPrivilegesAction(Settings.EMPTY, mock(RestController.class),
-            mock(SecurityContext.class), licenseState);
-        when(licenseState.isSecurityAvailable()).thenReturn(false);
+        final RestGetUserPrivilegesAction action =
+            new RestGetUserPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(false);
         final FakeRestRequest request = new FakeRestRequest();
         final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
-        action.handleRequest(request, channel, mock(NodeClient.class));
+        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
+            action.handleRequest(request, channel, nodeClient);
+        }
         assertThat(channel.capturedResponse(), notNullValue());
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.FORBIDDEN));
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString("current license is non-compliant for [security]"));

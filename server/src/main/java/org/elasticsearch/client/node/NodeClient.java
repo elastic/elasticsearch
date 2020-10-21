@@ -23,16 +23,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchTask;
-import org.elasticsearch.action.search.SearchProgressActionListener;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
@@ -59,6 +54,7 @@ public class NodeClient extends AbstractClient {
      */
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
+    private NamedWriteableRegistry namedWriteableRegistry;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
@@ -66,11 +62,12 @@ public class NodeClient extends AbstractClient {
 
     @SuppressWarnings("rawtypes")
     public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
-                           RemoteClusterService remoteClusterService) {
+                           RemoteClusterService remoteClusterService, NamedWriteableRegistry namedWriteableRegistry) {
         this.actions = actions;
         this.taskManager = taskManager;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -109,38 +106,6 @@ public class NodeClient extends AbstractClient {
     }
 
     /**
-     * Execute a {@link SearchRequest} locally and track the progress of the request through
-     * a {@link SearchProgressActionListener}.
-     */
-    public SearchTask executeSearchLocally(SearchRequest request, SearchProgressActionListener listener) {
-        // we cannot track the progress if remote cluster requests are splitted.
-        request.setCcsMinimizeRoundtrips(false);
-        TransportSearchAction action = (TransportSearchAction) actions.get(SearchAction.INSTANCE);
-        SearchTask task = (SearchTask) taskManager.register("transport", action.actionName, request);
-        task.setProgressListener(listener);
-        action.execute(task, request, new ActionListener<>() {
-            @Override
-            public void onResponse(SearchResponse response) {
-                try {
-                    taskManager.unregister(task);
-                } finally {
-                    listener.onResponse(response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    taskManager.unregister(task);
-                } finally {
-                    listener.onFailure(e);
-                }
-            }
-        });
-        return task;
-    }
-
-    /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
      * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
      */
@@ -168,5 +133,10 @@ public class NodeClient extends AbstractClient {
     @Override
     public Client getRemoteClusterClient(String clusterAlias) {
         return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
+    }
+
+
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
     }
 }

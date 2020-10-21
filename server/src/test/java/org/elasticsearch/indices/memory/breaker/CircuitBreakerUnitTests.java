@@ -20,17 +20,12 @@
 package org.elasticsearch.indices.memory.breaker;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.BreakerSettings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Unit tests for the circuit breaker
@@ -65,16 +60,4 @@ public class CircuitBreakerUnitTests extends ESTestCase {
         }
     }
 
-    public void testRegisterCustomBreaker() throws Exception {
-        CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        String customName = "custom";
-        BreakerSettings settings = new BreakerSettings(customName, 20, 1.0);
-        service.registerBreaker(settings);
-
-        CircuitBreaker breaker = service.getBreaker(customName);
-        assertThat(breaker, notNullValue());
-        assertThat(breaker, instanceOf(CircuitBreaker.class));
-        assertThat(breaker.getName(), is(customName));
-    }
 }

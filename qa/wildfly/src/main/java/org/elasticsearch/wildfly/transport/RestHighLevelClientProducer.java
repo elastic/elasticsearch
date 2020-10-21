@@ -26,25 +26,14 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 
 import javax.enterprise.inject.Produces;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Properties;
 
 @SuppressWarnings("unused")
 public final class RestHighLevelClientProducer {
 
     @Produces
-    public RestHighLevelClient createRestHighLevelClient() throws IOException {
-        final String elasticsearchProperties = System.getProperty("elasticsearch.properties");
-        final Properties properties = new Properties();
-
-        final String httpUri;
-        try (InputStream is = Files.newInputStream(getPath(elasticsearchProperties))) {
-            properties.load(is);
-            httpUri = properties.getProperty("http.uri");
-        }
+    public RestHighLevelClient createRestHighLevelClient() {
+        String httpUri = System.getProperty("elasticsearch.uri");
 
         return new RestHighLevelClient(RestClient.builder(HttpHost.create(httpUri)));
     }
@@ -53,5 +42,4 @@ public final class RestHighLevelClientProducer {
     private Path getPath(final String elasticsearchProperties) {
         return PathUtils.get(elasticsearchProperties);
     }
-
 }

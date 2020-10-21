@@ -21,19 +21,20 @@ package org.elasticsearch.common.blobstore.fs;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.core.internal.io.Streams;
 
-import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
@@ -74,7 +75,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
     }
 
@@ -93,8 +94,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        Map<String, BlobMetaData> builder = new HashMap<>();
+    public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+        Map<String, BlobMetadata> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
@@ -107,7 +108,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                     continue;
                 }
                 if (attrs.isRegularFile()) {
-                    builder.put(file.getFileName().toString(), new PlainBlobMetaData(file.getFileName().toString(), attrs.size()));
+                    builder.put(file.getFileName().toString(), new PlainBlobMetadata(file.getFileName().toString(), attrs.size()));
                 }
             }
         }
@@ -143,25 +144,48 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public boolean blobExists(String blobName) {
+        return Files.exists(path.resolve(blobName));
+    }
+
+    @Override
     public InputStream readBlob(String name) throws IOException {
         final Path resolvedPath = path.resolve(name);
         try {
-            return new BufferedInputStream(Files.newInputStream(resolvedPath), blobStore.bufferSizeInBytes());
+            return Files.newInputStream(resolvedPath);
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + name + "] blob not found");
         }
     }
 
     @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
+        if (position > 0L) {
+            channel.position(position);
+        }
+        assert channel.position() == position;
+        return Streams.limitStream(Channels.newInputStream(channel), length);
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        // This container returns streams that are cheap to close early, so we can tell consumers to request as much data as possible.
+        return Long.MAX_VALUE;
+    }
+
+    @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        if (failIfAlreadyExists == false) {
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
-        }
         final Path file = path.resolve(blobName);
-        try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
-            Streams.copy(inputStream, outputStream);
+        try {
+            writeToPath(inputStream, file, blobSize);
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            writeToPath(inputStream, file, blobSize);
         }
-        IOUtils.fsync(file, false);
         IOUtils.fsync(path, true);
     }
 
@@ -171,10 +195,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
         try {
-            try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
-                Streams.copy(inputStream, outputStream);
-            }
-            IOUtils.fsync(tempBlobPath, false);
+            writeToPath(inputStream, tempBlobPath, blobSize);
             moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
@@ -186,6 +207,15 @@ public class FsBlobContainer extends AbstractBlobContainer {
         } finally {
             IOUtils.fsync(path, true);
         }
+    }
+
+    private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
+        try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
+            final int bufferSize = blobStore.bufferSizeInBytes();
+            org.elasticsearch.core.internal.io.Streams.copy(
+                    inputStream, outputStream, new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]);
+        }
+        IOUtils.fsync(tempBlobPath, false);
     }
 
     public void moveBlobAtomic(final String sourceBlobName, final String targetBlobName, final boolean failIfAlreadyExists)

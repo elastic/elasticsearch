@@ -1,8 +1,8 @@
 ---
 "Test exists query on flattened object field":
   - skip:
-      version: " - 7.99.99"
-      reason: "Flat object fields are currently only implemented in 8.0."
+      version: " - 7.2.99"
+      reason: "Flat object fields were implemented in 7.3."
 
   - do:
       indices.create:
@@ -54,8 +54,8 @@
 ---
 "Test query string query on flattened object field":
   - skip:
-      version: " - 7.99.99"
-      reason: "Flat object fields are currently only implemented in 8.0."
+      version: " - 7.2.99"
+      reason: "Flat object fields were implemented in 7.3."
 
   - do:
       indices.create:

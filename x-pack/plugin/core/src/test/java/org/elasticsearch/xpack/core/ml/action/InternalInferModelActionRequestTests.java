@@ -5,14 +5,17 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdateTests;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class InternalInferModelActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class InternalInferModelActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -30,17 +33,20 @@ public class InternalInferModelActionRequestTests extends AbstractWireSerializin
             new Request(
                 randomAlphaOfLength(10),
                 Stream.generate(InternalInferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
-                randomInferenceConfig(),
+                randomInferenceConfigUpdate(),
                 randomBoolean()) :
             new Request(
                 randomAlphaOfLength(10),
                 randomMap(),
-                randomInferenceConfig(),
+                randomInferenceConfigUpdate(),
                 randomBoolean());
     }
 
-    private static InferenceConfig randomInferenceConfig() {
-        return randomFrom(RegressionConfigTests.randomRegressionConfig(), ClassificationConfigTests.randomClassificationConfig());
+    private static InferenceConfigUpdate randomInferenceConfigUpdate() {
+        return randomFrom(RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
+            ClassificationConfigUpdateTests.randomClassificationConfigUpdate(),
+            ResultsFieldUpdateTests.randomUpdate(),
+            EmptyConfigUpdateTests.testInstance());
     }
 
     private static Map<String, Object> randomMap() {
@@ -59,5 +65,10 @@ public class InternalInferModelActionRequestTests extends AbstractWireSerializin
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
+    }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, Version version) {
+        return instance;
     }
 }

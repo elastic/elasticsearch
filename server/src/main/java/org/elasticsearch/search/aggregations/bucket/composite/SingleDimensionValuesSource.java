@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
@@ -153,7 +152,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
         if (fieldType == null ||
                 (missingBucket && afterValue == null) ||
-                fieldType.indexOptions() == IndexOptions.NONE ||
+                fieldType.isSearchable() == false ||
                 // inverse of the natural order
                 reverseMul == -1) {
             return false;

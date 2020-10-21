@@ -1,4 +1,4 @@
-/*
+/* @notice
  * Copyright (C) 2008 The Guava Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.UnknownHostException;
+import java.util.Enumeration;
 
 public class InetAddressesTests extends ESTestCase {
     public void testForStringBogusInput() {
@@ -126,6 +128,28 @@ public class InetAddressesTests extends ESTestCase {
         ipv6Addr = InetAddress.getByName(ipStr);
         assertEquals(ipv6Addr, InetAddresses.forString(ipStr));
         assertTrue(InetAddresses.isInetAddress(ipStr));
+    }
+
+    public void testForStringIPv6WithScopeIdInput() throws java.io.IOException {
+        final Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+        String scopeId = null;
+        while (interfaces.hasMoreElements()) {
+            final NetworkInterface nint = interfaces.nextElement();
+            if (nint.isLoopback()) {
+                scopeId = nint.getName();
+                break;
+            }
+        }
+        assertNotNull(scopeId);
+        String ipStr = "0:0:0:0:0:0:0:1%" + scopeId;
+        InetAddress ipv6Addr = InetAddress.getByName(ipStr);
+        assertEquals(ipv6Addr, InetAddresses.forString(ipStr));
+        assertTrue(InetAddresses.isInetAddress(ipStr));
+    }
+
+    public void testForStringIPv6WithInvalidScopeIdInput() {
+        String ipStr = "0:0:0:0:0:0:0:1%";
+        assertFalse(InetAddresses.isInetAddress(ipStr));
     }
 
     public void testForStringIPv6EightColons() throws UnknownHostException {

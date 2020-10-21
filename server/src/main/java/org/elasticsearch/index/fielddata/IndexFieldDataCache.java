@@ -29,9 +29,9 @@ import org.elasticsearch.index.shard.ShardId;
  */
 public interface IndexFieldDataCache {
 
-    <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception;
+    <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception;
 
-    <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData)
+    <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData)
         throws Exception;
 
     /**
@@ -60,16 +60,16 @@ public interface IndexFieldDataCache {
     class None implements IndexFieldDataCache {
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData)
+        public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData)
             throws Exception {
             return indexFieldData.loadDirect(context);
         }
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
-                IFD indexFieldData) throws Exception {
-            return (IFD) indexFieldData.localGlobalDirect(indexReader);
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
+                                                                                          IFD indexFieldData) throws Exception {
+            return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override

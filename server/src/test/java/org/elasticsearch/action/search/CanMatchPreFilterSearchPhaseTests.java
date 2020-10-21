@@ -18,17 +18,19 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -53,6 +55,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
     public void testFilterShards() throws InterruptedException {
@@ -68,7 +72,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard1 = randomBoolean();
         final boolean shard2 = randomBoolean();
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
@@ -90,7 +94,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
-            searchRequest, null, shardsIter, timeProvider, 0, null,
+            searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() throws IOException {
@@ -125,7 +129,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
@@ -158,7 +162,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
-            searchRequest, null, shardsIter, timeProvider, 0, null,
+            searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -191,7 +195,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
 
         final SearchTransportService searchTransportService =
-            new SearchTransportService(null, null) {
+            new SearchTransportService(null, null, null) {
                 @Override
                 public void sendCanMatch(
                     Transport.Connection connection,
@@ -209,7 +213,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
-        SearchTransportService transportService = new SearchTransportService(null, null);
+        SearchTransportService transportService = new SearchTransportService(null, null, null);
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
             (e) -> { throw new AssertionError("unexpected", e);});
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
@@ -225,7 +229,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            0,
+            ClusterState.EMPTY_STATE,
             null,
             (iter) -> new AbstractSearchAsyncAction<>(
                 "test",
@@ -243,7 +247,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 responseListener,
                 iter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                0,
+                ClusterState.EMPTY_STATE,
                 null,
                 new ArraySearchPhaseResults<>(iter.size()),
                 randomIntBetween(1, 32),
@@ -262,7 +266,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 @Override
                 protected void executePhaseOnShard(
                     final SearchShardIterator shardIt,
-                    final ShardRouting shard,
+                    final SearchShardTarget shard,
                     final SearchActionListener<SearchPhaseResult> listener) {
                     if (randomBoolean()) {
                         listener.onResponse(new SearchPhaseResult() {});
@@ -292,13 +296,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             List<MinAndMax<?>> minAndMaxes = new ArrayList<>();
             Set<ShardId> shardToSkip = new HashSet<>();
 
-            SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+            SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                          ActionListener<SearchService.CanMatchResponse> listener) {
                     Long min = rarely() ? null : randomLong();
                     Long max = min == null ? null  : randomLongBetween(min, Long.MAX_VALUE);
-                    MinAndMax<?> minMax = min == null ? null : MinAndMax.newMinMax(min, max);
+                    MinAndMax<?> minMax = min == null ? null : new MinAndMax<>(min, max);
                     boolean canMatch = frequently();
                     synchronized (shardIds) {
                         shardIds.add(request.shardId());
@@ -325,7 +329,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
                 Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
-                searchRequest, null, shardsIter, timeProvider, 0, null,
+                searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() {
@@ -347,6 +351,78 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 assertEquals(shardToSkip.contains(i.shardId()), i.skip());
                 assertEquals(expected[pos++], i.shardId());
             }
+        }
+    }
+
+    public void testInvalidSortShards() throws InterruptedException {
+        final TransportSearchAction.SearchTimeProvider timeProvider =
+            new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
+
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
+        lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
+
+        for (SortOrder order : SortOrder.values()) {
+            int numShards = randomIntBetween(2, 20);
+            List<ShardId> shardIds = new ArrayList<>();
+            Set<ShardId> shardToSkip = new HashSet<>();
+
+            SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+                @Override
+                public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
+                                         ActionListener<SearchService.CanMatchResponse> listener) {
+                    final MinAndMax<?> minMax;
+                    if (request.shardId().id() == numShards-1) {
+                        minMax = new MinAndMax<>(new BytesRef("bar"), new BytesRef("baz"));
+                    } else {
+                        Long min = randomLong();
+                        Long max = randomLongBetween(min, Long.MAX_VALUE);
+                        minMax = new MinAndMax<>(min, max);
+                    }
+                    boolean canMatch = frequently();
+                    synchronized (shardIds) {
+                        shardIds.add(request.shardId());
+                        if (canMatch == false) {
+                            shardToSkip.add(request.shardId());
+                        }
+                    }
+                    new Thread(() -> listener.onResponse(new SearchService.CanMatchResponse(canMatch, minMax))).start();
+                }
+            };
+
+            AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+            CountDownLatch latch = new CountDownLatch(1);
+            GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("logs",
+                new OriginalIndices(new String[]{"logs"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
+                numShards, randomBoolean(), primaryNode, replicaNode);
+            final SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp").order(order)));
+            searchRequest.allowPartialSearchResults(true);
+
+            CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+                searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
+                (iter) -> new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        result.set(iter);
+                        latch.countDown();
+                    }
+                }, SearchResponse.Clusters.EMPTY);
+
+            canMatchPhase.start();
+            latch.await();
+            int shardId = 0;
+            for (SearchShardIterator i : result.get()) {
+                assertThat(i.shardId().id(), equalTo(shardId++));
+                assertEquals(shardToSkip.contains(i.shardId()), i.skip());
+            }
+            assertThat(result.get().size(), equalTo(numShards));
         }
     }
 }

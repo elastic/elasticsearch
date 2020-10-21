@@ -21,12 +21,11 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -35,17 +34,25 @@ import java.util.Map;
 public interface FetchSubPhase {
 
     class HitContext {
-        private SearchHit hit;
-        private IndexSearcher searcher;
-        private LeafReaderContext readerContext;
-        private int docId;
-        private Map<String, Object> cache;
+        private final SearchHit hit;
+        private final LeafReaderContext readerContext;
+        private final int docId;
+        private final SourceLookup sourceLookup;
+        private final Map<String, Object> cache;
 
-        public void reset(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
+        public HitContext(
+            SearchHit hit,
+            LeafReaderContext context,
+            int docId,
+            SourceLookup sourceLookup,
+            Map<String, Object> cache
+        ) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.searcher = searcher;
+            this.sourceLookup = sourceLookup;
+            sourceLookup.setSegmentAndDocument(context, docId);
+            this.cache = cache;
         }
 
         public SearchHit hit() {
@@ -60,27 +67,39 @@ public interface FetchSubPhase {
             return readerContext;
         }
 
+        /**
+         * @return the docId of this hit relative to the leaf reader context
+         */
         public int docId() {
             return docId;
         }
 
-        public IndexReader topLevelReader() {
-            return searcher.getIndexReader();
+        /**
+         * This lookup provides access to the source for the given hit document. Note
+         * that it should always be set to the correct doc ID and {@link LeafReaderContext}.
+         *
+         * In most cases, the hit document's source is loaded eagerly at the start of the
+         * {@link FetchPhase}. This lookup will contain the preloaded source.
+         */
+        public SourceLookup sourceLookup() {
+            return sourceLookup;
         }
 
+        public IndexReader topLevelReader() {
+            return ReaderUtil.getTopLevelContext(readerContext).reader();
+        }
+
+        // TODO move this into Highlighter
         public Map<String, Object> cache() {
-            if (cache == null) {
-                cache = new HashMap<>();
-            }
             return cache;
         }
     }
 
     /**
-     * Executes the hit level phase, with a reader and doc id (note, its a low level reader, and the matching doc).
+     * Returns a {@link FetchSubPhaseProcessor} for this sub phase.
+     *
+     * If nothing should be executed for the provided {@code FetchContext}, then the
+     * implementation should return {@code null}
      */
-    default void hitExecute(SearchContext context, HitContext hitContext) throws IOException {}
-
-
-    default void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {}
+    FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException;
 }

@@ -51,8 +51,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
-        // TODO: Change to 7.6 after backport
-        if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (input.getVersion().onOrAfter(Version.V_7_6_0)) {
             RemoteConnectionStrategy.ConnectionStrategy mode = input.readEnum(RemoteConnectionStrategy.ConnectionStrategy.class);
             modeInfo = mode.getReader().read(input);
             initialConnectionTimeout = input.readTimeValue();
@@ -91,8 +90,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: Change to 7.6 after backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeEnum(modeInfo.modeType());
             modeInfo.writeTo(out);
             out.writeTimeValue(initialConnectionTimeout);

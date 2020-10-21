@@ -40,6 +40,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
@@ -80,6 +81,7 @@ import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
@@ -118,8 +120,11 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getJobRequest.getAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.getAllowNoJobs()));
+        if (getJobRequest.getAllowNoMatch() != null) {
+            params.putParam(GetJobRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getJobRequest.getAllowNoMatch()));
+        }
+        if (getJobRequest.getExcludeGenerated() != null) {
+            params.putParam(GetJobRequest.EXCLUDE_GENERATED, Boolean.toString(getJobRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -135,8 +140,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getJobStatsRequest.getAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.getAllowNoJobs()));
+        if (getJobStatsRequest.getAllowNoMatch() != null) {
+            params.putParam("allow_no_match", Boolean.toString(getJobStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -166,13 +171,14 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) {
+    static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml")
             .addPathPartAsIs("_delete_expired_data")
+            .addPathPart(deleteExpiredDataRequest.getJobId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
+        request.setEntity(createEntity(deleteExpiredDataRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -263,9 +269,12 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getDatafeedRequest.getAllowNoDatafeeds() != null) {
-            params.putParam(GetDatafeedRequest.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                    Boolean.toString(getDatafeedRequest.getAllowNoDatafeeds()));
+        if (getDatafeedRequest.getAllowNoMatch() != null) {
+            params.putParam(GetDatafeedRequest.ALLOW_NO_MATCH.getPreferredName(),
+                    Boolean.toString(getDatafeedRequest.getAllowNoMatch()));
+        }
+        if (getDatafeedRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDatafeedRequest.EXCLUDE_GENERATED, Boolean.toString(getDatafeedRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -320,8 +329,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getDatafeedStatsRequest.getAllowNoDatafeeds() != null) {
-            params.putParam("allow_no_datafeeds", Boolean.toString(getDatafeedStatsRequest.getAllowNoDatafeeds()));
+        if (getDatafeedStatsRequest.getAllowNoMatch() != null) {
+            params.putParam("allow_no_match", Boolean.toString(getDatafeedStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -593,6 +602,17 @@ final class MLRequestConverters {
         return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
+    static Request estimateModelMemory(EstimateModelMemoryRequest estimateModelMemoryRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPartAsIs("_estimate_model_memory")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(estimateModelMemoryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request putDataFrameAnalytics(PutDataFrameAnalyticsRequest putRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml", "data_frame", "analytics")
@@ -600,6 +620,17 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request updateDataFrameAnalytics(UpdateDataFrameAnalyticsRequest updateRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(updateRequest.getUpdate().getId())
+            .addPathPartAsIs("_update")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -620,7 +651,10 @@ final class MLRequestConverters {
             }
         }
         if (getRequest.getAllowNoMatch() != null) {
-            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getRequest.getAllowNoMatch()));
+            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH, Boolean.toString(getRequest.getAllowNoMatch()));
+        }
+        if (getRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDataFrameAnalyticsRequest.EXCLUDE_GENERATED, Boolean.toString(getRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -700,6 +734,9 @@ final class MLRequestConverters {
         if (deleteRequest.getForce() != null) {
             params.putParam("force", Boolean.toString(deleteRequest.getForce()));
         }
+        if (deleteRequest.getTimeout() != null) {
+            params.withTimeout(deleteRequest.getTimeout());
+        }
         request.addParameters(params.asMap());
 
         return request;
@@ -730,7 +767,7 @@ final class MLRequestConverters {
 
     static Request getTrainedModels(GetTrainedModelsRequest getTrainedModelsRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+            .addPathPartAsIs("_ml", "trained_models")
             .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIds()))
             .build();
         RequestConverters.Params params = new RequestConverters.Params();
@@ -751,9 +788,15 @@ final class MLRequestConverters {
             params.putParam(GetTrainedModelsRequest.DECOMPRESS_DEFINITION,
                 Boolean.toString(getTrainedModelsRequest.getDecompressDefinition()));
         }
-        if (getTrainedModelsRequest.getIncludeDefinition() != null) {
-            params.putParam(GetTrainedModelsRequest.INCLUDE_MODEL_DEFINITION,
-                Boolean.toString(getTrainedModelsRequest.getIncludeDefinition()));
+        if (getTrainedModelsRequest.getIncludes().isEmpty() == false) {
+            params.putParam(GetTrainedModelsRequest.INCLUDE,
+                Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIncludes()));
+        }
+        if (getTrainedModelsRequest.getTags() != null) {
+            params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
+        }
+        if (getTrainedModelsRequest.getExcludeGenerated() != null) {
+            params.putParam(GetTrainedModelsRequest.EXCLUDE_GENERATED, Boolean.toString(getTrainedModelsRequest.getExcludeGenerated()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());
@@ -762,7 +805,7 @@ final class MLRequestConverters {
 
     static Request getTrainedModelsStats(GetTrainedModelsStatsRequest getTrainedModelsStatsRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+            .addPathPartAsIs("_ml", "trained_models")
             .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsStatsRequest.getIds()))
             .addPathPart("_stats")
             .build();
@@ -787,7 +830,7 @@ final class MLRequestConverters {
 
     static Request deleteTrainedModel(DeleteTrainedModelRequest deleteRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+            .addPathPartAsIs("_ml", "trained_models")
             .addPathPart(deleteRequest.getId())
             .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -795,7 +838,7 @@ final class MLRequestConverters {
 
     static Request putTrainedModel(PutTrainedModelRequest putTrainedModelRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "inference")
+            .addPathPartAsIs("_ml", "trained_models")
             .addPathPart(putTrainedModelRequest.getTrainedModelConfig().getModelId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);

@@ -23,7 +23,6 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -47,12 +46,11 @@ public final class HighlightUtils {
      * Load field values for highlighting.
      */
     public static List<Object> loadFieldValues(MappedFieldType fieldType,
-                                               QueryShardContext context,
                                                FetchSubPhase.HitContext hitContext,
                                                boolean forceSource) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
         List<Object> textsToHighlight;
-        if (forceSource == false && fieldType.stored()) {
+        if (forceSource == false && fieldType.isStored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             textsToHighlight = fieldVisitor.fields().get(fieldType.name());
@@ -61,8 +59,7 @@ public final class HighlightUtils {
                 textsToHighlight = Collections.emptyList();
             }
         } else {
-            SourceLookup sourceLookup = context.lookup().source();
-            sourceLookup.setSegmentAndDocument(hitContext.readerContext(), hitContext.docId());
+            SourceLookup sourceLookup = hitContext.sourceLookup();
             textsToHighlight = sourceLookup.extractRawValues(fieldType.name());
         }
         assert textsToHighlight != null;
@@ -73,5 +70,5 @@ public final class HighlightUtils {
         public static final Encoder DEFAULT = new DefaultEncoder();
         public static final Encoder HTML = new SimpleHTMLEncoder();
     }
-    
+
 }

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,19 +36,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.singletonList;
+
 public class InternalScriptedMetric extends InternalAggregation implements ScriptedMetric {
     final Script reduceScript;
-    private final List<Object> aggregation;
+    private final List<Object> aggregations;
 
-    InternalScriptedMetric(String name, Object aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
-                                  Map<String, Object> metaData) {
-        this(name, Collections.singletonList(aggregation), reduceScript, pipelineAggregators, metaData);
-    }
-
-    private InternalScriptedMetric(String name, List<Object> aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
-        this.aggregation = aggregation;
+    InternalScriptedMetric(String name, List<Object> aggregations, Script reduceScript, Map<String, Object> metadata) {
+        super(name, metadata);
+        this.aggregations = aggregations;
         this.reduceScript = reduceScript;
     }
 
@@ -58,13 +54,30 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
         reduceScript = in.readOptionalWriteable(Script::new);
-        aggregation = Collections.singletonList(in.readGenericValue());
+        if (in.getVersion().before(Version.V_7_8_0)) {
+            aggregations = singletonList(in.readGenericValue());
+        } else {
+            aggregations = in.readList(StreamInput::readGenericValue);
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(reduceScript);
-        out.writeGenericValue(aggregation());
+        if (out.getVersion().before(Version.V_7_8_0)) {
+            if (aggregations.size() > 1) {
+                /*
+                 * If aggregations has more than one entry we're trying to
+                 * serialize an unreduced aggregation. This *should* only
+                 * happen when we're returning a scripted_metric over cross
+                 * cluster search.
+                 */
+                throw new IllegalArgumentException("scripted_metric doesn't support cross cluster search until 7.8.0");
+            }
+            out.writeGenericValue(aggregations.get(0));
+        } else {
+            out.writeCollection(aggregations, StreamOutput::writeGenericValue);
+        }
     }
 
     @Override
@@ -74,14 +87,14 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
 
     @Override
     public Object aggregation() {
-        if (aggregation.size() != 1) {
+        if (aggregations.size() != 1) {
             throw new IllegalStateException("aggregation was not reduced");
         }
-        return aggregation.get(0);
+        return aggregations.get(0);
     }
 
-    List<Object> getAggregation() {
-        return aggregation;
+    List<Object> aggregationsList() {
+        return aggregations;
     }
 
     @Override
@@ -89,7 +102,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
         List<Object> aggregationObjects = new ArrayList<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalScriptedMetric mapReduceAggregation = (InternalScriptedMetric) aggregation;
-            aggregationObjects.addAll(mapReduceAggregation.aggregation);
+            aggregationObjects.addAll(mapReduceAggregation.aggregations);
         }
         InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) aggregations.get(0));
         List<Object> aggregation;
@@ -114,8 +127,12 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
             // until we hit the final reduce phase.
             aggregation = aggregationObjects;
         }
-        return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, pipelineAggregators(),
-                getMetaData());
+        return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
     }
 
     @Override
@@ -142,12 +159,12 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
 
         InternalScriptedMetric other = (InternalScriptedMetric) obj;
         return Objects.equals(reduceScript, other.reduceScript) &&
-                Objects.equals(aggregation, other.aggregation);
+                Objects.equals(aggregations, other.aggregations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), reduceScript, aggregation);
+        return Objects.hash(super.hashCode(), reduceScript, aggregations);
     }
 
 }

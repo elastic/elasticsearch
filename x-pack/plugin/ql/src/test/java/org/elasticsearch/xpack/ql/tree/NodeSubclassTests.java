@@ -23,9 +23,6 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfConditional;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.IfNull;
-import org.elasticsearch.xpack.ql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InPipe;
@@ -49,7 +46,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -62,6 +58,7 @@ import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.mockito.Mockito.mock;
@@ -92,8 +89,7 @@ import static org.mockito.Mockito.mock;
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
 
-    protected static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(Iif.class, IfConditional.class, IfNull.class,
-            In.class, InPipe.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(In.class, InPipe.class);
 
     private final Class<T> subclass;
 
@@ -204,7 +200,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results
                     List<B> newCollection = (List<B>) makeListOfSameSizeOtherThan(changedArgType, originalList);
 
-                    // Now merge that list of thildren into the original list of children
+                    // Now merge that list of children into the original list of children
                     List<B> originalChildren = node.children();
                     List<B> newChildren = new ArrayList<>(originalChildren.size());
                     int originalOffset = 0;
@@ -676,7 +672,8 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
         // filter the class that are not interested
         // (and IDE folders like eclipse)
-        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false) {
+        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false
+            && className.startsWith("org.elasticsearch.xpack.eql") == false) {
             return;
         }
 

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,44 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
-import org.elasticsearch.search.suggest.completion.context.ContextMappings;
-import org.junit.Before;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
-import java.util.Arrays;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class CompletionFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new CompletionFieldMapper.CompletionFieldType();
-    }
 
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("preserve_separators", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
-                cft.setPreserveSep(false);
-            }
-        });
-        addModifier(new Modifier("preserve_position_increments", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
-                cft.setPreservePositionIncrements(false);
-            }
-        });
-        addModifier(new Modifier("context_mappings", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
-                ContextMappings contextMappings = new ContextMappings(Arrays.asList(ContextBuilder.category("foo").build(),
-                    ContextBuilder.geo("geo").build()));
-                cft.setContextMappings(contextMappings);
-            }
-        });
+    public void testFetchSourceValue() throws IOException {
+        NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
+
+        MappedFieldType fieldType = new CompletionFieldMapper.CompletionFieldType("name", defaultAnalyzer, Collections.emptyMap());
+
+        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
+
+        List<String> list = List.of("first", "second");
+        assertEquals(list, fetchSourceValue(fieldType, list));
+
+        Map<String, Object> object = Map.of("input", List.of("first", "second"), "weight", "2.718");
+        assertEquals(List.of(object), fetchSourceValue(fieldType, object));
     }
 }

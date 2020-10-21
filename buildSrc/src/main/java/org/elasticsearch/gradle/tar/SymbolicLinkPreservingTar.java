@@ -139,8 +139,7 @@ public class SymbolicLinkPreservingTar extends Tar {
                     return false;
                 }
                 for (final File symbolicLink : visitedSymbolicLinks) {
-                    if (isChildOf(symbolicLink, file))
-                        return true;
+                    if (isChildOf(symbolicLink, file)) return true;
                 }
                 return false;
             }

@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -38,6 +39,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -146,7 +148,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(response.result().blobs(), equalTo(0L));
     }
 
-    public void testCreateSnapshot() throws IOException {
+    public void testCreateSnapshot() throws Exception {
         String repository = "test_repository";
         assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
@@ -285,6 +287,48 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(restoreInfo.failedShards(), equalTo(0));
     }
 
+    public void testSnapshotHidden() throws IOException {
+        String testRepository = "test";
+        String testSnapshot = "snapshot_1";
+        String testIndex = "test_index";
+
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        createIndex(testIndex, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1,3))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .build());
+        assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
+        createSnapshotRequest.indices("*");
+        createSnapshotRequest.waitForCompletion(true);
+        if (randomBoolean()) {
+            createSnapshotRequest.userMetadata(randomUserMetadata());
+        }
+        CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
+        assertEquals(RestStatus.OK, createSnapshotResponse.status());
+
+        deleteIndex(testIndex);
+        assertFalse("index [" + testIndex + "] should have been deleted", indexExists(testIndex));
+
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(testRepository, testSnapshot);
+        request.waitForCompletion(true);
+        request.indices(randomFrom(testIndex, "test_*"));
+        request.renamePattern(testIndex);
+
+        RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
+            highLevelClient().snapshot()::restoreAsync);
+
+        RestoreInfo restoreInfo = response.getRestoreInfo();
+        assertThat(restoreInfo.name(), equalTo(testSnapshot));
+        assertThat(restoreInfo.indices(), equalTo(Collections.singletonList(testIndex)));
+        assertThat(restoreInfo.successfulShards(), greaterThan(0));
+        assertThat(restoreInfo.failedShards(), equalTo(0));
+    }
+
     public void testDeleteSnapshot() throws IOException {
         String repository = "test_repository";
         String snapshot = "test_snapshot";
@@ -303,6 +347,30 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         DeleteSnapshotRequest request = new DeleteSnapshotRequest(repository, snapshot);
         AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync);
+
+        assertTrue(response.isAcknowledged());
+    }
+
+    public void testCloneSnapshot() throws IOException {
+        String repository = "test_repository";
+        String snapshot = "source_snapshot";
+        String targetSnapshot = "target_snapshot";
+        final String testIndex =  "test_idx";
+
+        createIndex(testIndex, Settings.EMPTY);
+        assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
+
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
+        createSnapshotRequest.waitForCompletion(true);
+
+        CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
+        assertEquals(RestStatus.OK, createSnapshotResponse.status());
+
+        CloneSnapshotRequest request = new CloneSnapshotRequest(repository, snapshot, targetSnapshot, new String[]{testIndex});
+        AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::clone, highLevelClient().snapshot()::cloneAsync);
 
         assertTrue(response.isAcknowledged());
     }

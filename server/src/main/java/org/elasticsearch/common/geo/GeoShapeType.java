@@ -170,7 +170,7 @@ public enum GeoShapeType {
             // close linear ring iff coerce is set and ring is open, otherwise throw parse exception
             if (!coordinates.children.get(0).coordinate.equals(
                 coordinates.children.get(coordinates.children.size() - 1).coordinate)) {
-                if (coerce == true) {
+                if (coerce) {
                     coordinates.children.add(coordinates.children.get(0));
                 } else {
                     throw new ElasticsearchParseException("invalid LinearRing found (coordinates are not closed)");

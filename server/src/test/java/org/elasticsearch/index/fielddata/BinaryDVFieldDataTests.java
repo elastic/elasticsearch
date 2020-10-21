@@ -50,7 +50,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
                 .endObject()
                 .endObject().endObject());
 
-        final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
+        final DocumentMapper mapper = mapperService.parse("test", new CompressedXContent(mapping));
 
         List<BytesRef> bytesList1 = new ArrayList<>(2);
         bytesList1.add(randomBytes());
@@ -100,7 +100,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         bytesList2.sort(null);
 
         // Test SortedBinaryDocValues's decoding:
-        AtomicFieldData fieldData = indexFieldData.load(reader);
+        LeafFieldData fieldData = indexFieldData.load(reader);
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
         assertTrue(bytesValues.advanceExact(0));

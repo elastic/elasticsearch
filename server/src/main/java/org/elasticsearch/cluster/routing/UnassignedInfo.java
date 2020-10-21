@@ -20,9 +20,8 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -51,7 +50,7 @@ import java.util.Set;
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
-    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("dateOptionalTime").withZone(ZoneOffset.UTC);
+    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
@@ -271,11 +270,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        } else {
-            this.failedNodeIds = Collections.emptySet();
-        }
+        this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -287,9 +282,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeCollection(failedNodeIds, StreamOutput::writeString);
-        }
+        out.writeCollection(failedNodeIds, StreamOutput::writeString);
     }
 
     /**
@@ -409,13 +402,13 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Returns -1 if no delayed shard is found.
      */
     public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
-        MetaData metaData = state.metaData();
+        Metadata metadata = state.metadata();
         RoutingTable routingTable = state.routingTable();
         long nextDelayNanos = Long.MAX_VALUE;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.isDelayed()) {
-                Settings indexSettings = metaData.index(shard.index()).getSettings();
+                Settings indexSettings = metadata.index(shard.index()).getSettings();
                 // calculate next time to schedule
                 final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, indexSettings);
                 if (newComputedLeftDelayNanos < nextDelayNanos) {

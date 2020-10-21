@@ -22,24 +22,22 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -53,7 +51,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private TotalHits totalHits;
     private float maxScore = Float.NaN;
     private DocValueFormat[] sortValueFormats;
-    private InternalAggregations aggregations;
+    /**
+     * Aggregation results. We wrap them in
+     * {@linkplain DelayableWriteable} because
+     * {@link InternalAggregation} is usually made up of many small objects
+     * which have a fairly high overhead in the JVM. So we delay deserializing
+     * them until just before we need them.
+     */
+    private DelayableWriteable<InternalAggregations> aggregations;
     private boolean hasAggs;
     private Suggest suggest;
     private boolean searchTimedOut;
@@ -63,18 +68,55 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
 
+    private final boolean isNull;
+
     public QuerySearchResult() {
+        this(false);
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
         super(in);
-        long id = in.readLong();
-        readFromWithId(id, in);
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            isNull = in.readBoolean();
+        } else {
+            isNull = false;
+        }
+        if (isNull == false) {
+            ShardSearchContextId id = new ShardSearchContextId(in);
+            readFromWithId(id, in);
+        }
     }
 
-    public QuerySearchResult(long id, SearchShardTarget shardTarget) {
-        this.requestId = id;
+    public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
+        this.contextId = contextId;
         setSearchShardTarget(shardTarget);
+        isNull = false;
+        setShardSearchRequest(shardSearchRequest);
+    }
+
+    private QuerySearchResult(boolean isNull) {
+        this.isNull = isNull;
+    }
+
+    /**
+     * Returns an instance that contains no response.
+     */
+    public static QuerySearchResult nullInstance() {
+        return new QuerySearchResult(true);
+    }
+
+    /**
+     * Returns true if the result doesn't contain any useful information.
+     * It is used by the search action to avoid creating an empty response on
+     * shard request that rewrites to match_no_docs.
+     *
+     * TODO: Currently we need the concrete aggregators to build empty responses. This means that we cannot
+     *       build an empty response in the coordinating node so we rely on this hack to ensure that at least one shard
+     *       returns a valid empty response. We should move the ability to create empty responses to aggregation builders
+     *       in order to allow building empty responses directly from the coordinating node.
+     */
+    public boolean isNull() {
+        return isNull;
     }
 
     @Override
@@ -159,18 +201,22 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
      * @throws IllegalStateException if the aggregations have already been consumed.
      */
-    public Aggregations consumeAggs() {
+    public DelayableWriteable<InternalAggregations> consumeAggs() {
         if (aggregations == null) {
             throw new IllegalStateException("aggs already consumed");
         }
-        Aggregations aggs = aggregations;
+        DelayableWriteable<InternalAggregations> aggs = aggregations;
         aggregations = null;
         return aggs;
     }
 
     public void aggregations(InternalAggregations aggregations) {
-        this.aggregations = aggregations;
+        this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
         hasAggs = aggregations != null;
+    }
+
+    public DelayableWriteable<InternalAggregations> aggregations() {
+        return aggregations;
     }
 
     /**
@@ -189,6 +235,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public boolean hasProfileResults() {
         return hasProfileResults;
+    }
+
+    public void consumeAll() {
+        if (hasProfileResults()) {
+            consumeProfileResult();
+        }
+        if (hasConsumedTopDocs() == false) {
+            consumeTopDocs();
+        }
+        if (hasAggs()) {
+            consumeAggs();
+        }
     }
 
     /**
@@ -258,8 +316,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return hasScoreDocs || hasSuggestHits();
     }
 
-    public void readFromWithId(long id, StreamInput in) throws IOException {
-        this.requestId = id;
+    public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {
+        this.contextId = id;
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -273,19 +331,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         setTopDocs(readTopDocs(in));
         if (hasAggs = in.readBoolean()) {
-            aggregations = new InternalAggregations(in);
-        }
-        if (in.getVersion().before(Version.V_7_2_0)) {
-            List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()
-                .map(a -> (SiblingPipelineAggregator) a).collect(Collectors.toList());
-            if (hasAggs && pipelineAggregators.isEmpty() == false) {
-                List<InternalAggregation> internalAggs = aggregations.asList().stream()
-                    .map(agg -> (InternalAggregation) agg).collect(Collectors.toList());
-                //Earlier versions serialize sibling pipeline aggs separately as they used to be set to QuerySearchResult directly, while
-                //later versions include them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
-                //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1.
-                this.aggregations = new InternalAggregations(internalAggs, pipelineAggregators);
-            }
+            aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
         }
         if (in.readBoolean()) {
             suggest = new Suggest(in);
@@ -296,12 +342,21 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasProfileResults = profileShardResults != null;
         serviceTimeEWMA = in.readZLong();
         nodeQueueSize = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+            setRescoreDocIds(new RescoreDocIds(in));
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(requestId);
-        writeToNoId(out);
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeBoolean(isNull);
+        }
+        if (isNull == false) {
+            contextId.writeTo(out);
+            writeToNoId(out);
+        }
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
@@ -316,22 +371,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         }
         writeTopDocs(out, topDocsAndMaxScore);
-        if (aggregations == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            aggregations.writeTo(out);
-        }
-        if (out.getVersion().before(Version.V_7_2_0)) {
-            //Earlier versions expect sibling pipeline aggs separately as they used to be set to QuerySearchResult directly,
-            //while later versions expect them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
-            //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1 on.
-            if (aggregations == null) {
-                out.writeNamedWriteableList(Collections.emptyList());
-            } else {
-                out.writeNamedWriteableList(aggregations.getTopLevelPipelineAggregators());
-            }
-        }
+        out.writeOptionalWriteable(aggregations);
         if (suggest == null) {
             out.writeBoolean(false);
         } else {
@@ -343,6 +383,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeOptionalWriteable(getShardSearchRequest());
+            getRescoreDocIds().writeTo(out);
+        }
     }
 
     public TotalHits getTotalHits() {

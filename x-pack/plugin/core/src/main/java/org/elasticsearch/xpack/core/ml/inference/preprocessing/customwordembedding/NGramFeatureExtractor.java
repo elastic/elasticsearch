@@ -55,13 +55,14 @@ public class NGramFeatureExtractor implements FeatureExtractor {
         Map<String, Counter> charNGrams = new TreeMap<>();
 
         int countSum = 0;
-        int end = newText.toString().length() - nGrams;
+        String textWithTerminators = newText.toString();
+        int end = textWithTerminators.length() - nGrams;
         for (int start = 0; start <= end; ++start) {
             StringBuilder charNGram = new StringBuilder();
 
             int index;
             for (index = 0; index < nGrams; ++index) {
-                char currentChar = newText.toString().charAt(start + index);
+                char currentChar = textWithTerminators.charAt(start + index);
                 if (currentChar == ' ') {
                     break;
                 }

@@ -26,8 +26,8 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.io.IOException;
@@ -71,14 +72,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         Settings settings = Settings.builder()
                                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                                 .build();
-        AllocationDecider decider = new TestAllocateDecision(Decision.THROTTLE) {
-            // the only allocation decider that implements this is ShardsLimitAllocationDecider and it always
-            // returns only YES or NO, never THROTTLE
-            @Override
-            public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
-                return randomBoolean() ? Decision.YES : Decision.NO;
-            }
-        };
+        AllocationDecider decider = new TestAllocateDecision(Decision.THROTTLE);
         // if deciders THROTTLE allocating a primary shard, stay in YELLOW state
         runAllocationTest(
             settings, indexName, Collections.singleton(decider), ClusterHealthStatus.YELLOW
@@ -121,19 +115,19 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
         final int numShards = randomIntBetween(1, 5);
-        MetaData metaData = MetaData.builder()
-                                .put(IndexMetaData.builder(indexName)
+        Metadata metadata = Metadata.builder()
+                                .put(IndexMetadata.builder(indexName)
                                          .settings(settings(Version.CURRENT))
                                          .numberOfShards(numShards)
                                          .numberOfReplicas(1))
                                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-                                        .addAsNew(metaData.index(indexName))
+                                        .addAsNew(metadata.index(indexName))
                                         .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(clusterName))
-                                        .metaData(metaData)
+                                        .metadata(metadata)
                                         .routingTable(routingTable)
                                         .build();
 
@@ -162,7 +156,8 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         return new AllocationService(new AllocationDeciders(deciders),
                                      new TestGatewayAllocator(),
                                      new BalancedShardsAllocator(settings),
-                                     EmptyClusterInfoService.INSTANCE);
+                                     EmptyClusterInfoService.INSTANCE,
+                                     EmptySnapshotsInfoService.INSTANCE);
     }
 
 }

@@ -61,7 +61,8 @@ public class RollupField {
         NUMERIC_FIELD_MAPPER_TYPES = types;
     }
 
-    public static final String DATE_FIELD_MAPPER_TYPE = DateFieldMapper.CONTENT_TYPE;
+    public static final List<String> DATE_FIELD_MAPPER_TYPES = List.of(DateFieldMapper.CONTENT_TYPE,
+        DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
 
     /**
      * Format to the appropriate Rollup field name convention
@@ -70,7 +71,7 @@ public class RollupField {
      * @param extra The type of value this field is (VALUE, INTERVAL, etc)
      * @return formatted field name
      */
-    public static String formatFieldName(ValuesSourceAggregationBuilder<?, ?> source, String extra) {
+    public static String formatFieldName(ValuesSourceAggregationBuilder<?> source, String extra) {
         return source.field() + "." + source.getType() + "." + extra;
     }
 

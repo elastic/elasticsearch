@@ -43,7 +43,7 @@ public class XmlFileStructureFinderFactory implements FileStructureFinderFactory
      * necessarily have to be complete (as the sample could have truncated it).
      */
     @Override
-    public boolean canCreateFromSample(List<String> explanation, String sample) {
+    public boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines) {
 
         int completeDocCount = 0;
         String commonRootElementName = null;

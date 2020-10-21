@@ -1,21 +1,44 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.elasticsearch.gradle.info.BuildParams
+
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.validate-rest-spec'
 
 archivesBaseName = 'x-pack'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('core'))
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  if (false == isEclipse) {
+    // let the yamlRestTest see the classpath of test
+    // Eclipse doesn't need this because it flattens test deps and gets very, very confused by it
+    yamlRestTestImplementation project.sourceSets.test.runtimeClasspath
+  }
 }
 
-// https://github.com/elastic/x-plugins/issues/724
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
 }
 
-task testJar(type: Jar) {
+restResources {
+  restApi {
+    includeCore '*'
+    includeXpack '*'
+  }
+}
+
+//The api and tests need to stay at src/test/... since some external tooling depends on that exact file path.
+artifacts {
+  restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
+  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+}
+
+def testJar = tasks.register("testJar", Jar) {
   appendix 'test'
   from sourceSets.test.output
+
   /*
    * Stick the license and notice file in the jar. This isn't strictly
    * needed because we don't publish it but it makes our super-paranoid
@@ -45,17 +68,18 @@ File nodeCert = file("$keystoreDir/testnode.crt")
 // it can run in a FIPS 140 JVM
 // TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
 // https://github.com/elastic/elasticsearch/pull/32201
-task copyKeyCerts(type: Copy) {
+tasks.register("copyKeyCerts", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }
   into keystoreDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
+sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
+processYamlRestTestResources.dependsOn("copyKeyCerts")
+processJavaRestTestResources.dependsOn("copyKeyCerts")
 
-integTest.runner {
+yamlRestTest {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -65,8 +89,7 @@ integTest.runner {
 
   // TODO: fix this rest test to not depend on a hardcoded port!
   def blacklist = ['getting_started/10_monitor_cluster_health/*']
-  boolean snapshot = Boolean.valueOf(System.getProperty("build.snapshot", "true"))
-  if (!snapshot) {
+  if (BuildParams.isSnapshotBuild() == false) {
     // these tests attempt to install basic/internal licenses signed against the dev/public.key
     // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
     // private key, these tests are blacklisted in non-snapshot test runs
@@ -76,10 +99,11 @@ integTest.runner {
   dependsOn copyKeyCerts
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
   // Integration tests are supposed to enable/disable exporters before/after each test
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
@@ -91,10 +115,16 @@ testClusters.integTest {
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+  user username: "cat_test_user", password: "cat-test-password", role: "cat_test_role"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
 }
+
+

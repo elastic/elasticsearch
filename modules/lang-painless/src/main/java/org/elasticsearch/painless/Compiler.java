@@ -21,9 +21,19 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.phase.DefaultConstantFoldingOptimizationPhase;
+import org.elasticsearch.painless.phase.DefaultIRTreeToASMBytesPhase;
+import org.elasticsearch.painless.phase.DefaultStringConcatenationOptimizationPhase;
+import org.elasticsearch.painless.phase.DocFieldsPhase;
+import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
+import org.elasticsearch.painless.phase.PainlessSemanticHeaderPhase;
+import org.elasticsearch.painless.phase.PainlessUserTreeToIRTreePhase;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
+import org.elasticsearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.reflect.Method;
@@ -34,9 +44,7 @@ import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
@@ -204,28 +212,32 @@ final class Compiler {
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
-     * @return The ScriptRoot used to compile
+     * @return The ScriptScope used to compile
      */
-    ScriptRoot compile(Loader loader, Set<String> extractedVariables, String name, String source,
-            CompilerSettings settings) {
+    ScriptScope compile(Loader loader, String name, String source, CompilerSettings settings) {
+        String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
-        root.extractVariables(extractedVariables);
-        ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
-        Map<String, Object> statics = root.write();
+        SClass root = Walker.buildPainlessTree(scriptName, source, settings);
+        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
+        new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
+        // TODO: Make this phase optional #60156
+        new DocFieldsPhase().visitClass(root, scriptScope);
+        new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
+        new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
+        byte[] bytes = classNode.getBytes();
 
         try {
-            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, root.getBytes());
-            clazz.getField("$NAME").set(null, name);
-            clazz.getField("$SOURCE").set(null, source);
-            clazz.getField("$STATEMENTS").set(null, root.getStatements());
-            clazz.getField("$DEFINITION").set(null, painlessLookup);
+            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, bytes);
 
-            for (Map.Entry<String, Object> statik : statics.entrySet()) {
-                clazz.getField(statik.getKey()).set(null, statik.getValue());
+            for (Map.Entry<String, Object> staticConstant : scriptScope.getStaticConstants().entrySet()) {
+                clazz.getField(staticConstant.getKey()).set(null, staticConstant.getValue());
             }
 
-            return scriptRoot;
+            return scriptScope;
         } catch (Exception exception) {
             // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
@@ -239,13 +251,21 @@ final class Compiler {
      * @return The bytes for compilation.
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
+        String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup,
-                debugStream);
-        root.extractVariables(new HashSet<>());
-        root.analyze(painlessLookup, settings);
-        root.write();
+        SClass root = Walker.buildPainlessTree(scriptName, source, settings);
+        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
+        new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
+        // TODO: Make this phase optional #60156
+        new DocFieldsPhase().visitClass(root, scriptScope);
+        new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
+        classNode.setDebugStream(debugStream);
+        new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
 
-        return root.getBytes();
+        return classNode.getBytes();
     }
 }

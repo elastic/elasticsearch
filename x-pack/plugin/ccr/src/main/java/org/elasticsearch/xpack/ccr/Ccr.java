@@ -14,8 +14,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,14 +32,17 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -73,6 +77,7 @@ import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrReposito
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
+import org.elasticsearch.xpack.ccr.allocation.CcrPrimaryFollowerAllocationDecider;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -123,7 +128,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.CCR_ENABLED_SETTING;
 /**
  * Container class for CCR functionality.
  */
-public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin, RepositoryPlugin {
+public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin, RepositoryPlugin, ClusterPlugin {
 
     public static final String CCR_THREAD_POOL_NAME = "ccr";
     public static final String CCR_CUSTOM_METADATA_KEY = "ccr";
@@ -173,7 +178,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final NamedXContentRegistry xContentRegistry,
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry namedWriteableRegistry) {
+            final NamedWriteableRegistry namedWriteableRegistry,
+            final IndexNameExpressionResolver expressionResolver,
+            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
         this.client = client;
         if (enabled == false) {
             return emptyList();
@@ -202,7 +209,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
                                                                        ThreadPool threadPool,
                                                                        Client client,
-                                                                       SettingsModule settingsModule) {
+                                                                       SettingsModule settingsModule,
+                                                                       IndexNameExpressionResolver expressionResolver) {
         return Collections.singletonList(new ShardFollowTasksExecutor(client, threadPool, clusterService, settingsModule));
     }
 
@@ -257,22 +265,22 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
         return Arrays.asList(
                 // stats API
-                new RestFollowStatsAction(restController),
-                new RestCcrStatsAction(restController),
-                new RestFollowInfoAction(restController),
+                new RestFollowStatsAction(),
+                new RestCcrStatsAction(),
+                new RestFollowInfoAction(),
                 // follow APIs
-                new RestPutFollowAction(restController),
-                new RestResumeFollowAction(restController),
-                new RestPauseFollowAction(restController),
-                new RestUnfollowAction(restController),
+                new RestPutFollowAction(),
+                new RestResumeFollowAction(),
+                new RestPauseFollowAction(),
+                new RestUnfollowAction(),
                 // auto-follow APIs
-                new RestDeleteAutoFollowPatternAction(restController),
-                new RestPutAutoFollowPatternAction(restController),
-                new RestGetAutoFollowPatternAction(restController),
-                new RestPauseAutoFollowPatternAction(restController),
-                new RestResumeAutoFollowPatternAction(restController),
+                new RestDeleteAutoFollowPatternAction(),
+                new RestPutAutoFollowPatternAction(),
+                new RestGetAutoFollowPatternAction(),
+                new RestPauseAutoFollowPatternAction(),
+                new RestResumeAutoFollowPatternAction(),
                 // forget follower API
-                new RestForgetFollowerAction(restController));
+                new RestForgetFollowerAction());
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -291,7 +299,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
                 // auto-follow metadata, persisted into the cluster state as XContent
                 new NamedXContentRegistry.Entry(
-                        MetaData.Custom.class,
+                        Metadata.Custom.class,
                         new ParseField(AutoFollowMetadata.TYPE),
                         AutoFollowMetadata::fromXContent),
                 // persistent action requests
@@ -334,12 +342,13 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return Collections.emptyList();
         }
 
-        return Collections.singletonList(new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME, 32, 100, "xpack.ccr.ccr_thread_pool"));
+        return Collections.singletonList(
+            new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME, 32, 100, "xpack.ccr.ccr_thread_pool", false));
     }
 
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                                   ClusterService clusterService) {
+                                                                   ClusterService clusterService, RecoverySettings recoverySettings) {
         Repository.Factory repositoryFactory =
             (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get(),
                 clusterService.getClusterApplierService().threadPool());
@@ -363,5 +372,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     @Override
     public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
         return Collections.singletonList(CcrRequests.CCR_INDICES_ALIASES_REQUEST_VALIDATOR);
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return List.of(new CcrPrimaryFollowerAllocationDecider());
     }
 }

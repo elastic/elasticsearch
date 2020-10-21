@@ -43,6 +43,7 @@ public class AnalysisNoriFactoryTests extends AnalysisFactoryTestCase {
         Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
         filters.put("koreanpartofspeechstop", NoriPartOfSpeechStopFilterFactory.class);
         filters.put("koreanreadingform", NoriReadingFormFilterFactory.class);
+        filters.put("koreannumber", NoriNumberFilterFactory.class);
         return filters;
     }
 }

@@ -72,7 +72,7 @@ final class RemoteClusterConnection implements Closeable {
         this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, createConnectionManager(profile, transportService));
         this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
-        this.remoteConnectionManager.getConnectionManager().addListener(transportService);
+        this.remoteConnectionManager.addListener(transportService);
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
             .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.threadPool = transportService.threadPool;
@@ -171,7 +171,7 @@ final class RemoteClusterConnection implements Closeable {
      * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
      */
     Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
-        return remoteConnectionManager.getRemoteConnection(remoteClusterNode);
+        return remoteConnectionManager.getConnection(remoteClusterNode);
     }
 
     Transport.Connection getConnection() {
@@ -193,7 +193,7 @@ final class RemoteClusterConnection implements Closeable {
     }
 
     boolean isNodeConnected(final DiscoveryNode node) {
-        return remoteConnectionManager.getConnectionManager().nodeConnected(node);
+        return remoteConnectionManager.nodeConnected(node);
     }
 
     /**
@@ -208,11 +208,11 @@ final class RemoteClusterConnection implements Closeable {
     }
 
     private static ConnectionManager createConnectionManager(ConnectionProfile connectionProfile, TransportService transportService) {
-        return new ConnectionManager(connectionProfile, transportService.transport);
+        return new ClusterConnectionManager(connectionProfile, transportService.transport);
     }
 
     ConnectionManager getConnectionManager() {
-        return remoteConnectionManager.getConnectionManager();
+        return remoteConnectionManager;
     }
 
     boolean shouldRebuildConnection(Settings newSettings) {

@@ -21,6 +21,7 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.util.CharTokenizer;
+import org.apache.lucene.util.AttributeFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -31,7 +32,10 @@ import java.util.Set;
 
 public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
 
+    static final String MAX_TOKEN_LENGTH = "max_token_length";
+
     private final Set<Integer> tokenizeOnChars = new HashSet<>();
+    private final Integer maxTokenLength;
     private boolean tokenizeOnSpace = false;
     private boolean tokenizeOnLetter = false;
     private boolean tokenizeOnDigit = false;
@@ -40,6 +44,8 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
 
     public CharGroupTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, settings, name);
+
+        maxTokenLength = settings.getAsInt(MAX_TOKEN_LENGTH, CharTokenizer.DEFAULT_MAX_WORD_LEN);
 
         for (final String c : settings.getAsList("tokenize_on_chars")) {
             if (c == null || c.length() == 0) {
@@ -110,7 +116,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
 
     @Override
     public Tokenizer create() {
-        return new CharTokenizer() {
+        return new CharTokenizer(AttributeFactory.DEFAULT_ATTRIBUTE_FACTORY, maxTokenLength) {
             @Override
             protected boolean isTokenChar(int c) {
                 if (tokenizeOnSpace && Character.isWhitespace(c)) {

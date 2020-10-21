@@ -451,13 +451,15 @@ assertionConsumerServiceURL=https://my.kibana.url/api/security/saml/callback}]
 
 In order to initiate a SAML authentication, {kib} needs to know which SAML realm
 it should use from the ones that are configured in {es}. You can use the
-`xpack.security.authc.saml.reaml` setting to explicitly set the SAML realm name
-in {kib}. It must match the name of the SAML realm that is configured in {es}.  
+`xpack.security.authc.providers.saml.<provider-name>.realm` setting to explicitly
+set the SAML realm name in {kib}. It must match the name of the SAML realm that is
+configured in {es}.
 
-If you get an error like the one above, it possibly means that the value of 
-`xpack.security.authc.saml.reaml` in your {kib} configuration is wrong. Verify
-that it matches the name of the configured realm in {es}, which is the string
-after `xpack.security.authc.realms.saml.` in your {es} configuration.
+If you get an error like the one above, it possibly means that the value of
+`xpack.security.authc.providers.saml.<provider-name>.realm` in your {kib}
+configuration is wrong. Verify that it matches the name of the configured realm
+in {es}, which is the string after `xpack.security.authc.realms.saml.` in your
+{es} configuration.
 
 --
 

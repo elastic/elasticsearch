@@ -1,0 +1,121 @@
+[[index-templates]]
+= Index templates
+
+NOTE: This topic describes the composable index templates introduced in {es} 7.8. 
+For information about how index templates worked previously, 
+see the <<indices-templates-v1,legacy template documentation>>.
+
+[[getting]]
+An index template is a way to tell {es} how to configure an index when it is created.
+For data streams, the index template configures the stream's backing indices as they
+are created. Templates are configured prior to index creation and then when an
+index is created either manually or through indexing a document, the template
+settings are used as a basis for creating the index.
+
+There are two types of templates, index templates and <<indices-component-template,component
+templates>>. Component templates are reusable building blocks that configure mappings, settings, and
+aliases. You use component templates to construct index templates, they aren't directly applied to a
+set of indices. Index templates can contain a collection of component templates, as well as directly
+specify settings, mappings, and aliases.
+
+If a new data stream or index matches more than one index template, the index template with the highest priority is used.
+
+[IMPORTANT]
+====
+{es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and `synthetics-*-*` index
+patterns, each with a priority of `100`.
+{ingest-guide}/ingest-management-overview.html[{agent}] uses these templates to
+create data streams. If you use {agent}, assign your index templates a priority
+lower than `100` to avoid an overriding the built-in templates.
+
+Otherwise, to avoid accidentally applying the built-in templates, use a
+non-overlapping index pattern or assign templates with an overlapping pattern a
+`priority` higher than `100`.
+
+For example, if you don't use {agent} and want to create a template for the
+`logs-*` index pattern, assign your template a priority of `200`. This ensures
+your template is applied instead of the built-in template for `logs-*-*`.
+====
+
+When a composable template matches a given index
+it always takes precedence over a legacy template. If no composable template matches, a legacy
+template may still match and be applied.
+
+If an index is created with explicit settings and also matches an index template,
+the settings from the create index request take precedence over settings specified in the index template and its component templates.
+
+[source,console]
+--------------------------------------------------
+PUT _component_template/component_template1
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT _component_template/other_component_template
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "ip_address": {
+          "type": "ip"
+        }
+      }
+    }
+  }
+}
+
+PUT _index_template/template_1
+{
+  "index_patterns": ["te*", "bar*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1
+    },
+    "mappings": {
+      "_source": {
+        "enabled": false
+      },
+      "properties": {
+        "host_name": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date",
+          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+        }
+      }
+    },
+    "aliases": {
+      "mydata": { }
+    }
+  },
+  "priority": 200,
+  "composed_of": ["component_template1", "other_component_template"],
+  "version": 3,
+  "_meta": {
+    "description": "my custom"
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+////
+
+[source,console]
+--------------------------------------------------
+DELETE _index_template/*
+DELETE _component_template/*
+--------------------------------------------------
+// TEARDOWN
+
+////
+
+include::simulate-multi-component-templates.asciidoc[]

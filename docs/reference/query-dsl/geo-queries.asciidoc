@@ -18,9 +18,11 @@ Finds documents with geo-points within the specified distance of a central point
 Find documents with geo-points within the specified polygon.
 
 <<query-dsl-geo-shape-query,`geo_shape`>> query::
-Finds documents with geo-shapes which either intersect, are contained by, or do not intersect with the specified
-geo-shape.
-
+Finds documents with:
+* `geo-shapes` which either intersect, are contained by, or do not intersect
+with the specified geo-shape
+* `geo-points` which intersect the specified
+geo-shape
 
 include::geo-bounding-box-query.asciidoc[]
 

@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,11 +45,11 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        MetaData metaData = state.metaData();
+        Metadata metadata = state.metadata();
 
         int numberOfFollowerIndices = 0;
         long lastFollowerIndexCreationDate = 0L;
-        for (IndexMetaData imd : metaData) {
+        for (IndexMetadata imd : metadata) {
             if (imd.getCustomData("ccr") != null) {
                 numberOfFollowerIndices++;
                 if (lastFollowerIndexCreationDate < imd.getCreationDate()) {
@@ -57,7 +57,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
                 }
             }
         }
-        AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = metadata.custom(AutoFollowMetadata.TYPE);
         int numberOfAutoFollowPatterns = autoFollowMetadata != null ? autoFollowMetadata.getPatterns().size() : 0;
 
         Long lastFollowTimeInMillis;
@@ -68,7 +68,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
             lastFollowTimeInMillis = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
         }
 
-        CCRInfoTransportAction.Usage usage = new CCRInfoTransportAction.Usage(licenseState.isCcrAllowed(),
+        CCRInfoTransportAction.Usage usage = new CCRInfoTransportAction.Usage(licenseState.isAllowed(XPackLicenseState.Feature.CCR),
             XPackSettings.CCR_ENABLED_SETTING.get(settings), numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

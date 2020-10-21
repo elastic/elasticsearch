@@ -16,8 +16,9 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Request;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RegressionTests;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassificationTests;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
@@ -60,7 +61,8 @@ public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTest
                 throw new UncheckedIOException(e);
             }
         }
-        Evaluation evaluation = randomBoolean() ? BinarySoftClassificationTests.createRandom() : RegressionTests.createRandom();
+        Evaluation evaluation =
+            randomFrom(OutlierDetectionTests.createRandom(), ClassificationTests.createRandom(), RegressionTests.createRandom());
         return new Request()
             .setIndices(indices)
             .setQueryProvider(queryProvider)

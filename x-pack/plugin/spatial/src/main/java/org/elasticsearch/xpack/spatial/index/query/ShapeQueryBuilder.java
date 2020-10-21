@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -13,22 +14,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeQueryable;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * Derived {@link AbstractGeometryQueryBuilder} that builds a {@code x, y} Shape Query
+ * Derived {@link AbstractGeometryQueryBuilder} that builds a {@code x, y} Shape Query. It
+ * can be applied to any {@link MappedFieldType} that implements {@link ShapeQueryable}.
  *
  * GeoJson and WKT shape definitions are supported
  */
@@ -36,7 +35,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     public static final String NAME = "shape";
 
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * Creates a new ShapeQueryBuilder whose Query will be against the given
      * field name using the given Shape
      *
      * @param fieldName
@@ -52,7 +51,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * Creates a new ShapeQueryBuilder whose Query will be against the given
      * field name using the given Shape
      *
      * @param fieldName
@@ -69,7 +68,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * Creates a new ShapeQueryBuilder whose Query will be against the given
      * field name and will use the Shape found with the given ID
      *
      * @param fieldName
@@ -101,26 +100,14 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     @Override
-    public String queryFieldType() {
-        return ShapeFieldMapper.CONTENT_TYPE;
-    }
-
-    @Override
-    @SuppressWarnings({ "rawtypes" })
-    protected List validContentTypes() {
-        return Arrays.asList(ShapeFieldMapper.CONTENT_TYPE);
-    }
-
-    @Override
     @SuppressWarnings({ "rawtypes" })
     public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
-        if (fieldType.typeName().equals(ShapeFieldMapper.CONTENT_TYPE) == false) {
+        if ((fieldType instanceof ShapeQueryable) == false) {
             throw new QueryShardException(context,
-                "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }
-
-        final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;
-        return ft.geometryQueryBuilder().process(shape, ft.name(), relation, context);
+        final ShapeQueryable ft = (ShapeQueryable) fieldType;
+        return new ConstantScoreQuery(ft.shapeQuery(shape, fieldType.name(), relation, context));
     }
 
     @Override

@@ -19,7 +19,6 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
@@ -43,12 +42,8 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     private final List<IndexResult> indices;
 
     CloseIndexResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(Version.V_7_2_0));
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            indices = unmodifiableList(in.readList(IndexResult::new));
-        } else {
-            indices = unmodifiableList(emptyList());
-        }
+        super(in, true);
+        indices = unmodifiableList(in.readList(IndexResult::new));
     }
 
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {
@@ -63,12 +58,8 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            writeShardsAcknowledged(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeList(indices);
-        }
+        writeShardsAcknowledged(out);
+        out.writeList(indices);
     }
 
     @Override
@@ -203,7 +194,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         }
 
         public boolean hasFailures() {
-            return failures != null && failures.length > 0;
+            return CollectionUtils.isEmpty(failures) == false;
         }
 
         public int getId() {

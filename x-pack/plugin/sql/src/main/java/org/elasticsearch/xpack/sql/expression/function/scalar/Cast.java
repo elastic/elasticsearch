@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConversion;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.Objects;
 
@@ -60,7 +60,7 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        return DataTypeConversion.convert(field().fold(), dataType);
+        return SqlDataTypeConverter.convert(field().fold(), dataType);
     }
 
     @Override
@@ -70,14 +70,14 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return DataTypeConversion.canConvert(from(), to()) ?
+        return SqlDataTypeConverter.canConvert(from(), to()) ?
                 TypeResolution.TYPE_RESOLVED :
                     new TypeResolution("Cannot cast [" + from() + "] to [" + to()+ "]");
     }
 
     @Override
     protected Processor makeProcessor() {
-        return new CastProcessor(DataTypeConversion.conversionFor(from(), to()));
+        return new CastProcessor(SqlDataTypeConverter.converterFor(from(), to()));
     }
 
     @Override

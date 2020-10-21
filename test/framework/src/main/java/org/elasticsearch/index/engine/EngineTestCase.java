@@ -52,7 +52,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
@@ -80,6 +80,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -97,6 +98,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
@@ -133,7 +135,6 @@ import static java.util.Collections.shuffle;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -181,7 +182,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return Settings.builder()
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
@@ -230,7 +231,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
-        return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
+        return new EngineConfig(config.getShardId(), config.getThreadPool(), config.getIndexSettings(),
             config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
@@ -240,7 +241,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
-        return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
+        return new EngineConfig(config.getShardId(), config.getThreadPool(), config.getIndexSettings(),
                 config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
                 config.getTranslogConfig(), config.getFlushMergesAfter(),
@@ -250,7 +251,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
-        return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
+        return new EngineConfig(config.getShardId(), config.getThreadPool(), config.getIndexSettings(),
             config.getWarmer(), config.getStore(), mergePolicy, config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
@@ -266,12 +267,14 @@ public abstract class EngineTestCase extends ESTestCase {
         try {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                assertNoInFlightDocuments(engine);
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService());
                 assertMaxSeqNoInCommitUserData(engine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                assertNoInFlightDocuments(replicaEngine);
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService());
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
@@ -339,7 +342,7 @@ public abstract class EngineTestCase extends ESTestCase {
         final String nestedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("nested_field").field("type", "nested").endObject().endObject()
             .endObject().endObject());
-        final DocumentMapper nestedMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(nestedMapping));
+        final DocumentMapper nestedMapper = mapperService.parse("type", new CompressedXContent(nestedMapping));
         return (docId, nestedFieldValues) -> {
             final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value");
             if (nestedFieldValues > 0) {
@@ -415,7 +418,7 @@ public abstract class EngineTestCase extends ESTestCase {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
         String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId,
             primaryTermSupplier.getAsLong());
-        return new Translog(translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS),
+        return new Translog(translogConfig, translogUUID, new TranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier, seqNo -> {});
     }
 
@@ -528,6 +531,10 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine;
     }
 
+    public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
+        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
+    }
+
     @FunctionalInterface
     public interface IndexWriterFactory {
 
@@ -565,7 +572,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         } else {
-            return new InternalTestEngine(config, localCheckpointTrackerSupplier) {
+            return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -683,7 +690,6 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         return new EngineConfig(
                 shardId,
-                allocationId.getId(),
                 threadPool,
                 indexSettings,
                 null,
@@ -713,7 +719,7 @@ public abstract class EngineTestCase extends ESTestCase {
             Settings.builder().put(config.getIndexSettings().getSettings())
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+        return new EngineConfig(config.getShardId(), config.getThreadPool(),
             indexSettings, config.getWarmer(), store, config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             translogConfig, config.getFlushMergesAfter(), config.getExternalRefreshListener(),
@@ -1050,9 +1056,10 @@ public abstract class EngineTestCase extends ESTestCase {
      * Reads all engine operations that have been processed by the engine from Lucene index.
      * The returned operations are sorted and de-duplicated, thus each sequence number will be have at most one operation.
      */
-    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, MapperService mapper) throws IOException {
+    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine,
+                                                                     Function<String, MappedFieldType> fieldTypeLookup) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapper, 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", fieldTypeLookup, 0, Long.MAX_VALUE, false)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null){
                 operations.add(op);
@@ -1075,7 +1082,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 translogOps.add(op);
             }
         }
-        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
+        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper::fieldType).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
         for (Translog.Operation op : translogOps) {
@@ -1165,15 +1172,15 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static MapperService createMapperService() throws IOException {
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
             .putMapping("{\"properties\": {}}")
             .build();
         MapperService mapperService = MapperTestUtils.newMapperService(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
             createTempDir(), Settings.EMPTY, "test");
-        mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
         return mapperService;
     }
 
@@ -1239,5 +1246,17 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static long getNumVersionLookups(Engine engine) {
         return ((InternalEngine) engine).getNumVersionLookups();
+    }
+
+    public static long getInFlightDocCount(Engine engine) {
+        if (engine instanceof InternalEngine) {
+            return ((InternalEngine) engine).getInFlightDocCount();
+        } else {
+            return 0;
+        }
+    }
+
+    public static void assertNoInFlightDocuments(Engine engine) throws Exception {
+        assertBusy(() -> assertThat(getInFlightDocCount(engine), equalTo(0L)));
     }
 }

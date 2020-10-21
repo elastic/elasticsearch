@@ -108,7 +108,7 @@ setup:
       ml.flush_job:
         job_id: post-data-job
   - match: { flushed: true }
-  - match: { last_finalized_bucket_end: 0 }
+  - is_false: last_finalized_bucket_end
 
   - do:
       ml.close_job:

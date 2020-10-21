@@ -14,6 +14,7 @@ import threading
 import ipaddress
 import argparse
 import time
+import getpass
 
 
 TDVT_SDK_NAME = "connector-plugin-sdk"
@@ -29,7 +30,7 @@ TDVT_LAUNCHER = os.path.join(TDVT_SDK_NAME, "tdvt", "tdvt_launcher.py")
 #
 # configs
 TDS_SRC_DIR = "tds"
-TACO_SRC_DIR = "C:\\Users\\bpi\\Documents\\My Tableau Repository\\Connectors"
+TACO_SRC_DIR = "C:\\Users\\" + getpass.getuser() + "\\Documents\\My Tableau Repository\\Connectors"
 TACO_SIGNED = True
 ES_URL = "http://elastic-admin:elastic-password@127.0.0.1:9200"
 

@@ -62,9 +62,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final boolean realmEnabled;
     private final boolean anonymousEnabled;
     private final SecurityIndexManager securityIndex;
-    private final Hasher reservedRealmHasher;
-    private final ReservedUserInfo disabledDefaultUserInfo;
-    private final ReservedUserInfo enabledDefaultUserInfo;
 
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
@@ -80,13 +77,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.securityIndex = securityIndex;
-        this.reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
-        final char[] emptyPasswordHash = reservedRealmHasher.hash(new SecureString("".toCharArray()));
-        disabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, false, true);
-        enabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, true, true);
-        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? emptyPasswordHash :
+        final Hasher reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? new char[0] :
             reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
-        bootstrapUserInfo = new ReservedUserInfo(hash, true, hash == emptyPasswordHash);
+        bootstrapUserInfo = new ReservedUserInfo(hash, true, hash.length == 0);
     }
 
     @Override
@@ -110,8 +104,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         }
                     } finally {
-                        assert userInfo.passwordHash != disabledDefaultUserInfo.passwordHash : "default user info must be cloned";
-                        assert userInfo.passwordHash != enabledDefaultUserInfo.passwordHash : "default user info must be cloned";
                         assert userInfo.passwordHash != bootstrapUserInfo.passwordHash : "bootstrap user info must be cloned";
                         Arrays.fill(userInfo.passwordHash, (char) 0);
                     }
@@ -246,7 +238,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (ElasticUser.NAME.equals(username)) {
             return bootstrapUserInfo.deepClone();
         } else {
-            return enabledDefaultUserInfo.deepClone();
+            return ReservedUserInfo.defaultEnabledUserInfo();
         }
     }
 

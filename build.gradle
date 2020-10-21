@@ -138,7 +138,7 @@ allprojects {
       System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
       gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
       gradle.startParameter.taskNames.contains('cleanEclipse')
-    
+
     buildMetadata = buildMetadataMap
   }
 }
@@ -332,7 +332,11 @@ allprojects {
         folder.output = "build-eclipse/" + i
       }
 
-      // Workaround for https://github.com/gradle/gradle/issues/14932
+      // Starting with Gradle 6.7 test dependencies are not exposed by eclipse
+      // projects by default. This breaks project dependencies using the `java-test-fixtures` plugin
+      // or dependencies on other projects manually declared testArtifacts configurations
+      // This issue is tracked in gradle issue tracker.
+      // See https://github.com/gradle/gradle/issues/14932 for further details
       classpath.entries.findAll {
         it instanceof ProjectDependency
       }.each {

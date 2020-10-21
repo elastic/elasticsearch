@@ -121,7 +121,7 @@ public final class DataStream {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_TEMPLATE_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ILM_POLICY_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), METADATA_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {

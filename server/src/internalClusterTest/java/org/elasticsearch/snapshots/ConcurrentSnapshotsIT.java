@@ -1298,10 +1298,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return snapshotNames;
     }
 
-    private void awaitNoMoreRunningOperations() throws Exception {
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
-    }
-
     private ActionFuture<AcknowledgedResponse> startDeleteFromNonMasterClient(String repoName, String snapshotName) {
         logger.info("--> deleting snapshot [{}] from repo [{}] from non master client", snapshotName, repoName);
         return internalCluster().nonMasterClient().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();

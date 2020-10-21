@@ -170,11 +170,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     // verb and updating an *existing* resource using the PUT verb, then auditing would also be able to show the create/update distinction
     public static final String PUT_CONFIG_FIELD_NAME = "put";
     public static final String DELETE_CONFIG_FIELD_NAME = "delete";
-    public static final String CHANGE_PASSWORD_FIELD_NAME = "change_password";
+    public static final String CHANGE_CONFIG_FIELD_NAME = "change";
     public static final String ENABLE_CONFIG_FIELD_NAME = "enable";
     public static final String DISABLE_CONFIG_FIELD_NAME = "disable";
-    public static final String CREATE_API_KEY_FIELD_NAME = "create.apikey";
-    public static final String INVALIDATE_API_KEYS_FIELD_NAME = "invalidate_apikeys";
+    public static final String CREATE_CONFIG_FIELD_NAME = "create";
+    public static final String INVALIDATE_API_KEYS_FIELD_NAME = "invalidate";
 
     public static final String NAME = "logfile";
     public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_host_address"),
@@ -886,14 +886,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withRequestBody(ChangePasswordRequest changePasswordRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "change_password");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject()
+            builder.startObject("password")
                     .startObject("user")
                     .field("name", changePasswordRequest.username())
                     // it's nice for consistency to show the name of the realm, when possible
                     .field("realm", inferRealmNameFromUsername.apply(changePasswordRequest.username()))
                     .endObject() // user
                     .endObject();
-            logEntry.with(CHANGE_PASSWORD_FIELD_NAME, Strings.toString(builder));
+            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 
@@ -990,17 +990,17 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withRequestBody(CreateApiKeyRequest createApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "create_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject();
+            builder.startObject("apikey");
             withRequestBody(builder, createApiKeyRequest);
             builder.endObject();
-            logEntry.with(CREATE_API_KEY_FIELD_NAME, Strings.toString(builder));
+            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 
         LogEntryBuilder withRequestBody(GrantApiKeyRequest grantApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "create_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject();
+            builder.startObject("apikey");
             withRequestBody(builder, grantApiKeyRequest.getApiKeyRequest());
             GrantApiKeyRequest.Grant grant = grantApiKeyRequest.getGrant();
             builder.startObject("grant")
@@ -1013,7 +1013,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .endObject() // user
                     .endObject(); // grant
             builder.endObject();
-            logEntry.with(CREATE_API_KEY_FIELD_NAME, Strings.toString(builder));
+            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 
@@ -1088,7 +1088,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withRequestBody(InvalidateApiKeyRequest invalidateApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "invalidate_apikeys");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject();
+            builder.startObject("apikeys");
                 if (invalidateApiKeyRequest.getIds() != null && invalidateApiKeyRequest.getIds().length > 0) {
                     builder.array("ids", invalidateApiKeyRequest.getIds());
                 }

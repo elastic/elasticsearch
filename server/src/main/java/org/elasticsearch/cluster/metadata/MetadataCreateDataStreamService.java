@@ -133,8 +133,8 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
         }
         if (request.name.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
-            throw new IllegalArgumentException(String.format("data_stream [%s] must not start with '%s'", request.name,
-                DataStream.BACKING_INDEX_PREFIX));
+            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '"
+                + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
         ComposableIndexTemplate composableTemplate = lookupTemplateForDataStream(request.name, currentState.metadata());

@@ -143,8 +143,8 @@ a large number of categories, there could be a significant effect on the size of
 --
 NOTE: To use the
 {ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[AUC ROC evaluation method],
-`num_top_classes` must be set to `-1` or a value greater than the total number
-of categories.
+`num_top_classes` must be set to `-1` or a value greater than or equal to the
+total number of categories.
 
 --
 

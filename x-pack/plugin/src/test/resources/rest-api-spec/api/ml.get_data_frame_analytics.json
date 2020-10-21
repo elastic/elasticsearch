@@ -44,7 +44,7 @@
         "description":"specifies a max number of analytics to get",
         "default":100
       },
-      "for_export": {
+      "exclude_generated": {
         "required": false,
         "type": "boolean",
         "default": false,

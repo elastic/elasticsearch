@@ -54,7 +54,7 @@ Note that Logstash will add a few extra fields per row ("document" in Elasticsea
 
 2. Adapt the [config file](https://www.elastic.co/guide/en/logstash/current/configuration-file-structure.html#configuration-file-structure) under the `logstash` folder, updating the <path>, <host> and <password> tags in it.
 
-3. Relaunch Logstash and wait until the files have been ingested. `calcs` index will need to have 17 documents and `staples` 54860.
+3. Relaunch Logstash using the updated config file in previous step and wait until the files have been ingested. `calcs` index will need to have 17 documents and `staples` 54860.
 
 
 ## Running TDVT
@@ -114,5 +114,4 @@ Setting up the TDVT testing involves following the steps detailed in the [offici
 	```
 
 	**Note**: If running on a busy machine, TDVT's thread allocation can be throttled with the `-t <threads>` argument, where <threads> should take the value of available CPU execution units, or even `1` if running on a slower VM.
-
 

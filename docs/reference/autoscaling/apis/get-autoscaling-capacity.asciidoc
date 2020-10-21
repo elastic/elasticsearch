@@ -1,44 +1,44 @@
 [role="xpack"]
 [testenv="platinum"]
-[[autoscaling-get-autoscaling-decision]]
-=== Get autoscaling decision API
+[[autoscaling-get-autoscaling-capacity]]
+=== Get autoscaling capacity API
 ++++
-<titleabbrev>Get autoscaling decision</titleabbrev>
+<titleabbrev>Get autoscaling capacity</titleabbrev>
 ++++
 
-Get autoscaling decision.
+Get autoscaling capacity.
 
-[[autoscaling-get-autoscaling-decision-request]]
+[[autoscaling-get-autoscaling-capacity-request]]
 ==== {api-request-title}
 
 [source,console]
 --------------------------------------------------
-GET /_autoscaling/decision/
+GET /_autoscaling/capacity/
 --------------------------------------------------
 // TEST
 
-[[autoscaling-get-autoscaling-decision-prereqs]]
+[[autoscaling-get-autoscaling-capacity-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have
 `manage_autoscaling` cluster privileges. For more information, see
 <<security-privileges>>.
 
-[[autoscaling-get-autoscaling-decision-desc]]
+[[autoscaling-get-autoscaling-capacity-desc]]
 ==== {api-description-title}
 
-This API gets the current autoscaling decision based on the configured
-autoscaling policy. This API will return whether or not autoscaling is
-needed.
+This API gets the current autoscaling capacity based on the configured
+autoscaling policy. This API will return information to size the cluster
+appropriately to the current workload.
 
-[[autoscaling-get-autoscaling-decision-examples]]
+[[autoscaling-get-autoscaling-capacity-examples]]
 ==== {api-examples-title}
 
-This example retrieves the current autoscaling decision.
+This example retrieves the current autoscaling capacity.
 
 [source,console]
 --------------------------------------------------
-GET /_autoscaling/decision
+GET /_autoscaling/capacity
 --------------------------------------------------
 // TEST
 
@@ -47,6 +47,6 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-  decisions: []
+  policies: {}
 }
 --------------------------------------------------

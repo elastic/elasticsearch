@@ -11,7 +11,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisions;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResults;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -22,18 +22,18 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class GetAutoscalingDecisionActionResponseTests extends AutoscalingTestCase {
+public class GetAutoscalingCapacityActionResponseTests extends AutoscalingTestCase {
 
     public void testToXContent() throws IOException {
         Set<String> policyNames = IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(i -> randomAlphaOfLength(10))
             .collect(Collectors.toSet());
 
-        SortedMap<String, AutoscalingDecisions> decisions = new TreeMap<>(
-            policyNames.stream().map(s -> Tuple.tuple(s, randomAutoscalingDecisions())).collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+        SortedMap<String, AutoscalingDeciderResults> results = new TreeMap<>(
+            policyNames.stream().map(s -> Tuple.tuple(s, randomAutoscalingDeciderResults())).collect(Collectors.toMap(Tuple::v1, Tuple::v2))
         );
 
-        GetAutoscalingDecisionAction.Response response = new GetAutoscalingDecisionAction.Response(decisions);
+        GetAutoscalingCapacityAction.Response response = new GetAutoscalingCapacityAction.Response(results);
         XContentType xContentType = randomFrom(XContentType.values());
 
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
@@ -42,11 +42,11 @@ public class GetAutoscalingDecisionActionResponseTests extends AutoscalingTestCa
 
         XContentBuilder expected = XContentBuilder.builder(xContentType.xContent());
         expected.startObject();
-        expected.startArray("decisions");
-        for (Map.Entry<String, AutoscalingDecisions> entry : decisions.entrySet()) {
-            entry.getValue().toXContent(expected, null);
+        expected.startObject("policies");
+        for (Map.Entry<String, AutoscalingDeciderResults> entry : results.entrySet()) {
+            expected.field(entry.getKey(), entry.getValue());
         }
-        expected.endArray();
+        expected.endObject();
         expected.endObject();
         BytesReference expectedBytes = BytesReference.bytes(expected);
         assertThat(responseBytes, Matchers.equalTo(expectedBytes));

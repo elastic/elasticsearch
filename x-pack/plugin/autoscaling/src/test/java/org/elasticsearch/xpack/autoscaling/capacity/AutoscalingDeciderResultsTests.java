@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -21,24 +21,23 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AutoscalingDecisionsTests extends AutoscalingTestCase {
+public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
 
-    public void testAutoscalingDecisionsRejectsEmptyDecisions() {
+    public void testAutoscalingDeciderResultsRejectsEmptyResults() {
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new AutoscalingDecisions(
-                randomAlphaOfLength(10),
+            () -> new AutoscalingDeciderResults(
                 new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources()),
                 new TreeMap<>()
             )
         );
-        assertThat(e.getMessage(), equalTo("decisions can not be empty"));
+        assertThat(e.getMessage(), equalTo("results can not be empty"));
     }
 
     public void testRequiredCapacity() {
         AutoscalingCapacity single = randomBoolean() ? randomAutoscalingCapacity() : null;
         verifyRequiredCapacity(single, single);
-        // any undecided decider nulls out any decision making
+        // any undecided decider nulls out any required capacities
         verifyRequiredCapacity(null, single, null);
         verifyRequiredCapacity(null, null, single);
 
@@ -73,7 +72,7 @@ public class AutoscalingDecisionsTests extends AutoscalingTestCase {
         autoscalingCapacities.add(larger);
         Randomness.shuffle(autoscalingCapacities);
         AutoscalingCapacity.Builder expectedBuilder = AutoscalingCapacity.builder()
-            .tier(expectedStorage.tier().storage(), expectedMemory.tier().memory());
+            .total(expectedStorage.tier().storage(), expectedMemory.tier().memory());
         if (node) {
             expectedBuilder.node(expectedStorage.node().storage(), expectedMemory.node().memory());
         }
@@ -82,8 +81,8 @@ public class AutoscalingDecisionsTests extends AutoscalingTestCase {
 
     private void verifyRequiredCapacity(AutoscalingCapacity expected, AutoscalingCapacity... capacities) {
         AtomicInteger uniqueGenerator = new AtomicInteger();
-        SortedMap<String, AutoscalingDecision> decisions = Arrays.stream(capacities)
-            .map(AutoscalingDecisionsTests::randomAutoscalingDecisionWithCapacity)
+        SortedMap<String, AutoscalingDeciderResult> results = Arrays.stream(capacities)
+            .map(AutoscalingDeciderResultsTests::randomAutoscalingDeciderResultWithCapacity)
             .collect(
                 Collectors.toMap(
                     k -> randomAlphaOfLength(10) + "-" + uniqueGenerator.incrementAndGet(),
@@ -92,15 +91,12 @@ public class AutoscalingDecisionsTests extends AutoscalingTestCase {
                     TreeMap::new
                 )
             );
-        assertThat(
-            new AutoscalingDecisions(randomAlphaOfLength(10), randomAutoscalingCapacity(), decisions).requiredCapacity(),
-            equalTo(expected)
-        );
+        assertThat(new AutoscalingDeciderResults(randomAutoscalingCapacity(), results).requiredCapacity(), equalTo(expected));
     }
 
     private AutoscalingCapacity randomCapacity(boolean node, boolean storage, boolean memory, int lower, int upper) {
         AutoscalingCapacity.Builder builder = AutoscalingCapacity.builder();
-        builder.tier(storage ? randomLongBetween(lower, upper) : null, memory ? randomLongBetween(lower, upper) : null);
+        builder.total(storage ? randomLongBetween(lower, upper) : null, memory ? randomLongBetween(lower, upper) : null);
         if (node) {
             builder.node(storage ? randomLongBetween(lower, upper) : null, memory ? randomLongBetween(lower, upper) : null);
         }

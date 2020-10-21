@@ -46,7 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -213,7 +213,7 @@ public class MetadataCreateDataStreamService {
     private static void prepareBackingIndex(Metadata.Builder b, IndexMetadata im, String dataStreamName) {
         // hides the index, removes the original alias, and adds data stream timestamp field mapper
         MappingMetadata mm = im.mapping();
-        Map<String, Object> mapping = mm == null ? new HashMap<>() : mm.sourceAsMap();
+        Map<String, Object> mapping = mm == null ? new LinkedHashMap<>() : mm.sourceAsMap();
         mapping.put("_data_stream_timestamp", Map.of("enabled", true));
         b.put(IndexMetadata.builder(im)
             .removeAlias(dataStreamName)

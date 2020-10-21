@@ -19,7 +19,7 @@ function. To work around this situation, this plugin provides a mechanism for su
 total and available amounts of disk space.
 
 To use the plugin, install it on all nodes and restart them. You must configure the plugin
-by supplying the `es.fs.quota.file` <<jvm-options,JVM system property>> on startup. This
+by supplying the `es.fs.quota.file` {ref}/jvm-options.html[JVM system property] on startup. This
 property specifies a URI to a properties file, which contains the total and available
 amounts.
 

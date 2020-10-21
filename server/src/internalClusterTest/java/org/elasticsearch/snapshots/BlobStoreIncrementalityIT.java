@@ -36,6 +36,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -78,8 +79,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         final String repo = "test-repo";
         createRepository(repo, "fs");
 
-        logger.info("--> creating snapshot 1");
-        client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
+        createSnapshot(repo, snapshot1, Collections.singletonList(indexName));
 
         logger.info("--> Shutting down initial primary node [{}]", primaryNode);
         stopNode(primaryNode);
@@ -87,7 +87,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         ensureYellow(indexName);
         final String snapshot2 = "snap-2";
         logger.info("--> creating snapshot 2");
-        client().admin().cluster().prepareCreateSnapshot(repo, snapshot2).setIndices(indexName).setWaitForCompletion(true).get();
+        createSnapshot(repo, snapshot2, Collections.singletonList(indexName));
 
         assertTwoIdenticalShardSnapshots(repo, indexName, snapshot1, snapshot2);
 

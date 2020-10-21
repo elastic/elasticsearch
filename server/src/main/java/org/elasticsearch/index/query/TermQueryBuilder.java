@@ -87,9 +87,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     }
     
     public TermQueryBuilder caseInsensitive(boolean caseInsensitive) {
-        if (caseInsensitive == false) {
-            throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
-        }
         this.caseInsensitive = caseInsensitive;
         return this;
     }    
@@ -144,10 +141,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                             boost = parser.floatValue();
                         } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             caseInsensitive = parser.booleanValue();
-                            if (caseInsensitive == false) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "[term] query does not support [" + currentFieldName + "] = false");
-                            }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[term] query does not support [" + currentFieldName + "]");
@@ -168,9 +161,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         if (queryName != null) {
             termQuery.queryName(queryName);
         }
-        if (caseInsensitive) {
-            termQuery.caseInsensitive(caseInsensitive);
-        }
+        termQuery.caseInsensitive(caseInsensitive);
         return termQuery;
     }
     

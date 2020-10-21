@@ -176,20 +176,20 @@ public class TimeseriesLifecycleType implements LifecycleType {
     public String getNextActionName(String currentActionName, Phase phase) {
         List<String> orderedActionNames;
         switch (phase.getName()) {
-        case HOT_PHASE:
-            orderedActionNames = ORDERED_VALID_HOT_ACTIONS;
-            break;
-        case WARM_PHASE:
-            orderedActionNames = ORDERED_VALID_WARM_ACTIONS;
-            break;
-        case COLD_PHASE:
-            orderedActionNames = ORDERED_VALID_COLD_ACTIONS;
-            break;
-        case DELETE_PHASE:
-            orderedActionNames = ORDERED_VALID_DELETE_ACTIONS;
-            break;
-        default:
-            throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
+            case HOT_PHASE:
+                orderedActionNames = ORDERED_VALID_HOT_ACTIONS;
+                break;
+            case WARM_PHASE:
+                orderedActionNames = ORDERED_VALID_WARM_ACTIONS;
+                break;
+            case COLD_PHASE:
+                orderedActionNames = ORDERED_VALID_COLD_ACTIONS;
+                break;
+            case DELETE_PHASE:
+                orderedActionNames = ORDERED_VALID_DELETE_ACTIONS;
+                break;
+            default:
+                throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
         }
 
         int index = orderedActionNames.indexOf(currentActionName);

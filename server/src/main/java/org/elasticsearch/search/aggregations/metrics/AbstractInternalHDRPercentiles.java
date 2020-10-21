@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
@@ -39,6 +40,8 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected final double[] keys;
     protected final DoubleHistogram state;
     protected final boolean keyed;
+
+    private List<String> keysAsStrings;
 
     AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
             Map<String, Object> metadata) {
@@ -84,6 +87,15 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     @Override
     public double value(String name) {
         return value(Double.parseDouble(name));
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        if (keysAsStrings == null) {
+            keysAsStrings = Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+        }
+
+        return keysAsStrings;
     }
 
     public DocValueFormat formatter() {

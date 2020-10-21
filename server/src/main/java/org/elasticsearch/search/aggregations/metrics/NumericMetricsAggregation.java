@@ -32,5 +32,10 @@ public interface NumericMetricsAggregation extends Aggregation {
     }
 
     interface MultiValue extends NumericMetricsAggregation {
+
+        Iterable<String> valueNames();
+
+        double value(String name);
+
     }
 }

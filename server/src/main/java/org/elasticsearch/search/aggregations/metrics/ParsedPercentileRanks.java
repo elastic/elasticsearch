@@ -19,7 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 abstract class ParsedPercentileRanks extends ParsedPercentiles implements PercentileRanks {
+
+    private List<String> keysAsStrings;
 
     @Override
     public double percent(double value) {
@@ -29,5 +34,19 @@ abstract class ParsedPercentileRanks extends ParsedPercentiles implements Percen
     @Override
     public String percentAsString(double value) {
         return getPercentileAsString(value);
+    }
+
+    @Override
+    public double value(String name) {
+        return percent(Double.parseDouble(name));
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        if (keysAsStrings == null) {
+            keysAsStrings = percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
+        }
+
+        return keysAsStrings;
     }
 }

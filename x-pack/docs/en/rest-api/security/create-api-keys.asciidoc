@@ -78,9 +78,7 @@ expire.
 [[security-api-create-api-key-example]]
 ==== {api-examples-title}
 
-The following example creates an API key.
-
-NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you must specify `https` when creating your API key.
+The following example creates an API key:
 
 [source,console]
 ------------------------------------------------------------
@@ -134,20 +132,22 @@ API key information.
 <2> optional expiration in milliseconds for this API key
 <3> generated API key
 
-To create your credentials, encode the returned `id:api_key` in base64. Ensure
-the value does not include a trailing newline.
+The API key returned by this API can then be used by sending a request with an
+`Authorization` header with a value having the prefix `ApiKey` followed
+by the _credentials_, where _credentials_ are the base64 encoding of `id` and `api_key` joined by a colon.
 
-[source,shell]
---------------------------------------------------
-echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64
-# returns VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==
---------------------------------------------------
-// NOTCONSOLE
-
-You can use the returned credentials to send requests. Include an
-`Authorization` header with an `ApiKey` prefix followed by your credentials:
+NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you must specify `https` when creating your API key.
 
 [source,shell]
 --------------------------------------------------
 curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==" http://localhost:9200/_cluster/health
 --------------------------------------------------
+
+Most operating systems with a shell include the `base64` utility that can perform the encoding for you.
+Make sure a trailing newline is not included when encoding the base64 value:
+
+[source,shell]
+--------------------------------------------------
+echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64
+--------------------------------------------------
+// NOTCONSOLE

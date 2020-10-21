@@ -260,8 +260,8 @@ public class IndexNameExpressionResolver {
                 }
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
                         context.includeDataStreams() == false) {
-                    excludedDataStreams = true;
-                    continue;
+                excludedDataStreams = true;
+                continue;
             }
 
             if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && context.isResolveToWriteIndex()) {

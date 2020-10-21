@@ -14,23 +14,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisions;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResults;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecisionAction.Response> {
+public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapacityAction.Response> {
 
-    public static final GetAutoscalingDecisionAction INSTANCE = new GetAutoscalingDecisionAction();
-    public static final String NAME = "cluster:admin/autoscaling/get_autoscaling_decision";
+    public static final GetAutoscalingCapacityAction INSTANCE = new GetAutoscalingCapacityAction();
+    public static final String NAME = "cluster:admin/autoscaling/get_autoscaling_capacity";
 
-    private GetAutoscalingDecisionAction() {
+    private GetAutoscalingCapacityAction() {
         super(NAME, Response::new);
     }
 
-    public static class Request extends AcknowledgedRequest<GetAutoscalingDecisionAction.Request> {
+    public static class Request extends AcknowledgedRequest<GetAutoscalingCapacityAction.Request> {
 
         public Request() {
 
@@ -66,33 +67,33 @@ public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecis
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final SortedMap<String, AutoscalingDecisions> decisions;
+        private final SortedMap<String, AutoscalingDeciderResults> results;
 
-        public Response(final SortedMap<String, AutoscalingDecisions> decisions) {
-            this.decisions = Objects.requireNonNull(decisions);
+        public Response(final SortedMap<String, AutoscalingDeciderResults> results) {
+            this.results = Objects.requireNonNull(results);
         }
 
         public Response(final StreamInput in) throws IOException {
             super(in);
-            decisions = new TreeMap<>(in.readMap(StreamInput::readString, AutoscalingDecisions::new));
+            results = new TreeMap<>(in.readMap(StreamInput::readString, AutoscalingDeciderResults::new));
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeMap(decisions, StreamOutput::writeString, (o, decision) -> decision.writeTo(o));
+            out.writeMap(results, StreamOutput::writeString, (o, decision) -> decision.writeTo(o));
         }
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
             {
-                builder.startArray("decisions");
+                builder.startObject("policies");
                 {
-                    for (final AutoscalingDecisions decision : decisions.values()) {
-                        decision.toXContent(builder, params);
+                    for (Map.Entry<String, AutoscalingDeciderResults> entry : results.entrySet()) {
+                        builder.field(entry.getKey(), entry.getValue());
                     }
                 }
-                builder.endArray();
+                builder.endObject();
             }
             builder.endObject();
             return builder;
@@ -103,12 +104,12 @@ public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecis
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Response response = (Response) o;
-            return decisions.equals(response.decisions);
+            return results.equals(response.results);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(decisions);
+            return Objects.hash(results);
         }
 
     }

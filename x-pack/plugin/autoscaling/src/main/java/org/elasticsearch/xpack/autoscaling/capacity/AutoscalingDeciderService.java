@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.autoscaling.capacity;
 
 /**
  * A service to decide for a specific decider.
@@ -22,8 +22,8 @@ public interface AutoscalingDeciderService<D extends AutoscalingDeciderConfigura
      * Whether or not to scale based on the current state.
      *
      * @param context provides access to information about current state
-     * @return the autoscaling decision
+     * @return result from this decider
      */
-    AutoscalingDecision scale(D decider, AutoscalingDeciderContext context);
+    AutoscalingDeciderResult scale(D decider, AutoscalingDeciderContext context);
 
 }

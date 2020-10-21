@@ -540,7 +540,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long", "s", "type=text")
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
@@ -556,15 +556,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         ScriptHeuristic scriptHeuristic = new ScriptHeuristic(
             new Script(ScriptType.INLINE, "mockscript", "Math.random()", Collections.emptyMap())
         );
-        boolean useSigText = randomBoolean();
         SearchResponse r;
-        if (useSigText) {
-            r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic)).get();
-        } else {
-            r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
-        }
+        r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -574,14 +568,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         // Test that a request using a deterministic script gets cached
         scriptHeuristic = getScriptSignificanceHeuristic();
-        useSigText = randomBoolean();
-        if (useSigText) {
-            r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic)).get();
-        } else {
-            r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
-        }
+        r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -590,11 +578,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 .getMissCount(), equalTo(1L));
 
         // Ensure that non-scripted requests are cached as normal
-        if (useSigText) {
-            r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantText("foo", "s")).get();
-        } else {
-            r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantTerms("foo").field("s")).get();
-        }
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantTerms("foo").field("s")).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

@@ -143,3 +143,12 @@ NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you
 curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==" http://localhost:9200/_cluster/health
 --------------------------------------------------
 // NOTCONSOLE
+
+One way to create the _credentails_ from CLI on an Unix-like system is as the follows:
+
+[source,shell]
+----
+# Please note the use of "-n" to instruct echo to not print the trailing newline character.
+# It should return VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==
+echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64
+----

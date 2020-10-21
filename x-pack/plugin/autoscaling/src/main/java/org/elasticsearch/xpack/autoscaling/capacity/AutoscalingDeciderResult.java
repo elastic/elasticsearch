@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,9 +17,9 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Represents an autoscaling decision from a single decider
+ * Represents an autoscaling result from a single decider
  */
-public class AutoscalingDecision implements ToXContent, Writeable {
+public class AutoscalingDeciderResult implements ToXContent, Writeable {
 
     private final AutoscalingCapacity requiredCapacity;
     private final Reason reason;
@@ -29,16 +29,16 @@ public class AutoscalingDecision implements ToXContent, Writeable {
     }
 
     /**
-     * Create a new decision with required capacity.
-     * @param requiredCapacity required capacity or null if no decision can be made due to insufficient information.
-     * @param reason details/data behind the decision
+     * Create a new result with required capacity.
+     * @param requiredCapacity required capacity or null if no capacity can be calculated due to insufficient information.
+     * @param reason details/data behind the calculation
      */
-    public AutoscalingDecision(AutoscalingCapacity requiredCapacity, Reason reason) {
+    public AutoscalingDeciderResult(AutoscalingCapacity requiredCapacity, Reason reason) {
         this.requiredCapacity = requiredCapacity;
         this.reason = reason;
     }
 
-    public AutoscalingDecision(StreamInput in) throws IOException {
+    public AutoscalingDeciderResult(StreamInput in) throws IOException {
         this.requiredCapacity = in.readOptionalWriteable(AutoscalingCapacity::new);
         this.reason = in.readOptionalNamedWriteable(Reason.class);
     }
@@ -75,7 +75,7 @@ public class AutoscalingDecision implements ToXContent, Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AutoscalingDecision that = (AutoscalingDecision) o;
+        AutoscalingDeciderResult that = (AutoscalingDeciderResult) o;
         return Objects.equals(requiredCapacity, that.requiredCapacity) && Objects.equals(reason, that.reason);
     }
 

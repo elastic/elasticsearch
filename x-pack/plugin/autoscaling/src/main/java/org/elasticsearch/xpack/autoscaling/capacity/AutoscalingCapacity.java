@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +22,7 @@ import java.util.Objects;
  */
 public class AutoscalingCapacity implements ToXContent, Writeable {
 
-    private final AutoscalingResources tier;
+    private final AutoscalingResources total;
     private final AutoscalingResources node;
 
     public static class AutoscalingResources implements ToXContent, Writeable {
@@ -139,26 +139,26 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
 
     public static final AutoscalingCapacity ZERO = new AutoscalingCapacity(AutoscalingResources.ZERO, AutoscalingResources.ZERO);
 
-    public AutoscalingCapacity(AutoscalingResources tier, AutoscalingResources node) {
-        assert tier != null : "Cannot provide capacity without specifying tier level capacity";
+    public AutoscalingCapacity(AutoscalingResources total, AutoscalingResources node) {
+        assert total != null : "Cannot provide capacity without specifying tier level capacity";
         assert node == null || node.memory == null
         // implies
-            || tier.memory != null : "Cannot provide node memory without tier memory";
+            || total.memory != null : "Cannot provide node memory without tier memory";
         assert node == null || node.storage == null
         // implies
-            || tier.storage != null : "Cannot provide node storage without tier memory";
+            || total.storage != null : "Cannot provide node storage without tier memory";
 
-        this.tier = tier;
+        this.total = total;
         this.node = node;
     }
 
     public AutoscalingCapacity(StreamInput in) throws IOException {
-        this.tier = new AutoscalingResources(in);
+        this.total = new AutoscalingResources(in);
         this.node = in.readOptionalWriteable(AutoscalingResources::new);
     }
 
     public AutoscalingResources tier() {
-        return tier;
+        return total;
     }
 
     public AutoscalingResources node() {
@@ -167,7 +167,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        tier.writeTo(out);
+        total.writeTo(out);
         out.writeOptionalWriteable(node);
     }
 
@@ -177,7 +177,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         if (node != null) {
             builder.field("node", node);
         }
-        builder.field("tier", tier);
+        builder.field("total", total);
         builder.endObject();
         return builder;
     }
@@ -188,7 +188,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
     }
 
     public static AutoscalingCapacity upperBound(AutoscalingCapacity c1, AutoscalingCapacity c2) {
-        return new AutoscalingCapacity(AutoscalingResources.max(c1.tier, c2.tier), AutoscalingResources.max(c1.node, c2.node));
+        return new AutoscalingCapacity(AutoscalingResources.max(c1.total, c2.total), AutoscalingResources.max(c1.node, c2.node));
     }
 
     @Override
@@ -196,12 +196,12 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoscalingCapacity capacity = (AutoscalingCapacity) o;
-        return tier.equals(capacity.tier) && Objects.equals(node, capacity.node);
+        return total.equals(capacity.total) && Objects.equals(node, capacity.node);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tier, node);
+        return Objects.hash(total, node);
     }
 
     @Override
@@ -214,27 +214,27 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
     }
 
     public static class Builder {
-        private AutoscalingResources tier;
+        private AutoscalingResources total;
         private AutoscalingResources node;
 
         public Builder() {}
 
         public Builder capacity(AutoscalingCapacity capacity) {
-            this.tier = capacity.tier;
+            this.total = capacity.total;
             this.node = capacity.node;
             return this;
         }
 
-        public Builder tier(Long storage, Long memory) {
-            return tier(byteSizeValue(storage), byteSizeValue(memory));
+        public Builder total(Long storage, Long memory) {
+            return total(byteSizeValue(storage), byteSizeValue(memory));
         }
 
-        public Builder tier(ByteSizeValue storage, ByteSizeValue memory) {
-            return tier(new AutoscalingResources(storage, memory));
+        public Builder total(ByteSizeValue storage, ByteSizeValue memory) {
+            return total(new AutoscalingResources(storage, memory));
         }
 
-        public Builder tier(AutoscalingResources tier) {
-            this.tier = tier;
+        public Builder total(AutoscalingResources tier) {
+            this.total = tier;
             return this;
         }
 
@@ -252,7 +252,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         public AutoscalingCapacity build() {
-            return new AutoscalingCapacity(tier, node);
+            return new AutoscalingCapacity(total, node);
         }
 
         private ByteSizeValue byteSizeValue(Long memory) {

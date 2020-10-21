@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,7 +32,7 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
             // mutate tier
             boolean hasBothStorageAndMemory = instance.tier().memory() != null && instance.tier().storage() != null;
             if (randomBoolean()) {
-                builder.tier(
+                builder.total(
                     randomByteSize(
                         hasBothStorageAndMemory && (instance.node() == null || instance.node().storage() == null),
                         instance.tier().storage()
@@ -40,7 +40,7 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
                     instance.tier().memory()
                 );
             } else {
-                builder.tier(
+                builder.total(
                     instance.tier().storage(),
                     randomByteSize(
                         hasBothStorageAndMemory && (instance.node() == null || instance.node().memory() == null),

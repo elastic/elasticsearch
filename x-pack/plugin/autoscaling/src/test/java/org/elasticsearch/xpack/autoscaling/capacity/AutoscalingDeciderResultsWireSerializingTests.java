@@ -4,14 +4,14 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling.decision;
+package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
-public class AutoscalingDecisionWireSerializingTests extends AbstractWireSerializingTestCase<AutoscalingDecision> {
+public class AutoscalingDeciderResultsWireSerializingTests extends AbstractWireSerializingTestCase<AutoscalingDeciderResults> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -19,13 +19,13 @@ public class AutoscalingDecisionWireSerializingTests extends AbstractWireSeriali
     }
 
     @Override
-    protected Writeable.Reader<AutoscalingDecision> instanceReader() {
-        return AutoscalingDecision::new;
+    protected Writeable.Reader<AutoscalingDeciderResults> instanceReader() {
+        return AutoscalingDeciderResults::new;
     }
 
     @Override
-    protected AutoscalingDecision createTestInstance() {
-        return AutoscalingTestCase.randomAutoscalingDecision();
+    protected AutoscalingDeciderResults createTestInstance() {
+        return AutoscalingTestCase.randomAutoscalingDeciderResults();
     }
 
 }

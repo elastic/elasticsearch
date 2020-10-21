@@ -86,8 +86,8 @@ outputs the probability that each document is an outlier.
 `metrics`::
   (Optional, object) Specifies the metrics that are used for the evaluation. If 
   no metrics are specified, the following are returned by default: `auc_roc` 
-  (`include_curve`: false), `precision`, `recall`, `confusion_matrix` – the 
-  latter three are calculated at 0.25, 0.5, and 0.75 thresholds.
+  (`include_curve`: false), `precision` (`at`: [0.25, 0.5, 0.75]), `recall` 
+  (`at`: [0.25, 0.5, 0.75]), `confusion_matrix` (`at`: [0.25, 0.5, 0.75]).
   Available metrics:
   
   `auc_roc`:::

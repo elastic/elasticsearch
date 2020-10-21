@@ -434,7 +434,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 maxConcurrentJobAllocations,
                 maxMachineMemoryPercent,
                 maxNodeMemory,
-                isMemoryTrackerRecentlyRefreshed
                 isMemoryTrackerRecentlyRefreshed,
                 useAutoMemoryPercentage);
         }

@@ -49,14 +49,6 @@ public final class NativeMemoryCalculator {
             useAutoPercent);
     }
 
-    public static OptionalLong allowedBytesForMl(DiscoveryNode node, int maxMemoryPercent, boolean useAuto) {
-        return allowedBytesForMl(
-            node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
-            node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
-            maxMemoryPercent,
-            useAuto);
-    }
-
     private static OptionalLong allowedBytesForMl(String nodeBytes, String jvmBytes, int maxMemoryPercent, boolean useAuto) {
         if (nodeBytes == null) {
             return OptionalLong.empty();
@@ -131,7 +123,7 @@ public final class NativeMemoryCalculator {
             useAuto);
     }
 
-    // TODO how can we make this better???
+    // TODO replace with official ergonomic calculation
     private static long dynamicallyCalculateJvm(long nodeSize) {
         if (nodeSize < ByteSizeValue.ofGb(2).getBytes()) {
             return (long)(nodeSize * 0.40);
@@ -140,12 +132,6 @@ public final class NativeMemoryCalculator {
             return (long) (nodeSize * 0.25);
         }
         return ByteSizeValue.ofGb(2).getBytes();
-    }
-
-    // TODO
-    // How can we determine the accurate node size needed knowing the required memory for the job?
-    public static long requiredNodeSize(long requiredModelMemory, long jvmSize, int maxMemoryPercent) {
-        return 0L;
     }
 
 }

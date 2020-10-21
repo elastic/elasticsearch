@@ -296,8 +296,13 @@ public class JobNodeSelectorTests extends ESTestCase {
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker, 0,
             node -> TransportStartDataFrameAnalyticsAction.TaskExecutor.nodeFilter(node, createTaskParams(dataFrameAnalyticsId)));
-        PersistentTasksCustomMetadata.Assignment result =
-            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(
+            maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
             + "Available memory for ML [" + currentlyRunningJobMemory + "], memory required by existing jobs ["
@@ -322,8 +327,13 @@ public class JobNodeSelectorTests extends ESTestCase {
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker, 0,
             node -> TransportStartDataFrameAnalyticsAction.TaskExecutor.nodeFilter(node, createTaskParams(dataFrameAnalyticsId)));
-        PersistentTasksCustomMetadata.Assignment result =
-            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(
+            maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
             + "Available memory for ML [" + (firstJobTotalMemory - 1)

@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.ml.autoscaling;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingCapacity;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderConfiguration;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecision;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class MlScalingReason implements AutoscalingDecision.Reason {
+public class MlScalingReason implements AutoscalingDeciderResult.Reason {
 
     static final String NAME = "ml";
     static final String WAITING_ANALYTICS_JOBS = "waiting_analytics_jobs";

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingCapacity;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 // Used for storing native memory capacity and then transforming it into an autoscaling capacity
@@ -46,10 +46,10 @@ public class NativeMemoryCapacity  {
         return this;
     }
 
-    AutoscalingCapacity autoscalingCapacity(int maxMemoryPercent) {
+    AutoscalingCapacity autoscalingCapacity(int maxMemoryPercent, boolean useAuto) {
         int memoryPercentForMl = jvmSize == null ?
-            NativeMemoryCalculator.modelMemoryPercent(node, maxMemoryPercent) :
-            NativeMemoryCalculator.modelMemoryPercent(node, jvmSize, maxMemoryPercent);
+            NativeMemoryCalculator.modelMemoryPercent(node, maxMemoryPercent, useAuto) :
+            NativeMemoryCalculator.modelMemoryPercent(node, jvmSize, maxMemoryPercent, useAuto);
         double inverseScale = 100.0 / memoryPercentForMl;
         return new AutoscalingCapacity(
             new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes((long)Math.ceil(tier * inverseScale))),

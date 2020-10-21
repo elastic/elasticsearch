@@ -694,7 +694,6 @@ public class TransportStartDataFrameAnalyticsAction
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,
                 maxNodeMemory,
-                isMemoryTrackerRecentlyRefreshed
                 isMemoryTrackerRecentlyRefreshed,
                 useAutoMemoryPercentage
             );

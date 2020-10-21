@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.xpack.autoscaling.AutoscalingExtension;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderConfiguration;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Collection;

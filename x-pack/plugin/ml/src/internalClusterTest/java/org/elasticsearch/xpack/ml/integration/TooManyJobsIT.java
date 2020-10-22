@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 
@@ -213,7 +214,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
     private long calculateMaxMlMemory() {
         Settings settings = internalCluster().getInstance(Settings.class);
-        return Long.parseLong(internalCluster().getInstance(TransportService.class).getLocalNode().getAttributes()
-                .get(MachineLearning.MACHINE_MEMORY_NODE_ATTR)) * MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings) / 100;
+        return NativeMemoryCalculator.allowedBytesForMl(internalCluster().getInstance(TransportService.class).getLocalNode(), settings)
+            .orElse(0L);
     }
 }

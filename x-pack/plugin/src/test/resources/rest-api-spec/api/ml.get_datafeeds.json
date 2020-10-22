@@ -39,7 +39,7 @@
         "description":"Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string or when no datafeeds have been specified)",
         "deprecated":true
       },
-      "for_export": {
+      "exclude_generated": {
         "required": false,
         "type": "boolean",
         "default": false,

@@ -433,6 +433,22 @@ repository>> such as AWS S3. Searchable snapshot indices do not need
 reliably stored outside the cluster.
 // end::searchable-snapshot-index-def[]
 
+[[glossary-searchable-snapshot]] searchable snapshot ::
+// tag::searchable-snapshot-def[]
+A <<glossary-snapshot, snapshot>> of an index that has been mounted as a
+<<glossary-searchable-snapshot-index, searchable snapshot index>> and can be
+searched as if it were a regular index.
+// end::searchable-snapshot-def[]
+
+[[glossary-searchable-snapshot-index]] searchable snapshot index ::
+// tag::searchable-snapshot-index-def[]
+An <<glossary-index, index>> whose data is stored in a <<glossary-snapshot,
+snapshot>> that resides in a separate <<glossary-snapshot-repository,snapshot
+repository>> such as AWS S3. Searchable snapshot indices do not need
+<<glossary-replica-shard,replica>> shards for resilience, since their data is
+reliably stored outside the cluster.
+// end::searchable-snapshot-index-def[]
+
 [[glossary-shard]] shard ::
 +
 --

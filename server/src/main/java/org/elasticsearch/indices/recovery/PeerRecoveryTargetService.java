@@ -327,10 +327,27 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel,
                                     Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                recoveryRef.target().handoffPrimaryContext(request.primaryContext());
+            final RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId());
+            boolean success = false;
+            try {
+                recoveryRef.target().handoffPrimaryContext(request.primaryContext(),
+                        ActionListener.runBefore(
+                                ActionListener.wrap(
+                                        v -> channel.sendResponse(TransportResponse.Empty.INSTANCE),
+                                        exception -> {
+                                            try {
+                                                channel.sendResponse(exception);
+                                            } catch (IOException e) {
+                                                logger.warn(new ParameterizedMessage(
+                                                        "Failed to send error response for request [{}]", request), e);
+                                            }
+                                        }), recoveryRef::close));
+                success = true;
+            } finally {
+                if (success == false) {
+                    recoveryRef.close();
+                }
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
     }

@@ -52,8 +52,9 @@ public interface RecoveryTargetHandler {
      * Handoff the primary context between the relocation source and the relocation target.
      *
      * @param primaryContext the primary context from the relocation source
+     * @param listener         the listener which will be notified when this method is completed
      */
-    void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext);
+    void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener);
 
     /**
      * Index a set of translog operations on the target

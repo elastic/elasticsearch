@@ -41,7 +41,6 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     private double[] percentiles;
     private double[] percents;
     private boolean keyed = true;
-    private List<String> keysAsStrings;
 
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
@@ -122,11 +121,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public Iterable<String> valueNames() {
-        if (keysAsStrings == null) {
-            keysAsStrings = Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
-        }
-
-        return keysAsStrings;
+        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
     }
 
     @Override

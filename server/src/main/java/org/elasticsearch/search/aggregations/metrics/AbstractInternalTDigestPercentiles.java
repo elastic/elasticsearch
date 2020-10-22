@@ -38,8 +38,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected final TDigestState state;
     final boolean keyed;
 
-    private List<String> keysAsStrings;
-
     AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
             Map<String, Object> metadata) {
         super(name, metadata);
@@ -75,11 +73,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     @Override
     public Iterable<String> valueNames() {
-        if (keysAsStrings == null) {
-            keysAsStrings = Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
-        }
-
-        return keysAsStrings;
+        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
     }
 
     public abstract double value(double key);

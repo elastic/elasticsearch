@@ -41,8 +41,6 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected final DoubleHistogram state;
     protected final boolean keyed;
 
-    private List<String> keysAsStrings;
-
     AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
             Map<String, Object> metadata) {
         super(name, metadata);
@@ -91,11 +89,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public Iterable<String> valueNames() {
-        if (keysAsStrings == null) {
-            keysAsStrings = Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
-        }
-
-        return keysAsStrings;
+        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
     }
 
     public DocValueFormat formatter() {

@@ -26,13 +26,10 @@ import org.elasticsearch.search.aggregations.metrics.ParsedPercentiles;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 public class ParsedPercentilesBucket extends ParsedPercentiles implements Percentiles {
-
-    private List<String> keysAsStrings;
 
     @Override
     public String getType() {
@@ -67,11 +64,7 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
 
     @Override
     public Iterable<String> valueNames() {
-        if (keysAsStrings == null) {
-            keysAsStrings = percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
-        }
-
-        return keysAsStrings;
+        return percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
     }
 
     @Override

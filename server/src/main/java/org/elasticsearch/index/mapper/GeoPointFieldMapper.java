@@ -18,11 +18,9 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
@@ -43,6 +41,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -54,44 +53,46 @@ import java.util.function.Supplier;
  * Uses lucene 6 LatLonPoint encoding
  */
 public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
+
     public static final String CONTENT_TYPE = "geo_point";
-    public static final FieldType FIELD_TYPE = new FieldType();
 
-    static {
-        FIELD_TYPE.setStored(false);
-        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        FIELD_TYPE.freeze();
+    private static Builder builder(FieldMapper in) {
+        return ((GeoPointFieldMapper)in).builder;
     }
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder {
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        public Builder(String name) {
-            super(name, FIELD_TYPE);
-            hasDocValues = true;
+        final Parameter<Explicit<Boolean>> ignoreMalformed;
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<ParsedPoint> nullValue;
+        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
+        final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        public Builder(String name, boolean ignoreMalformedByDefault) {
+            super(name);
+            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
+            this.nullValue = nullValueParam(
+                m -> builder(m).nullValue.get(),
+                (n, c, o) -> parseNullValue(o, ignoreZValue.get().value(), ignoreMalformed.get().value()),
+                () -> null).acceptsNull();
         }
 
         @Override
-        public GeoPointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
-                                         MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                         Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-            Parser<List<ParsedGeoPoint>> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
-                GeoUtils.parseGeoPoint(parser, point, ignoreZValue().value());
-                return point;
-            }, (ParsedGeoPoint) nullValue, ignoreZValue.value(), ignoreMalformed.value());
-            GeoPointFieldType ft
-                = new GeoPointFieldType(buildFullName(context), indexed, fieldType.stored(), hasDocValues, geoParser, meta);
-            return new GeoPointFieldMapper(name, fieldType, ft, multiFields,
-                ignoreMalformed, ignoreZValue, nullValue, copyTo, new GeoPointIndexer(ft), geoParser);
-        }
-    }
-
-    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<Builder> {
-        @Override
-        protected Builder newBuilder(String name, Map<String, Object> params) {
-            return new GeoPointFieldMapper.Builder(name);
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(hasDocValues, indexed, stored, ignoreMalformed, ignoreZValue, nullValue, meta);
         }
 
-        protected ParsedGeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+        public Builder docValues(boolean hasDocValues) {
+            this.hasDocValues.setValue(hasDocValues);
+            return this;
+        }
+
+        private static ParsedGeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+            if (nullValue == null) {
+                return null;
+            }
             ParsedGeoPoint point = new ParsedGeoPoint();
             GeoUtils.parseGeoPoint(nullValue, point, ignoreZValue);
             if (ignoreMalformed == false) {
@@ -106,15 +107,39 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             }
             return point;
         }
+
+        @Override
+        public ParametrizedFieldMapper build(BuilderContext context) {
+            Parser<List<ParsedGeoPoint>> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
+                GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
+                return point;
+            }, (ParsedGeoPoint) nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
+            GeoPointFieldType ft
+                = new GeoPointFieldType(buildFullName(context), indexed.get(), stored.get(), hasDocValues.get(), geoParser, meta.get());
+            return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
+                copyTo.build(), new GeoPointIndexer(ft), geoParser, this);
+        }
+
     }
 
-    public GeoPointFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                               MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                               Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo,
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
+
+    private final Builder builder;
+
+    public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                               MultiFields multiFields, CopyTo copyTo,
                                Indexer<List<ParsedGeoPoint>, List<? extends GeoPoint>> indexer,
-                               Parser<List<ParsedGeoPoint>> parser) {
-        super(simpleName, fieldType, mappedFieldType, multiFields,
-            ignoreMalformed, ignoreZValue, nullValue, copyTo, indexer, parser);
+                               Parser<List<ParsedGeoPoint>> parser,
+                               Builder builder) {
+        super(simpleName, mappedFieldType, multiFields,
+            builder.ignoreMalformed.get(), builder.ignoreZValue.get(), builder.nullValue.get(),
+            copyTo, indexer, parser);
+        this.builder = builder;
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 
     @Override
@@ -158,18 +183,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         return CONTENT_TYPE;
     }
 
-    @Override
-    public GeoPointFieldType fieldType() {
-        return (GeoPointFieldType)mappedFieldType;
-    }
-
-    public static class GeoPointFieldType extends AbstractPointGeometryFieldType implements GeoShapeQueryable {
+    public static class GeoPointFieldType extends AbstractGeometryFieldType implements GeoShapeQueryable {
 
         private final VectorGeoPointShapeQueryProcessor queryProcessor;
 
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                   Parser<?> parser, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, parser, meta);
+            super(name, indexed, stored, hasDocValues, true, parser, meta);
             this.queryProcessor = new VectorGeoPointShapeQueryProcessor();
         }
 

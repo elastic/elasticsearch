@@ -673,11 +673,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return allowRestrictedIndices;
         }
 
-        private boolean hasDeniedFields() {
+        public boolean hasDeniedFields() {
             return deniedFields != null && deniedFields.length > 0;
         }
 
-        private boolean hasGrantedFields() {
+        public boolean hasGrantedFields() {
             if (grantedFields != null && grantedFields.length >= 0) {
                 // we treat just '*' as no FLS since that's what the UI defaults to
                 if (grantedFields.length == 1 && "*".equals(grantedFields[0])) {
@@ -764,8 +764,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 builder.endObject();
             }
             if (query != null) {
-                // "query_string" conveys that the value is not a nested query object but a string with possible quotes escaped, etc
-                builder.field("query_string", query.utf8ToString());
+                builder.field("query", query.utf8ToString());
             }
             builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
             return builder.endObject();

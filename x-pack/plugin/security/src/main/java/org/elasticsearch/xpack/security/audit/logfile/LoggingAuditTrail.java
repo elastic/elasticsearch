@@ -908,8 +908,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         // the "privilege" nested structure, where the "name" is left out, is closer to the event structure
                         // for creating API Keys
                         .startObject("privilege")
-                            // toXContent of {@code RoleDescriptor.IndicesPrivileges} does a good job
-                            .array("index", (Object[]) putRoleRequest.indices())
+                            .startArray("index");
+                                for (RoleDescriptor.IndicesPrivileges indicesPrivileges : putRoleRequest.indices()) {
+                                    withIndicesPrivileges(builder, indicesPrivileges);
+                                }
+                            builder.endArray() // index
                             .array("cluster", putRoleRequest.cluster())
                             .array("run_as", putRoleRequest.runAs())
                             // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
@@ -1027,8 +1030,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .startArray("privileges");
             for (RoleDescriptor roleDescriptor : createApiKeyRequest.getRoleDescriptors()) {
                 builder.startObject()
-                        // toXContent of {@code RoleDescriptor.IndicesPrivileges} does a good job
-                        .array("index", (Object[]) roleDescriptor.getIndicesPrivileges())
+                        .startArray("index");
+                        for (RoleDescriptor.IndicesPrivileges indicesPrivileges : roleDescriptor.getIndicesPrivileges()) {
+                            withIndicesPrivileges(builder, indicesPrivileges);
+                        }
+                        builder.endArray() // index
                         .array("cluster", roleDescriptor.getClusterPrivileges())
                         .array("run_as", roleDescriptor.getRunAs())
                         // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
@@ -1050,6 +1056,33 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             builder.endArray() // privileges
             .endObject(); // apikey
+        }
+
+        private void withIndicesPrivileges(XContentBuilder builder, RoleDescriptor.IndicesPrivileges indicesPrivileges) throws IOException {
+            builder.startObject();
+            builder.array("names", indicesPrivileges.getIndices());
+            builder.array("privileges", indicesPrivileges.getPrivileges());
+            if (indicesPrivileges.hasGrantedFields() || indicesPrivileges.hasDeniedFields()) {
+                builder.startObject("fields");
+                if (indicesPrivileges.hasGrantedFields()) {
+                    builder.array("grant", indicesPrivileges.getGrantedFields());
+                }
+                if (indicesPrivileges.hasDeniedFields()) {
+                    builder.array("except", indicesPrivileges.getDeniedFields());
+                }
+                builder.endObject(); // fields
+            }
+            if (indicesPrivileges.getQuery() != null) {
+                builder.startObject("documents")
+                        // "query_string" conveys that the DLS query is not a nested object, but a string which has quotes escaped, etc.
+                        .field("query_string", indicesPrivileges.getQuery().utf8ToString())
+                        .endObject();
+            }
+            // default for "allow_restricted_indices" is false, and it's very common to stay that way, so don't show it unless otherwise
+            if (indicesPrivileges.allowRestrictedIndices()) {
+                builder.field("allow_restricted_indices", indicesPrivileges.allowRestrictedIndices());
+            }
+            builder.endObject();
         }
 
         LogEntryBuilder withRequestBody(DeleteUserRequest deleteUserRequest) throws IOException {

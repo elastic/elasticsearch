@@ -151,19 +151,15 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (hardBounds != null) {
             return null;
         }
-        if (valuesSourceConfig.hasValues() == false) {
-            return null;
-        }
         long[] fixedRoundingPoints = preparedRounding.fixedRoundingPoints();
         if (fixedRoundingPoints == null) {
             return null;
         }
         // Range aggs use a double to aggregate and we don't want to lose precision.
-        long max = fixedRoundingPoints[fixedRoundingPoints.length - 1];
-        if ((double) max != max) {
+        if (fixedRoundingPoints[0] > 1L << 53) {
             return null;
         }
-        if ((double) fixedRoundingPoints[0] != fixedRoundingPoints[0]) {
+        if (fixedRoundingPoints[fixedRoundingPoints.length - 1] > 1L << 53) {
             return null;
         }
         RangeAggregatorSupplier rangeSupplier = context.getQueryShardContext()
@@ -348,7 +344,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
-    private static class FromDateRange extends AdaptingAggregator implements SizedBucketAggregator {
+    static class FromDateRange extends AdaptingAggregator implements SizedBucketAggregator {
         private final DocValueFormat format;
         private final Rounding rounding;
         private final Rounding.Prepared preparedRounding;

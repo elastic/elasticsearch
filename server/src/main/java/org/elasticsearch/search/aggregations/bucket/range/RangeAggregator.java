@@ -298,16 +298,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (valuesSourceConfig.fieldType() == null) {
-            return null;
-        }
-        if (false == valuesSourceConfig.fieldType().isSearchable()) {
-            return null;
-        }
-        if (valuesSourceConfig.missing() != null) {
-            return null;
-        }
-        if (valuesSourceConfig.script() != null) {
+        if (false == valuesSourceConfig.alignesWithSearchIndex()) {
             return null;
         }
         // TODO bail here for runtime fields. They'll be slower this way. Maybe we can somehow look at the Query?

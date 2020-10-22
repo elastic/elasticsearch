@@ -376,9 +376,9 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         Authentication authentication = new Authentication(new User("bob"),
                 new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
-        final PlainActionFuture<Tuple<Tuple<String, String>, Authentication>> future = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, metadata, future);
-        return future.actionGet().v1();
+        return new Tuple<>(future.actionGet().getAccessToken(), future.actionGet().getRefreshToken());
     }
 
     private Tuple<String, String> storeToken(SamlNameId nameId, String session) {

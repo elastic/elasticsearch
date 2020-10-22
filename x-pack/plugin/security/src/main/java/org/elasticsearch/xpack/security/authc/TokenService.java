@@ -254,7 +254,7 @@ public final class TokenService {
      * {@link #VERSION_TOKENS_INDEX_INTRODUCED} and to a specific security tokens index for later versions.
      */
     public void createOAuth2Tokens(Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
-                                   boolean includeRefreshToken, ActionListener<Tuple<Tuple<String, String>, Authentication>> listener) {
+                                   boolean includeRefreshToken, ActionListener<CreateTokenResult> listener) {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
@@ -273,7 +273,7 @@ public final class TokenService {
     //public for testing
     public void createOAuth2Tokens(String accessToken, String refreshToken, Authentication authentication,
                                    Authentication originatingClientAuth,
-                            Map<String, Object> metadata, ActionListener<Tuple<Tuple<String, String>, Authentication>> listener) {
+                            Map<String, Object> metadata, ActionListener<CreateTokenResult> listener) {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
@@ -311,7 +311,7 @@ public final class TokenService {
      */
     private void createOAuth2Tokens(String accessToken, String refreshToken, Version tokenVersion, SecurityIndexManager tokensIndex,
                                     Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
-                                    ActionListener<Tuple<Tuple<String, String>, Authentication>> listener) {
+                                    ActionListener<CreateTokenResult> listener) {
         assert accessToken.length() == TOKEN_LENGTH : "We assume token ids have a fixed length for nodes of a certain version."
             + " When changing the token length, be careful that the inferences about its length still hold.";
         ensureEnabled();
@@ -351,13 +351,12 @@ public final class TokenService {
                                         final String versionedRefreshToken = refreshToken != null
                                             ? prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken)
                                             : null;
-                                        listener.onResponse(new Tuple<>(new Tuple<>(versionedAccessToken, versionedRefreshToken),
-                                            tokenAuth));
+                                        listener.onResponse(new CreateTokenResult(versionedAccessToken, versionedRefreshToken, tokenAuth));
                                     } else {
                                         // prior versions of the refresh token are not version-prepended, as nodes on those
                                         // versions don't expect it.
                                         // Such nodes might exist in a mixed cluster during a rolling upgrade.
-                                        listener.onResponse(new Tuple<>(new Tuple<>(versionedAccessToken, refreshToken),tokenAuth));
+                                        listener.onResponse(new CreateTokenResult(versionedAccessToken, refreshToken,tokenAuth));
                                     }
                                 } else {
                                     listener.onFailure(traceLog("create token",
@@ -863,7 +862,7 @@ public final class TokenService {
      * @param listener The listener to call upon completion with a {@link Tuple} containing the
      *                 serialized access token and serialized refresh token as these will be returned to the client
      */
-    public void refreshToken(String refreshToken, ActionListener<Tuple<Tuple<String, String>, Authentication>> listener) {
+    public void refreshToken(String refreshToken, ActionListener<CreateTokenResult> listener) {
         ensureEnabled();
         final Instant refreshRequested = clock.instant();
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
@@ -996,7 +995,7 @@ public final class TokenService {
      */
     private void innerRefresh(String refreshToken, String tokenDocId, Map<String, Object> source, long seqNo, long primaryTerm,
                               Authentication clientAuth, Iterator<TimeValue> backoff, Instant refreshRequested,
-                              ActionListener<Tuple<Tuple<String, String>, Authentication>> listener) {
+                              ActionListener<CreateTokenResult> listener) {
         logger.debug("Attempting to refresh token stored in token document [{}]", tokenDocId);
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
         final Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkRefreshResult;
@@ -1015,7 +1014,9 @@ public final class TokenService {
         if (refreshTokenStatus.isRefreshed()) {
             logger.debug("Token document [{}] was recently refreshed, when a new token document was generated. Reusing that result.",
                 tokenDocId);
-            decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, listener);
+            final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
+            Authentication authentication = parsedTokens.v1().getAuthentication();
+            decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, authentication, listener);
         } else {
             final String newAccessTokenString = UUIDs.randomBase64UUID();
             final String newRefreshTokenString = UUIDs.randomBase64UUID();
@@ -1127,12 +1128,13 @@ public final class TokenService {
      * @param refreshTokenStatus The {@link RefreshTokenStatus} containing information about the superseding tokens as retrieved from the
      *                           index
      * @param tokensIndex        the manager for the index where the tokens are stored
+     * @param authentication     The authentication object representing the user for which the tokens are created
      * @param listener           The listener to call upon completion with a {@link Tuple} containing the Tuple of
      *                           serialized access token and serialized refresh token and Authentication object as these will be returned
      *                           to the client
      */
     void decryptAndReturnSupersedingTokens(String refreshToken, RefreshTokenStatus refreshTokenStatus, SecurityIndexManager tokensIndex,
-                                           ActionListener<Tuple<Tuple<String, String>, Authentication>> listener) {
+                                           Authentication authentication, ActionListener<CreateTokenResult> listener) {
 
         final byte[] iv = Base64.getDecoder().decode(refreshTokenStatus.getIv());
         final byte[] salt = Base64.getDecoder().decode(refreshTokenStatus.getSalt());
@@ -1167,10 +1169,14 @@ public final class TokenService {
                     public void onResponse(GetResponse response) {
                         if (response.isExists()) {
                             try {
+                                final Authentication tokenAuth = new Authentication(authentication.getUser(),
+                                    authentication.getAuthenticatedBy(), authentication.getLookedUpBy(), getTokenVersionCompatibility(),
+                                    AuthenticationType.TOKEN, authentication.getMetadata());
                                 listener.onResponse(
-                                    new Tuple<>(new Tuple<>(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(),
+                                    new CreateTokenResult(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(),
                                         decryptedTokens[0]),
-                                        prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1])), null));
+                                        prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1]),
+                                        tokenAuth));
                             } catch (GeneralSecurityException | IOException e) {
                                 logger.warn("Could not format stored superseding token values", e);
                                 onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -1911,6 +1917,30 @@ public final class TokenService {
 
     boolean isExpirationInProgress() {
         return expiredTokenRemover.isExpirationInProgress();
+    }
+
+    public final class CreateTokenResult {
+        private final String accessToken;
+        private final String refreshToken;
+        private final Authentication authentication;
+
+        public CreateTokenResult(String accessToken, String refreshToken, Authentication authentication) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.authentication = authentication;
+        }
+
+        public String getAccessToken() {
+            return accessToken;
+        }
+
+        public String getRefreshToken() {
+            return refreshToken;
+        }
+
+        public Authentication getAuthentication() {
+            return authentication;
+        }
     }
 
     private class KeyComputingRunnable extends AbstractRunnable {

@@ -1,0 +1,10 @@
+null_role
+{"index":[],"cluster":[],"run_as":[],"application":[],"global":{"application":{}}}
+role_descriptor1
+{"index":[{"names":["test*"],"privileges":["read","create_index"],"field_security":{"grant":["grantedField1"]},"query_string":"{\"match_all\":{}}","allow_restricted_indices":true}],"cluster":["monitor"],"run_as":[],"application":[],"global":{"application":{}}}
+role_descriptor2
+{"index":[{"names":["na\"me","*"],"privileges":["manage_ilm"],"field_security":{"except":["denied*"]},"query_string":"{\"match\": {\"category\": \"click\"}}","allow_restricted_indices":false},{"names":["/@&~(\\.security.*)/"],"privileges":["all","cluster:a_wrong_*_one"],"allow_restricted_indices":false}],"cluster":[],"run_as":["impersonated???"],"application":[{"application":"maps","privileges":["coming","up","with","random","names","is","hard"],"resources":["raster:*"]}],"global":{"application":{}}}
+role_descriptor3
+{"index":[],"cluster":[],"run_as":["jack","nich*","//\""],"application":[{"application":"maps","privileges":["{","}","\n","\\","\""],"resources":["raster:*"]},{"application":"maps","privileges":["*:*"],"resources":["noooooo!!\n\n\f\\\\r","{"]}],"global":{"application":{}},"metadata":{"some meta":42}}
+role_descriptor4
+{"index":[{"names":["/. ? + * | { } [ ] ( ) \" \\/","*"],"privileges":["read","read_cross_cluster"],"field_security":{"grant":["almost","all*"],"except":["denied*"]},"allow_restricted_indices":false}],"cluster":["manage_ml","grant_api_key","manage_rollup"],"run_as":["//+a+\"[a]/"],"application":[],"global":{"application":{"manage":{"applications":["a+b+|b+a+"]}}},"metadata":{"?list":["e1","e2","*"],"some other meta":{"r":"t"}}}

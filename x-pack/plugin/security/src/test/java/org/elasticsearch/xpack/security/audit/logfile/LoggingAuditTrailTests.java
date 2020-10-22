@@ -20,7 +20,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.mock.orig.Mockito;
@@ -51,6 +49,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -71,16 +71,16 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.mockito.stubbing.Answer;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -91,8 +91,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
@@ -299,89 +300,135 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(e, hasToString(containsString("invalid pattern [/no-inspiration]")));
     }
 
-    public void testSecurityConfigChangeEventFormatting() throws IOException {
-        Path path = getDataPath("/org/elasticsearch/xpack/security/audit/logfile/audited_roles.txt");
-        try (InputStream in = Files.newInputStream(path)) {
+    public void testSecurityConfigChangeEventFormattingForRoles() throws IOException {
+        final Path path = getDataPath("/org/elasticsearch/xpack/security/audit/logfile/audited_roles.txt");
+        final Map<String, String> auditedRolesMap = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new BufferedInputStream(Files.newInputStream(path)),
+                StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                // even number of lines
+                auditedRolesMap.put(line, reader.readLine());
+            }
         }
 
-        RoleDescriptor nullRoleDescriptor = new RoleDescriptor("name \n not \f printed", null, null, null, null, null, null, null);
-        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key\nname", List.of(nullRoleDescriptor),
-                TimeValue.timeValueHours(2));
+        RoleDescriptor nullRoleDescriptor = new RoleDescriptor("null_role", randomFrom((String[]) null, new String[0]),
+                randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
+                randomFrom((RoleDescriptor.ApplicationResourcePrivileges[])null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
+                randomFrom((ConfigurableClusterPrivilege[])null, new ConfigurableClusterPrivilege[0]),
+                randomFrom((String[])null, new String[0]),
+                randomFrom((Map<String, Object>)null, Map.of()),
+                Map.of("transient", "meta", "is", "ignored"));
+        RoleDescriptor roleDescriptor1 = new RoleDescriptor("role_descriptor1", new String[]{"monitor"},
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("test*")
+                        .privileges("read", "create_index")
+                        .grantedFields("grantedField1")
+                        .query("{\"match_all\":{}}")
+                        .allowRestrictedIndices(true)
+                        .build()},
+                randomFrom((RoleDescriptor.ApplicationResourcePrivileges[]) null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
+                randomFrom((ConfigurableClusterPrivilege[]) null, new ConfigurableClusterPrivilege[0]),
+                randomFrom((String[]) null, new String[0]),
+                randomFrom((Map<String, Object>) null, Map.of()),
+                Map.of()
+        );
+        RoleDescriptor roleDescriptor2 = new RoleDescriptor("role_descriptor2", randomFrom((String[]) null, new String[0]),
+                new RoleDescriptor.IndicesPrivileges[]{
+                        RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("na\"me", "*")
+                                .privileges("manage_ilm")
+                                .deniedFields("denied*")
+                                .query("{\"match\": {\"category\": \"click\"}}")
+                                .build(),
+                        RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("/@&~(\\.security.*)/")
+                                .privileges("all", "cluster:a_wrong_*_one")
+                                .build()},
+                new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("maps")
+                                .resources("raster:*")
+                                .privileges("coming", "up", "with", "random", "names", "is", "hard")
+                                .build()},
+                randomFrom((ConfigurableClusterPrivilege[]) null, new ConfigurableClusterPrivilege[0]),
+                new String[] {"impersonated???"},
+                randomFrom((Map<String, Object>) null, Map.of()),
+                Map.of()
+        );
+        RoleDescriptor roleDescriptor3 = new RoleDescriptor("role_descriptor3", randomFrom((String[]) null, new String[0]),
+                randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
+                new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("maps")
+                                .resources("raster:*")
+                                .privileges("{", "}", "\n", "\\", "\"")
+                                .build(),
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("maps")
+                                .resources("noooooo!!\n\n\f\\\\r", "{")
+                                .privileges("*:*")
+                                .build()},
+                randomFrom((ConfigurableClusterPrivilege[]) null, new ConfigurableClusterPrivilege[0]),
+                new String[] {"jack", "nich*", "//\""},
+                Map.of("some meta", 42),
+                Map.of()
+        );
+        Map<String, Object> metaMap = new TreeMap<>();
+        metaMap.put("?list", List.of("e1", "e2", "*"));
+        metaMap.put("some other meta", Map.of("r", "t"));
+        RoleDescriptor roleDescriptor4 = new RoleDescriptor("role_descriptor4", new String[] {"manage_ml", "grant_api_key",
+                "manage_rollup"},
+                new RoleDescriptor.IndicesPrivileges[]{
+                        RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("/. ? + * | { } [ ] ( ) \" \\/", "*")
+                                .privileges("read", "read_cross_cluster")
+                                .grantedFields("almost", "all*")
+                                .deniedFields("denied*")
+                                .build()},
+                randomFrom((RoleDescriptor.ApplicationResourcePrivileges[]) null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
+                new ConfigurableClusterPrivilege[] {
+                        new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("a+b+|b+a+"))
+                },
+                new String[] {"//+a+\"[a]/"},
+                metaMap,
+                Map.of("ignored", 2)
+        );
+        String keyName = randomAlphaOfLength(4);
+        TimeValue expiration = randomFrom(new TimeValue(randomNonNegativeLong(), randomFrom(TimeUnit.values())), null);
+        List<RoleDescriptor> allTestRoleDescriptors = List.of(nullRoleDescriptor, roleDescriptor1, roleDescriptor2, roleDescriptor3,
+                roleDescriptor4);
+        List<RoleDescriptor> keyRoleDescriptors = randomSubsetOf(allTestRoleDescriptors);
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(keyName, keyRoleDescriptors, expiration);
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = createAuthentication();
         auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
 
+        StringBuilder createKeyAuditEventStringBuilder = new StringBuilder();
+        createKeyAuditEventStringBuilder.append("\"create\":{\"apikey\":{\"name\":\"" + keyName + "\",\"expiration\":" +
+                (expiration != null ? "\"" + expiration.toString() + "\"" : "null") + ",");
+        StringBuilder privilegesStringBuilder = new StringBuilder();
+        privilegesStringBuilder.append("\"privileges\":[");
+        keyRoleDescriptors.forEach(roleDescriptor -> {
+            privilegesStringBuilder.append(auditedRolesMap.get(roleDescriptor.getName()));
+            privilegesStringBuilder.append(',');
+        });
+        if (false == keyRoleDescriptors.isEmpty()) {
+            // delete last comma
+            privilegesStringBuilder.deleteCharAt(privilegesStringBuilder.length() - 1);
+        }
+        privilegesStringBuilder.append("]");
+        createKeyAuditEventStringBuilder.append(privilegesStringBuilder.toString());
+        createKeyAuditEventStringBuilder.append("}}");
+        String expectedCreateKeyAuditEventString = createKeyAuditEventStringBuilder.toString();
         final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
-        assertThat(output.get(1), containsString(""));
-
-//        final String requestId = randomRequestId();
-//        Map<RoleDescriptor.IndicesPrivileges, String> testIndicesPrivilegesMap = new HashMap<>();
-//        testIndicesPrivilegesMap.put(RoleDescriptor.IndicesPrivileges.builder()
-//                .indices("test*")
-//                .privileges("read", "create_index")
-//                .grantedFields("grantedField1")
-//                .query("{match_all:{}}")
-//                .allowRestrictedIndices(true)
-//                .build(), "{\"names\":[\"test*\"],\"privileges\":[\"read\",\"create_index\"]," +
-//                "\"field_security\":{\"grant\":[\"grantedField1\"]},\"query\":\"{match_all:{}}\",\"allow_restricted_indices\":true}");
-//        testIndicesPrivilegesMap.put(RoleDescriptor.IndicesPrivileges.builder()
-//                .indices("/regex/", "?|smth")
-//                .privileges("write")
-//                .deniedFields("denied*")
-//                .query(QueryBuilders.termQuery("foo", "bar").toString())
-//                .build(), "{\"names\":[\"/regex/\",\"?|smth\"],\"privileges\":[\"write\"],\"field_security\":{\"except\":[\"denied*\"]}," +
-//                "\"query\":\"{\\n  \\\"term\\\" : {\\n    \\\"foo\\\" : {\\n      \\\"value\\\" : \\\"bar\\\",\\n      \\\"boost\\\" : 1" +
-//                ".0\\n    }\\n  }\\n}\",\"allow_restricted_indices\":false}");
-//        List<RoleDescriptor.IndicesPrivileges> testIndicesPrivilegesList = new ArrayList<>();
-//        StringBuilder testIndicesPrivilegesString = new StringBuilder();
-//        testIndicesPrivilegesString.append("\"indices\":[");
-//        randomSubsetOf(2, testIndicesPrivilegesMap.entrySet()).stream().forEach(indicesPrivileges -> {
-//            testIndicesPrivilegesList.add(indicesPrivileges.getKey());
-//            testIndicesPrivilegesString.append(indicesPrivileges.getValue());
-//            testIndicesPrivilegesString.append(",");
-//        });
-//        if (false == testIndicesPrivilegesList.isEmpty()) {
-//            // delete last comma
-//            testIndicesPrivilegesString.deleteCharAt(testIndicesPrivilegesString.length() - 1);
-//        }
-//        testIndicesPrivilegesString.append("]");
-//
-//        RoleDescriptor roleDescriptor = new RoleDescriptor("name \n not \f printed", null,
-//                testIndicesPrivilegesList.toArray(new RoleDescriptor.IndicesPrivileges[0]), null, null, null, null, null);
-//        String roleDescriptorString = "{\"cluster\":[]," + testIndicesPrivilegesString.toString() +
-//                ",\"applications\":[],\"run_as\":[],\"metadata\":{},\"transient_metadata\":{\"enabled\":true}}";
-
-//        Map<ConfigurableClusterPrivileges.ManageApplicationPrivileges, String> testConfigurableClusterPrivilegesMap = new HashMap<>();
-//        testConfigurableClusterPrivilegesMap.put(new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("app1")),
-//                "\"manage\":{\"applications\":[\"app1\"]}");
-//        Map<RoleDescriptor.ApplicationResourcePrivileges, String> testApplicationResourcePrivilegesMap = new HashMap<>();
-//        testApplicationResourcePrivilegesMap.put(RoleDescriptor.ApplicationResourcePrivileges.builder()
-//                .privileges("app_read_priv", "app_write_priv").resources("res2").application("app2").build(),
-//                "{\"application\":\"app2\",\"privileges\":[\"app_read_priv\",\"app_write_priv\"],\"resources\":[\"res2\"]}");
-//        Map<String, Object> testMetadataMap = new HashMap<>();
-//        testMetadataMap.put("string_meta", "test");
-//        testMetadataMap.put("list_meta", List.of("one", "two"));
-//        randomSubsetOf(1, testMetadataMap.entrySet());
-
-//        RoleDescriptor roleDescriptor = new RoleDescriptor("full_test_role", new String[] {"manage_ilm", "manage_security"},
-//                new RoleDescriptor.IndicesPrivileges[] {randomFrom(testIndicesPrivilegesMap.entrySet()).getKey()},
-//                new RoleDescriptor.ApplicationResourcePrivileges[] {randomFrom(testApplicationResourcePrivilegesMap.entrySet()).getKey()},
-//                new ConfigurableClusterPrivilege[] {randomFrom(testConfigurableClusterPrivilegesMap.entrySet()).getKey()},
-//                new String[] {"minnie"}, testMetadata, null);
-//        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key\nname", List.of(roleDescriptor),
-//                TimeValue.timeValueHours(2));
-//        final String requestId = randomRequestId();
-//        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
-//        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-//        final Authentication authentication = createAuthentication();
-//        auditTrail.accessGranted("\\ \\ \\ \n\t\b", authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
-//
-//        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
-//        assertThat(output.size(), is(2));
-//        assertThat(output.get(1), containsString(roleDescriptorString));
+        String generatedCreateKeyAuditEventString = output.get(1);
+        assertThat(generatedCreateKeyAuditEventString, containsString(expectedCreateKeyAuditEventString));
+        generatedCreateKeyAuditEventString = generatedCreateKeyAuditEventString.replace(", " + expectedCreateKeyAuditEventString, "");
+        generatedCreateKeyAuditEventString.length();
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {
@@ -1361,12 +1408,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkFields, Collections.emptyMap());
     }
 
-    private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
-        assertMsg(logger, checkFields, checkArrayFields, Collections.emptyMap());
+    private void assertMsg(String logLine, Map<String, String> checkFields) {
+        assertMsg(logLine, checkFields, Collections.emptyMap());
     }
 
-    private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields,
-                           Map<String, ToXContentObject> checkObjectFields) {
+    private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
         final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat("Exactly one logEntry expected. Found: " + output.size(), output.size(), is(1));
         if (checkFields == null) {
@@ -1374,11 +1420,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             return;
         }
         String logLine = output.get(0);
-        assertMsg(logLine, checkFields, checkArrayFields, checkObjectFields);
+        assertMsg(logLine, checkFields, checkArrayFields);
     }
 
-    private void assertMsg(String logLine, Map<String, String> checkFields, Map<String, String[]> checkArrayFields,
-                           Map<String, ToXContentObject> checkObjectFields) {
+    private void assertMsg(String logLine, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
         // check each string-valued field
         for (final Map.Entry<String, String> checkField : checkFields.entrySet()) {
             if (null == checkField.getValue()) {
@@ -1410,22 +1455,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 final Pattern logEntryFieldPattern = Pattern.compile(Pattern.quote("\"" + checkArrayField.getKey() + "\":" + quotedValue));
                 assertThat("Field " + checkArrayField.getKey() + " value mismatch. Expected " + quotedValue + ".\nLog line: " + logLine,
                         logEntryFieldPattern.matcher(logLine).find(), is(true));
-                // remove checked field
-                logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
-            }
-        }
-        // check each object-valued field
-        for (final Map.Entry<String, ToXContentObject> checkObjectField : checkObjectFields.entrySet()) {
-            if (null == checkObjectField.getValue()) {
-                // null checkField means that the field does not exist
-                assertThat("Field: " + checkObjectField.getKey() + " should be missing.",
-                        logLine.contains(Pattern.quote("\"" + checkObjectField.getKey() + "\":")), is(false));
-            } else {
-                final String objectStringValue = Strings.toString(checkObjectField.getValue());
-                final Pattern logEntryFieldPattern =
-                        Pattern.compile(Pattern.quote("\"" + checkObjectField.getKey() + "\":" + objectStringValue));
-                assertThat("Field " + checkObjectField.getKey() + " value mismatch. Expected " + objectStringValue +
-                        ".\nLog line: " + logLine, logEntryFieldPattern.matcher(logLine).find(), is(true));
                 // remove checked field
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }

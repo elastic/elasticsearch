@@ -924,7 +924,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             if (putRoleRequest.metadata() != null && false == putRoleRequest.metadata().isEmpty()) {
                                 // JSON building for the metadata might fail when encountering unknown class types.
                                 // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
-                                // cause troubles in downstream code (eg storing the metadata), so this simply introduces a new failure mode.
+                                // cause troubles in downstream code (eg metadata store), so this simply introduces a new failure mode.
                                 // Also the malevolent metadata can only be produced by the transport client.
                                 builder.field("metadata", putRoleRequest.metadata());
                             }

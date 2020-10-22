@@ -146,8 +146,6 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
     }
 
     public void testScriptDocValuesLookup() {
-        MapperService mapperService = mock(MapperService.class);
-
         ScriptDocValues<?> docValues1 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData1 = createFieldData(docValues1);
 
@@ -156,18 +154,23 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
 
         KeyedFlatObjectFieldType fieldType1
             = new KeyedFlatObjectFieldType("field", true, true, "key1", false, Collections.emptyMap());
-        when(mapperService.fieldType("json.key1")).thenReturn(fieldType1);
-
         KeyedFlatObjectFieldType fieldType2
             = new KeyedFlatObjectFieldType( "field", true, true, "key2", false, Collections.emptyMap());
-        when(mapperService.fieldType("json.key2")).thenReturn(fieldType2);
 
         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataSupplier = (fieldType, searchLookup) -> {
             KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) fieldType;
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, fieldDataSupplier);
+        SearchLookup searchLookup = new SearchLookup(field -> {
+            if (field.equals("json.key1")) {
+                return fieldType1;
+            }
+            if (field.equals("json.key2")) {
+                return fieldType2;
+            }
+            return null;
+        }, fieldDataSupplier);
         LeafDocLookup docLookup = searchLookup.doc().getLeafDocLookup(null);
 
         assertEquals(docValues1, docLookup.get("json.key1"));

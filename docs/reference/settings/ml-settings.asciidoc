@@ -153,6 +153,22 @@ connect within the time period specified by this setting then the process is
 assumed to have failed. Defaults to `10s`. The minimum value for this setting is
 `5s`.
 
+xpack.ml.use_auto_machine_memory_percent::
+(<<static-cluster-setting,Static>>) If this setting is `true`, the
+`xpack.ml.max_machine_memory_percent` setting is ignored. Instead, the maximum
+percentage of the machine's memory that can be used for running {ml} analytics
+processes is calculated automatically and takes into account the total node size
+and the size of the JVM on the node. The default value is `false`. If this
+setting differs between nodes, the value on the current master node is heeded.
++
+TIP: If you do not have dedicated {ml} nodes (that is to say, the node has
+multiple roles), do not enable this setting. Its calculations assume that {ml}
+analytics are the main purpose of the node.
++
+IMPORTANT: The calculation assumes that dedicated {ml} nodes have at least
+`256MB` memory reserved outside of the JVM. If you have tiny {ml}
+nodes in your cluster, you shouldn't use this setting.
+
 [discrete]
 [[model-inference-circuit-breaker]]
 ==== {ml-cap} circuit breaker settings

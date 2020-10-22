@@ -18,45 +18,32 @@ import java.util.List;
  * This is a tree-writer that serializes a list of {@link ShapeField.DecodedTriangle} as an interval tree
  * into a byte array.
  */
-public class TriangleTreeWriter {
+class TriangleTreeWriter {
 
     private final TriangleTreeNode node;
-    private final CoordinateEncoder coordinateEncoder;
-    private final CentroidCalculator centroidCalculator;
-    private Extent extent;
+    private final Extent extent;
 
-    public TriangleTreeWriter(List<ShapeField.DecodedTriangle> triangles, CoordinateEncoder coordinateEncoder,
-                              CentroidCalculator centroidCalculator) {
-        this.coordinateEncoder = coordinateEncoder;
-        this.centroidCalculator = centroidCalculator;
+    TriangleTreeWriter(List<ShapeField.DecodedTriangle> triangles) {
         this.extent = new Extent();
         this.node = build(triangles);
     }
 
     /*** Serialize the interval tree in the provided data output */
     public void writeTo(ByteBuffersDataOutput out) throws IOException {
-        out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
-        out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
-        centroidCalculator.getDimensionalShapeType().writeTo(out);
-        out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
         extent.writeCompressed(out);
         node.writeTo(out);
-    }
-
-    private void addToExtent(TriangleTreeNode treeNode) {
-        extent.addRectangle(treeNode.minX, treeNode.minY, treeNode.maxX, treeNode.maxY);
     }
 
     private TriangleTreeNode build(List<ShapeField.DecodedTriangle> triangles) {
         if (triangles.size() == 1) {
             TriangleTreeNode triangleTreeNode =  new TriangleTreeNode(triangles.get(0));
-            addToExtent(triangleTreeNode);
+            extent.addRectangle(triangleTreeNode.minX, triangleTreeNode.minY, triangleTreeNode.maxX, triangleTreeNode.maxY);
             return triangleTreeNode;
         }
         TriangleTreeNode[] nodes = new TriangleTreeNode[triangles.size()];
         for (int i = 0; i < triangles.size(); i++) {
             nodes[i] = new TriangleTreeNode(triangles.get(i));
-            addToExtent(nodes[i]);
+            extent.addRectangle(nodes[i].minX, nodes[i].minY, nodes[i].maxX, nodes[i].maxY);
         }
         return createTree(nodes, 0, triangles.size() - 1, true);
     }
@@ -95,10 +82,6 @@ public class TriangleTreeWriter {
 
     /** Represents an inner node of the tree. */
     private static class TriangleTreeNode {
-        /** type of component */
-        public enum TYPE {
-            POINT, LINE, TRIANGLE
-        }
         /** minimum latitude of this geometry's bounding box area */
         private int minY;
         /** maximum latitude of this geometry's bounding box area */
@@ -113,7 +96,7 @@ public class TriangleTreeWriter {
         /** root node of edge tree */
         private final ShapeField.DecodedTriangle component;
         /** component type */
-        private final TYPE type;
+        private final ShapeField.DecodedTriangle.TYPE type;
 
         private TriangleTreeNode(ShapeField.DecodedTriangle component) {
             this.minY = Math.min(Math.min(component.aY, component.bY), component.cY);
@@ -121,23 +104,7 @@ public class TriangleTreeWriter {
             this.minX = Math.min(Math.min(component.aX, component.bX), component.cX);
             this.maxX = Math.max(Math.max(component.aX, component.bX), component.cX);
             this.component = component;
-            this.type = getType(component);
-        }
-
-        private static TYPE getType(ShapeField.DecodedTriangle triangle) {
-            // the issue in lucene: https://github.com/apache/lucene-solr/pull/927
-            // can help here
-            if (triangle.aX == triangle.bX && triangle.aY == triangle.bY) {
-                if (triangle.aX == triangle.cX && triangle.aY == triangle.cY) {
-                    return TYPE.POINT;
-                }
-                return TYPE.LINE;
-            } else if ((triangle.aX == triangle.cX && triangle.aY == triangle.cY) ||
-                (triangle.bX == triangle.cX && triangle.bY == triangle.cY)) {
-                return TYPE.LINE;
-            } else {
-                return TYPE.TRIANGLE;
-            }
+            this.type = component.type;
         }
 
         private void writeTo(ByteBuffersDataOutput out) throws IOException {
@@ -174,10 +141,11 @@ public class TriangleTreeWriter {
             byte metadata = 0;
             metadata |= (left != null) ? (1 << 0) : 0;
             metadata |= (right != null) ? (1 << 1) : 0;
-            if (type == TYPE.POINT) {
+            if (type == ShapeField.DecodedTriangle.TYPE.POINT) {
                 metadata |= (1 << 2);
-            } else if (type == TYPE.LINE) {
+            } else if (type == ShapeField.DecodedTriangle.TYPE.LINE) {
                 metadata |= (1 << 3);
+                metadata |= (component.ab) ? (1 << 4) : 0;
             } else {
                 metadata |= (component.ab) ? (1 << 4) : 0;
                 metadata |= (component.bc) ? (1 << 5) : 0;
@@ -187,22 +155,18 @@ public class TriangleTreeWriter {
         }
 
         private void writeComponent(ByteBuffersDataOutput out) throws IOException {
-            if (type == TYPE.POINT) {
-                out.writeVLong((long) maxX - component.aX);
-                out.writeVLong((long) maxY - component.aY);
-            } else if (type == TYPE.LINE) {
-                out.writeVLong((long) maxX - component.aX);
-                out.writeVLong((long) maxY - component.aY);
-                out.writeVLong((long) maxX - component.bX);
-                out.writeVLong((long) maxY - component.bY);
-            } else {
-                out.writeVLong((long) maxX - component.aX);
-                out.writeVLong((long) maxY - component.aY);
-                out.writeVLong((long) maxX - component.bX);
-                out.writeVLong((long) maxY - component.bY);
-                out.writeVLong((long) maxX - component.cX);
-                out.writeVLong((long) maxY - component.cY);
+            out.writeVLong((long) maxX - component.aX);
+            out.writeVLong((long) maxY - component.aY);
+            if (type == ShapeField.DecodedTriangle.TYPE.POINT) {
+               return;
             }
+            out.writeVLong((long) maxX - component.bX);
+            out.writeVLong((long) maxY - component.bY);
+            if (type == ShapeField.DecodedTriangle.TYPE.LINE) {
+                return;
+            }
+            out.writeVLong((long) maxX - component.cX);
+            out.writeVLong((long) maxY - component.cY);
         }
 
         private int nodeSize(boolean includeBox, int parentMaxX, int parentMaxY, ByteBuffersDataOutput scratchBuffer) throws IOException {
@@ -232,10 +196,10 @@ public class TriangleTreeWriter {
 
         private int componentSize(ByteBuffersDataOutput scratchBuffer) throws IOException {
             scratchBuffer.reset();
-            if (type == TYPE.POINT) {
+            if (type == ShapeField.DecodedTriangle.TYPE.POINT) {
                 scratchBuffer.writeVLong((long) maxX - component.aX);
                 scratchBuffer.writeVLong((long) maxY - component.aY);
-            } else if (type == TYPE.LINE) {
+            } else if (type == ShapeField.DecodedTriangle.TYPE.LINE) {
                 scratchBuffer.writeVLong((long) maxX - component.aX);
                 scratchBuffer.writeVLong((long) maxY - component.aY);
                 scratchBuffer.writeVLong((long) maxX - component.bX);

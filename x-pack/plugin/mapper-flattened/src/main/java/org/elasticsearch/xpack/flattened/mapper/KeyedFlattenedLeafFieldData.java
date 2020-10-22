@@ -22,21 +22,21 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 
 /**
- * The atomic field data implementation for {@link FlatObjectFieldMapper.KeyedFlatObjectFieldType}.
+ * The atomic field data implementation for {@link FlattenedFieldMapper.KeyedFlattenedFieldType}.
  *
- * This class wraps the field data that is built directly on the keyed flat object field,
+ * This class wraps the field data that is built directly on the keyed flattened field,
  * and filters out values whose prefix doesn't match the requested key.
  *
  * In order to support all usage patterns, the delegate's ordinal values are shifted
  * to range from 0 to the number of total values.
  */
-public class KeyedFlatObjectLeafFieldData implements LeafOrdinalsFieldData {
+public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     private final String key;
     private final LeafOrdinalsFieldData delegate;
 
-    KeyedFlatObjectLeafFieldData(String key,
-                                 LeafOrdinalsFieldData delegate) {
+    KeyedFlattenedLeafFieldData(String key,
+                                LeafOrdinalsFieldData delegate) {
         this.key = key;
         this.delegate = delegate;
     }
@@ -138,7 +138,7 @@ public class KeyedFlatObjectLeafFieldData implements LeafOrdinalsFieldData {
     }
 
     private static int compare(BytesRef key, BytesRef term) {
-        BytesRef extractedKey = FlatObjectFieldParser.extractKey(term);
+        BytesRef extractedKey = FlattenedFieldParser.extractKey(term);
         return key.compareTo(extractedKey);
     }
 

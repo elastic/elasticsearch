@@ -18,7 +18,7 @@ import java.io.IOException;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
-public class KeyedFlatObjectLeafFieldDataTests extends ESTestCase {
+public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
     private LeafOrdinalsFieldData delegate;
 
     @Before
@@ -53,7 +53,7 @@ public class KeyedFlatObjectLeafFieldDataTests extends ESTestCase {
     }
 
     private BytesRef prefixedValue(String key, String value) {
-        String term = FlatObjectFieldParser.createKeyedValue(key, value);
+        String term = FlattenedFieldParser.createKeyedValue(key, value);
         return new BytesRef(term);
     }
 
@@ -91,26 +91,26 @@ public class KeyedFlatObjectLeafFieldDataTests extends ESTestCase {
                                       long expectedMacOrd) throws IOException {
         BytesRef bytesKey = new BytesRef(key);
 
-        long actualMinOrd = KeyedFlatObjectLeafFieldData.findMinOrd(bytesKey, delegate.getOrdinalsValues());
+        long actualMinOrd = KeyedFlattenedLeafFieldData.findMinOrd(bytesKey, delegate.getOrdinalsValues());
         assertEquals(expectedMinOrd,  actualMinOrd);
 
-        long actualMaxOrd = KeyedFlatObjectLeafFieldData.findMaxOrd(bytesKey, delegate.getOrdinalsValues());
+        long actualMaxOrd = KeyedFlattenedLeafFieldData.findMaxOrd(bytesKey, delegate.getOrdinalsValues());
         assertEquals(expectedMacOrd, actualMaxOrd);
     }
 
     public void testAdvanceExact() throws IOException {
-        LeafOrdinalsFieldData avocadoFieldData = new KeyedFlatObjectLeafFieldData("avocado", delegate);
+        LeafOrdinalsFieldData avocadoFieldData = new KeyedFlattenedLeafFieldData("avocado", delegate);
         assertFalse(avocadoFieldData.getOrdinalsValues().advanceExact(0));
 
-        LeafOrdinalsFieldData bananaFieldData = new KeyedFlatObjectLeafFieldData("banana", delegate);
+        LeafOrdinalsFieldData bananaFieldData = new KeyedFlattenedLeafFieldData("banana", delegate);
         assertTrue(bananaFieldData.getOrdinalsValues().advanceExact(0));
 
-        LeafOrdinalsFieldData nonexistentFieldData = new KeyedFlatObjectLeafFieldData("berry", delegate);
+        LeafOrdinalsFieldData nonexistentFieldData = new KeyedFlattenedLeafFieldData("berry", delegate);
         assertFalse(nonexistentFieldData.getOrdinalsValues().advanceExact(0));
     }
 
     public void testNextOrd() throws IOException {
-        LeafOrdinalsFieldData fieldData = new KeyedFlatObjectLeafFieldData("banana", delegate);
+        LeafOrdinalsFieldData fieldData = new KeyedFlattenedLeafFieldData("banana", delegate);
         SortedSetDocValues docValues = fieldData.getOrdinalsValues();
         docValues.advanceExact(0);
 
@@ -128,15 +128,15 @@ public class KeyedFlatObjectLeafFieldDataTests extends ESTestCase {
     }
 
     public void testLookupOrd() throws IOException {
-        LeafOrdinalsFieldData appleFieldData = new KeyedFlatObjectLeafFieldData("apple", delegate);
+        LeafOrdinalsFieldData appleFieldData = new KeyedFlattenedLeafFieldData("apple", delegate);
         SortedSetDocValues appleDocValues = appleFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value0"), appleDocValues.lookupOrd(0));
 
-        LeafOrdinalsFieldData cantaloupeFieldData = new KeyedFlatObjectLeafFieldData("cantaloupe", delegate);
+        LeafOrdinalsFieldData cantaloupeFieldData = new KeyedFlattenedLeafFieldData("cantaloupe", delegate);
         SortedSetDocValues cantaloupeDocValues = cantaloupeFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value40"), cantaloupeDocValues.lookupOrd(0));
 
-        LeafOrdinalsFieldData cucumberFieldData = new KeyedFlatObjectLeafFieldData("cucumber", delegate);
+        LeafOrdinalsFieldData cucumberFieldData = new KeyedFlattenedLeafFieldData("cucumber", delegate);
         SortedSetDocValues cucumberDocValues = cucumberFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value41"), cucumberDocValues.lookupOrd(0));
     }

@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -124,7 +125,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             CommonAnalysisPlugin.class,
             ReindexPlugin.class,
             // ILM is required for .ml-state template index settings
-            IndexLifecycle.class);
+            IndexLifecycle.class,
+            // Deprecation warnings go to a data stream, if we ever cause a deprecation warning the data streams plugin is required
+            DataStreamsPlugin.class);
     }
 
     @Override

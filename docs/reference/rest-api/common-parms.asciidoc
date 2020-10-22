@@ -48,9 +48,12 @@ end::target-index-aliases[]
 
 tag::allow-no-indices[]
 `allow_no_indices`::
-(Optional, boolean) If `false`, the request returns an error when a
-wildcard expression, <<indices-aliases,index alias>>, or `_all` value targets
-only missing or closed indices.
+(Optional, boolean)
+If `false`, the request returns an error if any wildcard expression,
+<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
+indices. This behavior applies even if the request targets other open indices.
+For example, a request targeting `foo*,bar*` returns an error if an index
+starts with `foo` but no index starts with `bar`.
 end::allow-no-indices[]
 
 tag::allow-no-match-transforms1[]
@@ -155,7 +158,11 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}.
+The _destination index_ for the {transform}. The mappings of the destination 
+index are deduced based on the source fields when possible. If alternate 
+mappings are required, use the 
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
@@ -794,7 +801,7 @@ end::scroll[]
 tag::scroll_size[]
 `scroll_size`::
 (Optional, integer) Size of the scroll request that powers the operation.
-Defaults to 100.
+Defaults to 1000.
 end::scroll_size[]
 
 tag::search-failures[]

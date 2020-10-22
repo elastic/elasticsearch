@@ -3,6 +3,16 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="node.name"]
+=== Node name setting
+
+See <<node-name,Node name setting>>.
+
+[role="exclude",id="cluster.name"]
+=== Cluster name setting
+
+See <<cluster-name,Cluster name setting>>.
+
 [role="exclude",id="ccr-remedy-follower-index"]
 === Leader index retaining operations for replication
 
@@ -1169,9 +1179,7 @@ We have removed documentation for this API. This a low-level API used to get
 information about snapshot-backed indices. We plan to remove or drastically
 change this API as part of a future release.
 
-ifdef::permanently-unreleased-branch[]
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-endif::[]
 
 [role="exclude",id="searchable-snapshots-api-stats"]
 === Searchable snapshot statistics API
@@ -1180,9 +1188,7 @@ We have removed documentation for this API. This a low-level API used to get
 information about snapshot-backed indices. We plan to remove or drastically
 change this API as part of a future release.
 
-ifdef::permanently-unreleased-branch[]
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-endif::[]
 
 [role="exclude",id="searchable-snapshots-repository-stats"]
 === Searchable snapshot repository statistics API
@@ -1191,9 +1197,7 @@ We have removed documentation for this API. This a low-level API used to get
 information about snapshot-backed indices. We plan to remove or drastically
 change this API as part of a future release.
 
-ifdef::permanently-unreleased-branch[]
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-endif::[]
 
 [role="exclude",id="point-in-time"]
 === Point in time API

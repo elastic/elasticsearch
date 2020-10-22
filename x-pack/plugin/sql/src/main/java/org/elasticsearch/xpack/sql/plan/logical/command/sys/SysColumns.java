@@ -128,7 +128,7 @@ public class SysColumns extends Command {
 
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
-            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, session.configuration().filter(),
+            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen,
                 ActionListener.wrap(esIndices -> {
                     List<List<?>> rows = new ArrayList<>();
                     for (EsIndex esIndex : esIndices) {
@@ -139,7 +139,7 @@ public class SysColumns extends Command {
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, session.configuration().filter(),
+            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen,
                 ActionListener.wrap(r -> {
                     List<List<?>> rows = new ArrayList<>();
                     // populate the data only when a target is found

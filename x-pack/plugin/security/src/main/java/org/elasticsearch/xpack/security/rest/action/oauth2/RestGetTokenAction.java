@@ -14,6 +14,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
 
 import java.io.IOException;
@@ -34,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -44,7 +47,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * specification as this aspect does not make the most sense since the response body is
  * expected to be JSON
  */
-public final class RestGetTokenAction extends TokenBaseRestHandler {
+public final class RestGetTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
 
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("token_request",
             a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (SecureString) a[3], (String) a[4],
@@ -241,5 +244,13 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
          * response header field
          */
         _UNAUTHORIZED,
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(
+        Sets.newHashSet("password", "kerberos_ticket", "refresh_token"));
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

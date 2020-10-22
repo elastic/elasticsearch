@@ -23,19 +23,225 @@ Other versions:
 | {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
-
-
-// Use the notable-highlights tag to mark entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+[discrete]
+=== More space-efficient indices
+
+{es} 7.10 depends on Apache Lucene 8.7, which introduces higher compression of
+stored fields, the part of the index that notably stores the
+<<mapping-source-field,`_source`>>. On the various datasets that we benchmark
+against, we noticed space reductions between 0% and 10%. This change especially
+helps on datasets that have lots of redundant data across documents, which is
+typically the case of the documents that are produced by our Observability
+solutions, which repeat metadata about the host that produced the data on every
+document.
+
+Elasticsearch offers the ability to configure the <<index-codec,`index.codec`>>
+setting to tell Elasticsearch how aggressively to compress stored fields. Both
+supported values `default` and `best_compression` will get better compression
+with this change.
 // end::notable-highlights[]
 
-// Omit the notable highlights tag for entries that only need to appear in the ES ref:
-// [discrete]
-// === Heading
-//
-// Description.
+// tag::notable-highlights[]
+[discrete]
+[[data-tier-formalization]]
+=== Data tiers
+7.10 introduces the concept of formalized data tiers within Elasticsearch. <<data-tiers,Data tiers>>
+are a simple, integrated approach that gives users control over optimizing for cost,
+performance, and breadth/depth of data. Prior to this formalization, many users configured their own
+tier topology using custom node attributes as well as using {ilm-init} to manage the lifecycle and
+location of data within a cluster.
+
+With this formalization, data tiers (content, hot, warm, and cold) can be explicitly configured
+using <<node-roles,node roles>>, and indices can be configured to be allocated within a specific
+tier using <<data-tier-shard-filtering,index-level data tier allocation filtering>>. {ilm-init} will
+make use of these tiers to <<ilm-migrate,automatically migrate>> data between nodes as an index goes
+through the phases of its lifecycle.
+
+Newly created indices abstracted by a <<data-streams,data stream>> will be allocated to
+the `data_hot` tier automatically, while standalone indices will be allocated to
+the `data_content` tier automatically. Nodes with the pre-existing `data` role are 
+considered to be part of all tiers.
+
+
+[discrete]
+[[auc-roc-eval-class]]
+=== AUC ROC evaluation metrics for classification analysis
+
+{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[Area under the curve of receiver operating characteristic (AUC ROC)] 
+is an evaluation metric that has been available for {oldetection} since 7.3 and 
+now is available for {classification} analysis. AUC ROC represents the 
+performance of the {classification} process at different predicted probability 
+thresholds. The true positive rate for a specific class is compared against the 
+rate of all the other classes combined at the different threshold levels to 
+create the curve.
+
+
+[discrete]
+[[custom-feature-processor-dfa]]
+=== Custom feature processors in {dfanalytics}
+
+Feature processors enable you to extract process features from document fields. 
+You can use these features in model training and model deployment. Custom 
+feature processors provide a mechanism to create features that can be used at 
+search and ingest time and they don’t take up space in the index.
+This process more tightly couples feature generation with the resulting model. 
+The result is simplified model management as both the features and the model can 
+easily follow the same life cycle.
+
+
+[discrete]
+[[points-in-time-for-search]]
+=== Points in time (PITs) for search
+
+In 7.10, we're introducing points in time (PITs), a lightweight way to preserve
+index state over searches. PITs improve end-user experience by making UIs more
+reactive.
+
+By default, a search request waits for complete results before returning a
+response. For example, a search that retrieves top hits and aggregations returns
+a response only after both top hits and aggregations are computed. However,
+aggregations are usually slower and more expensive to compute than top hits.
+Instead of sending a combined request, you can send two separate requests: one
+for top hits and another one for aggregations. With separate search requests, a
+UI can display top hits as soon as they're available and display aggregation
+data after the slower aggregation request completes. You can use a PIT to ensure
+both search requests run on the same data and index state.
+
+To use a PIT in a search, you must first explicitly create the PIT using the new
+{ref}/point-in-time-api.html[open PIT API]. PITs get automatically garbage-collected
+after `keep_alive` if no follow-up request extends their duration.
+
+[source,console]
+----
+POST /my-index-000001/_pit?keep_alive=1m
+----
+// TEST[setup:my_index]
+
+The API returns a PIT ID you can use in search requests. You can also
+configure by how long to extend your PIT's lifespan using the search request's
+`keep_alive` parameter.
+
+[source,console]
+----
+POST /_search
+{
+    "size": 100,
+    "query": {
+        "match" : {
+            "title" : "elasticsearch"
+        }
+    },
+    "pit": {
+	    "id":  "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==",
+	    "keep_alive": "1m"
+    }
+}
+----
+// TEST[catch:missing]
+
+PITs automatically close when their `keep_alive` period ends. You can
+also manually close PITs you no longer need using the
+{ref}/point-in-time-api.html[close PIT API]. Closing a PIT releases the
+resources needed to maintain the PIT's index state.
+
+[source,console]
+----
+DELETE /_pit
+{
+    "id" : "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWIBBXV1aWQyAAA="
+}
+----
+// TEST[catch:missing]
+
+For more information about using PITs in search, see
+{ref}/paginate-search-results.html#search-after[Paginate search results with
+`search_after`] or the {ref}/point-in-time-api.html[PIT API documentation].
+
+[discrete]
+[[support-for-request-level-circuit-breakers]]
+=== Request-level circuit breakers on coordinating nodes
+
+You can now use a coordinating node to account for memory used to perform
+partial and final reduce of aggregations in the request circuit breaker. The
+search coordinator adds the memory that it used to save and reduce the results
+of shard aggregations in the request circuit breaker. Before any partial or
+final reduce, the memory needed to reduce the aggregations is estimated and a
+CircuitBreakingException is thrown if exceeds the maximum memory allowed in this
+breaker.
+
+This size is estimated as roughly 1.5 times the size of the serialized
+aggregations that need to be reduced. This estimation can be completely off for
+some aggregations but it is corrected with the real size after the reduce
+completes. If the reduce is successful, we update the circuit breaker to remove
+the size of the source aggregations and replace the estimation with the
+serialized size of the newly reduced result.
+
+[discrete]
+[[eql-case-sensitivity-operator]]
+=== EQL: Case-sensitivity and the `:` operator
+
+In 7.10, we made most EQL operators and functions case-sensitive by default.
+We've also added `:`, a new case-insensitive equal operator. Designed for
+security use cases, you can use the `:` operator to search for strings in
+Windows event logs and other event data containing a mix of letter cases.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "query": """
+    process where process.executable : "c:\\\\windows\\\\system32\\\\cmd.exe"
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+For more information, see the {ref}/eql-syntax.html[EQL
+syntax documentation].
+
+[discrete]
+[[deprecate-rest-api-access-to-system-indices]]
+=== REST API access to system indices is deprecated
+
+We are deprecating REST API access to system indices. Most REST API
+requests that attempt to access system indices will return the following
+deprecation warning:
+
+[source,text]
+----
+this request accesses system indices: [.system_index_name], but in a future
+major version, direct access to system indices will be prevented by default
+----
+
+The following REST API endpoints access system indices as part of their
+implementation and will not return the deprecation warning:
+
+* `GET _cluster/health`
+* `GET {index}/_recovery`
+* `GET _cluster/allocation/explain`
+* `GET _cluster/state`
+* `POST _cluster/reroute`
+* `GET {index}/_stats`
+* `GET {index}/_segments`
+* `GET {index}/_shard_stores`
+* `GET _cat/[indices,aliases,health,recovery,shards,segments]`
+
+We are also adding a new metadata flag to track indices. {es} will automatically
+add this flag to any existing system indices during upgrade.
+
+[discrete]
+[[add-system-read-thread-pool]]
+=== New thread pools for system indices
+
+We've added two new thread pools for system indices: `system_read` and
+`system_write`. These thread pools ensure system indices critical to the Elastic
+Stack, such as those used by security or Kibana, remain responsive when
+a cluster is under heavy query or indexing load.
+
+`system_read` is a `fixed` thread pool used to manage resources for
+read operations targeting system indices. Similarly, `system_write` is a
+`fixed` thread pool used to manage resources for write operations targeting
+system indices. Both have a maximum number of threads equal to `5`
+or half of the available processors, whichever is smaller.
+// end::notable-highlights[]

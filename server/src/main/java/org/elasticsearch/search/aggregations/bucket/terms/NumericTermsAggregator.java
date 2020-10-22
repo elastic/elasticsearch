@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
@@ -43,7 +42,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds.Bu
 import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForLong;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -83,7 +81,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override
@@ -307,7 +305,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 return;
             }
             // we need to fill-in the blanks
-            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
                 SortedNumericDocValues values = getValues(ctx);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
                     if (values.advanceExact(docId)) {
@@ -501,10 +499,10 @@ public class NumericTermsAggregator extends TermsAggregator {
             SignificanceHeuristic significanceHeuristic,
             CardinalityUpperBound cardinality
         ) {
-            backgroundFrequencies = significanceLookup.longLookup(context.bigArrays(), cardinality);
+            backgroundFrequencies = significanceLookup.longLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
-            subsetSizes = context.bigArrays().newLongArray(1, true);
+            subsetSizes = bigArrays().newLongArray(1, true);
         }
 
         @Override
@@ -523,7 +521,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     super.collect(doc, owningBucketOrd);
-                    subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+                    subsetSizes = bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
                 }
             };
@@ -587,9 +585,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         @Override
         SignificantLongTerms buildEmptyResult() {
             // We need to account for the significance of a miss in our global stats - provide corpus size as context
-            ContextIndexSearcher searcher = context.searcher();
-            IndexReader topReader = searcher.getIndexReader();
-            int supersetSize = topReader.numDocs();
+            int supersetSize = searcher().getIndexReader().numDocs();
             return new SignificantLongTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),

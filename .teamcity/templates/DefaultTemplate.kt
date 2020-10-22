@@ -20,7 +20,6 @@
 package templates
 
 import DefaultRoot
-import jetbrains.buildServer.configs.kotlin.v2019_2.BuildStep
 import jetbrains.buildServer.configs.kotlin.v2019_2.Template
 import jetbrains.buildServer.configs.kotlin.v2019_2.buildSteps.placeholder
 import jetbrains.buildServer.configs.kotlin.v2019_2.buildSteps.script
@@ -96,19 +95,5 @@ object DefaultTemplate : Template({
         }
 
         placeholder { }
-
-        script {
-            name = "Notify H.O.M.E.R. Webhook"
-            executionMode = BuildStep.ExecutionMode.RUN_ON_FAILURE
-
-            conditions {
-                doesNotEqual("system.build.is.personal", "true")
-            }
-
-            scriptContent = """
-                #!/usr/bin/env bash
-                curl -sS -X POST -H "Content-Type: text/plain" --data "%teamcity.serverUrl%/app/rest/builds/%teamcity.build.id%" https://homer.app.elstc.co/webhook/teamcity/build-finished || true
-            """.trimIndent()
-        }
     }
 })

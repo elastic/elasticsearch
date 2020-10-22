@@ -39,7 +39,7 @@ project {
     params {
         param("teamcity.internal.webhooks.enable", "true")
         param("teamcity.internal.webhooks.events", "BUILD_STARTED;BUILD_FINISHED")
-        param("teamcity.internal.webhooks.url", "http://da1a60c006d2.ngrok.io/webhook/teamcity")
+        param("teamcity.internal.webhooks.url", "hhttp://homer.app.elstc.co/webhook/teamcity")
     }
 
     buildType {

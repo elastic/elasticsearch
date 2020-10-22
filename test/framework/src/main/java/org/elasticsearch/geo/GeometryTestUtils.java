@@ -203,6 +203,30 @@ public class GeometryTestUtils {
         return geometry.apply(hasAlt);
     }
 
+    public static Geometry randomGeometryWithoutCircle(int level, boolean hasAlt) {
+        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
+            GeometryTestUtils::randomPoint,
+            GeometryTestUtils::randomMultiPoint,
+            GeometryTestUtils::randomLine,
+            GeometryTestUtils::randomMultiLine,
+            GeometryTestUtils::randomPolygon,
+            GeometryTestUtils::randomMultiPolygon,
+            hasAlt ? GeometryTestUtils::randomPoint : (b) -> randomRectangle(),
+            level < 3 ? (b) ->
+                randomGeometryWithoutCircleCollection(level + 1, hasAlt) : GeometryTestUtils::randomPoint // don't build too deep
+        );
+        return geometry.apply(hasAlt);
+    }
+
+    private static Geometry randomGeometryWithoutCircleCollection(int level, boolean hasAlt) {
+        int size = ESTestCase.randomIntBetween(1, 10);
+        List<Geometry> shapes = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            shapes.add(randomGeometryWithoutCircle(level, hasAlt));
+        }
+        return new GeometryCollection<>(shapes);
+    }
+
     /**
      * Extracts all vertices of the supplied geometry
      */

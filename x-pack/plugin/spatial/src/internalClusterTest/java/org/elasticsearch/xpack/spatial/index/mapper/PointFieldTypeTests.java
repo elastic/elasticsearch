@@ -25,7 +25,7 @@ public class PointFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        MappedFieldType mapper = new PointFieldMapper.Builder("field").build(context).fieldType();
+        MappedFieldType mapper = new PointFieldMapper.Builder("field", false).build(context).fieldType();
 
         Map<String, Object> jsonPoint = org.elasticsearch.common.collect.Map.of(
             "type", "Point",

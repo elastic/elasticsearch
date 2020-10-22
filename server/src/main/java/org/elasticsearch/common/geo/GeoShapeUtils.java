@@ -180,7 +180,7 @@ public class GeoShapeUtils {
 
             private void checkSupported(Geometry geometry) {
                 if (unsupportedGeometries.contains(geometry.getClass())) {
-                    throw new QueryShardException(context, "Field [" + name + "] found and unsupported shape [" + geometry.type() + "]");
+                    throw new QueryShardException(context, "Field [" + name + "] found an unsupported shape [" + geometry.type() + "]");
                 }
             }
         });

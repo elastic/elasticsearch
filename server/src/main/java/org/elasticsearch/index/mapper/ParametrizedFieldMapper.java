@@ -83,15 +83,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
                 + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
         }
-        String mergeWithContentType = ((FieldMapper)mergeWith).contentType();
-        if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
-            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
-                + contentType() + "] to [" + mergeWithContentType + "]");
-        }
-        if (Objects.equals(contentType(), mergeWithContentType) == false) {
-            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
-                + contentType() + "] to [" + mergeWithContentType + "]");
-        }
+        checkIncomingMergeType((FieldMapper)mergeWith);
 
         ParametrizedFieldMapper.Builder builder = getMergeBuilder();
         if (builder == null) {
@@ -101,6 +93,17 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
         return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name())));
+    }
+
+    protected void checkIncomingMergeType(FieldMapper mergeWith) {
+        if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
+                + contentType() + "] to [" + mergeWith.contentType() + "]");
+        }
+        if (Objects.equals(contentType(), mergeWith.contentType()) == false) {
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
+                + contentType() + "] to [" + mergeWith.contentType() + "]");
+        }
     }
 
     private static ContentPath parentPath(String name) {
@@ -165,6 +168,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private Serializer<T> serializer = XContentBuilder::field;
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private Function<T, String> conflictSerializer = Objects::toString;
+        private boolean deprecated;
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
@@ -234,6 +238,17 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public Parameter<T> addDeprecatedName(String deprecatedName) {
             this.deprecatedNames.add(deprecatedName);
+            return this;
+        }
+
+        /**
+         * Deprecates the entire parameter.
+         *
+         * If this parameter is encountered during parsing, a deprecation warning will
+         * be emitted.
+         */
+        public Parameter<T> deprecated() {
+            this.deprecated = true;
             return this;
         }
 
@@ -626,6 +641,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                         "boost",
                         "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
                         name);
+                }
+                if (parameter.deprecated) {
+                    deprecationLogger.deprecate(propName,
+                        "Parameter [{}] is deprecated and will be removed in a future version",
+                        propName);
                 }
                 if (propNode == null && parameter.acceptsNull == false) {
                     throw new MapperParsingException("[" + propName + "] on mapper [" + name

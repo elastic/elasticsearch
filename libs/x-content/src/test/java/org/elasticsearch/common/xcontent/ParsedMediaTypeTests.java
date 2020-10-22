@@ -118,4 +118,9 @@ public class ParsedMediaTypeTests extends ESTestCase {
             () -> ParsedMediaType.parseMediaType(mediaType + "; char=set=unknown"));
         assertThat(exception.getMessage(), equalTo("invalid parameters for header [application/foo; char=set=unknown]"));
     }
+
+//    public void testMultipleValues() {
+//        String mediaType = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
+//        ParsedMediaType.parseMediaType(mediaType);
+//    }
 }

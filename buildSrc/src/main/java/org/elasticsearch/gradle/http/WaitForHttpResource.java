@@ -145,6 +145,7 @@ public class WaitForHttpResource {
         configureSslContext(connection, ssl);
         configureBasicAuth(connection);
         connection.setRequestMethod("GET");
+        connection.setRequestProperty("Accept" , "application/json");
         return connection;
     }
 

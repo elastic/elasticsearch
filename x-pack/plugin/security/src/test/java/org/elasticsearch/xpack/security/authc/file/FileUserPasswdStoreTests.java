@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
@@ -52,18 +51,14 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     private Environment env;
     private ThreadPool threadPool;
 
-    @BeforeClass
-    public static void disableInFips(){
-        assumeFalse("We are using hashing algorithms that won't be available in FIPS-140 mode", inFipsJvm());
-    }
-
     @Before
     public void init() {
+        final String hashingAlgorithm = inFipsJvm() ? randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_50000") :
+            randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000", "pbkdf2_50000");
         settings = Settings.builder()
             .put("resource.reload.interval.high", "100ms")
             .put("path.home", createTempDir())
-            .put("xpack.security.authc.password_hashing.algorithm", randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000",
-                "pbkdf2_50000"))
+            .put("xpack.security.authc.password_hashing.algorithm", hashingAlgorithm)
             .build();
         env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
@@ -105,7 +100,8 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             String username = settings.get("xpack.security.authc.password_hashing.algorithm");
             User user = new User(username);
             assertThat(store.userExists(username), is(true));
-            AuthenticationResult result = store.verifyPassword(username, new SecureString("test123"), () -> user);
+            final String password = username.startsWith("pbkdf2") ? "longertestpassword" : "test123";
+            AuthenticationResult result = store.verifyPassword(username, new SecureString(password), () -> user);
             assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
             assertThat(result.getUser(), is(user));
 
@@ -119,13 +115,13 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             }
 
             assertThat(store.userExists(username), is(true));
-            result = store.verifyPassword(username, new SecureString("test123"), () -> user);
+            result = store.verifyPassword(username, new SecureString(password), () -> user);
             assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
             assertThat(result.getUser(), is(user));
 
             try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();
-                writer.append("foobar:").append(new String(hasher.hash(new SecureString("barfoo"))));
+                writer.append("foobar:").append(new String(hasher.hash(new SecureString("longtestpassword"))));
             }
 
             if (!latch.await(5, TimeUnit.SECONDS)) {
@@ -133,7 +129,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             }
 
             assertThat(store.userExists("foobar"), is(true));
-            result = store.verifyPassword("foobar", new SecureString("barfoo"), () -> user);
+            result = store.verifyPassword("foobar", new SecureString("longtestpassword"), () -> user);
             assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
             assertThat(result.getUser(), is(user));
         }
@@ -161,7 +157,8 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             //Test users share the hashing algorithm name for convenience
             String username = settings.get("xpack.security.authc.password_hashing.algorithm");
             User user = new User(username);
-            final AuthenticationResult result = store.verifyPassword(username, new SecureString("test123"), () -> user);
+            final String password = username.startsWith("pbkdf2") ? "longertestpassword" : "test123";
+            final AuthenticationResult result = store.verifyPassword(username, new SecureString(password), () -> user);
             assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
             assertThat(result.getUser(), is(user));
 
@@ -195,13 +192,13 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(new String(users.get("sha")), equalTo("{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w="));
         assertThat(users.get("pbkdf2"), notNullValue());
         assertThat(new String(users.get("pbkdf2")),
-            equalTo("{PBKDF2}10000$ekcItXk4jtK2bBjbVk0rZuWRjT0DoQqQJOIfyMeLIxg=$RA2/Nn1jRi8QskRS5IVotCV0FBO6M8DlNXC37GKa/8c="));
+            equalTo("{PBKDF2}10000$NB6kwTrIPrwJJTu+KXiPUkW5bMf1oG2BMzDJLA479Bk=$CvCgHb5UkalUiNPicqMDOzIsnh3ppyz3SZOp+Gjv+hc="));
         assertThat(users.get("pbkdf2_1000"), notNullValue());
         assertThat(new String(users.get("pbkdf2_1000")),
-            equalTo("{PBKDF2}1000$32yPZSShxuKYAl47ip0g6VwbFrD8tvFJuQCoRPGhXC8=$cXAE1BkBXRmkv7pQA7fw4TZ1+rFWS2/nZGeA3kL1Eu8="));
+            equalTo("{PBKDF2}1000$cofpEhehEObS+tNtS8/t9Zpf6UgwqkgkQFct2hhmGWA=$9Qb0S04fkF+Ebz1sGIaB9S6huZAXDihopPc6Z748f3E="));
         assertThat(users.get("pbkdf2_50000"), notNullValue());
         assertThat(new String(users.get("pbkdf2_50000")),
-            equalTo("{PBKDF2}50000$z1CLJt0MEFjkIK5iEfgvfnA6xq7lF25uasspsTKSo5Q=$XxCVLbaKDimOdyWgLCLJiyoiWpA/XDMe/xtVgn1r5Sg="));
+            equalTo("{PBKDF2}50000$riPhBgfrNIpsN91QmF5mQNCwxHfJm0q2XtGt0x5+PRM=$v2j/DD+aFIRrusEeSDUO+eX3IrBPiG+ysgc9y0RDmhs="));
     }
 
     public void testParseFile_Empty() throws Exception {

@@ -36,6 +36,12 @@ project {
 
     defaultTemplate = DefaultTemplate
 
+    params {
+        param("teamcity.internal.webhooks.enabled", "true")
+        param("teamcity.internal.webhooks.events", "BUILD_STARTED;BUILD_FINISHED")
+        param("teamcity.internal.webhooks.url", "http://da1a60c006d2.ngrok.io/webhook/teamcity")
+    }
+
     buildType {
         id("Intake")
         name = "Intake"

@@ -52,8 +52,6 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "key\0value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("value", null));
 
-
-
         KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType("field", false, true, "key",
             false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -91,7 +89,6 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term("field", "key\0vAl"));
         assertEquals(expected, ft.prefixQuery("vAl", MultiTermQuery.CONSTANT_SCORE_REWRITE, true, MOCK_QSC));
-
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_QSC_DISALLOW_EXPENSIVE));

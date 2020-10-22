@@ -778,16 +778,17 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             visit(irLeftNode, writeScope);
             visit(irRightNode, writeScope);
 
+            Class<?> expressionType = irBinaryMathNode.getDecoration(IRDExpressionType.class).getType();
+
             if (irBinaryMathNode.getBinaryType() == def.class ||
                     (irBinaryMathNode.getShiftType() != null && irBinaryMathNode.getShiftType() == def.class)) {
                 methodWriter.writeDynamicBinaryInstruction(irBinaryMathNode.getLocation(),
-                        irBinaryMathNode.getDecoration(IRDExpressionType.class).getType(),
+                        expressionType,
                         irLeftNode.getDecoration(IRDExpressionType.class).getType(),
                         irRightNode.getDecoration(IRDExpressionType.class).getType(),
                         operation, irBinaryMathNode.getFlags());
             } else {
-                methodWriter.writeBinaryInstruction(
-                        irBinaryMathNode.getLocation(), irBinaryMathNode.getDecoration(IRDExpressionType.class).getType(), operation);
+                methodWriter.writeBinaryInstruction(irBinaryMathNode.getLocation(), expressionType, operation);
             }
         }
     }
@@ -1005,8 +1006,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         } else if (irChildNode.getDecoration(IRDExpressionType.class).getType().isPrimitive()) {
             methodWriter.writePop(MethodWriter.getType(expressionType).getSize());
             Class<?> boxedInstanceType = PainlessLookupUtility.typeToBoxedType(instanceType);
-            Class<?> boxedExpressionType =
-                    PainlessLookupUtility.typeToBoxedType(irChildNode.getDecoration(IRDExpressionType.class).getType());
+            Class<?> childExpressionType = irChildNode.getDecoration(IRDExpressionType.class).getType();
+            Class<?> boxedExpressionType = PainlessLookupUtility.typeToBoxedType(childExpressionType);
             methodWriter.push(boxedInstanceType.isAssignableFrom(boxedExpressionType));
         } else {
             methodWriter.instanceOf(MethodWriter.getType(PainlessLookupUtility.typeToBoxedType(instanceType)));
@@ -1201,13 +1202,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irTypedCaptureReferenceNode.getLocation());
         Variable captured = writeScope.getVariable(irTypedCaptureReferenceNode.getCaptures().get(0));
+        Class<?> expressionType = irTypedCaptureReferenceNode.getDecoration(IRDExpressionType.class).getType();
+        String expressionCanonicalTypeName = irTypedCaptureReferenceNode.getDecoration(IRDExpressionType.class).getCanonicalTypeName();
 
         methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
-        Type methodType = Type.getMethodType(MethodWriter.getType(
-                irTypedCaptureReferenceNode.getDecoration(IRDExpressionType.class).getType()),
-                captured.getAsmType());
-        methodWriter.invokeDefCall(irTypedCaptureReferenceNode.getMethodName(), methodType, DefBootstrap.REFERENCE,
-                irTypedCaptureReferenceNode.getDecoration(IRDExpressionType.class).getCanonicalTypeName());
+        Type methodType = Type.getMethodType(MethodWriter.getType(expressionType), captured.getAsmType());
+        methodWriter.invokeDefCall(
+                irTypedCaptureReferenceNode.getMethodName(), methodType, DefBootstrap.REFERENCE, expressionCanonicalTypeName);
     }
 
     @Override

@@ -39,6 +39,7 @@ public class Header {
     // These are directly set by tests
     String actionName;
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
+    private boolean bigResponseBytesAdded;
 
     Header(int networkMessageSize, long requestId, byte status, Version version) {
         this.networkMessageSize = networkMessageSize;
@@ -61,6 +62,14 @@ public class Header {
 
     byte getStatus() {
         return status;
+    }
+
+    public boolean isBigResponseBytesAdded() {
+        return bigResponseBytesAdded;
+    }
+
+    public void setBigResponseBytesAdded(boolean bigResponseBytesAdded) {
+        this.bigResponseBytesAdded = bigResponseBytesAdded;
     }
 
     boolean isRequest() {

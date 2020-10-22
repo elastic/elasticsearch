@@ -55,6 +55,18 @@ public interface CircuitBreaker {
      */
     String IN_FLIGHT_REQUESTS = "inflight_requests";
     /**
+     * The big responses breaker aggregates big responses' total network bytes after
+     * their first fragments are read from channel. If a big response is broken by this
+     * breaker, all fragments of this response will be dropped immediately after they
+     * are read from channel.
+     */
+    String BIG_RESPONSES = "big_responses";
+    /**
+     * a vaild threshold must greater thran DEFAULT_THRESHOLD.
+     */
+    int DEFAULT_THRESHOLD = -1;
+
+    /**
      * The accounting breaker tracks things held in memory that is independent
      * of the request lifecycle. This includes memory used by Lucene for
      * segments.
@@ -126,6 +138,11 @@ public interface CircuitBreaker {
     double getOverhead();
 
     /**
+     * @return threshold of circuit breaker
+     */
+    long getThreshold();
+
+    /**
      * @return the number of times the circuit breaker has been tripped
      */
     long getTrippedCount();
@@ -147,4 +164,10 @@ public interface CircuitBreaker {
      * @param overhead the desired overhead constant
      */
     void setLimitAndOverhead(long limit, double overhead);
+
+    /**
+     *
+     * @param threshold the desired threshold
+     */
+    void setThreshold(long threshold);
 }

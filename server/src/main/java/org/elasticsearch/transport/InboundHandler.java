@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -100,49 +101,62 @@ public class InboundHandler {
 
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
-            // Place the context with the headers from the message
-            threadContext.setHeaders(header.getHeaders());
-            threadContext.putTransient("_remote_address", remoteAddress);
-            if (header.isRequest()) {
-                handleRequest(channel, header, message);
+            if (message.isShortCircuitedByBigResponse()) {
+                //handle shortCircuited big response.
+                final ShortCircuitedContent shortCircuitedContent = message.getShortCircuitedContent();
+                final long requestId = shortCircuitedContent.getRequestId();
+                final TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(requestId, messageListener);
+                handleException(handler, new ResponseHandlerFailureTransportException(shortCircuitedContent.getCircuitBreakingException()));
             } else {
-                // Responses do not support short circuiting currently
-                assert message.isShortCircuit() == false;
-                final TransportResponseHandler<?> handler;
-                long requestId = header.getRequestId();
-                if (header.isHandshake()) {
-                    handler = handshaker.removeHandlerForHandshake(requestId);
+                // Place the context with the headers from the message
+                threadContext.setHeaders(header.getHeaders());
+                threadContext.putTransient("_remote_address", remoteAddress);
+                if (header.isRequest()) {
+                    handleRequest(channel, header, message);
                 } else {
-                    TransportResponseHandler<? extends TransportResponse> theHandler =
-                        responseHandlers.onResponseReceived(requestId, messageListener);
-                    if (theHandler == null && header.isError()) {
+                    // Responses do not support short circuiting currently
+                    assert message.isShortCircuit() == false;
+                    final TransportResponseHandler<?> handler;
+                    long requestId = header.getRequestId();
+                    if (header.isHandshake()) {
                         handler = handshaker.removeHandlerForHandshake(requestId);
                     } else {
-                        handler = theHandler;
-                    }
-                }
-                // ignore if its null, the service logs it
-                if (handler != null) {
-                    final StreamInput streamInput;
-                    if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
-                        streamInput = namedWriteableStream(message.openOrGetStreamInput());
-                        assertRemoteVersion(streamInput, header.getVersion());
-                        if (header.isError()) {
-                            handlerResponseError(streamInput, handler);
+                        TransportResponseHandler<? extends TransportResponse> theHandler =
+                            responseHandlers.onResponseReceived(requestId, messageListener);
+                        if (theHandler == null && header.isError()) {
+                            handler = handshaker.removeHandlerForHandshake(requestId);
                         } else {
-                            handleResponse(remoteAddress, streamInput, handler);
+                            handler = theHandler;
                         }
-                        // Check the entire message has been read
-                        final int nextByte = streamInput.read();
-                        // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
-                        if (nextByte != -1) {
-                            throw new IllegalStateException("Message not fully read (response) for requestId ["
-                                + requestId + "], handler [" + handler + "], error [" + header.isError()
-                                + "]; resetting");
+                    }
+                    // ignore if its null, the service logs it
+                    if (handler != null) {
+                        final StreamInput streamInput;
+                        if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
+                            streamInput = namedWriteableStream(message.openOrGetStreamInput());
+                            assertRemoteVersion(streamInput, header.getVersion());
+                            if (header.isError()) {
+                                handlerResponseError(streamInput, handler);
+                            } else {
+                                if (header.isBigResponseBytesAdded()) {
+                                    //release big responses breaker.
+                                    handleResponse(remoteAddress, streamInput, handler, message.takeBreakerReleaseControl());
+                                } else {
+                                    handleResponse(remoteAddress, streamInput, handler);
+                                }
+                            }
+                            // Check the entire message has been read
+                            final int nextByte = streamInput.read();
+                            // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
+                            if (nextByte != -1) {
+                                throw new IllegalStateException("Message not fully read (response) for requestId ["
+                                    + requestId + "], handler [" + handler + "], error [" + header.isError()
+                                    + "]; resetting");
+                            }
+                        } else {
+                            assert header.isError() == false;
+                            handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
                         }
-                    } else {
-                        assert header.isError() == false;
-                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
                     }
                 }
             }
@@ -246,6 +260,37 @@ public class InboundHandler {
         } else {
             threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
         }
+    }
+
+    private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
+                                                              final TransportResponseHandler<T> handler, Releasable breakerRelease) {
+        final T response;
+        try {
+            response = handler.read(stream);
+            response.remoteAddress(new TransportAddress(remoteAddress));
+        } catch (Exception e) {
+            breakerRelease.close();
+            handleException(handler, new TransportSerializationException(
+                "Failed to deserialize response from handler [" + handler.getClass().getName() + "]", e));
+            return;
+        }
+        threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                handleException(handler, new ResponseHandlerFailureTransportException(e));
+            }
+
+            @Override
+            protected void doRun() {
+                handler.handleResponse(response);
+            }
+
+            @Override
+            public void onAfter(){
+                super.onAfter();
+                breakerRelease.close();
+            }
+        });
     }
 
     private <T extends TransportResponse> void doHandleResponse(TransportResponseHandler<T> handler, T response) {

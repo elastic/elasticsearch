@@ -50,11 +50,11 @@ public class InboundPipeline implements Releasable {
     private boolean isClosed = false;
 
     public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
-                           Supplier<CircuitBreaker> circuitBreaker,
+                           Supplier<CircuitBreaker> circuitBreaker, Supplier<CircuitBreaker> bigResponsesCircuitBreaker,
                            Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
                            BiConsumer<TcpChannel, InboundMessage> messageHandler) {
-        this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler),
-            new InboundAggregator(circuitBreaker, registryFunction), messageHandler);
+        this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler, bigResponsesCircuitBreaker),
+            new InboundAggregator(circuitBreaker, registryFunction, bigResponsesCircuitBreaker), messageHandler);
     }
 
     public InboundPipeline(StatsTracker statsTracker, LongSupplier relativeTimeInMillis, InboundDecoder decoder,
@@ -129,7 +129,11 @@ public class InboundPipeline implements Releasable {
 
     private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
         for (Object fragment : fragments) {
-            if (fragment instanceof Header) {
+            if(fragment instanceof ShortCircuitedContent){
+                assert aggregator.isAggregating() == false;
+                statsTracker.markMessageReceived();
+                aggregator.setShortCircuitedContent((ShortCircuitedContent)fragment);
+            }else if (fragment instanceof Header) {
                 assert aggregator.isAggregating() == false;
                 aggregator.headerReceived((Header) fragment);
             } else if (fragment == InboundDecoder.PING) {
@@ -137,9 +141,14 @@ public class InboundPipeline implements Releasable {
                 messageHandler.accept(channel, PING_MESSAGE);
             } else if (fragment == InboundDecoder.END_CONTENT) {
                 assert aggregator.isAggregating();
-                try (InboundMessage aggregated = aggregator.finishAggregation()) {
-                    statsTracker.markMessageReceived();
-                    messageHandler.accept(channel, aggregated);
+                if(aggregator.getShortCircuitedContent() != null){
+                    messageHandler.accept(channel, new InboundMessage(aggregator.getShortCircuitedContent()));
+                    aggregator.resetShortCircuitedContent();
+                }else{
+                    try (InboundMessage aggregated = aggregator.finishAggregation()) {
+                        statsTracker.markMessageReceived();
+                        messageHandler.accept(channel, aggregated);
+                    }
                 }
             } else {
                 assert aggregator.isAggregating();

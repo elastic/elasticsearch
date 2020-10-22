@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.breaker;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,13 +41,15 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
     private final long estimated;
     private final long trippedCount;
     private final double overhead;
+    private final long threshold;
 
-    public CircuitBreakerStats(String name, long limit, long estimated, double overhead, long trippedCount) {
+    public CircuitBreakerStats(String name, long limit, long estimated, double overhead, long trippedCount, long threshold) {
         this.name = name;
         this.limit = limit;
         this.estimated = estimated;
         this.trippedCount = trippedCount;
         this.overhead = overhead;
+        this.threshold = threshold;
     }
 
     public CircuitBreakerStats(StreamInput in) throws IOException {
@@ -54,6 +58,11 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         this.overhead = in.readDouble();
         this.trippedCount = in.readLong();
         this.name = in.readString();
+        if(in.getVersion().onOrAfter(Version.fromId(8000099))){
+            this.threshold = in.readLong();
+        }else {
+            this.threshold = CircuitBreaker.DEFAULT_THRESHOLD;
+        }
     }
 
     @Override
@@ -63,6 +72,7 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         out.writeDouble(overhead);
         out.writeLong(trippedCount);
         out.writeString(name);
+        out.writeLong(threshold);
     }
 
     public String getName() {
@@ -85,6 +95,10 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         return this.overhead;
     }
 
+    public long getThreshold() {
+        return this.threshold;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name.toLowerCase(Locale.ROOT));
@@ -94,6 +108,8 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         builder.field(Fields.ESTIMATED_HUMAN, new ByteSizeValue(estimated));
         builder.field(Fields.OVERHEAD, overhead);
         builder.field(Fields.TRIPPED_COUNT, trippedCount);
+        builder.field(Fields.THRESHOLD, threshold);
+        builder.field(Fields.THRESHOLD_HUMAN, new ByteSizeValue(threshold));
         builder.endObject();
         return builder;
     }
@@ -103,7 +119,8 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         return "[" + this.name +
                 ",limit=" + this.limit + "/" + new ByteSizeValue(this.limit) +
                 ",estimated=" + this.estimated + "/" + new ByteSizeValue(this.estimated) +
-                ",overhead=" + this.overhead + ",tripped=" + this.trippedCount + "]";
+                ",overhead=" + this.overhead + ",tripped=" + this.trippedCount +
+                ",threshold=" + this.threshold + "]";
     }
 
     static final class Fields {
@@ -113,5 +130,7 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         static final String ESTIMATED_HUMAN = "estimated_size";
         static final String OVERHEAD = "overhead";
         static final String TRIPPED_COUNT = "tripped";
+        static final String THRESHOLD = "threshold_size_in_bytes";
+        static final String THRESHOLD_HUMAN = "threshold_size";
     }
 }

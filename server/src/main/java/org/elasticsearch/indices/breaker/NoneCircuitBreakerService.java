@@ -45,7 +45,7 @@ public class NoneCircuitBreakerService extends CircuitBreakerService {
 
     @Override
     public CircuitBreakerStats stats(String name) {
-        return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
+        return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0, CircuitBreaker.DEFAULT_THRESHOLD);
     }
 
 }

@@ -36,6 +36,7 @@ public class InboundMessage implements Releasable {
     private final boolean isPing;
     private Releasable breakerRelease;
     private StreamInput streamInput;
+    private ShortCircuitedContent shortCircuitedContent;
 
     public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
         this.header = header;
@@ -43,6 +44,7 @@ public class InboundMessage implements Releasable {
         this.breakerRelease = breakerRelease;
         this.exception = null;
         this.isPing = false;
+        this.shortCircuitedContent = null;
     }
 
     public InboundMessage(Header header, Exception exception) {
@@ -51,6 +53,7 @@ public class InboundMessage implements Releasable {
         this.breakerRelease = null;
         this.exception = exception;
         this.isPing = false;
+        this.shortCircuitedContent = null;
     }
 
     public InboundMessage(Header header, boolean isPing) {
@@ -59,6 +62,16 @@ public class InboundMessage implements Releasable {
         this.breakerRelease = null;
         this.exception = null;
         this.isPing = isPing;
+        this.shortCircuitedContent = null;
+    }
+
+    public InboundMessage(ShortCircuitedContent shortCircuitedContent){
+        this.header = null;
+        this.content = null;
+        this.breakerRelease = null;
+        this.exception = null;
+        this.isPing = false;
+        this.shortCircuitedContent = shortCircuitedContent;
     }
 
     public Header getHeader() {
@@ -83,6 +96,14 @@ public class InboundMessage implements Releasable {
 
     public boolean isShortCircuit() {
         return exception != null;
+    }
+
+    public boolean isShortCircuitedByBigResponse() {
+        return shortCircuitedContent != null;
+    }
+
+    public ShortCircuitedContent getShortCircuitedContent(){
+        return shortCircuitedContent;
     }
 
     public Releasable takeBreakerReleaseControl() {

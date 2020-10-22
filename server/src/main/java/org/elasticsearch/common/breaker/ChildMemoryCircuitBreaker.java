@@ -39,6 +39,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final Logger logger;
     private final HierarchyCircuitBreakerService parent;
     private final String name;
+    private volatile long threshold;
 
     /**
      * Create a circuit breaker that will break if the number of estimated
@@ -58,6 +59,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.logger = logger;
         logger.trace(() -> new ParameterizedMessage("creating ChildCircuitBreaker with settings {}", settings));
         this.parent = parent;
+        this.threshold = settings.getThreshold();
     }
 
     /**
@@ -198,6 +200,14 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     }
 
     /**
+     * @return threshold of circuit breaker
+     */
+    @Override
+    public long getThreshold() {
+        return this.threshold;
+    }
+
+    /**
      * @return the number of times the breaker has been tripped
      */
     @Override
@@ -224,6 +234,11 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void setLimitAndOverhead(long limit, double overhead) {
         this.limitAndOverhead = new LimitAndOverhead(limit, overhead);
+    }
+
+    @Override
+    public void setThreshold(long threshold) {
+        this.threshold = threshold;
     }
 
     private static class LimitAndOverhead {

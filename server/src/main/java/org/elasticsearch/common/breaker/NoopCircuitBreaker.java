@@ -25,6 +25,7 @@ package org.elasticsearch.common.breaker;
  */
 public class NoopCircuitBreaker implements CircuitBreaker {
     public static final int LIMIT = -1;
+    public static final int THRESHOLD = CircuitBreaker.DEFAULT_THRESHOLD;
 
     private final String name;
 
@@ -62,6 +63,14 @@ public class NoopCircuitBreaker implements CircuitBreaker {
         return 0;
     }
 
+    /**
+     * @return threshold of circuit breaker
+     */
+    @Override
+    public long getThreshold() {
+        return THRESHOLD;
+    }
+
     @Override
     public long getTrippedCount() {
         return 0;
@@ -79,4 +88,7 @@ public class NoopCircuitBreaker implements CircuitBreaker {
 
     @Override
     public void setLimitAndOverhead(long limit, double overhead) { }
+
+    @Override
+    public void setThreshold(long threshold) { }
 }

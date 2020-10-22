@@ -33,6 +33,7 @@ public final class BreakerSettings {
     private static final String BREAKER_LIMIT_SUFFIX = "limit";
     private static final String BREAKER_OVERHEAD_SUFFIX = "overhead";
     private static final String BREAKER_TYPE_SUFFIX = "type";
+    private static final String BREAKER_THRESHOLD_SUFFIX = "threshold";
 
     public static final Setting.AffixSetting<ByteSizeValue> CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.affixKeySetting(BREAKER_SETTING_PREFIX,
@@ -48,6 +49,14 @@ public final class BreakerSettings {
             name -> Setting.doubleSetting(name, 2.0d, 0.0d, Setting.Property.Dynamic, Setting.Property.NodeScope));
     static String breakerOverheadSettingKey(String breakerName) {
         return BREAKER_SETTING_PREFIX + breakerName + "." + BREAKER_OVERHEAD_SUFFIX;
+    }
+
+    public static final Setting.AffixSetting<ByteSizeValue> CIRCUIT_BREAKER_THRESHOLD_SETTING =
+        Setting.affixKeySetting(BREAKER_SETTING_PREFIX,
+            BREAKER_THRESHOLD_SUFFIX,
+            name -> Setting.memorySizeSetting(name, new ByteSizeValue(CircuitBreaker.DEFAULT_THRESHOLD), Setting.Property.Dynamic, Setting.Property.NodeScope));
+    static String breakerThresholdSettingKey(String breakerName) {
+        return BREAKER_SETTING_PREFIX + breakerName + "." + BREAKER_THRESHOLD_SUFFIX;
     }
 
     public static final Setting.AffixSetting<CircuitBreaker.Type> CIRCUIT_BREAKER_TYPE =
@@ -73,6 +82,7 @@ public final class BreakerSettings {
     private final double overhead;
     private final CircuitBreaker.Type type;
     private final CircuitBreaker.Durability durability;
+    private final long thresholdBytes;
 
     public static BreakerSettings updateFromSettings(BreakerSettings defaultSettings, Settings currentSettings) {
         final String breakerName = defaultSettings.name;
@@ -86,7 +96,10 @@ public final class BreakerSettings {
             getOrDefault(CIRCUIT_BREAKER_TYPE.getConcreteSetting(breakerTypeSettingKey(breakerName)),
                 defaultSettings.type,
                 currentSettings),
-            defaultSettings.durability);
+            defaultSettings.durability,
+            getOrDefault(CIRCUIT_BREAKER_THRESHOLD_SETTING.getConcreteSetting(breakerThresholdSettingKey(breakerName)),
+                new ByteSizeValue(defaultSettings.thresholdBytes),
+                currentSettings).getBytes());
     }
 
     private static <T> T getOrDefault(Setting<T> concreteSetting, T defaultValue, Settings settings) {
@@ -98,11 +111,16 @@ public final class BreakerSettings {
     }
 
     public BreakerSettings(String name, long limitBytes, double overhead, CircuitBreaker.Type type, CircuitBreaker.Durability durability) {
+        this(name, limitBytes, overhead, type, durability, CircuitBreaker.DEFAULT_THRESHOLD);
+    }
+
+    public BreakerSettings(String name, long limitBytes, double overhead, CircuitBreaker.Type type, CircuitBreaker.Durability durability, long thresholdBytes) {
         this.name = name;
         this.limitBytes = limitBytes;
         this.overhead = overhead;
         this.type = type;
         this.durability = durability;
+        this.thresholdBytes = thresholdBytes;
     }
 
     public String getName() {
@@ -125,12 +143,17 @@ public final class BreakerSettings {
         return durability;
     }
 
+    public long getThreshold(){
+        return this.thresholdBytes;
+    }
+
     @Override
     public String toString() {
         return "[" + this.name +
                 ",type=" + this.type.toString() +
                 ",durability=" + (this.durability == null ? "null" : this.durability.toString()) +
                 ",limit=" + this.limitBytes + "/" + new ByteSizeValue(this.limitBytes) +
-                ",overhead=" + this.overhead + "]";
+                ",overhead=" + this.overhead +
+                ",threshold=" + this.thresholdBytes + "/" + new ByteSizeValue(this.thresholdBytes) + "]";
     }
 }

@@ -20,6 +20,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +31,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class InboundDecoder implements Releasable {
 
@@ -41,10 +44,13 @@ public class InboundDecoder implements Releasable {
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
     private boolean isClosed = false;
+    private final Supplier<CircuitBreaker> bigResponsesCircuitBreaker;
+    private boolean isShortCircuited;
 
-    public InboundDecoder(Version version, PageCacheRecycler recycler) {
+    public InboundDecoder(Version version, PageCacheRecycler recycler, Supplier<CircuitBreaker> bigResponsesCircuitBreaker) {
         this.version = version;
         this.recycler = recycler;
+        this.bigResponsesCircuitBreaker = bigResponsesCircuitBreaker;
     }
 
     public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
@@ -73,42 +79,67 @@ public class InboundDecoder implements Releasable {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
                     Header header = readHeader(version, messageLength, reference);
-                    bytesConsumed += headerBytesToRead;
-                    if (header.isCompressed()) {
-                        decompressor = new TransportDecompressor(recycler);
-                    }
-                    fragmentConsumer.accept(header);
 
-                    if (isDone()) {
-                        finishMessage(fragmentConsumer);
+                    if(header.isResponse() && header.isHandshake() == false && header.isError() == false
+                        && bigResponsesCircuitBreaker.get().getThreshold() > CircuitBreaker.DEFAULT_THRESHOLD && totalNetworkSize >= bigResponsesCircuitBreaker.get().getThreshold()){
+                        try {
+                            bigResponsesCircuitBreaker.get().addEstimateBytesAndMaybeBreak(totalNetworkSize, "big_response_to_decode");
+                            header.setBigResponseBytesAdded(true);
+                        } catch (CircuitBreakingException e) {
+                            isShortCircuited = true;
+                            fragmentConsumer.accept(new ShortCircuitedContent(header.getRequestId(), e));
+                        }
+                    }
+
+                    bytesConsumed += headerBytesToRead;
+                    if(isShortCircuited){
+                        if(isDone()){
+                            finishMessage(fragmentConsumer);
+                        }
+                    }else{
+                        if (header.isCompressed()) {
+                            decompressor = new TransportDecompressor(recycler);
+                        }
+                        fragmentConsumer.accept(header);
+
+                        if (isDone()) {
+                            finishMessage(fragmentConsumer);
+                        }
                     }
                     return headerBytesToRead;
                 }
             }
         } else {
-            // There are a minimum number of bytes required to start decompression
-            if (decompressor != null && decompressor.canDecompress(reference.length()) == false) {
-                return 0;
-            }
             int bytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
             bytesConsumed += bytesToConsume;
-            ReleasableBytesReference retainedContent;
-            if (isDone()) {
-                retainedContent = reference.retainedSlice(0, bytesToConsume);
-            } else {
-                retainedContent = reference.retain();
-            }
-            if (decompressor != null) {
-                decompress(retainedContent);
-                ReleasableBytesReference decompressed;
-                while ((decompressed = decompressor.pollDecompressedPage()) != null) {
-                    fragmentConsumer.accept(decompressed);
+            if(isShortCircuited){
+                //just skip this fragment.
+                if(isDone()){
+                    finishMessage(fragmentConsumer);
                 }
-            } else {
-                fragmentConsumer.accept(retainedContent);
-            }
-            if (isDone()) {
-                finishMessage(fragmentConsumer);
+            }else{
+                // There are a minimum number of bytes required to start decompression
+                if (decompressor != null && decompressor.canDecompress(reference.length()) == false) {
+                    return 0;
+                }
+                ReleasableBytesReference retainedContent;
+                if (isDone()) {
+                    retainedContent = reference.retainedSlice(0, bytesToConsume);
+                } else {
+                    retainedContent = reference.retain();
+                }
+                if (decompressor != null) {
+                    decompress(retainedContent);
+                    ReleasableBytesReference decompressed;
+                    while ((decompressed = decompressor.pollDecompressedPage()) != null) {
+                        fragmentConsumer.accept(decompressed);
+                    }
+                } else {
+                    fragmentConsumer.accept(retainedContent);
+                }
+                if (isDone()) {
+                    finishMessage(fragmentConsumer);
+                }
             }
 
             return bytesToConsume;
@@ -131,6 +162,7 @@ public class InboundDecoder implements Releasable {
         decompressor = null;
         totalNetworkSize = -1;
         bytesConsumed = 0;
+        isShortCircuited = false;
     }
 
     private void decompress(ReleasableBytesReference content) throws IOException {

@@ -303,7 +303,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup, null);
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup, null);
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);

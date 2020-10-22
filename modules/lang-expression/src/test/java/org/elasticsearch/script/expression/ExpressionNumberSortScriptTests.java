@@ -25,7 +25,6 @@ import java.util.Collections;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.NumberSortScript;
@@ -47,9 +46,6 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         super.setUp();
 
         NumberFieldType fieldType = new NumberFieldType("field", NumberType.DOUBLE);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType("field")).thenReturn(fieldType);
-        when(mapperService.fieldType("alias")).thenReturn(fieldType);
 
         SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);
@@ -63,7 +59,8 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData, null);
+        lookup = new SearchLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
+            (ignored, lookup) -> fieldData, null);
     }
 
     private NumberSortScript.LeafFactory compile(String expression) {

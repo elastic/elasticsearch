@@ -81,6 +81,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             this.type = type;
         }
 
+        /**
+         * Returns the name of the current type
+         */
+        public String getType() {
+            return type;
+        }
+
         @Override
         public String typeName() {
             return CONTENT_TYPE;

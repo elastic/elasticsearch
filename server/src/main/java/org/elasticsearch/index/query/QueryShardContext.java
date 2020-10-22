@@ -371,7 +371,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
-                mapperService,
+                this::getFieldType,
                 (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
                 types
             );
@@ -388,7 +388,7 @@ public class QueryShardContext extends QueryRewriteContext {
          * Real customization coming soon, I promise!
          */
         return new SearchLookup(
-            mapperService,
+            this::getFieldType,
             (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
             types
         );

@@ -102,7 +102,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         public IndicesOptions indicesOptions() {
             // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
             // a data stream's backing indices are retrieved from its metadata
-            return IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+            return IndicesOptions.fromOptions(false, true, true, true, true,false, false, true, false);
         }
 
         @Override

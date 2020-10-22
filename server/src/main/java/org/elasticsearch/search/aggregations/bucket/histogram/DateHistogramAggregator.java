@@ -156,10 +156,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return null;
         }
         // Range aggs use a double to aggregate and we don't want to lose precision.
-        if (fixedRoundingPoints[0] > 1L << 53) {
+        if (Math.abs(fixedRoundingPoints[0]) > RangeAggregator.MAX_ACCURATE_BOUND) {
             return null;
         }
-        if (fixedRoundingPoints[fixedRoundingPoints.length - 1] > 1L << 53) {
+        if (Math.abs(fixedRoundingPoints[fixedRoundingPoints.length - 1]) > RangeAggregator.MAX_ACCURATE_BOUND) {
             return null;
         }
         RangeAggregatorSupplier rangeSupplier = context.getQueryShardContext()

@@ -81,8 +81,18 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     public void testMatchesSortedNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T1))));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T2))));
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T1)),
+                    new LongPoint(DATE_FIELD_NAME, resolution.convert(T1))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T2)),
+                    new LongPoint(DATE_FIELD_NAME, resolution.convert(T2))
+                )
+            );
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -94,8 +104,18 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     public void testMatchesNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
-            iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T1))));
-            iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T2))));
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T1)),
+                    new LongPoint(DATE_FIELD_NAME, resolution.convert(T1))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T2)),
+                    new LongPoint(DATE_FIELD_NAME, resolution.convert(T2))
+                )
+            );
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());

@@ -73,6 +73,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * that is compatible with the requested configuration.
  */
 public abstract class RangeAggregator extends BucketsAggregator {
+    /**
+     * The maximum {@code long} that can accurately fit into the
+     * {@code double} precision floating point bounds.
+     */
+    public static final long MAX_ACCURATE_BOUND = 1L << 53;
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
@@ -318,10 +323,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
              * the filters. That is, if the input data type is a `long` in
              * the first place. If it isn't then 
              */
-            if (wholeNumbersOnly && ranges[i].from != Double.NEGATIVE_INFINITY && Math.abs(ranges[i].from) > 1L << 53) {
+            if (wholeNumbersOnly && ranges[i].from != Double.NEGATIVE_INFINITY && Math.abs(ranges[i].from) > MAX_ACCURATE_BOUND) {
                 return null;
             }
-            if (wholeNumbersOnly && ranges[i].to != Double.POSITIVE_INFINITY && Math.abs(ranges[i].to) > 1L << 53) {
+            if (wholeNumbersOnly && ranges[i].to != Double.POSITIVE_INFINITY && Math.abs(ranges[i].to) > MAX_ACCURATE_BOUND) {
                 return null;
             }
             keys[i] = Integer.toString(i);

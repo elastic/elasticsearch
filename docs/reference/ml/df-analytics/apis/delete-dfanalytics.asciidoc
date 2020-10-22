@@ -9,7 +9,7 @@
 
 Deletes an existing {dfanalytics-job}.
 
-beta[]
+beta::[]
 
 
 [[ml-delete-dfanalytics-request]]

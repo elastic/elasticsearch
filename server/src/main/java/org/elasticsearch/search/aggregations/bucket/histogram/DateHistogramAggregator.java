@@ -301,8 +301,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-                // value source will be null for unmapped fields
-                // Important: use `rounding` here, not `shardRounding`
                 InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
                         ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
                         : null;
@@ -398,8 +396,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             }
             CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-            // value source will be null for unmapped fields
-            // Important: use `rounding` here, not `shardRounding`
             InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
                 : null;

@@ -24,7 +24,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
@@ -33,13 +32,11 @@ import java.util.Collection;
 
 public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
 
-    IndexService indexService;
-    DocumentMapperParser parser;
+    MapperService mapperService;
 
     @Before
     public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
+        mapperService = createIndex("test").mapperService();
     }
 
     @Override
@@ -52,7 +49,7 @@ public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = mapperService.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
         assertNotNull(mapper.metadataMapper(RankFeatureMetaFieldMapper.class));
@@ -64,7 +61,7 @@ public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
      */
     public void testDocumentParsingFailsOnMetaField() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = mapperService.parse("_doc", new CompressedXContent(mapping));
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
         BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->

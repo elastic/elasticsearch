@@ -27,20 +27,17 @@ import java.util.function.Function;
 public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFieldQuery<AbstractLongFieldScript> {
     private final long origin;
     private final long pivot;
-    private final float boost;
 
     public LongScriptFieldDistanceFeatureQuery(
         Script script,
         Function<LeafReaderContext, AbstractLongFieldScript> leafFactory,
         String fieldName,
         long origin,
-        long pivot,
-        float boost
+        long pivot
     ) {
         super(script, fieldName, leafFactory);
         this.origin = origin;
         this.pivot = pivot;
-        this.boost = boost;
     }
 
     @Override
@@ -70,12 +67,11 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
                 AbstractLongFieldScript script = scriptContextFunction().apply(context);
                 script.runForDoc(doc);
                 long value = valueWithMinAbsoluteDistance(script);
-                float weight = LongScriptFieldDistanceFeatureQuery.this.boost * boost;
-                float score = score(weight, distanceFor(value));
+                float score = score(boost, distanceFor(value));
                 return Explanation.match(
                     score,
                     "Distance score, computed as weight * pivot / (pivot + abs(value - origin)) from:",
-                    Explanation.match(weight, "weight"),
+                    Explanation.match(boost, "weight"),
                     Explanation.match(pivot, "pivot"),
                     Explanation.match(origin, "origin"),
                     Explanation.match(value, "current value")
@@ -105,7 +101,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
                 }
             };
             disi = TwoPhaseIterator.asDocIdSetIterator(twoPhase);
-            this.weight = LongScriptFieldDistanceFeatureQuery.this.boost * boost;
+            this.weight = boost;
         }
 
         @Override
@@ -179,15 +175,14 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
         }
         b.append(getClass().getSimpleName());
         b.append("(origin=").append(origin);
-        b.append(",pivot=").append(pivot);
-        b.append(",boost=").append(boost).append(")");
+        b.append(",pivot=").append(pivot).append(")");
         return b.toString();
 
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), origin, pivot, boost);
+        return Objects.hash(super.hashCode(), origin, pivot);
     }
 
     @Override
@@ -196,7 +191,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
             return false;
         }
         LongScriptFieldDistanceFeatureQuery other = (LongScriptFieldDistanceFeatureQuery) obj;
-        return origin == other.origin && pivot == other.pivot && boost == other.boost;
+        return origin == other.origin && pivot == other.pivot;
     }
 
     @Override
@@ -213,9 +208,5 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
 
     long pivot() {
         return pivot;
-    }
-
-    float boost() {
-        return boost;
     }
 }

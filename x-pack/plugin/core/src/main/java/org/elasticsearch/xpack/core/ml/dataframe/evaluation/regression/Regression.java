@@ -76,7 +76,7 @@ public class Regression implements Evaluation {
     }
 
     private static List<EvaluationMetric> defaultMetrics() {
-        return Arrays.asList(new MeanSquaredError(), new RSquared());
+        return Arrays.asList(new MeanSquaredError(), new RSquared(), new Huber());
     }
 
     public Regression(StreamInput in) throws IOException {

@@ -31,6 +31,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
@@ -52,18 +54,17 @@ import static java.util.Collections.singleton;
 
 public class DateRangeAggregatorTests extends AggregatorTestCase {
 
-    private String NUMBER_FIELD_NAME = "number";
-    private String UNMAPPED_FIELD_NAME = "field_not_appearing_in_this_index";
-    private String DATE_FIELD_NAME = "date";
+    private static final String NUMBER_FIELD_NAME = "number";
+    private static final String DATE_FIELD_NAME = "date";
 
-    private long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
-    private long milli2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
+    private Instant t1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
+    private Instant t2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
 
     public void testNoMatchingField() throws IOException {
-        testBothResolutions(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", 2)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", 3)));
+        testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
+            iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", resolution.convert(Instant.ofEpochMilli(7)))));
+            iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", resolution.convert(Instant.ofEpochMilli(2)))));
+            iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", resolution.convert(Instant.ofEpochMilli(3)))));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -73,11 +74,10 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testMatchesSortedNumericDocValues() throws IOException {
-        testBothResolutions(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2)));
+        testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(t1))));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(t2))));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -87,11 +87,10 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testMatchesNumericDocValues() throws IOException {
-        testBothResolutions(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, milli1)));
-            iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, milli2)));
+        testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
+            iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(t1))));
+            iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(t2))));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -101,26 +100,26 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-        public void  testMissingDateStringWithDateField() throws IOException {
-            DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME);
+    public void  testMissingDateStringWithDateField() throws IOException {
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME);
 
-            DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
-                .field(DATE_FIELD_NAME)
-                .missing("2015-11-13T16:14:34")
-                .addRange("2015-11-13", "2015-11-14");
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
+            .field(DATE_FIELD_NAME)
+            .missing("2015-11-13T16:14:34")
+            .addRange("2015-11-13", "2015-11-14");
 
-            testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
-                iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2)));
-                // Missing will apply to this document
-                iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-            }, range -> {
-                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-                assertEquals(1, ranges.size());
-                assertEquals(2, ranges.get(0).getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(range));
-            }, fieldType);
-        }
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, t1.toEpochMilli())));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, t2.toEpochMilli())));
+            // Missing will apply to this document
+            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+        }, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(1, ranges.size());
+            assertEquals(2, ranges.get(0).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, fieldType);
+    }
 
     public void  testNumberFieldDateRanges() throws IOException {
         DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
@@ -157,29 +156,49 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void  testMissingDateStringWithNumberField() throws IOException {
-            DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
-                .field(NUMBER_FIELD_NAME)
-                .addRange("2015-11-13", "2015-11-14")
-                .missing("1979-01-01T00:00:00");
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
+            .field(NUMBER_FIELD_NAME)
+            .addRange("2015-11-13", "2015-11-14")
+            .missing("1979-01-01T00:00:00");
 
-            MappedFieldType fieldType
-                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
-            expectThrows(NumberFormatException.class,
-                () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                    iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-                    iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-                }, range -> fail("Should have thrown exception"), fieldType));
-        }
+        expectThrows(NumberFormatException.class,
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+            }, range -> fail("Should have thrown exception"), fieldType));
+    }
 
-        public void testUnmappedWithMissingNumber() throws IOException {
-            DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
-                .field("does_not_exist")
-                .addRange("2015-11-13", "2015-11-14")
-                .missing(1447438575000L); // 2015-11-13 6:16:15
+    public void testUnmappedWithMissingNumber() throws IOException {
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
+            .field("does_not_exist")
+            .addRange("2015-11-13", "2015-11-14")
+            .missing(1447438575000L); // 2015-11-13 6:16:15
 
-            MappedFieldType fieldType
-                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+        }, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(1, ranges.size());
+            assertEquals(2, ranges.get(0).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, fieldType);
+    }
+
+    public void testUnmappedWithMissingDate() throws IOException {
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
+            .field("does_not_exist")
+            .addRange("2015-11-13", "2015-11-14")
+            .missing("2015-11-13T10:11:12");
+
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
             testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -190,81 +209,72 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, ranges.get(0).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(range));
             }, fieldType);
-        }
+    }
 
-        public void testUnmappedWithMissingDate() throws IOException {
-            DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
-                .field("does_not_exist")
-                .addRange("2015-11-13", "2015-11-14")
-                .missing("2015-11-13T10:11:12");
+    public void testKeywordField() {
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
+            .field("not_a_number")
+            .addRange("2015-11-13", "2015-11-14");
 
-            MappedFieldType fieldType
-                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
 
-                testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                    iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-                    iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-                }, range -> {
-                    List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-                    assertEquals(1, ranges.size());
-                    assertEquals(2, ranges.get(0).getDocCount());
-                    assertTrue(AggregationInspectionHelper.hasValue(range));
-                }, fieldType);
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+            }, range -> fail("Should have thrown exception"), fieldType));
+        assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [date_range]",
+            e.getMessage());
+    }
 
-        public void testKeywordField() {
-            DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
-                .field("not_a_number")
-                .addRange("2015-11-13", "2015-11-14");
+    public void testBadMissingField() {
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
+            .field(NUMBER_FIELD_NAME)
+            .addRange("2020-01-01T00:00:00", "2020-01-02T00:00:00")
+            .missing("bogus");
 
-            MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                    iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
-                }, range -> fail("Should have thrown exception"), fieldType));
-            assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [date_range]",
-                e.getMessage());
-        }
+        expectThrows(NumberFormatException.class,
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+            }, range -> fail("Should have thrown exception"), fieldType));
+    }
 
-        public void testBadMissingField() {
-            DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
-                .field(NUMBER_FIELD_NAME)
-                .addRange("2020-01-01T00:00:00", "2020-01-02T00:00:00")
-                .missing("bogus");
+    public void testUnmappedWithBadMissingField() {
+        DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
+            .field("does_not_exist")
+            .addRange("2020-01-01T00:00:00", "2020-01-02T00:00:00")
+            .missing("bogus");
 
-            MappedFieldType fieldType
-                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
-            expectThrows(NumberFormatException.class,
-                () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                    iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-                    iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-                }, range -> fail("Should have thrown exception"), fieldType));
-        }
+        expectThrows(ElasticsearchParseException.class,
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+                iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
+            }, range -> fail("Should have thrown exception"), fieldType));
+    }
 
-        public void testUnmappedWithBadMissingField() {
-            DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
-                .field("does_not_exist")
-                .addRange("2020-01-01T00:00:00", "2020-01-02T00:00:00")
-                .missing("bogus");
-
-            MappedFieldType fieldType
-                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
-
-            expectThrows(ElasticsearchParseException.class,
-                () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-                    iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-                    iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-                }, range -> fail("Should have thrown exception"), fieldType));
-        }
-
-    private void testBothResolutions(Query query,
-                                     CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                                     Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify)
-                                     throws IOException {
-        testCase(query, buildIndex, verify, DateFieldMapper.Resolution.MILLISECONDS);
-        testCase(query, buildIndex, verify, DateFieldMapper.Resolution.NANOSECONDS);
+    private void testBothResolutions(
+        Query query,
+        CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.Resolution, IOException> buildIndex,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify
+    ) throws IOException {
+        testCase(
+            query,
+            iw -> buildIndex.accept(iw, DateFieldMapper.Resolution.MILLISECONDS),
+            verify,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        testCase(
+            query,
+            iw -> buildIndex.accept(iw, DateFieldMapper.Resolution.NANOSECONDS),
+            verify,
+            DateFieldMapper.Resolution.NANOSECONDS
+        );
     }
 
     private void testCase(Query query,

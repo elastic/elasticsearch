@@ -57,6 +57,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63969")
     public void testDatePrepareRoundingWithDocs() throws IOException {
         long min = randomLongBetween(0, 1000000);
         long max = randomLongBetween(min + 1, 100000000000L);

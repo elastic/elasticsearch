@@ -323,6 +323,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     }
                 }
             }
+            // Throwing this exception is how we communicate to the collection mechanism that we don't need the segment.
             throw new CollectionTerminatedException();
         }
 

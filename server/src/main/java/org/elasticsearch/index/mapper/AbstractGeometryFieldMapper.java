@@ -18,20 +18,15 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -40,8 +35,6 @@ import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -49,22 +42,15 @@ import java.util.function.Function;
 /**
  * Base field mapper class for all spatial field types
  */
-public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
+public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends ParametrizedFieldMapper {
 
-    public static class Names {
-        public static final ParseField IGNORE_MALFORMED = new ParseField("ignore_malformed");
-        public static final ParseField IGNORE_Z_VALUE = new ParseField("ignore_z_value");
+    public static Parameter<Explicit<Boolean>> ignoreMalformedParam(Function<FieldMapper, Explicit<Boolean>> initializer,
+                                                                    boolean ignoreMalformedByDefault) {
+        return Parameter.explicitBoolParam("ignore_malformed", true, initializer, ignoreMalformedByDefault);
     }
 
-    public static class Defaults {
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
-        public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
-        public static final FieldType FIELD_TYPE = new FieldType();
-        static {
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.freeze();
-        }
+    public static Parameter<Explicit<Boolean>> ignoreZValueParam(Function<FieldMapper, Explicit<Boolean>> initializer) {
+        return Parameter.explicitBoolParam("ignore_z_value", true, initializer, true);
     }
 
     /**
@@ -118,102 +104,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public abstract static class Builder extends FieldMapper.Builder {
-        protected Boolean ignoreMalformed;
-        protected Boolean ignoreZValue;
-        protected boolean indexed = true;
-
-        public Builder(String name, FieldType fieldType) {
-            super(name, fieldType);
-        }
-
-        public Builder(String name, FieldType fieldType, boolean ignoreMalformed,
-                       boolean ignoreZValue) {
-            super(name, fieldType);
-            this.ignoreMalformed = ignoreMalformed;
-            this.ignoreZValue = ignoreZValue;
-        }
-
-        public Builder ignoreMalformed(boolean ignoreMalformed) {
-            this.ignoreMalformed = ignoreMalformed;
-            return this;
-        }
-
-        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
-            if (ignoreMalformed != null) {
-                return new Explicit<>(ignoreMalformed, true);
-            }
-            if (context.indexSettings() != null) {
-                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
-            }
-            return Defaults.IGNORE_MALFORMED;
-        }
-
-        public Explicit<Boolean> ignoreMalformed() {
-            if (ignoreMalformed != null) {
-                return new Explicit<>(ignoreMalformed, true);
-            }
-            return Defaults.IGNORE_MALFORMED;
-        }
-
-        protected Explicit<Boolean> ignoreZValue(BuilderContext context) {
-            if (ignoreZValue != null) {
-                return new Explicit<>(ignoreZValue, true);
-            }
-            return Defaults.IGNORE_Z_VALUE;
-        }
-
-        public Explicit<Boolean> ignoreZValue() {
-            if (ignoreZValue != null) {
-                return new Explicit<>(ignoreZValue, true);
-            }
-            return Defaults.IGNORE_Z_VALUE;
-        }
-
-        public Builder ignoreZValue(final boolean ignoreZValue) {
-            this.ignoreZValue = ignoreZValue;
-            return this;
-        }
-    }
-
-    public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
-        protected abstract T newBuilder(String name, Map<String, Object> params);
-
-        public T parse(String name, Map<String, Object> node, Map<String, Object> params, ParserContext parserContext) {
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-
-                if (Names.IGNORE_MALFORMED.match(propName, LoggingDeprecationHandler.INSTANCE)) {
-                    params.put(Names.IGNORE_MALFORMED.getPreferredName(), XContentMapValues.nodeBooleanValue(propNode,
-                        name + ".ignore_malformed"));
-                    iterator.remove();
-                } else if (Names.IGNORE_Z_VALUE.getPreferredName().equals(propName)) {
-                    params.put(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(),
-                        XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.IGNORE_Z_VALUE.getPreferredName()));
-                    iterator.remove();
-                }
-            }
-            T builder = newBuilder(name, params);
-            if (params.containsKey(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName())) {
-                builder.ignoreZValue((Boolean)params.get(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
-            }
-
-            if (params.containsKey(Names.IGNORE_MALFORMED.getPreferredName())) {
-                builder.ignoreMalformed((Boolean)params.get(Names.IGNORE_MALFORMED.getPreferredName()));
-            }
-            return builder;
-        }
-
-        @Override
-        public T parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
-            Map<String, Object> params = new HashMap<>();
-            return parse(name, node, params, parserContext);
-        }
-    }
-
     public abstract static class AbstractGeometryFieldType extends MappedFieldType {
 
         protected final Parser<?> geometryParser;
@@ -255,33 +145,20 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    protected Explicit<Boolean> ignoreMalformed;
-    protected Explicit<Boolean> ignoreZValue;
+    private final Explicit<Boolean> ignoreMalformed;
+    private final Explicit<Boolean> ignoreZValue;
     private final Indexer<Parsed, Processed> indexer;
     private final Parser<Parsed> parser;
 
-    protected AbstractGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
                                           Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
         this.indexer = indexer;
         this.parser = parser;
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        AbstractGeometryFieldMapper<Parsed, Processed> gsfm = (AbstractGeometryFieldMapper<Parsed, Processed>)other;
-
-        if (gsfm.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = gsfm.ignoreMalformed;
-        }
-        if (gsfm.ignoreZValue.explicit()) {
-            this.ignoreZValue = gsfm.ignoreZValue;
-        }
     }
 
     @Override
@@ -324,13 +201,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                 indexedFields.addAll(fields);
             }
             // stored:
-            if (fieldType.stored()) {
+            if (fieldType().isStored()) {
                 addStoredFields(context, shape);
             }
             // docValues:
             if (fieldType().hasDocValues()) {
                 addDocValuesFields(mappedFieldType.name(), shape, fields, context);
-            } else if (fieldType.stored() || fieldType().isSearchable()) {
+            } else if (fieldType().isStored() || fieldType().isSearchable()) {
                 createFieldNamesField(context);
             }
 
@@ -350,22 +227,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    @Override
-    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || ignoreMalformed.explicit()) {
-            builder.field(Names.IGNORE_MALFORMED.getPreferredName(), ignoreMalformed.value());
-        }
-        if (includeDefaults || ignoreZValue.explicit()) {
-            builder.field(Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
-        }
+    public boolean ignoreMalformed() {
+        return ignoreMalformed.value();
     }
 
-    public Explicit<Boolean> ignoreMalformed() {
-        return ignoreMalformed;
-    }
-
-    public Explicit<Boolean> ignoreZValue() {
-        return ignoreZValue;
+    public boolean ignoreZValue() {
+        return ignoreZValue.value();
     }
 }

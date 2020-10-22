@@ -76,7 +76,7 @@ public class ProcessPipes {
      *              May be null or empty for processes not associated with a specific job.
      */
     public ProcessPipes(Environment env, NamedPipeHelper namedPipeHelper, Duration timeout, String processName, String jobId,
-                        boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
+                        Long uniqueId, boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
                         boolean wantRestorePipe, boolean wantPersistPipe) {
         this.namedPipeHelper = namedPipeHelper;
         this.jobId = jobId;
@@ -90,6 +90,9 @@ public class ProcessPipes {
         prefixBuilder.append(namedPipeHelper.getDefaultPipeDirectoryPrefix(env)).append(Objects.requireNonNull(processName)).append('_');
         if (!Strings.isNullOrEmpty(jobId)) {
             prefixBuilder.append(jobId).append('_');
+        }
+        if (uniqueId != null) {
+            prefixBuilder.append(uniqueId).append('_');
         }
         String prefix = prefixBuilder.toString();
         String suffix = String.format(Locale.ROOT, "_%d", JvmInfo.jvmInfo().getPid());

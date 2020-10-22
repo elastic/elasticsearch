@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper.writeNamedObject;
-import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 
 public class TrainedModelConfig implements ToXContentObject, Writeable {
@@ -304,9 +304,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(MODEL_ID.getPreferredName(), modelId);
         // If the model is to be exported for future import to another cluster, these fields are irrelevant.
-        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
-            builder.field(MODEL_ID.getPreferredName(), modelId);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
             builder.field(VERSION.getPreferredName(), version.toString());
             builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());

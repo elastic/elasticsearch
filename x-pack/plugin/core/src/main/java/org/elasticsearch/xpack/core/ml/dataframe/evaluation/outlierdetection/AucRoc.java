@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AbstractAucRoc;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.common.AbstractAucRoc;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;

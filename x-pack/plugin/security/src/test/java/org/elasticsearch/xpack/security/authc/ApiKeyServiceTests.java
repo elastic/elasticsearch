@@ -995,15 +995,16 @@ public class ApiKeyServiceTests extends ESTestCase {
                                                                 Set<RoleDescriptor> userRoles,
                                                                 List<RoleDescriptor> keyRoles,
                                                                 Version version) throws Exception {
-            XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", authentication,
-                    userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
+            XContentBuilder keyDocSource = apiKeyService.newDocument(
+                new SecureString(randomAlphaOfLength(16).toCharArray()), "test", authentication,
+                userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
             final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
                 XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
                     BytesReference.bytes(keyDocSource), XContentType.JSON));
             PlainActionFuture<AuthenticationResult> authenticationResultFuture = PlainActionFuture.newFuture();
             apiKeyService.validateApiKeyExpiration(apiKeyDoc, new ApiKeyService.ApiKeyCredentials("id",
-                            new SecureString("pass".toCharArray())),
-                    Clock.systemUTC(), authenticationResultFuture);
+                    new SecureString(randomAlphaOfLength(16).toCharArray())),
+                Clock.systemUTC(), authenticationResultFuture);
 
             AuthenticationResult authenticationResult = authenticationResultFuture.get();
             if (randomBoolean()) {

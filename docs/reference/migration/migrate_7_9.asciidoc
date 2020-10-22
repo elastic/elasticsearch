@@ -59,8 +59,8 @@ set per-context.
 
 *Impact* +
 To avoid deprecation warnings, discontinue use of the `script.cache.max_size`
-setting. You may use `script.context.$CONTEXT.context_max_size` for the particular context.
-For example, for the `ingest` context, use `script.context.ingest.context_max_size`.
+setting. You may use `script.context.$CONTEXT.cache_max_size` for the particular context.
+For example, for the `ingest` context, use `script.context.ingest.cache_max_size`.
 
 ====
 

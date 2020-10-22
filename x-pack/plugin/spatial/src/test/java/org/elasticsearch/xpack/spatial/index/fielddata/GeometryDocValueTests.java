@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -66,22 +67,22 @@ public class GeometryDocValueTests extends ESTestCase {
         assertDimensionalShapeType(randoPoly, DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(randoMultiPoly, DimensionalShapeType.POLYGON);
         assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false))),
-            new GeometryCollection<>(List.of(randomMultiPoint(false))),
+            new GeometryCollection<>(Arrays.asList(randomPoint(false))),
+            new GeometryCollection<>(Arrays.asList(randomMultiPoint(false))),
             new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomPoint(false), randomMultiPoint(false))))))
+                new GeometryCollection<>(Arrays.asList(randomPoint(false), randomMultiPoint(false))))))
             , DimensionalShapeType.POINT);
         assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))),
-            new GeometryCollection<>(List.of(randomMultiPoint(false), randomMultiLine(false))),
+            new GeometryCollection<>(Arrays.asList(randomPoint(false), randomLine(false))),
+            new GeometryCollection<>(Arrays.asList(randomMultiPoint(false), randomMultiLine(false))),
             new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(randomPoint(false), randomLine(false))))))
+                new GeometryCollection<>(Arrays.asList(randomPoint(false), randomLine(false))))))
             , DimensionalShapeType.LINE);
         assertDimensionalShapeType(randomFrom(
-            new GeometryCollection<>(List.of(randomPoint(false), indexer.prepareForIndexing(randomLine(false)), randoPoly)),
-            new GeometryCollection<>(List.of(randomMultiPoint(false), randoMultiPoly)),
+            new GeometryCollection<>(Arrays.asList(randomPoint(false), indexer.prepareForIndexing(randomLine(false)), randoPoly)),
+            new GeometryCollection<>(Arrays.asList(randomMultiPoint(false), randoMultiPoly)),
             new GeometryCollection<>(Collections.singletonList(
-                new GeometryCollection<>(List.of(indexer.prepareForIndexing(randomLine(false)),
+                new GeometryCollection<>(Arrays.asList(indexer.prepareForIndexing(randomLine(false)),
                     indexer.prepareForIndexing(randoPoly))))))
             , DimensionalShapeType.POLYGON);
     }

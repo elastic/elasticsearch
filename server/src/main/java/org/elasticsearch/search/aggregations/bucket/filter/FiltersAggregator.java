@@ -290,6 +290,13 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             this.filters = filters;
         }
 
+        /**
+         * Instead of returning a {@link LeafBucketCollector} we do the
+         * collection ourselves by running the filters directly. This is safe
+         * because we only use this aggregator if there isn't a {@code parent}
+         * which would change how we collect buckets and because we take the
+         * top level query into account when building the filters.
+         */
         @Override
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
             if (filterWeights == null) {
@@ -399,6 +406,13 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         return weights;
     }
 
+    /**
+     * Make a filter that matches both queries, merging the
+     * {@link PointRangeQuery}s together if possible. The "merging together"
+     * part is provides a fairly substantial speed boost then executing a
+     * top level query on a date and a filter on a date. This kind of thing
+     * is very common when visualizing logs and metrics.
+     */
     private Query filterMatchingBoth(Query lhs, Query rhs) {
         if (lhs instanceof MatchAllDocsQuery) {
             return rhs;
@@ -431,6 +445,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         return query;
     }
 
+    /**
+     * Merge two {@linkplain PointRangeQuery}s into a single {@linkplain PointRangeQuery}
+     * that matches points that match both filters.
+     */
     private PointRangeQuery mergePointRangeQueries(PointRangeQuery lhs, PointRangeQuery rhs) {
         if (lhs.getField() != rhs.getField() || lhs.getNumDims() != rhs.getNumDims() || lhs.getBytesPerDim() != rhs.getBytesPerDim()) {
             return null;
@@ -443,6 +461,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (upper == null) {
             return null;
         }
+        // TODO this only makes the right answer when each document only has a single value for the field.
         return new PointRangeQuery(lhs.getField(), lower, upper, lhs.getNumDims()) {
             @Override
             protected String toString(int dimension, byte[] value) {

@@ -76,7 +76,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
      * optimized into a {@link FiltersAggregator}. Even when it can't be
      * optimized, it is going to be marginally faster and consume less memory
      * than the {@linkplain DateHistogramAggregator} because it doesn't need
-     * to the rounding points and because it can pass precise cardinality
+     * to the round points and because it can pass precise cardinality
      * estimates to its child aggregations.
      */
     public static Aggregator build(
@@ -156,10 +156,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return null;
         }
         // Range aggs use a double to aggregate and we don't want to lose precision.
-        if (Math.abs(fixedRoundingPoints[0]) > RangeAggregator.MAX_ACCURATE_BOUND) {
+        long min = fixedRoundingPoints[0];
+        long max = fixedRoundingPoints[fixedRoundingPoints.length - 1];
+        if (min < -RangeAggregator.MAX_ACCURATE_BOUND || min > RangeAggregator.MAX_ACCURATE_BOUND) {
             return null;
         }
-        if (Math.abs(fixedRoundingPoints[fixedRoundingPoints.length - 1]) > RangeAggregator.MAX_ACCURATE_BOUND) {
+        if (max < -RangeAggregator.MAX_ACCURATE_BOUND || max > RangeAggregator.MAX_ACCURATE_BOUND) {
             return null;
         }
         RangeAggregatorSupplier rangeSupplier = context.getQueryShardContext()

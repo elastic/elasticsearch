@@ -227,6 +227,15 @@ public class AggregatorFactories {
         return factories.length;
     }
 
+    /**
+     * This returns a copy of {@link AggregatorFactories} modified so that
+     * calls to {@link #createSubAggregators} will ignore the provided parent
+     * aggregator and always use {@code fixedParent} provided in to this
+     * method.
+     * <p>
+     * {@link AdaptingAggregator} uses this to make sure that sub-aggregators
+     * get the {@link AdaptingAggregator} aggregator itself as the parent.
+     */
     public AggregatorFactories fixParent(Aggregator fixedParent) {
         AggregatorFactories previous = this;
         return new AggregatorFactories(factories) {

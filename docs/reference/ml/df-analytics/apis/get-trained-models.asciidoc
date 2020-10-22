@@ -9,7 +9,7 @@
 
 Retrieves configuration information for a trained model.
 
-beta[]
+beta::[]
 
 
 [[ml-get-trained-models-request]]

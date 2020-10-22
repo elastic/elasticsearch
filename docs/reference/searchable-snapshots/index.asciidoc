@@ -2,71 +2,64 @@
 == {search-snaps-cap}
 
 beta::[]
-{search-snaps-cap} let you reduce your operating costs by using 
-<<snapshot-restore, snapshots>> for resiliency 
-rather than maintaining <<scalability,replica shards>> within a cluster. 
-When you mount an index from a snapshot as a {search-snap}, 
-{es} copies the index shards to the cluster. 
-This ensures that query performance is comparable to any other index,
-and minimizes the need to access the snapshot repository.
-Should a node fail, shards for the {search-snap}
-are recovered from the snapshot repository. 
 
-This can result in a significant cost savings. With {search-snaps}, 
-you may be able to halve your cluster size without increasing the risk 
-of data loss or reducing the amount of data you can search. 
-Because {search-snaps} rely on the same snapshot mechanism 
-you use for back ups, they have a minimal impact on your snapshot 
-repository storage costs. 
+{search-snaps-cap} let you reduce your operating costs by using
+<<snapshot-restore, snapshots>> for resiliency rather than maintaining
+<<scalability,replica shards>> within a cluster. When you mount an index from
+a snapshot as a {search-snap}, {es} copies the index shards to the cluster.
+This ensures that query performance is comparable to any other index, and
+minimizes the need to access the snapshot repository. Should a node fail,
+shards for the {search-snap} are recovered from the snapshot repository.
 
+This can result in a significant cost savings. With {search-snaps}, you may be
+able to halve your cluster size without increasing the risk of data loss or
+reducing the amount of data you can search. Because {search-snaps} rely on the
+same snapshot mechanism you use for back ups, they have a minimal impact on
+your snapshot repository storage costs.
 
 [discrete]
 [[using-searchable-snapshots]]
 === Using {search-snaps}
 
-Searching a {search-snap} is the same as searching any other index. 
-Query performance is comparable to regular indices because the index shards 
-are allocated to nodes in the cluster when the {search-snap} is mounted. 
+Searching a {search-snap} is the same as searching any other index. Query
+performance is comparable to regular indices because the index shards are
+allocated to nodes in the cluster when the {search-snap} is mounted.
 
-You can control allocation using the standard mechanisms. 
-For example, you could use  <<shard-allocation-filtering>> to restrict 
-{search-snap}  shards to a subset of your nodes.
+You can control allocation using the standard mechanisms. For example, you
+could use  <<shard-allocation-filtering>> to restrict {search-snap}  shards to
+a subset of your nodes.
 
-By default, {search-snaps} have no replicas. 
-The snapshots provide the necessary resilience and 
-queries are expected to be less frequent and query performance less important. 
-However, if you need to support a higher query volume or faster queries, 
-you can increase the number of replicas. 
+By default, {search-snaps} have no replicas. The snapshots provide the
+necessary resilience and queries are expected to be less frequent and query
+performance less important. However, if you need to support a higher query
+volume or faster queries, you can increase the number of replicas.
 
-If a node fails and {search-snap} shards need to be restored from the snapshot,  
-there is a brief window of time while  {es} allocates the shards
-to other nodes where the cluster health will not be `green`. 
-Searches that hit these shards will fail or return partial results until they are reallocated.
+If a node fails and {search-snap} shards need to be restored from the snapshot,
+there is a brief window of time while  {es} allocates the shards to other nodes
+where the cluster health will not be `green`. Searches that hit these shards
+will fail or return partial results until they are reallocated.
 
+You typically manage {search-snaps} through {ilm-init}. The
+<<ilm-searchable-snapshot, searchable snapshots>>  action automatically
+converts an index to a {search-snap} when it reaches the `cold` phase. You can
+also make indices in existing snapshots searchable by manually mounting them as
+{search-snaps} with the <<searchable-snapshots-api-mount-snapshot, mount
+snapshot>> API. To minimize reads from the snapshot repository, you should
+<<indices-forcemerge, force-merge>> an index to a single segment per shard
+before mounting it as a {search-snap}. The fewer segments there are the fewer
+reads are needed to restore the snapshot.
 
-
-You typically manage {search-snaps} through {ilm-init}. The <<ilm-searchable-snapshot,
-searchable snapshots>>  action automatically converts an index to a {search-snap} when it reaches the `cold` phase.
-You can also make indices in existing snapshots searchable by manually 
-mounting them as {search-snaps} with the 
-<<searchable-snapshots-api-mount-snapshot, mount snapshot>> API. 
-To minimize reads from the snapshot repository, you should 
-<<indices-forcemerge, force-merge>> an index to a single segment per shard 
-before mounting it as a {search-snap}. The fewer segments there are 
-the fewer reads are needed to restore the snapshot.
-
-To mount an index from a backup snapshot that contains multiple indices, 
-we recommend creating a <<clone-snapshot-api, clone>> of the snapshot 
-that contains only the index you want to search, and mounting the clone. 
-You cannot delete a snapshot if it has any mounted indices,
- so creating a clone enables you to manage the lifecycle of the backup 
- snapshot independent of any {search-snaps}.
+To mount an index from a backup snapshot that contains multiple indices, we
+recommend creating a <<clone-snapshot-api, clone>> of the snapshot that
+contains only the index you want to search, and mounting the clone. You cannot
+delete a snapshot if it has any mounted indices, so creating a clone enables
+you to manage the lifecycle of the backup snapshot independent of any
+{search-snaps}.
 
 We recommend that you <<indices-forcemerge, force-merge>> indices to a single
 segment per shard before mounting them as {search-snaps}. Each read from a
 snapshot repository takes time and costs money, and the fewer segments there
 are the fewer reads are needed to restore the snapshot.
-
 
 [TIP]
 ====
@@ -77,24 +70,30 @@ and therefore may not need replicas for their performance benefits.
 You can use <<async-search>> with {search-snaps}, which is especially useful
 for more complex or time-consuming searches.
 ====
+
 [discrete]
 [[how-searchable-snapshots-work]]
 === How {search-snaps} work
+
 When an index is mounted from a snapshot, {es} allocates its shards to data
-nodes within the cluster. The data nodes then automatically restore the shard data from the repository into local storage. 
-Once the restore process completes, these shards respond to searches using the
-data held in local storage and do not need to access the repository. This
-avoids incurring the cost or performance penalty associated with
-reading data from the repository. 
+nodes within the cluster. The data nodes then automatically restore the shard
+data from the repository into local storage. Once the restore process
+completes, these shards respond to searches using the data held in local
+storage and do not need to access the repository. This avoids incurring the
+cost or performance penalty associated with reading data from the repository.
 
-If a node holding one of these shards fails, {es} automatically allocates it to another node,
-and that node restores the shard data from the repository. No replicas are needed, and 
-no complicated monitoring or orchestration is necessary to  restore lost shards.
+If a node holding one of these shards fails, {es} automatically allocates it to
+another node, and that node restores the shard data from the repository. No
+replicas are needed, and no complicated monitoring or orchestration is
+necessary to  restore lost shards.
 
-{es] restores {search-snap} shards in the background and you can search them 
-even if they have not been fully restored. If a search hits a {search-snap} shard before it
-has been fully restored, {es} eagerly retrieves the data needed for the search. 
-If a shard is freshly allocated to a node and still warming up, some searches will be slower. However, searches typically access a very small fraction of the total shard data so the performance penalty is typically very small.
+{es} restores {search-snap} shards in the background and you can search them
+even if they have not been fully restored. If a search hits a {search-snap}
+shard before it has been fully restored, {es} eagerly retrieves the data needed
+for the search. If a shard is freshly allocated to a node and still warming up,
+some searches will be slower. However, searches typically access a very small
+fraction of the total shard data so the performance penalty is typically very
+small.
 
 Replicas of {search-snaps} are restored by copying data from the snapshot
 repository. In contrast, replicas of regular indices are restored by copying

@@ -503,7 +503,9 @@ See the {ref}/indices-shrink-index.html[shrink index API].
 [[glossary-snapshot]] snapshot ::
 // tag::snapshot-def[]
 Captures the state of the whole cluster or of particular indices or data
-streams at a particular point in time. Snapshots provide a back up of a running cluster, ensuring you can restore your data in the event of a failure. You can also mount indices or datastreams from snapshots as read-only
+streams at a particular point in time. Snapshots provide a back up of a running
+cluster, ensuring you can restore your data in the event of a failure. You can
+also mount indices or datastreams from snapshots as read-only
 {ref}/glossary.html#glossary-searchable-snapshot-index[searchable snapshots].
 // end::snapshot-def[]
 

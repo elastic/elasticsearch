@@ -36,7 +36,7 @@ public final class Types {
     private static final Set<String> DISCRETE_NUMERICAL_TYPES =
         Collections.unmodifiableSet(
             Stream.concat(
-                Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG).map(NumberType::typeName)
+                Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG).map(NumberType::typeName),
                 Stream.of("unsigned_long"))
                 .collect(Collectors.toSet()));
 

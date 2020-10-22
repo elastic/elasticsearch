@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -50,8 +51,11 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -231,6 +235,24 @@ public class QueryShardContext extends QueryRewriteContext {
     public Map<String, Query> copyNamedQueries() {
         // This might be a good use case for CopyOnWriteHashMap
         return unmodifiableMap(new HashMap<>(namedQueries));
+    }
+
+    public ParsedDocument parseDocument(String type, SourceToParse source) throws MapperParsingException {
+        DocumentMapper documentMapper = mapperService.documentMapper(type);
+        return documentMapper == null ? null : mapperService.documentMapper().parse(source);
+    }
+
+    public FieldNameAnalyzer getFieldNameIndexAnalyzer() {
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        return documentMapper == null ? null : documentMapper.mappers().indexAnalyzer();
+    }
+
+    public boolean hasNested() {
+        return mapperService.hasNested();
+    }
+
+    public boolean hasMappings() {
+        return mapperService.documentMapper() != null;
     }
 
     /**
@@ -508,13 +530,6 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public IndexSettings getIndexSettings() {
         return indexSettings;
-    }
-
-    /**
-     * Return the MapperService.
-     */
-    public MapperService getMapperService() {
-        return mapperService;
     }
 
     public String getType() {

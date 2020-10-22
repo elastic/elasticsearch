@@ -67,9 +67,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -538,9 +536,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
 
         final List<ParsedDocument> docs = new ArrayList<>();
-        final DocumentMapper docMapper;
-        final MapperService mapperService = context.getMapperService();
-        String type = mapperService.documentMapper().type();
+        String type = context.getType();
         if (documentType != null) {
             deprecationLogger.deprecate("percolate_with_document_type", DOCUMENT_TYPE_DEPRECATION_MESSAGE);
             if (documentType.equals(type) == false) {
@@ -548,13 +544,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     "] is not equal to the actual type [" + type + "]");
             }
         }
-        docMapper = mapperService.documentMapper(type);
         for (BytesReference document : documents) {
-            docs.add(docMapper.parse(new SourceToParse(context.index().getName(), type, "_temp_id", document, documentXContentType)));
+            docs.add(context.parseDocument(type,
+                new SourceToParse(context.index().getName(), type, "_temp_id", document, documentXContentType)));
         }
 
-        FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer)docMapper.mappers().indexAnalyzer();
-        // Need to this custom impl because FieldNameAnalyzer is strict and the percolator sometimes isn't when
+        FieldNameAnalyzer fieldNameAnalyzer = context.getFieldNameIndexAnalyzer();
+        // We need this custom analyzer because FieldNameAnalyzer is strict and the percolator sometimes isn't when
         // 'index.percolator.map_unmapped_fields_as_string' is enabled:
         Analyzer analyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
@@ -570,9 +566,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final IndexSearcher docSearcher;
         final boolean excludeNestedDocuments;
         if (docs.size() > 1 || docs.get(0).docs().size() > 1) {
-            assert docs.size() != 1 || docMapper.hasNestedObjects();
+            assert docs.size() != 1 || context.hasNested();
             docSearcher = createMultiDocumentSearcher(analyzer, docs);
-            excludeNestedDocuments = docMapper.hasNestedObjects() && docs.stream()
+            excludeNestedDocuments = context.hasNested() && docs.stream()
                     .map(ParsedDocument::docs)
                     .mapToInt(List::size)
                     .anyMatch(size -> size > 1);

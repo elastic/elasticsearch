@@ -21,10 +21,8 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TypeFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -137,21 +135,12 @@ public class LeafFieldsLookup implements Map<Object, Object> {
             cachedFieldData.put(name, data);
         }
         if (data.fields() == null) {
-            List<Object> values;
-            if (TypeFieldType.NAME.equals(data.fieldType().name())) {
-                values = new ArrayList<>(1);
-                final DocumentMapper mapper = mapperService.documentMapper();
-                if (mapper != null) {
-                    values.add(mapper.type());
-                }
-            } else {
-                values = new ArrayList<>(2);
-                SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
-                try {
-                    reader.document(docId, visitor);
-                } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to load field [{}]", e, name);
-                }
+            List<Object> values = new ArrayList<>(2);
+            SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
+            try {
+                reader.document(docId, visitor);
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to load field [{}]", e, name);
             }
             data.fields(singletonMap(data.fieldType().name(), values));
         }
@@ -163,5 +152,4 @@ public class LeafFieldsLookup implements Map<Object, Object> {
             entry.getValue().clear();
         }
     }
-
 }

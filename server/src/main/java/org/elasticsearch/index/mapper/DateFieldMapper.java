@@ -432,10 +432,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+        public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
-            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
+            // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
+            return resolution.distanceFeatureQuery(name(), 1.0f, originLong, pivotTime);
         }
 
         @Override

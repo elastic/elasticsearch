@@ -193,12 +193,12 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     /** Get the current minimum bound that is set on this builder. */
-    public double minBound() {
+    public Double minBound() {
         return extendedBounds.getMin();
     }
 
     /** Get the current maximum bound that is set on this builder. */
-    public double maxBound() {
+    public Double maxBound() {
         return extendedBounds.getMax();
     }
 

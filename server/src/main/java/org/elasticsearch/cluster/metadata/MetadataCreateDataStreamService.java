@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -45,8 +44,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -165,17 +162,6 @@ public class MetadataCreateDataStreamService {
 
         ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
-        if (backingIndices.size() > 0) {
-            validateBackingIndices(currentState, dataStreamName);
-
-            // hide existing indices and remove aliases
-            Metadata.Builder b = Metadata.builder(currentState.metadata());
-            for (IndexMetadata backingIndex : backingIndices) {
-                prepareBackingIndex(b, backingIndex, dataStreamName);
-            }
-            currentState = ClusterState.builder(currentState).metadata(b).build();
-        }
-
         if (writeIndex == null) {
             String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             CreateIndexClusterStateUpdateRequest createIndexRequest =
@@ -192,10 +178,6 @@ public class MetadataCreateDataStreamService {
                     RestStatus.BAD_REQUEST, e, firstBackingIndexName);
             }
             writeIndex = currentState.metadata().index(firstBackingIndexName);
-        } else {
-            Metadata.Builder b = Metadata.builder(currentState.metadata());
-            prepareBackingIndex(b, writeIndex, dataStreamName);
-            currentState = ClusterState.builder(currentState).metadata(b).build();
         }
         assert writeIndex != null;
         assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
@@ -208,41 +190,6 @@ public class MetadataCreateDataStreamService {
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", dataStreamName);
         return ClusterState.builder(currentState).metadata(builder).build();
-    }
-
-    private static void prepareBackingIndex(Metadata.Builder b, IndexMetadata im, String dataStreamName) {
-        // hides the index, removes the original alias, and adds data stream timestamp field mapper
-        MappingMetadata mm = im.mapping();
-        Map<String, Object> mapping = mm == null ? new LinkedHashMap<>() : mm.sourceAsMap();
-        mapping.put("_data_stream_timestamp", Map.of("enabled", true));
-        b.put(IndexMetadata.builder(im)
-            .removeAlias(dataStreamName)
-            .settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
-            .settingsVersion(im.getSettingsVersion() + 1)
-            .mappingVersion(im.getMappingVersion() + 1)
-            .putMapping(new MappingMetadata("_doc", mapping))
-            .build(), false);
-    }
-
-    // package-visible for testing
-    static void validateBackingIndices(ClusterState currentState, String dataStreamName) {
-        IndexAbstraction ia = currentState.metadata().getIndicesLookup().get(dataStreamName);
-        if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
-            throw new IllegalArgumentException("alias [" + dataStreamName + "] does not exist");
-        }
-        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
-
-        // ensure that no other aliases reference indices
-        List<String> indicesWithOtherAliases = new ArrayList<>();
-        for (IndexMetadata im : alias.getIndices()) {
-            if (im.getAliases().size() > 1 || im.getAliases().containsKey(alias.getName()) == false) {
-                indicesWithOtherAliases.add(im.getIndex().getName());
-            }
-        }
-        if (indicesWithOtherAliases.size() > 0) {
-            throw new IllegalArgumentException("other aliases referencing indices [" +
-                Strings.collectionToCommaDelimitedString(indicesWithOtherAliases) + "] must be removed before migrating to a data stream");
-        }
     }
 
     public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {

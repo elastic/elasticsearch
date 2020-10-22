@@ -389,7 +389,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     similarityService,
                     engineFactory,
                     indexEventListener,
-                    readerWrapperFactory,
+                    readerWrapperFactory != null ? readerWrapperFactory : randomReaderWrapper(),
                     threadPool,
                     BigArrays.NON_RECYCLING_INSTANCE,
                     warmer,
@@ -879,5 +879,13 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 }
             }
         };
+    }
+
+    protected ReaderWrapperFactory randomReaderWrapper() {
+        if (randomBoolean()) {
+            return shardId -> null;
+        } else {
+            return shardId -> reader -> reader;
+        }
     }
 }

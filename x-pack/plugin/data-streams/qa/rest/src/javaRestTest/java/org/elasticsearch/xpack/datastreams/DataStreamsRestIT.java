@@ -20,23 +20,21 @@ public class DataStreamsRestIT extends ESRestTestCase {
     public void testHiddenDataStream() throws IOException {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
-        putComposableIndexTemplateRequest.setJsonEntity("{" +
-            "  \"index_patterns\": [\".hidden\"],\n" +
-            "  \"data_stream\": {},\n" +
-            "  \"template\": {\n" +
-            "    \"settings\": {\n" +
-            "      \"index.hidden\": \"true\"\n" +
-            "    }\n" +
-            "  }\n" +
-            "}"
+        putComposableIndexTemplateRequest.setJsonEntity(
+            "{"
+                + "  \"index_patterns\": [\".hidden\"],\n"
+                + "  \"data_stream\": {},\n"
+                + "  \"template\": {\n"
+                + "    \"settings\": {\n"
+                + "      \"index.hidden\": \"true\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}"
         );
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         Request createDocRequest = new Request("POST", "/.hidden/_doc?refresh=true");
-        createDocRequest.setJsonEntity("{" +
-            "  \"@timestamp\": \"2020-10-22\",\n" +
-            "  \"a\": 1\n" +
-            "}");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
 
         assertOK(client().performRequest(createDocRequest));
 

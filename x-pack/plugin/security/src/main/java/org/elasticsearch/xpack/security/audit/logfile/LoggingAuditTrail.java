@@ -917,7 +917,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             .startObject("global");
                             // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}
                             // Again, only the transport client can produce this, and this only introduces a different failure mode and
-                            // not a new one (without auditing it would fail differently, but it would still fail)
+                            // not a new one (i.e. without auditing it would fail differently, but it would still fail)
                             ConfigurableClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS,
                                     Arrays.asList(putRoleRequest.conditionalClusterPrivileges()));
                             builder.endObject(); // global

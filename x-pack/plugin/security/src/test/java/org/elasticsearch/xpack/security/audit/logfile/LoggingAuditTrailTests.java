@@ -428,7 +428,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
         String generatedCreateKeyAuditEventString = output.get(1);
         assertThat(generatedCreateKeyAuditEventString, containsString(expectedCreateKeyAuditEventString));
         generatedCreateKeyAuditEventString = generatedCreateKeyAuditEventString.replace(", " + expectedCreateKeyAuditEventString, "");
-        generatedCreateKeyAuditEventString.length();
+        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedCreateKeyAuditEventString, checkedFields.immutableMap());
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

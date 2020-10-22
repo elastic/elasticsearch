@@ -27,11 +27,12 @@ public class HistogramRateAggregator extends AbstractRateAggregator {
         String name,
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
+        RateMode rateMode,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, valuesSourceConfig, rateUnit, context, parent, metadata);
+        super(name, valuesSourceConfig, rateUnit, rateMode, context, parent, metadata);
     }
 
     @Override
@@ -51,7 +52,18 @@ public class HistogramRateAggregator extends AbstractRateAggregator {
                         double sum = sums.get(bucket);
                         double compensation = compensations.get(bucket);
                         kahanSummation.reset(sum, compensation);
-                        kahanSummation.add(sketch.value());
+                        final double value;
+                        switch (rateMode) {
+                            case SUM:
+                                value = sketch.value();
+                                break;
+                            case VALUE_COUNT:
+                                value = sketch.count();
+                                break;
+                            default:
+                                throw new IllegalArgumentException("Unsupported rate mode " + rateMode);
+                        }
+                        kahanSummation.add(value);
                         compensations.set(bucket, kahanSummation.delta());
                         sums.set(bucket, kahanSummation.value());
                     }

@@ -211,6 +211,9 @@ public class FakeRestRequest extends RestRequest {
             if (xContentType != null) {
                 headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             }
+            if (headers.containsKey("Accept") == false) {
+                headers.put("Accept", Collections.singletonList(xContentType.mediaType()));
+            }
             return this;
         }
 

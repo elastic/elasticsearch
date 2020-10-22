@@ -93,7 +93,6 @@ public class RestRequest implements ToXContent.Params {
         this.parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
         if (parsedContentType != null) {
             this.xContentType.set(parsedContentType.toMediaType(XContentType.mediaTypeRegistry));
-            //this also validates against 4 known media types for content-type
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;

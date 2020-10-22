@@ -30,9 +30,9 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeCoordinateEncoder;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeReader;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter;
+import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,9 +41,7 @@ import java.util.List;
 public class GeoTestUtils {
 
     public static ShapeField.DecodedTriangle[] toDecodedTriangles(Geometry geometry) throws IOException {
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        geometry = indexer.prepareForIndexing(geometry);
-        List<IndexableField> fields = indexer.indexShape(null, geometry);
+        List<IndexableField> fields = toIndexableFields(geometry);
         ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
         final byte[] scratch = new byte[7 * Integer.BYTES];
         for (int i = 0; i < fields.size(); i++) {
@@ -53,6 +51,12 @@ public class GeoTestUtils {
             ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
         }
         return triangles;
+    }
+
+    public static List<IndexableField> toIndexableFields(Geometry geometry) throws IOException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
+        geometry = indexer.prepareForIndexing(geometry);
+        return indexer.indexShape(null, geometry);
     }
 
 
@@ -84,12 +88,12 @@ public class GeoTestUtils {
         return new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometry);
     }
 
-    public static TriangleTreeReader triangleTreeReader(Geometry geometry, GeoShapeCoordinateEncoder encoder) throws IOException {
+    public static GeometryDocValueReader GeometryDocValueReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
         ShapeField.DecodedTriangle[] triangles = toDecodedTriangles(geometry);
-        TriangleTreeWriter writer = new TriangleTreeWriter(Arrays.asList(triangles), encoder, new CentroidCalculator(geometry));
+        GeometryDocValueWriter writer = new GeometryDocValueWriter(Arrays.asList(triangles), encoder, new CentroidCalculator(geometry));
         ByteBuffersDataOutput output = new ByteBuffersDataOutput();
         writer.writeTo(output);
-        TriangleTreeReader reader = new TriangleTreeReader(encoder);
+        GeometryDocValueReader reader = new GeometryDocValueReader();
         reader.reset(new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size())));
         return reader;
     }

@@ -19,18 +19,19 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappedFieldType;
+
+import java.util.function.Function;
 
 public class FieldsLookup {
 
-    private final MapperService mapperService;
+    private final Function<String, MappedFieldType> fieldTypeLookup;
 
-    FieldsLookup(MapperService mapperService) {
-        this.mapperService = mapperService;
+    FieldsLookup(Function<String, MappedFieldType> fieldTypeLookup) {
+        this.fieldTypeLookup = fieldTypeLookup;
     }
 
-    public LeafFieldsLookup getLeafFieldsLookup(LeafReaderContext context) {
-        return new LeafFieldsLookup(mapperService, context.reader());
+    LeafFieldsLookup getLeafFieldsLookup(LeafReaderContext context) {
+        return new LeafFieldsLookup(fieldTypeLookup, context.reader());
     }
-
 }

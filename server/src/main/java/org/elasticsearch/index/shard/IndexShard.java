@@ -82,6 +82,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.ReaderWrapperFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -260,7 +261,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private static final EnumSet<IndexShardState> writeAllowedStates = EnumSet.of(IndexShardState.RECOVERING,
         IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
 
-    private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
+    private final ReaderWrapperFactory readerWrapperFactory;
 
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
@@ -288,7 +289,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final SimilarityService similarityService,
             final @Nullable EngineFactory engineFactory,
             final IndexEventListener indexEventListener,
-            final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+            final ReaderWrapperFactory readerWrapperFactory,
             final ThreadPool threadPool,
             final BigArrays bigArrays,
             final Engine.Warmer warmer,
@@ -371,7 +372,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
-        readerWrapper = indexReaderWrapper;
+        this.readerWrapperFactory = Objects.requireNonNull(readerWrapperFactory);
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -1241,9 +1242,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
         assert ElasticsearchDirectoryReader.unwrap(searcher.getDirectoryReader())
             != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
+        final CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = readerWrapperFactory.getWrapper(shardId);
         boolean success = false;
         try {
-            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            final Engine.Searcher newSearcher = wrapper == null ? searcher : wrapSearcher(searcher, wrapper);
             assert newSearcher != null;
             success = true;
             return newSearcher;

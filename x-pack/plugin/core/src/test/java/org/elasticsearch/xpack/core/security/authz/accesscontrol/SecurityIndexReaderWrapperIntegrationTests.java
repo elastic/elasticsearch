@@ -159,7 +159,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
             when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
 
-            DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
+            DirectoryReader wrappedDirectoryReader = wrapper.getWrapper(shardId).apply(directoryReader);
             IndexSearcher indexSearcher = new ContextIndexSearcher(
                     wrappedDirectoryReader, IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
                     IndexSearcher.getDefaultQueryCachingPolicy(), true);
@@ -267,7 +267,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         iw.close();
 
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
-        DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
+        DirectoryReader wrappedDirectoryReader = wrapper.getWrapper(shardId).apply(directoryReader);
         IndexSearcher indexSearcher = new ContextIndexSearcher(
                 wrappedDirectoryReader, IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), true);

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -39,7 +38,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -58,6 +56,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.ReaderWrapperFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
@@ -510,7 +509,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
 
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
@@ -543,6 +541,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 }
             }
         };
+        ReaderWrapperFactory wrapper = shardId -> reader -> reader;
         final IndexShard newShard = newIndexShard(indexService, shard, wrapper, getInstanceFromNode(CircuitBreakerService.class), listener);
         shardRef.set(newShard);
         recoverShard(newShard);
@@ -629,7 +628,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public static final IndexShard newIndexShard(
         final IndexService indexService,
-        final IndexShard shard, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper,
+        final IndexShard shard,
+        final ReaderWrapperFactory wrapper,
         final CircuitBreakerService cbs,
         final IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());

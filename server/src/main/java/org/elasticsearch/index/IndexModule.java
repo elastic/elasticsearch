@@ -129,8 +129,7 @@ public final class IndexModule {
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private SetOnce<Function<IndexService,
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper = new SetOnce<>();
+    private SetOnce<Function<IndexService, ReaderWrapperFactory>> indexReaderWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
@@ -320,8 +319,7 @@ public final class IndexModule {
      * The returned reader is closed once it goes out of scope.
      * </p>
      */
-    public void setReaderWrapper(Function<IndexService,
-                                    CheckedFunction<DirectoryReader, DirectoryReader, IOException>> indexReaderWrapperFactory) {
+    public void setReaderWrapper(Function<IndexService, ReaderWrapperFactory> indexReaderWrapperFactory) {
         ensureNotFrozen();
         this.indexReaderWrapper.set(indexReaderWrapperFactory);
     }
@@ -415,8 +413,8 @@ public final class IndexModule {
                                         BooleanSupplier idFieldDataEnabled,
                                         ValuesSourceRegistry valuesSourceRegistry) throws IOException {
         final IndexEventListener eventListener = freeze();
-        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
-            indexReaderWrapper.get() == null ? (shard) -> null : indexReaderWrapper.get();
+        Function<IndexService, ReaderWrapperFactory> readerWrapperFactory =
+            indexReaderWrapper.get() == null ? indexService -> shardId -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);

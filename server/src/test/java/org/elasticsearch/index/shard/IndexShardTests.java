@@ -20,7 +20,6 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
@@ -53,7 +52,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -77,6 +75,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.ReaderWrapperFactory;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -2396,14 +2395,14 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits.value, 1);
         }
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader("foo", reader);
+        ReaderWrapperFactory wrapperFactory = shardId -> reader -> new FieldMaskingReader("foo", reader);
         closeShards(shard);
         IndexShard newShard = newShard(
                 ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.ExistingStoreRecoverySource.INSTANCE),
                 shard.shardPath(),
                 shard.indexSettings().getIndexMetadata(),
                 null,
-                wrapper,
+                wrapperFactory,
                 new InternalEngineFactory(),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
@@ -2429,8 +2428,6 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testReaderWrapperWorksWithGlobalOrdinals() throws IOException {
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader("foo", reader);
-
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -2439,7 +2436,9 @@ public class IndexShardTests extends IndexShardTestCase {
             .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\", \"fielddata\": true }}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
-        IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, wrapper);
+        ReaderWrapperFactory readerWrapperFactory = shardId -> reader -> new FieldMaskingReader("foo", reader);
+
+        IndexShard shard = newShard( new ShardId(metadata.getIndex(), 0), true, "n1", metadata, readerWrapperFactory);
         recoverShardFromStore(shard);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         shard.refresh("created segment 1");
@@ -2532,7 +2531,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         shard.refresh("test");
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> {
+        ReaderWrapperFactory wrapper = shardId -> reader -> {
             throw new RuntimeException("boom");
         };
 

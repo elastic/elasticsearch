@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -49,6 +48,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.ReaderWrapperFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
@@ -284,9 +284,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetadata indexMetadata,
-             @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper)
-        throws IOException {
-        return newShard(shardId, primary, nodeId, indexMetadata, readerWrapper, () -> {});
+                                  ReaderWrapperFactory readerWrapperFactory) throws IOException {
+        return newShard(shardId, primary, nodeId, indexMetadata, readerWrapperFactory, () -> {});
     }
 
     /**
@@ -298,12 +297,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetadata indexMetadata,
-                                  @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
+                                  ReaderWrapperFactory readerWrapperFactory,
                                   Runnable globalCheckpointSyncer) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
-        return newShard(
-            shardRouting, indexMetadata, readerWrapper, new InternalEngineFactory(), globalCheckpointSyncer, RetentionLeaseSyncer.EMPTY);
+        return newShard(shardRouting, indexMetadata, readerWrapperFactory, new InternalEngineFactory(),
+            globalCheckpointSyncer, RetentionLeaseSyncer.EMPTY);
     }
 
     /**
@@ -314,24 +313,24 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param indexMetadata indexMetadata for the shard, including any mapping
      * @param listeners     an optional set of listeners to add to the shard
      */
-    protected IndexShard newShard(ShardRouting routing, IndexMetadata indexMetadata,
-            @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
-            EngineFactory engineFactory, IndexingOperationListener... listeners)
+    protected IndexShard newShard(ShardRouting routing, IndexMetadata indexMetadata, ReaderWrapperFactory readerWrapperFactory,
+                                  EngineFactory engineFactory, IndexingOperationListener... listeners)
         throws IOException {
-        return newShard(routing, indexMetadata, indexReaderWrapper, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
+        return newShard(routing, indexMetadata, readerWrapperFactory, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
     /**
      * creates a new initializing shard. The shard will will be put in its proper path under the
      * current node id the shard is assigned to.
+     *
      * @param routing                shard routing to use
      * @param indexMetadata          indexMetadata for the shard, including any mapping
-     * @param indexReaderWrapper     an optional wrapper to be used during search
+     * @param readerWrapperFactory   an optional wrapper to be used during search
      * @param globalCheckpointSyncer callback for syncing global checkpoints
      * @param listeners              an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, IndexMetadata indexMetadata,
-             @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+                                  ReaderWrapperFactory readerWrapperFactory,
              @Nullable EngineFactory engineFactory, Runnable globalCheckpointSyncer, RetentionLeaseSyncer retentionLeaseSyncer,
              IndexingOperationListener... listeners)
         throws IOException {
@@ -339,7 +338,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final ShardId shardId = routing.shardId();
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        return newShard(routing, shardPath, indexMetadata, null, indexReaderWrapper, engineFactory, globalCheckpointSyncer,
+        return newShard(routing, shardPath, indexMetadata, null, readerWrapperFactory, engineFactory, globalCheckpointSyncer,
             retentionLeaseSyncer, EMPTY_EVENT_LISTENER, listeners);
     }
 
@@ -349,14 +348,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param shardPath                     path to use for shard data
      * @param indexMetadata                 indexMetadata for the shard, including any mapping
      * @param storeProvider                 an optional custom store provider to use. If null a default file based store will be created
-     * @param indexReaderWrapper            an optional wrapper to be used during search
+     * @param readerWrapperFactory          a supplier providing reader wrapper in search
      * @param globalCheckpointSyncer        callback for syncing global checkpoints
      * @param indexEventListener            index event listener
      * @param listeners                     an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetadata indexMetadata,
                                   @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
-                                  @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+                                  ReaderWrapperFactory readerWrapperFactory,
                                   @Nullable EngineFactory engineFactory,
                                   Runnable globalCheckpointSyncer, RetentionLeaseSyncer retentionLeaseSyncer,
                                   IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {
@@ -390,7 +389,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     similarityService,
                     engineFactory,
                     indexEventListener,
-                    indexReaderWrapper,
+                    readerWrapperFactory,
                     threadPool,
                     BigArrays.NON_RECYCLING_INSTANCE,
                     warmer,

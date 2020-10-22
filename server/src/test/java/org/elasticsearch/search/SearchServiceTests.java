@@ -38,6 +38,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.ReaderWrapperFactory;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -134,36 +136,40 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     public static class ReaderWrapperCountPlugin extends Plugin {
         @Override
         public void onIndexModule(IndexModule indexModule) {
-            indexModule.setReaderWrapper(service -> SearchServiceTests::apply);
+            indexModule.setReaderWrapper(service -> new ReaderWrapperFactory() {
+                @Override
+                public CheckedFunction<DirectoryReader, DirectoryReader, IOException> getWrapper(ShardId shardId) {
+                    return directoryReader -> {
+                        numWrapInvocations.incrementAndGet();
+                        return new FilterDirectoryReader(directoryReader,
+                            new FilterDirectoryReader.SubReaderWrapper() {
+                                @Override
+                                public LeafReader wrap(LeafReader reader) {
+                                    return reader;
+                                }
+                            }) {
+                            @Override
+                            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                                return in;
+                            }
+
+                            @Override
+                            public CacheHelper getReaderCacheHelper() {
+                                return directoryReader.getReaderCacheHelper();
+                            }
+                        };
+                    };
+                }
+            });
         }
     }
 
     @Before
-    private void resetCount() {
+    public void resetCount() {
         numWrapInvocations = new AtomicInteger(0);
     }
 
     private static AtomicInteger numWrapInvocations = new AtomicInteger(0);
-    private static DirectoryReader apply(DirectoryReader directoryReader) throws IOException {
-        numWrapInvocations.incrementAndGet();
-        return new FilterDirectoryReader(directoryReader,
-            new FilterDirectoryReader.SubReaderWrapper() {
-            @Override
-            public LeafReader wrap(LeafReader reader) {
-                return reader;
-            }
-        }) {
-            @Override
-            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-                return in;
-            }
-
-            @Override
-            public CacheHelper getReaderCacheHelper() {
-                return directoryReader.getReaderCacheHelper();
-            }
-        };
-    }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
 

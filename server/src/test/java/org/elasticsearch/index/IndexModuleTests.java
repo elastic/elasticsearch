@@ -598,9 +598,10 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
-    public static final class Wrapper implements CheckedFunction<DirectoryReader, DirectoryReader, IOException> {
+
+    public static final class Wrapper implements ReaderWrapperFactory {
         @Override
-        public DirectoryReader apply(DirectoryReader reader) {
+        public CheckedFunction<DirectoryReader, DirectoryReader, IOException> getWrapper(ShardId shardId) {
             return null;
         }
     }

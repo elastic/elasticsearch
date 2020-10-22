@@ -37,7 +37,6 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -97,7 +96,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         };
 
         FieldSubsetReader.FieldSubsetDirectoryReader result =
-                (FieldSubsetReader.FieldSubsetDirectoryReader) securityIndexReaderWrapper.apply(esIn);
+                (FieldSubsetReader.FieldSubsetDirectoryReader) securityIndexReaderWrapper.getWrapper(esIn.shardId()).apply(esIn);
         assertThat(result.getFilter().run("_uid"), is(true));
         assertThat(result.getFilter().run("_id"), is(true));
         assertThat(result.getFilter().run("_version"), is(true));
@@ -118,8 +117,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         securityIndexReaderWrapper =
                 new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
-        DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
-        assertThat(reader, sameInstance(esIn));
+        assertNull(securityIndexReaderWrapper.getWrapper(esIn.shardId()));
     }
 
     public void testWildcards() throws Exception {

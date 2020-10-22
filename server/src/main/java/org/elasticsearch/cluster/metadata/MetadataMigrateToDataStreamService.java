@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -110,6 +111,10 @@ public class MetadataMigrateToDataStreamService {
                                             MetadataCreateIndexService metadataCreateIndexService,
                                             ClusterState currentState,
                                             MigrateToDataStreamClusterStateUpdateRequest request) throws Exception {
+        if (currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
+            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_8_0_0);
+        }
+
         validateRequest(currentState, request);
         IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().getIndicesLookup().get(request.aliasName);
 
@@ -127,6 +132,7 @@ public class MetadataMigrateToDataStreamService {
             .filter(x -> writeIndex == null || x.getIndex().getName().equals(writeIndex.getIndex().getName()) == false)
             .collect(Collectors.toList());
 
+        logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
         return MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService, currentState, request.aliasName, backingIndices, writeIndex);
     }
@@ -151,7 +157,11 @@ public class MetadataMigrateToDataStreamService {
         }
     }
 
-    private static void prepareBackingIndex(Metadata.Builder b, IndexMetadata im, String dataStreamName, IndicesService indicesService) throws IOException {
+    private static void prepareBackingIndex(
+        Metadata.Builder b,
+        IndexMetadata im,
+        String dataStreamName,
+        IndicesService indicesService) throws IOException {
         // hides the index, removes the original alias, and adds data stream timestamp field mapper
         MappingMetadata mm = im.mapping();
         assert mm != null;

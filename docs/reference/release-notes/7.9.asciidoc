@@ -1,8 +1,6 @@
 [[release-notes-7.9.3]]
 == {es} version 7.9.3
 
-coming[7.9.3]
-
 Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 
 [[bug-7.9.3]]

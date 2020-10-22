@@ -230,8 +230,16 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
 
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {
         return new MlDailyMaintenanceService(Settings.EMPTY, threadPool, client, clusterService, mlAssignmentNotifier, () -> {
-                latch.countDown();
-                return TimeValue.timeValueMillis(100);
+                // We need to be careful that an unexpected iteration doesn't get squeezed in by the maintenance threadpool in
+                // between the latch getting counted down to zero and the main test thread stopping the maintenance service.
+                // This could happen if the main test thread happens to be waiting for a CPU for the whole 100ms after the
+                // latch counts down to zero.
+                if (latch.getCount() > 0) {
+                    latch.countDown();
+                    return TimeValue.timeValueMillis(100);
+                } else {
+                    return TimeValue.timeValueHours(1);
+                }
             });
     }
 

@@ -66,6 +66,7 @@ public class SecurityIndexReaderWrapper implements ReaderWrapperFactory {
             licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
             return null;
         }
+        final Thread createThread = Thread.currentThread();
         final IndicesAccessControl indicesAccessControl = getIndicesAccessControl();
         final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
         // No permissions have been defined for an index, so don't intercept the index reader for access control
@@ -73,11 +74,20 @@ public class SecurityIndexReaderWrapper implements ReaderWrapperFactory {
             return null;
         }
         final DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
-        final boolean hasDocumentLevelPermissions = documentPermissions != null && documentPermissions.hasDocumentLevelPermissions();
-        if (hasDocumentLevelPermissions == false && permissions.getFieldPermissions().hasFieldLevelSecurity() == false) {
+        final BooleanQuery filterQuery;
+        if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions()) {
+            try {
+                filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
+            } catch (IOException e) {
+                logger.error("Unable to retrieve document level filter");
+                throw ExceptionsHelper.convertToElastic(e);
+            }
+        } else {
+            filterQuery = null;
+        }
+        if (filterQuery == null && permissions.getFieldPermissions().hasFieldLevelSecurity() == false) {
             return null;
         }
-        final Thread createThread = Thread.currentThread();
         return reader -> {
             try {
                 final ShardId readerShardId = ShardUtils.extractShardId(reader);
@@ -90,11 +100,8 @@ public class SecurityIndexReaderWrapper implements ReaderWrapperFactory {
                     throw new IllegalStateException("Wrapping reader on a different thread");
                 }
                 DirectoryReader wrappedReader = reader;
-                if (hasDocumentLevelPermissions) {
-                    BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
-                    if (filterQuery != null) {
-                        wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
-                    }
+                if (filterQuery != null) {
+                    wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }
                 return permissions.getFieldPermissions().filter(wrappedReader);
             } catch (IOException e) {

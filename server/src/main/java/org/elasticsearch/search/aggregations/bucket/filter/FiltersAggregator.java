@@ -424,7 +424,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Query unwrappedLhs = unwrap(lhs);
         Query unwrappedRhs = unwrap(rhs);
         if (unwrappedLhs instanceof PointRangeQuery && unwrappedRhs instanceof PointRangeQuery) {
-            PointRangeQuery merged = mergePointRangeQueries((PointRangeQuery) unwrappedLhs, (PointRangeQuery) unwrappedRhs);
+            Query merged = MergedPointRangeQuery.merge((PointRangeQuery) unwrappedLhs, (PointRangeQuery) unwrappedRhs);
             if (merged != null) {
                 // TODO rewrap?
                 return merged;
@@ -444,75 +444,5 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             query = ((IndexOrDocValuesQuery) query).getIndexQuery();
         }
         return query;
-    }
-
-    /**
-     * Merge two {@linkplain PointRangeQuery}s into a single {@linkplain PointRangeQuery}
-     * that matches points that match both filters.
-     */
-    private PointRangeQuery mergePointRangeQueries(PointRangeQuery lhs, PointRangeQuery rhs) {
-        if (lhs.getField() != rhs.getField() || lhs.getNumDims() != rhs.getNumDims() || lhs.getBytesPerDim() != rhs.getBytesPerDim()) {
-            return null;
-        }
-        byte[] lower = mergePoint(lhs.getLowerPoint(), rhs.getLowerPoint(), lhs.getNumDims(), lhs.getBytesPerDim(), true);
-        if (lower == null) {
-            return null;
-        }
-        byte[] upper = mergePoint(lhs.getUpperPoint(), rhs.getUpperPoint(), lhs.getNumDims(), lhs.getBytesPerDim(), false);
-        if (upper == null) {
-            return null;
-        }
-        // TODO this only makes the right answer when each document only has a single value for the field.
-        return new PointRangeQuery(lhs.getField(), lower, upper, lhs.getNumDims()) {
-            @Override
-            protected String toString(int dimension, byte[] value) {
-                // Stolen from Lucene's Binary range query. It'd be best to delegate, but the method isn't visible.
-                StringBuilder sb = new StringBuilder();
-                sb.append("binary(");
-                for (int i = 0; i < value.length; i++) {
-                    if (i > 0) {
-                        sb.append(' ');
-                    }
-                    sb.append(Integer.toHexString(value[i] & 0xFF));
-                }
-                sb.append(')');
-                return sb.toString();
-            }
-        };
-    }
-
-    /**
-     * Figure out if lhs's lower point is lower in all dimensions than
-     * rhs's lower point or if it is further. Return null if it is closer
-     * in some dimensions and further in others.
-     */
-    private byte[] mergePoint(byte[] lhs, byte[] rhs, int numDims, int bytesPerDim, boolean mergingLower) {
-        int runningCmp = 0;
-        for (int dim = 0; dim < numDims; dim++) {
-            int cmp = cmpDim(lhs, rhs, dim, bytesPerDim);
-            if (runningCmp == 0) {
-                // Previous dimensions were all equal
-                runningCmp = cmp;
-                continue;
-            }
-            if (cmp == 0) {
-                // This dimension has the same value.
-                continue;
-            }
-            if ((runningCmp ^ cmp) < 0) {
-                // Signs differ so this dimension doesn't compare the same way as the previous ones so we can't merge.
-                return null;
-            }
-        }
-        if (runningCmp < 0) {
-            // lhs is lower
-            return mergingLower ? rhs : lhs;
-        }
-        return mergingLower ? lhs : rhs;
-    }
-
-    private int cmpDim(byte[] lhs, byte[] rhs, int dim, int bytesPerDim) {
-        int offset = dim * bytesPerDim;
-        return compareUnsigned(lhs, offset, offset + bytesPerDim, rhs, offset, offset + bytesPerDim);
     }
 }

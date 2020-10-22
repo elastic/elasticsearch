@@ -37,7 +37,7 @@ class SnapshotFilesystemProvider extends DelegatingProvider {
     private final long usableSpace;
     private final long unallocatedSpace;
 
-    public SnapshotFilesystemProvider(FileSystemProvider provider) throws Exception {
+    SnapshotFilesystemProvider(FileSystemProvider provider) throws Exception {
         super(provider);
 
         final FileStore fileStore = provider.getFileStore(provider.getPath(new URI("file:///")));
@@ -54,7 +54,7 @@ class SnapshotFilesystemProvider extends DelegatingProvider {
     private class SnapshotFileStore extends FileStore {
         private final FileStore delegate;
 
-        public SnapshotFileStore(FileStore fileStore) {
+        SnapshotFileStore(FileStore fileStore) {
             this.delegate = fileStore;
         }
 

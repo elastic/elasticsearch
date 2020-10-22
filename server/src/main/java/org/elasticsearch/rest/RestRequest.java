@@ -32,7 +32,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -93,7 +92,8 @@ public class RestRequest implements ToXContent.Params {
         this.parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
         this.parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
         if (parsedContentType != null) {
-            this.xContentType.set(parsedContentType.toMediaType(XContentType.mediaTypeRegistry));//this also validates against 4 known media types for content-type
+            this.xContentType.set(parsedContentType.toMediaType(XContentType.mediaTypeRegistry));
+            //this also validates against 4 known media types for content-type
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;

@@ -87,7 +87,7 @@ public class ParsedMediaType {
                     splitMediaType[1].trim().toLowerCase(Locale.ROOT), parameters);
             }
         }
-        throw new IllegalArgumentException("unable to parse "+headerValue);
+        throw new IllegalArgumentException("invalid media type [" + headerValue + "]");
     }
 
     public  <T extends MediaType> T toMediaType(MediaTypeRegistry<T> mediaTypeRegistry) {
@@ -97,13 +97,14 @@ public class ParsedMediaType {
             Map<String, Pattern> registeredParams = mediaTypeRegistry.parametersFor(mimeTypeWithoutParams());
             for (Map.Entry<String, String> givenParamEntry : parameters.entrySet()) {
                 if (isValidParameter(givenParamEntry.getKey(), givenParamEntry.getValue(), registeredParams) == false) {
-                    throw new RuntimeException("Invalid param for media type" + mimeTypeWithoutParams());
+                    throw new IllegalArgumentException("Invalid param "+ givenParamEntry.getKey()+"="+givenParamEntry.getValue()
+                        +"for media type " + mimeTypeWithoutParams());
                 }
             }
             return type;
         }
 
-        throw new RuntimeException("unkown media type"+mimeTypeWithoutParams());
+        throw new IllegalArgumentException("Unknown media type "+mimeTypeWithoutParams());
     }
 
     private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {

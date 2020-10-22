@@ -28,7 +28,6 @@ import org.elasticsearch.rest.RestRequest.Method;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Handler for REST requests

@@ -71,7 +71,8 @@ public class SqlMediaTypeParserTests extends ESTestCase {
     }
 
     public void testInvalidFormat() {
-        MediaType mediaType = parser.getMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false));
+        MediaType mediaType = parser.getMediaType(reqWithAccept("text/garbage"),
+            createTestInstance(false, Mode.PLAIN, false));
         assertThat(mediaType, is(nullValue()));
     }
 

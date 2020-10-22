@@ -57,9 +57,7 @@ public class ParsedMediaTypeTests extends ESTestCase {
         assertThat(ParsedMediaType.parseMediaType(mediaType + "; compatible-with=123;\n charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "compatible-with", "123")));
 
-        mediaType = " application / json ";
-        assertThat(ParsedMediaType.parseMediaType(mediaType),
-            is(nullValue()));
+
     }
 
     public void testInvalidParameters() {
@@ -77,7 +75,6 @@ public class ParsedMediaTypeTests extends ESTestCase {
                 .toMediaType(mediaTypeRegistry),
             is(nullValue()));
     }
-
 
     public void testXContentTypes() {
         for (XContentType xContentType : XContentType.values()) {

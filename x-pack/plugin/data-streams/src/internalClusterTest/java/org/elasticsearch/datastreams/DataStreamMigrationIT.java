@@ -37,7 +37,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.datastreams.DataStreamIT.putComposableIndexTemplate;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -52,11 +51,11 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
     public void cleanup() {
         AcknowledgedResponse response = client().execute(
             DeleteDataStreamAction.INSTANCE,
-            new DeleteDataStreamAction.Request(new String[]{"*"})
+            new DeleteDataStreamAction.Request(new String[] { "*" })
         ).actionGet();
         assertAcked(response);
 
-        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request(new String[]{"*"});
+        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request(new String[] { "*" });
         client().execute(DeleteDataStreamAction.INSTANCE, deleteDSRequest).actionGet();
         DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
         client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
@@ -80,7 +79,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         assertAcked(admin().indices().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
-            new String[]{"*"},
+            new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
@@ -103,7 +102,6 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         DataStreamIT.verifyDocs(alias, numDocs1 + numDocs2 + numDocsDs, List.of("index1", "index2"));
     }
 
-
     public void testMigrationWithoutTemplate() throws Exception {
         admin().indices().create(new CreateIndexRequest("index1")).get();
         admin().indices().create(new CreateIndexRequest("index2")).get();
@@ -120,7 +118,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         assertAcked(admin().indices().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
-            new String[]{"*"},
+            new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
@@ -134,10 +132,10 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
             () -> client().execute(MigrateToDataStreamAction.INSTANCE, new MigrateToDataStreamAction.Request(alias)).get()
         );
 
-        assertTrue(throwableOrItsCause(
-            e, IllegalArgumentException.class, "no matching index template found for data stream [" + alias + "]"));
+        assertTrue(
+            throwableOrItsCause(e, IllegalArgumentException.class, "no matching index template found for data stream [" + alias + "]")
+        );
     }
-
 
     public void testMigrationWithoutIndexMappings() throws Exception {
         putComposableIndexTemplate("id1", List.of("migrate*"));
@@ -152,7 +150,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         assertAcked(admin().indices().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
-            new String[]{"*"},
+            new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
@@ -166,10 +164,8 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
             () -> client().execute(MigrateToDataStreamAction.INSTANCE, new MigrateToDataStreamAction.Request(alias)).get()
         );
 
-        assertTrue(throwableOrItsCause(
-            e, IllegalArgumentException.class, "must have mappings for a timestamp field"));
+        assertTrue(throwableOrItsCause(e, IllegalArgumentException.class, "must have mappings for a timestamp field"));
     }
-
 
     public void testMigrationWithoutTimestampMapping() throws Exception {
         putComposableIndexTemplate("id1", List.of("migrate*"));
@@ -189,7 +185,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         assertAcked(admin().indices().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
-            new String[]{"*"},
+            new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
@@ -203,10 +199,8 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
             () -> client().execute(MigrateToDataStreamAction.INSTANCE, new MigrateToDataStreamAction.Request(alias)).get()
         );
 
-        assertTrue(throwableOrItsCause(
-            e, IllegalArgumentException.class, "data stream timestamp field [@timestamp] does not exist"));
+        assertTrue(throwableOrItsCause(e, IllegalArgumentException.class, "data stream timestamp field [@timestamp] does not exist"));
     }
-
 
     public void testMigrationWithoutWriteIndex() throws Exception {
         putComposableIndexTemplate("id1", List.of("migrate*"));
@@ -226,7 +220,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         assertAcked(admin().indices().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
-            new String[]{"*"},
+            new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
         ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
@@ -240,8 +234,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
             () -> client().execute(MigrateToDataStreamAction.INSTANCE, new MigrateToDataStreamAction.Request(alias)).get()
         );
 
-        assertTrue(throwableOrItsCause(
-            e, IllegalArgumentException.class, "alias [" + alias + "] must specify a write index"));
+        assertTrue(throwableOrItsCause(e, IllegalArgumentException.class, "alias [" + alias + "] must specify a write index"));
     }
 
     static <T> boolean throwableOrItsCause(Throwable t, Class<T> clazz, String message) {

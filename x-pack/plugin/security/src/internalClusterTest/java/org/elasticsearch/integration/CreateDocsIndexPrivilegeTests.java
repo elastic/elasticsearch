@@ -18,14 +18,14 @@ public class CreateDocsIndexPrivilegeTests extends AbstractPrivilegeTestCase {
     private static final String CREATE_DOC_USER = "create_doc_user";
     private String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
     private static final String ROLES =
-        "all_indices_role:\n" +
-            "  indices:\n" +
-            "    - names: '*'\n" +
-            "      privileges: [ all ]\n" +
-            "create_doc_role:\n" +
-            "  indices:\n" +
-            "    - names: '*'\n" +
-            "      privileges: [ create_doc ]\n";
+            "all_indices_role:\n" +
+                "  indices:\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ all ]\n" +
+                "create_doc_role:\n" +
+                "  indices:\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ create_doc ]\n";
 
     private static final String USERS_ROLES =
         "all_indices_role:admin\n" +

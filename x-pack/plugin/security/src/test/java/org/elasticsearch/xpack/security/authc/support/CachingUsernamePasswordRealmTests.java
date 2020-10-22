@@ -67,7 +67,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
     public void testCacheSettings() {
         List<String> availableCacheAlgos = Hasher.getAvailableAlgoCacheHash();
-        if (inFipsJvm()){
+        if (inFipsJvm()) {
             availableCacheAlgos = availableCacheAlgos.stream().filter(name -> (name.startsWith("pbkdf2"))).collect(Collectors.toList());
         }
         String cachingHashAlgo = randomFrom(availableCacheAlgos);

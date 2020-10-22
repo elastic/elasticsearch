@@ -16,15 +16,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class Fips140ProviderVerificationTests extends ESTestCase {
 
-    public void testBcFipsProviderInUse(){
-        if (inFipsJvm()){
+    public void testBcFipsProviderInUse() {
+        if (inFipsJvm()) {
             assertThat(Security.getProviders().length > 0, equalTo(true));
             assertThat(Security.getProviders()[0].getName(), containsString("BCFIPS"));
         }
     }
 
-    public void testInApprovedOnlyMode(){
-        if (inFipsJvm()){
+    public void testInApprovedOnlyMode() {
+        if (inFipsJvm()) {
             assertThat(CryptoServicesRegistrar.isInApprovedOnlyMode(), equalTo(true));
         }
     }

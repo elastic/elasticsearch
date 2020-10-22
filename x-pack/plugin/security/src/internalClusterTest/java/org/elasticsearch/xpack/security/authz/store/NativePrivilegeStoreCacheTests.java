@@ -260,7 +260,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
 
         // The created user can access cluster health because its role grants access
         final Client testRoleCacheUserClient = client.filterWithHeader(singletonMap("Authorization",
-                "Basic " + Base64.getEncoder().encodeToString((testRoleCacheUser + ":password").getBytes(StandardCharsets.UTF_8))));
+            "Basic " + Base64.getEncoder().encodeToString((testRoleCacheUser + ":longerpassword").getBytes(StandardCharsets.UTF_8))));
         new ClusterHealthRequestBuilder(testRoleCacheUserClient, ClusterHealthAction.INSTANCE).get();
 
         // Directly deleted the role document

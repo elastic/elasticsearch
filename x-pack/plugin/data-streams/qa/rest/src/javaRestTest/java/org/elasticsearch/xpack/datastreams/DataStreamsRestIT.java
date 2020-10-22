@@ -32,7 +32,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
         );
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
-        Request createDocRequest = new Request("POST", "/.hidden/_doc");
+        Request createDocRequest = new Request("POST", "/.hidden/_doc?refresh=true");
         createDocRequest.setJsonEntity("{" +
             "  \"@timestamp\": \"2020-10-22\",\n" +
             "  \"a\": 1\n" +
@@ -48,6 +48,14 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertEquals(Collections.singletonList(1), XContentMapValues.extractValue("data_streams.generation", dataStreams));
         assertEquals(Collections.singletonList(true), XContentMapValues.extractValue("data_streams.hidden", dataStreams));
 
+        Request searchRequest = new Request("GET", "/.hidd*/_search");
+        response = client().performRequest(searchRequest);
+        Map<String, Object> results = entityAsMap(response);
+        assertEquals(0, XContentMapValues.extractValue("hits.total.value", results));
 
+        searchRequest = new Request("GET", "/.hidd*/_search?expand_wildcards=open,hidden");
+        response = client().performRequest(searchRequest);
+        results = entityAsMap(response);
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", results));
     }
 }

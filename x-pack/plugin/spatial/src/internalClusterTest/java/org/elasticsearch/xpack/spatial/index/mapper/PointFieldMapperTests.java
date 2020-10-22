@@ -21,8 +21,6 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.NULL_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -37,10 +35,10 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject(fieldName).field("type", "point");
         if (ignored_malformed || randomBoolean()) {
-            xContentBuilder.field(PointFieldMapper.Names.IGNORE_MALFORMED.getPreferredName(), ignored_malformed);
+            xContentBuilder.field("ignore_malformed", ignored_malformed);
         }
         if (ignoreZValue == false || randomBoolean()) {
-            xContentBuilder.field(PointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue);
+            xContentBuilder.field("ignore_z_value", ignoreZValue);
         }
         return xContentBuilder.endObject().endObject().endObject().endObject();
     }
@@ -210,7 +208,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("location")
             .field("type", "point")
-            .field(NULL_VALUE.getPreferredName(), "1,2")
+            .field("null_value", "1,2")
             .endObject().endObject()
             .endObject().endObject());
 
@@ -257,7 +255,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "point")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "true")
+            .field("ignore_z_value", "true")
             .endObject().endObject()
             .endObject().endObject());
 
@@ -265,14 +263,14 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(PointFieldMapper.class));
 
-        boolean ignoreZValue = ((PointFieldMapper)fieldMapper).ignoreZValue().value();
+        boolean ignoreZValue = ((PointFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "point")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "false")
+            .field("ignore_z_value", "false")
             .endObject().endObject()
             .endObject().endObject());
 
@@ -280,7 +278,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(PointFieldMapper.class));
 
-        ignoreZValue = ((PointFieldMapper)fieldMapper).ignoreZValue().value();
+        ignoreZValue = ((PointFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
     }
 

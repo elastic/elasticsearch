@@ -77,9 +77,9 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new HashMap<>(super.getMappers());
-        mappers.put(ShapeFieldMapper.CONTENT_TYPE, new ShapeFieldMapper.TypeParser());
-        mappers.put(PointFieldMapper.CONTENT_TYPE, new PointFieldMapper.TypeParser());
-        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, new GeoShapeWithDocValuesFieldMapper.TypeParser());
+        mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
+        mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
+        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeoShapeWithDocValuesFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }
 

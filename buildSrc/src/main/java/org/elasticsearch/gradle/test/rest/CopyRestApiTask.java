@@ -25,9 +25,10 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ArchiveOperations;
-import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
@@ -47,6 +48,7 @@ import java.nio.file.Files;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
@@ -66,13 +68,19 @@ public class CopyRestApiTask extends DefaultTask {
     Configuration coreConfig;
     Configuration xpackConfig;
     Configuration additionalConfig;
+    Function<Configuration, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
+    Function<Configuration, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
+    Function<Configuration, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
+    private final ProjectLayout projectLayout;
 
-    public CopyRestApiTask() {
+    @Inject
+    public CopyRestApiTask(ProjectLayout projectLayout) {
         corePatternSet = getPatternSetFactory().create();
         xpackPatternSet = getPatternSetFactory().create();
+        this.projectLayout = projectLayout;
     }
 
     @Inject
@@ -117,21 +125,21 @@ public class CopyRestApiTask extends DefaultTask {
         FileTree xpackFileTree = null;
         if (includeXpack.get().isEmpty() == false) {
             xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-            xpackFileTree = xpackConfig.getAsFileTree().matching(xpackPatternSet);
+            xpackFileTree = xpackConfigToFileTree.apply(xpackConfig).matching(xpackPatternSet);
         }
         boolean projectHasYamlRestTests = skipHasRestTestCheck || projectHasYamlRestTests();
         if (includeCore.get().isEmpty() == false || projectHasYamlRestTests) {
             if (BuildParams.isInternal()) {
                 corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-                coreFileTree = coreConfig.getAsFileTree().matching(corePatternSet); // directory on disk
+                coreFileTree = coreConfigToFileTree.apply(coreConfig).matching(corePatternSet); // directory on disk
             } else {
                 coreFileTree = coreConfig.getAsFileTree(); // jar file
             }
         }
 
-        ConfigurableFileCollection fileCollection = additionalConfig == null
-            ? getProject().files(coreFileTree, xpackFileTree)
-            : getProject().files(coreFileTree, xpackFileTree, additionalConfig.getAsFileTree());
+        FileCollection fileCollection = additionalConfig == null
+            ? projectLayout.files(coreFileTree, xpackFileTree)
+            : projectLayout.files(coreFileTree, xpackFileTree, additionalConfigToFileTree.apply(additionalConfig));
 
         // if project has rest tests or the includes are explicitly configured execute the task, else NO-SOURCE due to the null input
         return projectHasYamlRestTests || includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false
@@ -156,7 +164,7 @@ public class CopyRestApiTask extends DefaultTask {
         if (BuildParams.isInternal()) {
             getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", projectPath);
             getFileSystemOperations().copy(c -> {
-                c.from(coreConfig.getAsFileTree());
+                c.from(coreConfigToFileTree.apply(coreConfig));
                 c.into(getOutputDir());
                 c.include(corePatternSet.getIncludes());
             });
@@ -167,7 +175,7 @@ public class CopyRestApiTask extends DefaultTask {
                 VersionProperties.getElasticsearch()
             );
             getFileSystemOperations().copy(c -> {
-                c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile()));
+                c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
                 // this ends up as the same dir as outputDir
                 c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {
@@ -183,7 +191,7 @@ public class CopyRestApiTask extends DefaultTask {
         if (includeXpack.get().isEmpty() == false) {
             getLogger().debug("X-pack rest specs for project [{}] will be copied to the test resources.", projectPath);
             getFileSystemOperations().copy(c -> {
-                c.from(xpackConfig.getSingleFile());
+                c.from(xpackConfigToFileTree.apply(xpackConfig));
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
             });
@@ -192,7 +200,7 @@ public class CopyRestApiTask extends DefaultTask {
         // copy any additional config
         if (additionalConfig != null) {
             getFileSystemOperations().copy(c -> {
-                c.from(additionalConfig.getAsFileTree());
+                c.from(additionalConfigToFileTree.apply(additionalConfig));
                 c.into(getOutputDir());
             });
         }

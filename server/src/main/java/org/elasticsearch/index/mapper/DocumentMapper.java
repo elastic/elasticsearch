@@ -198,14 +198,6 @@ public class DocumentMapper implements ToXContentFragment {
         return this.fieldMappers;
     }
 
-    public FieldTypeLookup fieldTypes() {
-        return mappers().fieldTypes();
-    }
-
-    public Map<String, ObjectMapper> objectMappers() {
-        return mappers().objectMappers();
-    }
-
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
         return documentParser.parseDocument(source, mapping.metadataMappers, this);
     }
@@ -230,7 +222,7 @@ public class DocumentMapper implements ToXContentFragment {
      */
     public ObjectMapper findNestedObjectMapper(int nestedDocId, SearchContext sc, LeafReaderContext context) throws IOException {
         ObjectMapper nestedObjectMapper = null;
-        for (ObjectMapper objectMapper : objectMappers().values()) {
+        for (ObjectMapper objectMapper : mappers().objectMappers().values()) {
             if (!objectMapper.nested().isNested()) {
                 continue;
             }

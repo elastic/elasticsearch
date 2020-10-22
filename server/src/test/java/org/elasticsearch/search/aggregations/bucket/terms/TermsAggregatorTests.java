@@ -455,6 +455,42 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals("val010", result.getBuckets().get(1).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(1).getDocCount());
                     assertTrue(AggregationInspectionHelper.hasValue((InternalTerms)result));
+
+                    aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
+                        .executionHint(executionHint)
+                        .includeExclude(new IncludeExclude("val00.+", null, null,
+                            new String[]{"val001", "val002", "val003", "val004", "val005", "val006", "val007", "val008"}))
+                        .field("mv_field")
+                        .order(BucketOrder.key(true));
+                    aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    result = reduce(aggregator);
+                    assertEquals(2, result.getBuckets().size());
+                    assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                    assertEquals("val009", result.getBuckets().get(1).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms)result));
+
+                    aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
+                        .executionHint(executionHint)
+                        .includeExclude(new IncludeExclude(null, "val01.+", new String[]{"val001",
+                            "val002", "val010"}, null))
+                        .field("mv_field")
+                        .order(BucketOrder.key(true));
+                    aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    result = reduce(aggregator);
+                    assertEquals(2, result.getBuckets().size());
+                    assertEquals("val001", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                    assertEquals("val002", result.getBuckets().get(1).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms)result));
                 }
             }
         }

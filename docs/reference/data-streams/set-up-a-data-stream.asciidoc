@@ -217,7 +217,7 @@ You can create a data stream using one of two methods:
 [[index-documents-to-create-a-data-stream]]
 ====  Index documents to create a data stream
 
-You can automatically create a data stream using an indexing request. Submit 
+You can automatically create a data stream using an indexing request. Submit
 an <<add-documents-to-a-data-stream,indexing request>> to a target
 matching the index pattern defined in the template's `index_patterns`
 property.
@@ -352,7 +352,8 @@ contains information about the stream's write index, `.ds-my-data-stream-000002`
       "generation": 2,
       "status": "GREEN",
       "template": "my-data-stream-template",
-      "ilm_policy": "my-data-stream-policy"
+      "ilm_policy": "my-data-stream-policy",
+      "hidden": false
     }
   ]
 }

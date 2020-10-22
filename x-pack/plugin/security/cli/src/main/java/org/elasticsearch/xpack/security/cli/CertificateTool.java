@@ -330,6 +330,9 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             } else if (options.has(caCertPathSpec)) {
                 return loadPemCA(terminal, options, env);
             } else {
+                terminal.println("Note: Generating certificates without providing a CA certificate is deprecated.");
+                terminal.println("      A CA certificate will become mandatory in next major release.");
+                terminal.println("");
                 return generateCA(terminal, options);
             }
         }

@@ -467,8 +467,8 @@ public class CertificateToolTests extends ESTestCase {
         options = command.getParser().parse(Strings.toStringArray(args));
         caInfo = command.getCAInfo(terminal, options, env);
         caCK = caInfo.certAndKey;
-
-        assertTrue(terminal.getOutput().isEmpty());
+        assertThat(terminal.getOutput(),
+            containsString("Generating certificates without providing a CA certificate is deprecated."));
         assertThat(caCK.cert, instanceOf(X509Certificate.class));
         assertEquals(caCK.cert.getSubjectX500Principal().getName(), "CN=foo bar");
         assertThat(caCK.key.getAlgorithm(), containsString("RSA"));

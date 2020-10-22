@@ -164,7 +164,9 @@ public class MetadataMigrateToDataStreamService {
         IndicesService indicesService) throws IOException {
         // hides the index, removes the original alias, and adds data stream timestamp field mapper
         MappingMetadata mm = im.mapping();
-        assert mm != null;
+        if (mm == null) {
+            throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
+        }
 
         MapperService mapperService = indicesService.createIndexMapperService(im);
         mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);

@@ -9,7 +9,7 @@
 
 Retrieves configuration information for {dfanalytics-jobs}.
 
-beta[]
+beta::[]
 
 
 [[ml-get-dfanalytics-request]]

@@ -396,6 +396,9 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
                     if (context == StringFieldScript.CONTEXT) {
                         return StringFieldScriptTests.DUMMY;
                     }
+                    if (context == GeoPointFieldScript.CONTEXT) {
+                        return GeoPointFieldScriptTests.DUMMY;
+                    }
                     throw new IllegalArgumentException("Unsupported context: " + context);
                 };
 

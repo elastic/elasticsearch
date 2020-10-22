@@ -83,9 +83,10 @@ provide your own CA with the `--ca` or `--ca-cert` parameters. Otherwise, the
 command automatically generates a new CA for you. For more information about
 generating a CA, see the <<certutil-ca,CA mode of this command>>.
 
-NOTE: Generating certificates without specifying a CA certificate is deprecated.
-Next major version will mandate a CA certificate to be specified with either
-`--ca` or `--ca-cert`.
+deprecated:[7.11.0]
+Generating certificates without specifying a CA certificate is deprecated.
+Next major version will mandate a CA certificate to be provided with the
+`--ca` or `--ca-cert` parameters.
 
 By default, the `cert` mode produces a single PKCS#12 output file which holds
 the instance certificate, the instance private key, and the CA certificate. If

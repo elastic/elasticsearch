@@ -56,6 +56,9 @@ public class RateAggregationBuilderTests extends AbstractSerializingTestCase<Rat
             } else {
                 aggregationBuilder.script(new Script(randomAlphaOfLength(10)));
             }
+            if (randomBoolean()) {
+                aggregationBuilder.rateMode(randomFrom(RateMode.values()));
+            }
         }
         if (randomBoolean()) {
             aggregationBuilder.rateUnit(randomFrom(Rounding.DateTimeUnit.values()));

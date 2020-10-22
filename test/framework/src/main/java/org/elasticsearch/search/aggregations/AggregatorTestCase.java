@@ -110,6 +110,8 @@ import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuil
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -254,7 +256,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         throws IOException {
         @SuppressWarnings("unchecked")
         A aggregator = (A) aggregationBuilder.rewrite(searchContext.getQueryShardContext())
-            .build(searchContext.getQueryShardContext(), null)
+            .build(new ProductionAggregationContext(searchContext.getQueryShardContext(), searchContext.query()), null)
             .create(searchContext, null, CardinalityUpperBound.ONE);
         return aggregator;
     }
@@ -325,7 +327,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             String fieldName = (String) invocation.getArguments()[0];
             if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
                 BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
-                return new ObjectMapper.Builder<>(fieldName).nested(Nested.newNested()).build(context);
+                return new ObjectMapper.Builder(fieldName).nested(Nested.newNested()).build(context);
             }
             return null;
         });
@@ -825,9 +827,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         iw.addDocument(doc);
     }
 
-    private class MockParserContext extends Mapper.TypeParser.ParserContext {
+    private static class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, Version.CURRENT, null, null, null);
+            super(null, null, Version.CURRENT, null, null, null, null, null, null);
         }
 
         @Override
@@ -844,7 +846,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     @After
-    private void cleanupReleasables() {
+    public void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
     }
@@ -915,9 +917,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subfactoriesBuilder)
+        protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
                 throws IOException {
-            return new AggregatorFactory(name, queryShardContext, parent, subfactoriesBuilder, metadata) {
+            return new AggregatorFactory(name, context, parent, subfactoriesBuilder, metadata) {
                 @Override
                 protected Aggregator createInternal(
                     SearchContext searchContext,
@@ -938,8 +940,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                         @Override
                         public InternalAggregation buildEmptyAggregation() {
-                            // TODO Auto-generated method stub
-                            return null;
+                            throw new UnsupportedOperationException();
                         }
                     };
                 }

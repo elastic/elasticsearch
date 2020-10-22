@@ -10,9 +10,19 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
  * Interface for classes that help encode double-valued spatial coordinates x/y to
  * their integer-encoded serialized form and decode them back
  */
-interface CoordinateEncoder {
+public interface CoordinateEncoder {
+
+    CoordinateEncoder GEO = new GeoShapeCoordinateEncoder();
+
+    /** encode X value */
     int encodeX(double x);
+
+    /** encode Y value */
     int encodeY(double y);
+
+    /** decode X value */
     double decodeX(int x);
+
+    /** decode Y value */
     double decodeY(int y);
 }

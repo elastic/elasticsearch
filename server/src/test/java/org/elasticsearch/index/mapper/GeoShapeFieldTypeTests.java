@@ -34,7 +34,7 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        MappedFieldType mapper = new GeoShapeFieldMapper.Builder("field").build(context).fieldType();
+        MappedFieldType mapper = new GeoShapeFieldMapper.Builder("field", false, true).build(context).fieldType();
 
         Map<String, Object> jsonLineString = org.elasticsearch.common.collect.Map.of(
             "type", "LineString",

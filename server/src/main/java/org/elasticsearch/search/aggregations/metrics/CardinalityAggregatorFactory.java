@@ -20,11 +20,11 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -42,11 +42,11 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     CardinalityAggregatorFactory(String name, ValuesSourceConfig config,
                                  Long precisionThreshold,
-                                 QueryShardContext queryShardContext,
+                                 AggregationContext context,
                                  AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder,
                                  Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.precisionThreshold = precisionThreshold;
     }
 
@@ -101,7 +101,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
+        return context.getValuesSourceRegistry()
             .getAggregator(CardinalityAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, precision(), searchContext, parent, metadata);
     }

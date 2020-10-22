@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 
 import java.io.IOException;
 import java.util.AbstractMap;

@@ -467,6 +467,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
     }
 
+    protected void awaitNoMoreRunningOperations() throws Exception {
+        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+    }
+
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
         awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&

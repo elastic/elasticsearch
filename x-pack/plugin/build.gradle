@@ -26,8 +26,8 @@ subprojects {
   afterEvaluate {
     if (project.plugins.hasPlugin(PluginBuildPlugin)) {
       // see the root Gradle file for additional logic regarding this configuration
-      project.configurations.create('featureAwarePlugin')
-      project.dependencies.add('featureAwarePlugin', project.configurations.compileClasspath)
+      def featureAwarePluginConfiguration = project.configurations.create('featureAwarePlugin')
+      featureAwarePluginConfiguration.extendsFrom(project.configurations.compileClasspath)
       project.dependencies.add('featureAwarePlugin', project(':x-pack:test:feature-aware'))
       project.dependencies.add('featureAwarePlugin', project.sourceSets.main.output.getClassesDirs())
 
@@ -49,7 +49,7 @@ subprojects {
         final FileCollection classDirectories = project.files(files).filter { it.exists() }
 
         doFirst {
-          args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
+          args('-cp', featureAwarePluginConfiguration.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
           classDirectories.each { args it.getAbsolutePath() }
         }
         doLast {

@@ -35,13 +35,13 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void assertParseMinimalWarnings() {
-        assertWarnings("The [sparse_vector] field type is deprecated and will be removed in 8.0.");
+    protected String[] getParseMinimalWarnings() {
+        return new String[]{ "The [sparse_vector] field type is deprecated and will be removed in 8.0." };
     }
 
     @Override
-    protected void assertParseMaximalWarnings() {
-        assertParseMinimalWarnings();
+    protected String[] getParseMaximalWarnings() {
+        return getParseMinimalWarnings();
     }
 
     @Override

@@ -926,8 +926,16 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static String randomDateFormatterPattern() {
         //WEEKYEAR should be used instead of WEEK_YEAR
-        EnumSet<FormatNames> formatNames = EnumSet.complementOf(EnumSet.of(FormatNames.WEEK_YEAR));
-        return randomFrom(formatNames).getSnakeCaseName();
+        EnumSet<FormatNames> formatNamesSet = EnumSet.complementOf(EnumSet.of(FormatNames.WEEK_YEAR));
+        FormatNames formatName = randomFrom(formatNamesSet);
+        if (FormatNames.WEEK_BASED_FORMATS.contains(formatName)) {
+            boolean runtimeJdk8 = JavaVersion.current().getVersion().get(0) == 8;
+            assumeFalse("week based formats won't work in jdk8 " +
+                    "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs." +
+                    "Random format was =" + formatName,
+                runtimeJdk8);
+        }
+        return formatName.getSnakeCaseName();
     }
 
     /**

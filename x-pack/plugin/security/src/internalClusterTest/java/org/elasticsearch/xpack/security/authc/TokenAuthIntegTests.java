@@ -114,6 +114,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
         tokenService.decodeToken(response.getTokenString(), userTokenFuture);
         assertNotNull(userTokenFuture.actionGet());
+        assertNotNull(response.getAuthentication());
     }
 
 
@@ -147,6 +148,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertNotNull(userTokenFuture.actionGet());
             assertNotEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
+        assertNotNull(response.getAuthentication());
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.getAuthentication().getUser().principal());
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
@@ -468,6 +471,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         assertNoTimeout(client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
             .admin().cluster().prepareHealth().get());
+        assertNotNull(refreshResponse.getAuthentication());
     }
 
     public void testRefreshingInvalidatedToken() {
@@ -545,6 +549,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertEquals("token has already been refreshed more than 30 seconds in the past", e.getHeader("error_description").get(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55816")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",

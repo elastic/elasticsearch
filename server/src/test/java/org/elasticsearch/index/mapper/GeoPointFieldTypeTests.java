@@ -35,7 +35,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field").build(context).fieldType();
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", false).build(context).fieldType();
 
         Map<String, Object> jsonPoint = new HashMap<>();
         jsonPoint.put("type", "Point");

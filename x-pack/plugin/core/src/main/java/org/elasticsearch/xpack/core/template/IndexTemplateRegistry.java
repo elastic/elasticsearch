@@ -72,6 +72,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.clusterService = clusterService;
+    }
+
+    /**
+     * Initialize the template registry, adding it as a listener so templates will be installed as necessary
+     */
+    public void initialize() {
         clusterService.addListener(this);
     }
 

@@ -177,7 +177,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public Similarity getSearchSimilarity() {
-        return similarityService != null ? similarityService.similarity(mapperService) : null;
+        return similarityService != null ? similarityService.similarity(mapperService::fieldType) : null;
     }
 
     public List<String> defaultFields() {

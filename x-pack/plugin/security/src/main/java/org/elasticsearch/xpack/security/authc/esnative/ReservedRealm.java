@@ -80,7 +80,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         final Hasher reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? new char[0] :
             reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
-        bootstrapUserInfo = new ReservedUserInfo(hash, true, hash.length == 0);
+        bootstrapUserInfo = new ReservedUserInfo(hash, true);
     }
 
     @Override
@@ -94,7 +94,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 AuthenticationResult result;
                 if (userInfo != null) {
                     try {
-                        if (userInfo.hasEmptyPassword) {
+                        if (userInfo.hasEmptyPassword()) {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         } else if (userInfo.verifyPassword(token.credentials())) {
                             final User user = getUser(token.principal(), userInfo);

@@ -535,7 +535,7 @@ public class NativeUsersStore {
                                             listener.onResponse(enabled ? ReservedUserInfo.defaultEnabledUserInfo()
                                                 : ReservedUserInfo.defaultDisabledUserInfo());
                                         } else {
-                                            listener.onResponse(new ReservedUserInfo(password.toCharArray(), enabled, false));
+                                            listener.onResponse(new ReservedUserInfo(password.toCharArray(), enabled));
                                         }
                                     } else {
                                         listener.onResponse(null);
@@ -589,7 +589,7 @@ public class NativeUsersStore {
                                     listener.onFailure(new IllegalStateException("enabled must not be null!"));
                                     return;
                                 } else {
-                                    userInfos.put(username, new ReservedUserInfo(password.toCharArray(), enabled, false));
+                                    userInfos.put(username, new ReservedUserInfo(password.toCharArray(), enabled));
                                 }
                             }
                             listener.onResponse(userInfos);
@@ -674,30 +674,32 @@ public class NativeUsersStore {
 
         public final char[] passwordHash;
         public final boolean enabled;
-        public final boolean hasEmptyPassword;
         private final Hasher hasher;
 
-        ReservedUserInfo(char[] passwordHash, boolean enabled, boolean hasEmptyPassword) {
+        ReservedUserInfo(char[] passwordHash, boolean enabled) {
             this.passwordHash = passwordHash;
             this.enabled = enabled;
-            this.hasEmptyPassword = hasEmptyPassword;
             this.hasher = Hasher.resolveFromHash(this.passwordHash);
         }
 
         ReservedUserInfo deepClone() {
-            return new ReservedUserInfo(Arrays.copyOf(passwordHash, passwordHash.length), enabled, hasEmptyPassword);
+            return new ReservedUserInfo(Arrays.copyOf(passwordHash, passwordHash.length), enabled);
+        }
+
+        boolean hasEmptyPassword() {
+            return passwordHash.length == 0;
         }
 
         boolean verifyPassword(SecureString data) {
             return hasher.verify(data, this.passwordHash);
         }
 
-        static ReservedUserInfo defaultEnabledUserInfo(){
-            return new ReservedUserInfo(new char[0], true, true);
+        static ReservedUserInfo defaultEnabledUserInfo() {
+            return new ReservedUserInfo(new char[0], true);
         }
 
-        static ReservedUserInfo defaultDisabledUserInfo(){
-            return new ReservedUserInfo(new char[0], false, true);
+        static ReservedUserInfo defaultDisabledUserInfo() {
+            return new ReservedUserInfo(new char[0], false);
         }
     }
 }

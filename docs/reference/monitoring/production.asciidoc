@@ -144,3 +144,4 @@ Set the `xpack.monitoring.kibana.collection.enabled` setting to `false` in the
 {kibana-ref}/monitoring-settings-kb.html[Monitoring settings in {kib}].
 
 . {kibana-ref}/monitoring-data.html[Configure {kib} to retrieve and display the monitoring data].
+. Consider configuring [Index Lifecycle Manager policies](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html) to ensure proper data retention takes place and the monitoring deployment is not running out of disk space or gets [over-sharded](https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html).

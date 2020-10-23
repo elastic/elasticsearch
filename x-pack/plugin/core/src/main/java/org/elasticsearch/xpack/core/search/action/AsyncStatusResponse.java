@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.core.search.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.xpack.core.async.AsyncResponse;
 
 import java.io.IOException;
 
@@ -21,97 +22,105 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * A response of an async search request.
  */
-public class AsyncStatusResponse extends ActionResponse implements StatusToXContentObject, AsyncResponse<AsyncStatusResponse> {
+public class AsyncStatusResponse extends ActionResponse implements StatusToXContentObject {
     private final String id;
     private final boolean isRunning;
+    private final boolean isPartial;
     private final long startTimeMillis;
     private final long expirationTimeMillis;
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
     private final int failedShards;
+    private final RestStatus completionStatus;
 
-    private AsyncStatusResponse(String id,
+    public AsyncStatusResponse(String id,
             boolean isRunning,
+            boolean isPartial,
             long startTimeMillis,
             long expirationTimeMillis,
             int totalShards,
             int successfulShards,
             int skippedShards,
-            int failedShards) {
+            int failedShards,
+            RestStatus completionStatus) {
         this.id = id;
         this.isRunning = isRunning;
+        this.isPartial = isPartial;
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.failedShards = failedShards;
+        this.completionStatus = completionStatus;
     }
 
-    /**
-     * Creates a new {@link AsyncStatusResponse} for a running search.
-     *
-     * @param id The id of the async search.
-     * @param startTimeMillis The start date of the search in milliseconds since epoch.
-     * @param expirationTimeMillis The expiration date of the search in milliseconds since epoch.
-     * @param totalShards The total number of shards the request search is executed on
-     * @param successfulShards The number of shards the request is completed on
-     * @param skippedShards The number of skipped shards
-     * @param failedShards The number of shards that failed to executed the request
-     */
-    public AsyncStatusResponse(String id,
-            long startTimeMillis,
-            long expirationTimeMillis,
-            int totalShards,
-            int successfulShards,
-            int skippedShards,
-            int failedShards) {
-        this(id, true, startTimeMillis, expirationTimeMillis, totalShards, successfulShards, skippedShards, failedShards);
-    }
-
-    /**
-     * Creates a new {@link AsyncStatusResponse} for a completed search.
-     *
-     * @param id The id of the async search.
-     * @param expirationTimeMillis – expiration time in milliseconds
-     * @return status of the completed async search
-     */
-    public static AsyncStatusResponse getCompletedSearchStatusResponse(String id, long expirationTimeMillis) {
-        return new AsyncStatusResponse(id, false, 0, expirationTimeMillis, 0, 0, 0, 0);
-    }
-
-    @Override
-    public AsyncStatusResponse withExpirationTime(long pexpirationTimeMillis) {
+    public static AsyncStatusResponse getStatusFromAsyncSearchResponseWithExpirationTime(AsyncSearchResponse asyncSearchResponse,
+            long expirationTimeMillis) {
+        int totalShards = 0;
+        int successfulShards = 0;
+        int skippedShards = 0;
+        int failedShards = 0;
+        RestStatus completionStatus = null;
+        SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
+        if (searchResponse != null) {
+            totalShards = searchResponse.getTotalShards();
+            successfulShards = searchResponse.getSuccessfulShards();
+            skippedShards = searchResponse.getSkippedShards();
+            failedShards = searchResponse.getFailedShards();
+        }
+        if (asyncSearchResponse.isRunning() == false) {
+            if (searchResponse != null) {
+                completionStatus = searchResponse.status();
+            } else {
+                Exception failure = asyncSearchResponse.getFailure();
+                if (failure != null) {
+                    completionStatus = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure));
+                }
+            }
+        }
         return new AsyncStatusResponse(
-            id, isRunning, startTimeMillis, pexpirationTimeMillis, totalShards, successfulShards, skippedShards, failedShards);
+            asyncSearchResponse.getId(),
+            asyncSearchResponse.isRunning(),
+            asyncSearchResponse.isPartial(),
+            asyncSearchResponse.getStartTime(),
+            expirationTimeMillis,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            failedShards,
+            completionStatus
+        );
     }
-
-
 
     public AsyncStatusResponse(StreamInput in) throws IOException {
         this.id = in.readString();
         this.isRunning = in.readBoolean();
+        this.isPartial = in.readBoolean();
         this.startTimeMillis = in.readLong();
         this.expirationTimeMillis = in.readLong();
         this.totalShards = in.readVInt();
         this.successfulShards = in.readVInt();
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
+        this.completionStatus = (this.isRunning == false) ? RestStatus.readFrom(in) : null;
     }
-
-
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBoolean(isRunning);
+        out.writeBoolean(isPartial);
         out.writeLong(startTimeMillis);
         out.writeLong(expirationTimeMillis);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(skippedShards);
         out.writeVInt(failedShards);
+        if (isRunning == false) {
+            RestStatus.writeTo(out, completionStatus);
+        }
     }
 
     @Override
@@ -124,12 +133,12 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
         builder.startObject();
         builder.field("id", id);
         builder.field("is_running", isRunning);
-        if (isRunning) { // information only reported for a currently running task
-            builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
-        }
+        builder.field("is_partial", isPartial);
+        builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
         builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
-        if (isRunning) { // information only reported for a currently running task
-            RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
+        RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
+        if (isRunning == false) { // completion status information is only available for a completed search
+            builder.field("completion_status", completionStatus.getStatus());
         }
         builder.endObject();
         return builder;
@@ -151,11 +160,19 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
-     * For a running search returns a timestamp when the search tasks started, in milliseconds since epoch.
-     * For a completed search returns {@code null}.
+     * Returns {@code true} if the search results are partial.
+     * This could be either because async search hasn't finished yet,
+     * or if it finished and some shards have failed.
      */
-    public Long getStartTime() {
-        return isRunning ? startTimeMillis : null;
+    public boolean isPartial() {
+        return isPartial;
+    }
+
+    /**
+     * Returns a timestamp when the search tasks started, in milliseconds since epoch.
+     */
+    public long getStartTime() {
+        return startTimeMillis;
     }
 
     /**
@@ -166,35 +183,38 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
-     * For a running search returns the total number of shards the search is executed on.
-     * For a completed search returns {@code null}.
+     * Returns the total number of shards the search is executed on.
      */
-    public Integer getTotalShards() {
-        return isRunning ? totalShards : null;
+    public int getTotalShards() {
+        return totalShards;
     }
 
     /**
-     * For a running search returns the number of successful shards the search was executed on.
-     * For a completed search returns {@code null}.
+     * Returns the number of successful shards the search was executed on.
      */
-    public Integer getSuccessfulShards() {
-        return isRunning ? successfulShards : null;
+    public int getSuccessfulShards() {
+        return successfulShards;
     }
 
     /**
-     * For a running search returns the number of skipped shards due to pre-filtering.
-     * For a completed search returns {@code null}.
+     * Returns the number of skipped shards due to pre-filtering.
      */
-    public Integer getSkippedShards() {
-        return isRunning ? skippedShards : null;
+    public int getSkippedShards() {
+        return skippedShards;
     }
 
     /**
-     * For a running search returns the number of failed shards the search was executed on.
-     * For a completed search returns {@code null}.
+     * Returns the number of failed shards the search was executed on.
      */
-    public Integer getFailedShards() {
-        return isRunning ? failedShards : null;
+    public int getFailedShards() {
+        return failedShards;
     }
 
+    /**
+     * For a completed async search returns the completion status.
+     * For a still running async search returns {@code null}.
+     */
+    public RestStatus getCompletionStatus() {
+        return completionStatus;
+    }
 }

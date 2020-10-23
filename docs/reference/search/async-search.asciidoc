@@ -242,6 +242,7 @@ GET /_async_search/status/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVm
 {
   "id" : "FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=",
   "is_running" : true,
+  "is_partial" : true,
   "start_time_in_millis" : 1583945890986,
   "expiration_time_in_millis" : 1584377890986,
   "_shards" : {
@@ -256,18 +257,51 @@ GET /_async_search/status/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVm
 
 <1> Indicates how many shards have executed the query so far.
 
-For an async search that has been completed, the status response has a shorter form
-that includes only `id`, `is_running` and `expiration_time_in_millis` fields.
+For an async search that has been completed, the status response has
+an additional `completion_status` field that shows the status
+code of the completed async search.
 [source,console-result]
 --------------------------------------------------
 {
   "id" : "FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=",
   "is_running" : false,
-  "expiration_time_in_millis" : 1584377890986
+  "is_partial" : false,
+  "start_time_in_millis" : 1583945890986,
+  "expiration_time_in_millis" : 1584377890986,
+  "_shards" : {
+      "total" : 562,
+      "successful" : 562,
+      "skipped" : 0,
+      "failed" : 0
+  },
+ "completion_status" : 200 <1>
 }
 --------------------------------------------------
 // TEST[skip: a sample output of a status of a completed async search]
 
+<1> Indicates that the async search was successfully completed
+
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id" : "FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=",
+  "is_running" : false,
+  "is_partial" : true,
+  "start_time_in_millis" : 1583945890986,
+  "expiration_time_in_millis" : 1584377890986,
+  "_shards" : {
+      "total" : 562,
+      "successful" : 188,
+      "skipped" : 0,
+      "failed" : 1
+  },
+ "completion_status" : 503 <1>
+}
+--------------------------------------------------
+// TEST[skip: a sample output of a status of a completed async search]
+
+<1> Indicates that the async search was completed with an error
 
 [[delete-async-search]]
 ==== Delete async search

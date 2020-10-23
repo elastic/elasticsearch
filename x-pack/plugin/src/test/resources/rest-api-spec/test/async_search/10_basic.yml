@@ -114,6 +114,8 @@
         id: "$id"
   - match:  { id:                             $id   }
   - match:  { is_running:                     false }
+  - match:  { is_partial:                     false }
+  - match:  { completion_status:                200 }
 
   # test with typed_keys:
   - do:

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -25,7 +26,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreResponseHeadersContext;
-import static org.elasticsearch.xpack.core.search.action.AsyncStatusResponse.getCompletedSearchStatusResponse;
 
 /**
  * A mutable search response that allows to update and create partial response synchronously.
@@ -42,7 +42,7 @@ class MutableSearchResponse {
     private final ThreadContext threadContext;
 
     private boolean isPartial;
-    private int successfulShards;
+    private volatile int successfulShards;
     private TotalHits totalHits;
     /**
      * How we get the reduced aggs when {@link #finalResponse} isn't populated.
@@ -56,8 +56,8 @@ class MutableSearchResponse {
      * building our own {@linkplain SearchResponse}s when get async search
      * is called, and instead return this.
      */
-    private SearchResponse finalResponse;
-    private ElasticsearchException failure;
+    private volatile SearchResponse finalResponse;
+    private volatile ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
 
     private boolean frozen;
@@ -196,21 +196,47 @@ class MutableSearchResponse {
      * @param expirationTime – expiration time of async search request
      * @return response representing the status of async search
      */
-    AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
-        if (frozen == false) {
+     AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
+        if (finalResponse != null) { // no need to synchronize this, as finalResponse is set only once
             return new AsyncStatusResponse(
                 asyncExecutionId,
+                false,
+                false,
                 startTime,
                 expirationTime,
-                finalResponse != null ? finalResponse.getTotalShards() : totalShards,
-                finalResponse != null ? finalResponse.getSuccessfulShards() : successfulShards,
-                finalResponse != null ? finalResponse.getSkippedShards() : skippedShards,
-                finalResponse != null ? (finalResponse.getShardFailures() == null ? finalResponse.getShardFailures().length : 0) :
-                    (queryFailures != null ? queryFailures.length() : 0)
+                finalResponse.getTotalShards(),
+                finalResponse.getSuccessfulShards(),
+                finalResponse.getSkippedShards(),
+                finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().length : 0,
+                finalResponse.status()
             );
-        } else {
-            return getCompletedSearchStatusResponse(asyncExecutionId, expirationTime);
         }
+        if (failure != null) { // no need to synchronize this, as failure is set only once
+            return new AsyncStatusResponse(
+                asyncExecutionId,
+                false,
+                true,
+                startTime,
+                expirationTime,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                getQueryFailuresCount(),
+                ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure))
+            );
+        }
+        return new AsyncStatusResponse(
+            asyncExecutionId,
+            true,
+            true,
+            startTime,
+            expirationTime,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            getQueryFailuresCount(),
+            null  // for a still running search, completion status is null
+        );
     }
 
     synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task,
@@ -241,5 +267,18 @@ class MutableSearchResponse {
             }
         }
         return failures.toArray(ShardSearchFailure[]::new);
+    }
+
+    private int getQueryFailuresCount() {
+        if (queryFailures == null) {
+            return 0;
+        }
+        int count = 0;
+        for (int i = 0; i < queryFailures.length(); i++) {
+            if (queryFailures.get(i) != null) {
+                count++;
+            }
+        }
+        return count;
     }
 }

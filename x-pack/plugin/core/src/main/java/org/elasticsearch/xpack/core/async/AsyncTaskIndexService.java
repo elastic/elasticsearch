@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -255,23 +256,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return asyncTask;
     }
 
-    /**
-     * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
-     * is registered in the task manager, <code>null</code> otherwise.
-     *
-     */
-    <T extends AsyncTask> T getTaskStatus(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) {
-        Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
-        if (tClass.isInstance(task) == false) {
-            return null;
-        }
-        @SuppressWarnings("unchecked") T asyncTask = (T) task;
-        if (asyncTask.getExecutionId().equals(asyncExecutionId) == false) {
-            return null;
-        }
-        return asyncTask;
-    }
-
     private void getEncodedResponse(AsyncExecutionId asyncExecutionId,
                                       boolean restoreResponseHeaders,
                                       ActionListener<Tuple<String, Long>> listener) {
@@ -329,17 +313,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
 
     /**
-     * Gets the status response of the async search from the index.
-     * This should be called after unsuccessful attempt to retrieve a status from the Task Manager.
-     * As the corresponding task doest' exist, we assume that the async search request
-     * has been completed, and for a status response we are only interested in its expiration time.
+     * Gets the status response of the async search from the index
      * @param asyncExecutionId – id of the async search
-     * @param completedStatusProducer – a producer of the status response of the completed async task,
-     *   where necessary fields are only id and expiration time.
+     * @param statusProducer – a producer of the status from the stored async search response and expirationTime
      * @param listener – listener to report result to
      */
     public void getStatusResponse(
-        AsyncExecutionId asyncExecutionId, BiFunction<String, Long, R> completedStatusProducer, ActionListener<R> listener) {
+        AsyncExecutionId asyncExecutionId,
+            BiFunction<R, Long, AsyncStatusResponse> statusProducer, ActionListener<AsyncStatusResponse> listener) {
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncExecutionId.getEncoded())
             .id(asyncExecutionId.getDocId());
@@ -349,8 +330,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                     listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
                     return;
                 }
-                Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
-                listener.onResponse(completedStatusProducer.apply(asyncExecutionId.getEncoded(), expirationTime));
+                String encoded = (String) get.getSource().get(RESULT_FIELD);
+                if (encoded != null) {
+                    Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
+                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime));
+                } else {
+                    listener.onResponse(null);
+                }
             },
             listener::onFailure
         ));

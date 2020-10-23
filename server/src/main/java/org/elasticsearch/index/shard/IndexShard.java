@@ -660,9 +660,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
-     * {@link Runnable} is executed after all operations are successfully blocked.
+     * {@link BiConsumer} is executed after all operations are successfully blocked.
      *
-     * @param consumer a {@link Runnable} that is executed after operations are blocked
+     * @param consumer a {@link BiConsumer} that is executed after operations are blocked and that consumes the primary context as well as
+     *                 a listener to resolve once it finished
+     * @param listener listener to resolve once this method actions including executing {@code consumer} in the non-failure case complete
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      */
@@ -689,6 +691,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         verifyRelocatingState();
                         final ReplicationTracker.PrimaryContext primaryContext =
                                 replicationTracker.startRelocationHandoff(targetAllocationId);
+                        // make sure we release all permits before we resolve the final listener
                         final ActionListener<Void> wrappedInnerListener = ActionListener.runBefore(listener, releasable::close);
                         final ActionListener<Void> wrappedListener = new ActionListener<>() {
                             @Override

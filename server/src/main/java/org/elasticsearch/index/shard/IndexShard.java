@@ -689,7 +689,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         verifyRelocatingState();
                         final ReplicationTracker.PrimaryContext primaryContext =
                                 replicationTracker.startRelocationHandoff(targetAllocationId);
-                        final ActionListener<Void> wrappedListener = ActionListener.runAfter(new ActionListener<>() {
+                        final ActionListener<Void> wrappedInnerListener = ActionListener.runBefore(listener, releasable::close);
+                        final ActionListener<Void> wrappedListener = new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
                                 try {
@@ -698,8 +699,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                         verifyRelocatingState();
                                         replicationTracker.completeRelocationHandoff();
                                     }
-                                    releasable.close();
-                                    listener.onResponse(null);
+                                    wrappedInnerListener.onResponse(null);
                                 } catch (Exception e) {
                                     onFailure(e);
                                 }
@@ -712,10 +712,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 } catch (final Exception inner) {
                                     e.addSuppressed(inner);
                                 }
-                                releasable.close();
-                                listener.onFailure(e);
+                                wrappedInnerListener.onFailure(e);
                             }
-                        }, releasable::close);
+                        };
                         try {
                             consumer.accept(primaryContext, wrappedListener);
                         } catch (final Exception e) {
@@ -739,7 +738,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         // hand-off.
                         // Fail primary relocation source and target shards.
                         failShard("timed out waiting for relocation hand-off to complete", null);
-                        throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+                        listener.onFailure(
+                                new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete"));
                     } else {
                         listener.onFailure(e);
                     }

@@ -222,22 +222,24 @@ public class CacheFile {
 
     @Override
     public String toString() {
-        return "CacheFile{"
-            + "desc='"
-            + description
-            + "', file="
-            + file
-            + ", length="
-            + tracker.getLength()
-            + ", channel="
-            + (channelRef != null ? "yes" : "no")
-            + ", listeners="
-            + listeners.size()
-            + ", evicted="
-            + evicted
-            + ", tracker="
-            + tracker
-            + '}';
+        synchronized (listeners) {
+            return "CacheFile{"
+                + "desc='"
+                + description
+                + "', file="
+                + file
+                + ", length="
+                + tracker.getLength()
+                + ", channel="
+                + (channelRef != null ? "yes" : "no")
+                + ", listeners="
+                + listeners.size()
+                + ", evicted="
+                + evicted
+                + ", tracker="
+                + tracker
+                + '}';
+        }
     }
 
     private void ensureOpen() {
@@ -274,7 +276,7 @@ public class CacheFile {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         Releasable decrementRef = null;
         try {
-            final FileChannelReference reference = getFileChannelReference();
+            final FileChannelReference reference = acquireFileChannelReference();
             decrementRef = Releasables.releaseOnce(reference::decRef);
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                 rangeToWrite,
@@ -290,6 +292,7 @@ public class CacheFile {
                         for (SparseFileTracker.Gap gap : gaps) {
                             try {
                                 if (reference.tryIncRef() == false) {
+                                    assert false : "expected a non-closed channel reference";
                                     throw new AlreadyClosedException("Cache file channel has been released and closed");
                                 }
                                 try {
@@ -331,12 +334,11 @@ public class CacheFile {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         Releasable decrementRef = null;
         try {
-            final FileChannelReference reference = getFileChannelReference();
+            final FileChannelReference reference = acquireFileChannelReference();
             decrementRef = Releasables.releaseOnce(reference::decRef);
             if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, future, reference, decrementRef))) {
                 return future;
             } else {
-                // complete the future to release the channel reference
                 decrementRef.close();
                 return null;
             }
@@ -380,7 +382,7 @@ public class CacheFile {
      *
      * @return file channel reference
      */
-    private FileChannelReference getFileChannelReference() {
+    private FileChannelReference acquireFileChannelReference() {
         final FileChannelReference reference;
         synchronized (listeners) {
             ensureOpen();

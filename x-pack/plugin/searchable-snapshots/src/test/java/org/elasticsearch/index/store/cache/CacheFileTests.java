@@ -142,17 +142,23 @@ public class CacheFileTests extends ESTestCase {
             random()
         );
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
-        final Future<Integer> readFuture;
+        final Future<Integer> populateAndReadFuture;
+        final Future<Integer> readIfAvailableFuture;
         if (randomBoolean()) {
-            readFuture = cacheFile.readIfAvailableOrPending(Tuple.tuple(0L, length), channel -> Math.toIntExact(length));
-        } else {
-            readFuture = cacheFile.populateAndRead(
+            populateAndReadFuture = cacheFile.populateAndRead(
                 Tuple.tuple(0L, length),
                 Tuple.tuple(0L, length),
                 channel -> Math.toIntExact(length),
                 (channel, from, to, progressUpdater) -> progressUpdater.accept(length),
                 threadPool.generic()
             );
+        } else {
+            populateAndReadFuture = null;
+        }
+        if (randomBoolean()) {
+            readIfAvailableFuture = cacheFile.readIfAvailableOrPending(Tuple.tuple(0L, length), channel -> Math.toIntExact(length));
+        } else {
+            readIfAvailableFuture = null;
         }
         final boolean evicted = randomBoolean();
         if (evicted) {
@@ -160,8 +166,11 @@ public class CacheFileTests extends ESTestCase {
         }
         deterministicTaskQueue.scheduleNow(() -> cacheFile.release(evictionListener));
         deterministicTaskQueue.runAllRunnableTasks();
-        if (readFuture != null) {
-            assertTrue(readFuture.isDone());
+        if (populateAndReadFuture != null) {
+            assertTrue(populateAndReadFuture.isDone());
+        }
+        if (readIfAvailableFuture != null) {
+            assertTrue(readIfAvailableFuture.isDone());
         }
         if (evicted) {
             assertFalse(Files.exists(file));

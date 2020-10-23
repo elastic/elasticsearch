@@ -144,17 +144,27 @@ public class GeoPolygonDecomposer {
      */
     private static Edge[] ring(int component, boolean direction, boolean handedness,
                         Point[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
-
-        boolean orientation = getOrientation(points, offset, length);
+        double signedArea = 0;
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        for (int i = offset; i < offset + length; i++) {
+            signedArea += points[i].getX() * points[i + 1].getY() - points[i].getY() * points[i + 1].getX();
+            minX = Math.min(minX, points[i].getX());
+            maxX = Math.max(maxX, points[i].getX());
+        }
+        if (signedArea == 0) {
+            // Points are collinear or self-intersection
+            throw new InvalidShapeException("Cannot determine orientation: signed area equal to 0");
+        }
+        boolean orientation = signedArea < 0;
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
         // thus if orientation is computed as cw, the logic will translate points across dateline
         // and convert to a right handed system
 
-        // compute the bounding box and calculate range
-        double[] range = range(points, offset, length);
-        final double rng = range[1] - range[0];
+        // calculate range
+        final double rng = maxX - minX;
         // translate the points if the following is true
         //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres
         //       (translation would result in a collapsed poly)
@@ -183,46 +193,6 @@ public class GeoPolygonDecomposer {
                 points[i] = new Point(points[i].getX() + 2 * DATELINE, points[i].getY());
             }
         }
-    }
-
-    /**
-     * @return whether the points are clockwise (true) or anticlockwise (false)
-     */
-    private static boolean getOrientation(Point[] points, int offset, int length) {
-        // calculate the signed area of the points:
-        double determinantSign = 0;
-        for (int i = offset; i < offset + length; i++ ) {
-            determinantSign += points[i].getX() * points[i + 1].getY() - points[i].getY() * points[i + 1].getX();
-        }
-        if (determinantSign == 0) {
-            // Points are collinear or self-intersection
-            throw new InvalidShapeException("Cannot determine orientation: signed area equal to 0");
-        }
-        return determinantSign < 0;
-    }
-
-    private static double[] range(Point[] points, int offset, int length) {
-        double minX = points[0].getX();
-        double maxX = minX;
-        double minY = points[0].getY();
-        double maxY = minY;
-        // compute the bounding coordinates (@todo: cleanup brute force)
-        for (int i = 1; i < length; ++i) {
-            Point point = points[offset + i];
-            if (point.getX() < minX) {
-                minX = point.getX();
-            }
-            if (point.getX() > maxX) {
-                maxX = point.getX();
-            }
-            if (point.getY() < minY) {
-                minY = point.getY();
-            }
-            if (point.getY() > maxY) {
-                maxY = point.getY();
-            }
-        }
-        return new double[]{minX, maxX, minY, maxY};
     }
 
     private static int merge(Edge[] intersections, int offset, int length, Edge[] holes, int numHoles) {

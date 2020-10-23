@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -42,6 +43,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -399,16 +402,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         List<RoleDescriptor> allTestRoleDescriptors = List.of(nullRoleDescriptor, roleDescriptor1, roleDescriptor2, roleDescriptor3,
                 roleDescriptor4);
         List<RoleDescriptor> keyRoleDescriptors = randomSubsetOf(allTestRoleDescriptors);
-        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(keyName, keyRoleDescriptors, expiration);
-        final String requestId = randomRequestId();
-        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
-        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-        final Authentication authentication = createAuthentication();
-        auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
-
-        StringBuilder createKeyAuditEventStringBuilder = new StringBuilder();
-        createKeyAuditEventStringBuilder.append("\"create\":{\"apikey\":{\"name\":\"" + keyName + "\",\"expiration\":" +
-                (expiration != null ? "\"" + expiration.toString() + "\"" : "null") + ",");
         StringBuilder privilegesStringBuilder = new StringBuilder();
         privilegesStringBuilder.append("\"privileges\":[");
         keyRoleDescriptors.forEach(roleDescriptor -> {
@@ -420,15 +413,25 @@ public class LoggingAuditTrailTests extends ESTestCase {
             privilegesStringBuilder.deleteCharAt(privilegesStringBuilder.length() - 1);
         }
         privilegesStringBuilder.append("]");
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(keyName, keyRoleDescriptors, expiration);
+        auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
+        StringBuilder createKeyAuditEventStringBuilder = new StringBuilder();
+        createKeyAuditEventStringBuilder.append("\"create\":{\"apikey\":{\"name\":\"" + keyName + "\",\"expiration\":" +
+                (expiration != null ? "\"" + expiration.toString() + "\"" : "null") + ",");
         createKeyAuditEventStringBuilder.append(privilegesStringBuilder.toString());
         createKeyAuditEventStringBuilder.append("}}");
         String expectedCreateKeyAuditEventString = createKeyAuditEventStringBuilder.toString();
-        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedCreateKeyAuditEventString = output.get(1);
         assertThat(generatedCreateKeyAuditEventString, containsString(expectedCreateKeyAuditEventString));
         generatedCreateKeyAuditEventString = generatedCreateKeyAuditEventString.replace(", " + expectedCreateKeyAuditEventString, "");
-        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit")
@@ -436,6 +439,48 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedCreateKeyAuditEventString, checkedFields.immutableMap());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
+        grantApiKeyRequest.getGrant().setType(randomFrom(randomAlphaOfLength(8), null));
+        grantApiKeyRequest.getGrant().setUsername(randomFrom(randomAlphaOfLength(8), null));
+        grantApiKeyRequest.getGrant().setPassword(randomFrom(new SecureString("password not exposed"), null));
+        grantApiKeyRequest.getGrant().setAccessToken(randomFrom(new SecureString("access token not exposed"), null));
+        grantApiKeyRequest.setApiKeyRequest(createApiKeyRequest);
+        auditTrail.accessGranted(requestId, authentication, GrantApiKeyAction.NAME, grantApiKeyRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedGrantKeyAuditEventString = output.get(1);
+        StringBuilder grantKeyAuditEventStringBuilder = new StringBuilder();
+        grantKeyAuditEventStringBuilder.append("\"create\":{\"apikey\":{\"name\":\"" + keyName + "\",\"expiration\":" +
+                (expiration != null ? "\"" + expiration.toString() + "\"" : "null") + ",");
+        grantKeyAuditEventStringBuilder.append(privilegesStringBuilder.toString());
+        grantKeyAuditEventStringBuilder.append("},\"grant\":{\"type\":");
+        if (grantApiKeyRequest.getGrant().getType() != null) {
+            grantKeyAuditEventStringBuilder.append("\"").append(grantApiKeyRequest.getGrant().getType()).append("\"");
+        } else {
+            grantKeyAuditEventStringBuilder.append("null");
+        }
+        if (grantApiKeyRequest.getGrant().getUsername() != null) {
+            grantKeyAuditEventStringBuilder.append(",\"user\":{\"name\":\"").append(grantApiKeyRequest.getGrant().getUsername())
+                    .append("\",\"has_password\":").append(grantApiKeyRequest.getGrant().getPassword() != null).append("}");
+        }
+        if (grantApiKeyRequest.getGrant().getAccessToken() != null) {
+            grantKeyAuditEventStringBuilder.append(",\"has_access_token\":").append(true);
+        }
+        grantKeyAuditEventStringBuilder.append("}}");
+        String expectedGrantKeyAuditEventString = grantKeyAuditEventStringBuilder.toString();
+        assertThat(generatedGrantKeyAuditEventString, containsString(expectedGrantKeyAuditEventString));
+        generatedGrantKeyAuditEventString = generatedGrantKeyAuditEventString.replace(", " + expectedGrantKeyAuditEventString, "");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedGrantKeyAuditEventString, checkedFields.immutableMap());
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

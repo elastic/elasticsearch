@@ -1009,14 +1009,17 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             withRequestBody(builder, grantApiKeyRequest.getApiKeyRequest());
             GrantApiKeyRequest.Grant grant = grantApiKeyRequest.getGrant();
             builder.startObject("grant")
-                        .field("type", grant.getType())
-                        .startObject("user")
-                            .field("name", grant.getUsername())
-                            // unknown realm
-                            .field("has_password", grant.getPassword() != null)
-                            .field("has_access_token", grant.getAccessToken() != null)
-                        .endObject() // user
-                    .endObject(); // grant
+                        .field("type", grant.getType());
+                        if (grant.getUsername() != null) {
+                            builder.startObject("user")
+                                    .field("name", grant.getUsername())
+                                    .field("has_password", grant.getPassword() != null)
+                                    .endObject(); // user
+                        }
+                        if (grant.getAccessToken() != null) {
+                            builder.field("has_access_token", grant.getAccessToken() != null);
+                        }
+                    builder.endObject(); // grant
             builder.endObject();
             logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;

@@ -60,8 +60,7 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
-            (ignored, lookup) -> fieldData);
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, lookup) -> fieldData);
     }
 
     private FieldScript.LeafFactory compile(String expression) {
@@ -85,14 +84,6 @@ public class ExpressionFieldScriptTests extends ESTestCase {
 
     public void testFieldAccess() throws IOException {
         FieldScript script = compile("doc['field'].value").newInstance(null);
-        script.setDocument(1);
-
-        Object result = script.execute();
-        assertThat(result, equalTo(2.718));
-    }
-
-    public void testFieldAccessWithFieldAlias() throws IOException {
-        FieldScript script = compile("doc['alias'].value").newInstance(null);
         script.setDocument(1);
 
         Object result = script.execute();

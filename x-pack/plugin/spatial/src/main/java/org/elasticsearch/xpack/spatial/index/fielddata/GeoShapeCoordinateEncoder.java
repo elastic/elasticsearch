@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 
-public final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
-    public static final GeoShapeCoordinateEncoder INSTANCE = new GeoShapeCoordinateEncoder();
+final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
 
     @Override
     public int encodeX(double x) {

@@ -665,44 +665,86 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param consumer a {@link Runnable} that is executed after operations are blocked
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
-     * @throws InterruptedException            if blocking operations is interrupted
      */
-    public void relocated(final String targetAllocationId, final Consumer<ReplicationTracker.PrimaryContext> consumer)
-        throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
+    public void relocated(final String targetAllocationId,
+                          final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
+                          final ActionListener<Void> listener)
+            throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
-            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
-                forceRefreshes.close();
-                // no shard operation permits are being held here, move state from started to relocated
-                assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED :
-                        "in-flight operations in progress while moving shard state to relocated";
-                /*
-                 * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
-                 * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
-                 */
-                verifyRelocatingState();
-                final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
-                try {
-                    consumer.accept(primaryContext);
-                    synchronized (mutex) {
-                        verifyRelocatingState();
-                        replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under mutex
-                    }
-                } catch (final Exception e) {
+            indexShardOperationPermits.asyncBlockOperations(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    boolean success = false;
                     try {
-                        replicationTracker.abortRelocationHandoff();
-                    } catch (final Exception inner) {
-                        e.addSuppressed(inner);
+                        forceRefreshes.close();
+                        // no shard operation permits are being held here, move state from started to relocated
+                        assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED :
+                                "in-flight operations in progress while moving shard state to relocated";
+                        /*
+                         * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary
+                         * context via a network operation. Doing this under the mutex can implicitly block the cluster state update thread
+                         * on network operations.
+                         */
+                        verifyRelocatingState();
+                        final ReplicationTracker.PrimaryContext primaryContext =
+                                replicationTracker.startRelocationHandoff(targetAllocationId);
+                        final ActionListener<Void> wrappedListener = ActionListener.runAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(Void unused) {
+                                try {
+                                    // make changes to primaryMode and relocated flag only under mutex
+                                    synchronized (mutex) {
+                                        verifyRelocatingState();
+                                        replicationTracker.completeRelocationHandoff();
+                                    }
+                                    releasable.close();
+                                    listener.onResponse(null);
+                                } catch (Exception e) {
+                                    onFailure(e);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                try {
+                                    replicationTracker.abortRelocationHandoff();
+                                } catch (final Exception inner) {
+                                    e.addSuppressed(inner);
+                                }
+                                releasable.close();
+                                listener.onFailure(e);
+                            }
+                        }, releasable::close);
+                        try {
+                            consumer.accept(primaryContext, wrappedListener);
+                        } catch (final Exception e) {
+                            wrappedListener.onFailure(e);
+                        }
+                        success = true;
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    } finally {
+                        if (success == false) {
+                            releasable.close();
+                        }
                     }
-                    throw e;
                 }
-            });
-        } catch (TimeoutException e) {
-            logger.warn("timed out waiting for relocation hand-off to complete");
-            // This is really bad as ongoing replication operations are preventing this shard from completing relocation hand-off.
-            // Fail primary relocation source and target shards.
-            failShard("timed out waiting for relocation hand-off to complete", null);
-            throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof TimeoutException) {
+                        logger.warn("timed out waiting for relocation hand-off to complete");
+                        // This is really bad as ongoing replication operations are preventing this shard from completing relocation
+                        // hand-off.
+                        // Fail primary relocation source and target shards.
+                        failShard("timed out waiting for relocation hand-off to complete", null);
+                        throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            }, 30L, TimeUnit.SECONDS);
         }
     }
 

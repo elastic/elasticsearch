@@ -822,12 +822,11 @@ public class RecoverySourceHandler {
             if (request.isPrimaryRelocation()) {
                 logger.trace("performing relocation hand-off");
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-                cancellableThreads.execute(() -> shard.relocated(request.targetAllocationId(), primaryContext ->
-                        recoveryTarget.handoffPrimaryContext(primaryContext,
-                                ActionListener.wrap(v -> {
-                                    cancellableThreads.checkForCancel();
-                                    completeFinalizationListener(listener, stopWatch);
-                                }, listener::onFailure))));
+                cancellableThreads.execute(() -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext,
+                        ActionListener.wrap(v -> {
+                            cancellableThreads.checkForCancel();
+                            completeFinalizationListener(listener, stopWatch);
+                        }, listener::onFailure)));
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
                  * target are failed (see {@link IndexShard#updateRoutingEntry}).

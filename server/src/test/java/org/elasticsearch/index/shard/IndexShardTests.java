@@ -874,10 +874,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 // relocation source
                 indexShard = newStartedShard(true);
                 ShardRouting routing = indexShard.routingEntry();
-                routing = newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
+                final ShardRouting newRouting = newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
                     true, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));
-                IndexShardTestCase.updateRoutingEntry(indexShard, routing);
-                indexShard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {});
+                IndexShardTestCase.updateRoutingEntry(indexShard, newRouting);
+                PlainActionFuture.<Void, RuntimeException>get(f -> indexShard.relocated(
+                        newRouting.getTargetRelocatingShard().allocationId().getId(),
+                        (primaryContext, listener) -> listener.onResponse(null), f));
                 engineClosed = false;
                 break;
             }
@@ -1756,11 +1758,8 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
             latch.countDown();
-            try {
-                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {});
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            PlainActionFuture.<Void, RuntimeException>get(f -> shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(),
+                    (primaryContext, listener) -> listener.onResponse(null), f));
         });
 
         try (Releasable ignored = acquirePrimaryOperationPermitBlockingly(shard)) {
@@ -1789,7 +1788,10 @@ public class IndexShardTests extends IndexShardTestCase {
         Thread recoveryThread = new Thread(() -> {
             try {
                 startRecovery.await();
-                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> relocationStarted.countDown());
+                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), (primaryContext, listener) -> {
+                    relocationStarted.countDown();
+                    listener.onResponse(null);
+                }, ActionListener.wrap(() -> {}));
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -1876,11 +1878,8 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         AtomicBoolean relocated = new AtomicBoolean();
         final Thread recoveryThread = new Thread(() -> {
-            try {
-                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {});
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            PlainActionFuture.<Void, RuntimeException>get(f -> shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(),
+                    (primaryContext, listener) -> listener.onResponse(null), f));
             relocated.set(true);
         });
         // ensure we wait for all primary operation locks to be acquired
@@ -1907,12 +1906,14 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testRelocatedShardCanNotBeRevived() throws IOException, InterruptedException {
+    public void testRelocatedShardCanNotBeRevived() throws IOException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
         final ShardRouting routing = ShardRoutingHelper.relocate(originalRouting, "other_node");
         IndexShardTestCase.updateRoutingEntry(shard, routing);
-        shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {});
+        PlainActionFuture.<Void,RuntimeException>get(f ->
+                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(),
+                        (primaryContext, listener) -> listener.onResponse(null), f));
         expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, originalRouting));
         closeShards(shard);
     }
@@ -1924,7 +1925,9 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         IndexShardTestCase.updateRoutingEntry(shard, originalRouting);
         expectThrows(IllegalIndexShardStateException.class,
-            () ->  shard.relocated(relocationRouting.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}));
+                () -> PlainActionFuture.<Void, RuntimeException>get(f -> shard.relocated(
+                        relocationRouting.getTargetRelocatingShard().allocationId().getId(),
+                        (primaryContext, listener) -> fail("should not be called"), f)));
         closeShards(shard);
     }
 
@@ -1944,7 +1947,10 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             protected void doRun() throws Exception {
                 cyclicBarrier.await();
-                shard.relocated(relocationRouting.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {});
+                final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                shard.relocated(relocationRouting.getTargetRelocatingShard().allocationId().getId(),
+                        (primaryContext, listener) -> listener.onResponse(null), future);
+                future.actionGet();
             }
         });
         relocationThread.start();
@@ -1991,11 +1997,16 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(shard, toNode2);
         final AtomicBoolean relocated = new AtomicBoolean();
         final IllegalStateException error = expectThrows(IllegalStateException.class,
-            () -> shard.relocated(toNode1.getTargetRelocatingShard().allocationId().getId(), ctx -> relocated.set(true)));
+                () -> PlainActionFuture.<Void, RuntimeException>get(f -> shard.relocated(
+                        toNode1.getTargetRelocatingShard().allocationId().getId(), (ctx, listener) -> relocated.set(true), f)));
         assertThat(error.getMessage(), equalTo("relocation target [" + toNode1.getTargetRelocatingShard().allocationId().getId()
             + "] is no longer part of the replication group"));
         assertFalse(relocated.get());
-        shard.relocated(toNode2.getTargetRelocatingShard().allocationId().getId(), ctx -> relocated.set(true));
+        PlainActionFuture.<Void, RuntimeException>get(f -> shard.relocated(toNode2.getTargetRelocatingShard().allocationId().getId(),
+                (ctx, listener) -> {
+                    relocated.set(true);
+                    listener.onResponse(null);
+                }, f));
         assertTrue(relocated.get());
         closeShards(shard);
     }
@@ -2302,13 +2313,15 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-    public void testRecoveryFailsAfterMovingToRelocatedState() throws InterruptedException, IOException {
+    public void testRecoveryFailsAfterMovingToRelocatedState() throws IOException {
         final IndexShard shard = newStartedShard(true);
         ShardRouting origRouting = shard.routingEntry();
         assertThat(shard.state(), equalTo(IndexShardState.STARTED));
         ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(origRouting, "some_node");
         IndexShardTestCase.updateRoutingEntry(shard, inRecoveryRouting);
-        shard.relocated(inRecoveryRouting.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {});
+        PlainActionFuture.<Void, RuntimeException>get(f ->
+                shard.relocated(inRecoveryRouting.getTargetRelocatingShard().allocationId().getId(),
+                        (primaryContext, listener) -> listener.onResponse(null), f));
         assertTrue(shard.isRelocatedPrimary());
         try {
             IndexShardTestCase.updateRoutingEntry(shard, origRouting);

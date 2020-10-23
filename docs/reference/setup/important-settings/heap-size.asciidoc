@@ -7,8 +7,9 @@ to ensure that Elasticsearch has enough heap available.
 
 Elasticsearch will assign the entire heap specified in
 <<jvm-options,jvm.options>> via the `Xms` (minimum heap size) and `Xmx` (maximum
-heap size) settings. You should set these two settings to be equal to each
-other.
+heap size) settings. You must set these two settings to be equal to each other
+for a multi-node cluster. You should set these settings to be equal in all
+environments.
 
 The value for these settings depends on the amount of RAM available on your
 server:

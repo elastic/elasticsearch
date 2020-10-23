@@ -12,12 +12,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingCapacity;
-import org.elasticsearch.xpack.autoscaling.decision.FixedAutoscalingDeciderConfiguration;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderConfiguration;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecision;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecisions;
-import org.elasticsearch.xpack.autoscaling.decision.FixedAutoscalingDeciderService;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
+import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResults;
+import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
@@ -31,24 +31,24 @@ import java.util.stream.IntStream;
 
 public abstract class AutoscalingTestCase extends ESTestCase {
 
-    public static AutoscalingDecision randomAutoscalingDecision() {
+    public static AutoscalingDeciderResult randomAutoscalingDeciderResult() {
         AutoscalingCapacity capacity = randomNullableAutoscalingCapacity();
-        return randomAutoscalingDecisionWithCapacity(capacity);
+        return randomAutoscalingDeciderResultWithCapacity(capacity);
     }
 
-    protected static AutoscalingDecision randomAutoscalingDecisionWithCapacity(AutoscalingCapacity capacity) {
-        return new AutoscalingDecision(
+    protected static AutoscalingDeciderResult randomAutoscalingDeciderResultWithCapacity(AutoscalingCapacity capacity) {
+        return new AutoscalingDeciderResult(
             capacity,
             new FixedAutoscalingDeciderService.FixedReason(randomNullableByteSizeValue(), randomNullableByteSizeValue(), randomInt(1000))
         );
     }
 
-    public static AutoscalingDecisions randomAutoscalingDecisions() {
-        final SortedMap<String, AutoscalingDecision> decisions = IntStream.range(0, randomIntBetween(1, 10))
-            .mapToObj(i -> Tuple.tuple(Integer.toString(i), randomAutoscalingDecision()))
+    public static AutoscalingDeciderResults randomAutoscalingDeciderResults() {
+        final SortedMap<String, AutoscalingDeciderResult> results = IntStream.range(0, randomIntBetween(1, 10))
+            .mapToObj(i -> Tuple.tuple(Integer.toString(i), randomAutoscalingDeciderResult()))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new IllegalStateException(); }, TreeMap::new));
         AutoscalingCapacity capacity = new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources());
-        return new AutoscalingDecisions(randomAlphaOfLength(10), capacity, decisions);
+        return new AutoscalingDeciderResults(capacity, results);
     }
 
     public static AutoscalingCapacity randomAutoscalingCapacity() {

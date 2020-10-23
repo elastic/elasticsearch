@@ -162,6 +162,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Multiclas
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric.ConfusionMatrix;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
@@ -342,7 +343,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-job-request
             GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*"); // <1>
             request.setAllowNoMatch(true); // <2>
-            request.setForExport(false); // <3>
+            request.setExcludeGenerated(false); // <3>
             // end::get-job-request
 
             // tag::get-job-execute
@@ -839,7 +840,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-datafeed-request
             GetDatafeedRequest request = new GetDatafeedRequest(datafeedId); // <1>
             request.setAllowNoMatch(true); // <2>
-            request.setForExport(false); // <3>
+            request.setExcludeGenerated(false); // <3>
             // end::get-datafeed-request
 
             // tag::get-datafeed-execute
@@ -2865,7 +2866,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-data-frame-analytics-request
             GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("my-analytics-config"); // <1>
-            request.setForExport(false); // <2>
+            request.setExcludeGenerated(false); // <2>
             // end::get-data-frame-analytics-request
 
             // tag::get-data-frame-analytics-execute
@@ -3529,8 +3530,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <8>
             long otherClassesCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <9>
 
-            AucRocMetric.Result aucRocResult = response.getMetricByName(AucRocMetric.NAME); // <10>
-            double aucRocScore = aucRocResult.getScore(); // <11>
+            AucRocResult aucRocResult = response.getMetricByName(AucRocMetric.NAME); // <10>
+            double aucRocScore = aucRocResult.getValue(); // <11>
             // end::evaluate-data-frame-results-classification
 
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
@@ -3727,7 +3728,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDecompressDefinition(false) // <6>
                 .setAllowNoMatch(true) // <7>
                 .setTags("regression") // <8>
-                .setForExport(false); // <9>
+                .setExcludeGenerated(false); // <9>
             // end::get-trained-models-request
             request.setTags((List<String>)null);
 

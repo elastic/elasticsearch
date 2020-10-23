@@ -136,9 +136,17 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 `num_top_classes`::::
 (Optional, integer)
 Defines the number of categories for which the predicted probabilities are
-reported. It must be non-negative or -1 (which denotes all categories). If it is
-greater than the total number of categories, the API reports all category
-probabilities. Defaults to 2.
+reported. It must be non-negative or -1. If it is -1 or greater than the total
+number of categories, probabilities are reported for all categories; if you have
+a large number of categories, there could be a significant effect on the size of your destination index. Defaults to 2. 
++
+--
+NOTE: To use the
+{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[AUC ROC evaluation method],
+`num_top_classes` must be set to `-1` or a value greater than or equal to the
+total number of categories.
+
+--
 
 `num_top_feature_importance_values`::::
 (Optional, integer)
